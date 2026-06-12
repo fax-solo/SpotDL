@@ -11,5 +11,8 @@
       "src": "api/hello.py",
       "use": "@vercel/python"
     }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/hello.py" }
   ]
 }

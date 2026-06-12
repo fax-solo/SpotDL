@@ -1,8 +1,5 @@
-from fastapi import FastAPI
-
-app = FastAPI()
-
-
-@app.get("/api/hello")
-def hello():
-    return {"message": "hello"}
+def app(environ, start_response):
+    status = "200 OK"
+    headers = [("Content-Type", "application/json")]
+    start_response(status, headers)
+    return [b'{"ok":true}']
