@@ -118,7 +118,8 @@ def _get_spotify_token() -> str | None:
     resp = requests.post("https://accounts.spotify.com/api/token", headers=headers, data=data, timeout=10)
     if resp.status_code == 200:
         return resp.json().get("access_token")
-    return None
+    else:
+        raise RuntimeError(f"Spotify API Key Error: Please check your SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET. Spotify says: {resp.text}")
 
 
 def _fetch_official_track(track_id: str, token: str) -> dict:
