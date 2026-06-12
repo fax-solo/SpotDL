@@ -29,11 +29,12 @@ def _get_cookie_opts() -> dict:
         logger.info("Using cookies file from env: %s", env_file)
         return {"cookiefile": env_file}
 
-    # 2. cookies.txt next to this script (easiest manual method)
-    cookies_file = os.path.join(os.path.dirname(__file__), "cookies.txt")
-    if os.path.isfile(cookies_file):
-        logger.info("Using cookies file: %s", cookies_file)
-        return {"cookiefile": cookies_file}
+    # 2. cookies.txt next to this script or in project root
+    for d in [os.path.dirname(__file__), os.path.join(os.path.dirname(__file__), "..")]:
+        cookies_file = os.path.normpath(os.path.join(d, "cookies.txt"))
+        if os.path.isfile(cookies_file):
+            logger.info("Using cookies file: %s", cookies_file)
+            return {"cookiefile": cookies_file}
 
     # 3. Try each browser – actually probe yt-dlp with it
     for browser in _BROWSERS_TO_TRY:
