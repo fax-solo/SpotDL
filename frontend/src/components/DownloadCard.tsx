@@ -81,26 +81,26 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
         await downloadFile(blob, filename)
         done++
         setCompletedCount(done)
+        setMessage(`Downloading ${done}/${trackList.length} tracks...`)
         onDownloadComplete({
           title: track.title,
           artist: track.artist,
           album: track.album,
           artworkUrl: track.artwork_url,
         })
-      } catch {
+      } catch (err) {
         setStatus('error')
-        setMessage(`Failed: ${track.title}`)
+        const detail = err instanceof Error ? err.message : 'Unknown error'
+        setMessage(`Failed "${track.title}": ${detail}`)
         failed = true
         setDownloadingAll(false)
       }
     }
 
-    const CONCURRENCY = 3
-    for (let i = 0; i < trackList.length; i += CONCURRENCY) {
+    // Download one at a time to avoid overwhelming the serverless backend
+    for (let i = 0; i < trackList.length; i++) {
       if (failed) break
-      const batch = trackList.slice(i, i + CONCURRENCY)
-      setMessage(`Downloading ${Math.min(i + CONCURRENCY, trackList.length)}/${trackList.length} tracks...`)
-      await Promise.all(batch.map(downloadOne))
+      await downloadOne(trackList[i])
     }
 
     if (!failed) {
