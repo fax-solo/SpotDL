@@ -32,20 +32,34 @@ def _copy_to_writable(src: str) -> str:
 def _get_cookie_opts() -> dict:
     """Resolve yt-dlp cookie options once at startup."""
 
-    # 1. Explicit file via environment variable
+    # 1. Cookie content via env var (base64) — works on Vercel where filesystem is read-only
+    env_cookies = os.environ.get("YT_DLP_COOKIES")
+    if env_cookies:
+        dst = os.path.join(tempfile.gettempdir(), "cookies.txt")
+        try:
+            import base64
+            content = base64.b64decode(env_cookies).decode("utf-8")
+        except Exception:
+            content = env_cookies
+        with open(dst, "w") as f:
+            f.write(content)
+        logger.info("Using cookies from YT_DLP_COOKIES env var -> %s", dst)
+        return {"cookiefile": dst}
+
+    # 2. Explicit file path via environment variable
     env_file = os.environ.get("YT_DLP_COOKIES_FILE")
     if env_file and os.path.isfile(env_file):
         logger.info("Using cookies file from env: %s", env_file)
         return {"cookiefile": _copy_to_writable(env_file)}
 
-    # 2. cookies.txt next to this script or in project root
+    # 3. cookies.txt next to this script or in project root
     for d in [os.path.dirname(__file__), os.path.join(os.path.dirname(__file__), "..")]:
         cookies_file = os.path.normpath(os.path.join(d, "cookies.txt"))
         if os.path.isfile(cookies_file):
             logger.info("Using cookies file: %s", cookies_file)
             return {"cookiefile": _copy_to_writable(cookies_file)}
 
-    # 3. Try each browser – actually probe yt-dlp with it
+    # 4. Try each browser – actually probe yt-dlp with it
     for browser in _BROWSERS_TO_TRY:
         try:
             test_opts = {
@@ -69,9 +83,6 @@ def _get_cookie_opts() -> dict:
         "Export your YouTube cookies to api/cookies.txt or log in to a browser on this machine."
     )
     return {}
-
-
-_COOKIE_OPTS: dict = _get_cookie_opts()
 
 
 _COOKIE_OPTS: dict = _get_cookie_opts()
