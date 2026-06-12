@@ -6,6 +6,10 @@
       "config": {
         "distDir": "frontend/dist"
       }
+    },
+    {
+      "src": "api/hello.py",
+      "use": "@vercel/python"
     }
   ]
 }
