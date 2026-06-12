@@ -1,5 +1,10 @@
 import os
+import sys
 import shutil
+import traceback
+
+# Ensure sibling modules are importable on Vercel
+sys.path.insert(0, os.path.dirname(__file__))
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,6 +45,7 @@ def get_metadata(url: str = Query(..., description="Spotify track/album/playlist
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=502, detail=str(e))
 
 
@@ -50,6 +56,7 @@ def download(body: DownloadRequest):
     try:
         filepath, ext = download_track(body.title, body.artist, body.album, body.artwork_url)
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=502, detail=str(e))
 
     def cleanup():
