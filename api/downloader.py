@@ -80,11 +80,19 @@ _COOKIE_OPTS: dict = _get_cookie_opts()
 _EXTRACTOR_ARGS = {
     "youtube": {
         "skip": ["dash", "hls"],
-        "player_client": ["android", "web"],
     },
 }
 
-_BASE_OPTS = {
+_SEARCH_OPTS = {
+    "quiet": True,
+    "no_warnings": True,
+    "source_address": "0.0.0.0",
+    "extractor_retries": 3,
+    "throttled_rate": "100K",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+}
+
+_DOWNLOAD_OPTS = {
     "quiet": True,
     "no_warnings": True,
     "source_address": "0.0.0.0",
@@ -102,7 +110,7 @@ def _find_ffmpeg() -> bool:
 
 def search_youtube(query: str) -> str | None:
     opts = {
-        **_BASE_OPTS,
+        **_SEARCH_OPTS,
         "extract_flat": True,
         "default_search": "ytsearch1",
         **_COOKIE_OPTS,
@@ -137,7 +145,7 @@ def download_track(
 
     if ffmpeg_available:
         opts = {
-            **_BASE_OPTS,
+            **_DOWNLOAD_OPTS,
             "format": "bestaudio/best",
             "outtmpl": outtmpl,
             "postprocessors": [
@@ -151,7 +159,7 @@ def download_track(
         }
     else:
         opts = {
-            **_BASE_OPTS,
+            **_DOWNLOAD_OPTS,
             "format": "bestaudio[ext=m4a]/bestaudio",
             "outtmpl": outtmpl,
             **_COOKIE_OPTS,
