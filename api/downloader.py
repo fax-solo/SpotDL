@@ -63,7 +63,7 @@ def download_track(
     if ffmpeg_available:
         opts = {
             **_get_base_opts(),
-            "format": "bestaudio/best",
+            "format": "bestaudio[ext=mp3]/bestaudio/best",
             "outtmpl": outtmpl,
             "postprocessors": [
                 {
@@ -76,7 +76,7 @@ def download_track(
     else:
         opts = {
             **_get_base_opts(),
-            "format": "bestaudio/best",
+            "format": "bestaudio[ext=mp3]/best[ext=mp3]/bestaudio/best",
             "outtmpl": outtmpl,
         }
 

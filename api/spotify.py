@@ -1,5 +1,7 @@
+import os
 import re
 import json
+import base64
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -99,19 +101,114 @@ def _scrape_collection(kind: str, collection_id: str) -> list[dict]:
     return tracks
 
 
+def _get_spotify_token() -> str | None:
+    client_id = os.environ.get("SPOTIFY_CLIENT_ID")
+    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        return None
+
+    auth_string = f"{client_id}:{client_secret}"
+    auth_b64 = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
+    headers = {
+        "Authorization": f"Basic {auth_b64}",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    data = {"grant_type": "client_credentials"}
+    
+    resp = requests.post("https://accounts.spotify.com/api/token", headers=headers, data=data, timeout=10)
+    if resp.status_code == 200:
+        return resp.json().get("access_token")
+    return None
+
+
+def _fetch_official_track(track_id: str, token: str) -> dict:
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(f"https://api.spotify.com/v1/tracks/{track_id}", headers=headers, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    
+    artwork = None
+    if data.get("album", {}).get("images"):
+        artwork = data["album"]["images"][0]["url"]
+        
+    return {
+        "title": data.get("name", "Unknown Track"),
+        "artist": ", ".join(a["name"] for a in data.get("artists", [])),
+        "album": data.get("album", {}).get("name", "Single"),
+        "artwork_url": artwork,
+        "url": data["external_urls"]["spotify"],
+        "type": "track",
+    }
+
+
+def _fetch_official_collection(kind: str, collection_id: str, token: str) -> list[dict]:
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Fetch collection details
+    coll_resp = requests.get(f"https://api.spotify.com/v1/{kind}s/{collection_id}", headers=headers, timeout=10)
+    coll_resp.raise_for_status()
+    coll_data = coll_resp.json()
+    
+    collection_name = coll_data.get("name", "Unknown Album/Playlist")
+    collection_artwork = None
+    if coll_data.get("images"):
+        collection_artwork = coll_data["images"][0]["url"]
+        
+    tracks = []
+    
+    # Pagination
+    url = f"https://api.spotify.com/v1/{kind}s/{collection_id}/tracks?limit=100"
+    while url:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        for item in data.get("items", []):
+            track = item.get("track") if kind == "playlist" else item
+            if not track or not track.get("id"):
+                continue
+                
+            track_artwork = collection_artwork
+            if kind == "playlist" and track.get("album", {}).get("images"):
+                track_artwork = track["album"]["images"][0]["url"]
+                
+            tracks.append({
+                "title": track.get("name", "Unknown Track"),
+                "artist": ", ".join(a["name"] for a in track.get("artists", [])),
+                "album": track.get("album", {}).get("name", collection_name if kind == "album" else "Unknown Album"),
+                "artwork_url": track_artwork,
+                "url": track.get("external_urls", {}).get("spotify", f"https://open.spotify.com/track/{track['id']}"),
+                "type": "track",
+            })
+            
+        url = data.get("next")
+        
+    return tracks
+
+
 def fetch_metadata(url: str) -> dict | list[dict]:
     parsed = parse_url(url)
     if not parsed:
         raise ValueError("Could not parse Spotify URL")
     
     kind, id_ = parsed
+    
+    token = _get_spotify_token()
+    
     try:
-        if kind == "track":
-            return _scrape_track(id_)
-        elif kind in ("album", "playlist"):
-            return _scrape_collection(kind, id_)
+        if token:
+            if kind == "track":
+                return _fetch_official_track(id_, token)
+            elif kind in ("album", "playlist"):
+                return _fetch_official_collection(kind, id_, token)
+        else:
+            # Fallback to embed scraper
+            if kind == "track":
+                return _scrape_track(id_)
+            elif kind in ("album", "playlist"):
+                return _scrape_collection(kind, id_)
     except requests.RequestException as e:
-        raise RuntimeError(f"Failed to fetch Spotify page: {e}")
+        raise RuntimeError(f"Failed to fetch Spotify page/API: {e}")
     except Exception as e:
         raise RuntimeError(str(e))
         
