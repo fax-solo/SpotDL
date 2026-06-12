@@ -2,11 +2,50 @@ import os
 import re
 import shutil
 import tempfile
+import logging
 
 import yt_dlp
 import requests
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, error as MutagenError
 from mutagen.mp4 import MP4, MP4Cover
+
+logger = logging.getLogger(__name__)
+
+# Browser priority order for cookie extraction
+_BROWSERS = ["chrome", "firefox", "chromium", "edge", "opera"]
+
+
+def _get_cookie_opts() -> dict:
+    """Try each browser in order; return yt-dlp opts for the first one that works."""
+    for browser in _BROWSERS:
+        try:
+            test_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "extract_flat": True,
+                "cookiesfrombrowser": (browser,),
+            }
+            # Quick probe — if the browser profile isn't available yt-dlp
+            # raises an error during YoutubeDL construction or first request.
+            with yt_dlp.YoutubeDL(test_opts) as ydl:
+                ydl.extract_info("ytsearch1:test", download=False)
+            logger.info("Using cookies from browser: %s", browser)
+            return {"cookiesfrombrowser": (browser,)}
+        except Exception:
+            continue
+
+    # Also check for a cookies.txt file next to this script
+    cookies_file = os.path.join(os.path.dirname(__file__), "cookies.txt")
+    if os.path.isfile(cookies_file):
+        logger.info("Using cookies file: %s", cookies_file)
+        return {"cookiefile": cookies_file}
+
+    logger.warning("No browser cookies or cookies.txt found — YouTube may block requests")
+    return {}
+
+
+# Resolve once at import time so we don't probe every request
+_COOKIE_OPTS: dict = _get_cookie_opts()
 
 
 def _find_ffmpeg() -> bool:
@@ -20,6 +59,7 @@ def search_youtube(query: str) -> str | None:
         "extract_flat": True,
         "default_search": "ytsearch1",
         "source_address": "0.0.0.0",
+        **_COOKIE_OPTS,
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(f"ytsearch1:{query}", download=False)
@@ -63,6 +103,7 @@ def download_track(
             "quiet": True,
             "no_warnings": True,
             "source_address": "0.0.0.0",
+            **_COOKIE_OPTS,
         }
     else:
         opts = {
@@ -71,6 +112,7 @@ def download_track(
             "quiet": True,
             "no_warnings": True,
             "source_address": "0.0.0.0",
+            **_COOKIE_OPTS,
         }
 
     with yt_dlp.YoutubeDL(opts) as ydl:
