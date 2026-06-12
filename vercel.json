@@ -1,10 +1,15 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
-  "functions": {
-    "api/hello.py": {
-      "maxDuration": 10,
-      "memory": 256
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "frontend/dist"
+      }
+    },
+    {
+      "src": "api/hello.py",
+      "use": "@vercel/python"
     }
-  }
+  ]
 }
