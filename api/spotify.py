@@ -197,16 +197,24 @@ def fetch_metadata(url: str) -> dict | list[dict]:
     
     try:
         if token:
-            if kind == "track":
-                return _fetch_official_track(id_, token)
-            elif kind in ("album", "playlist"):
-                return _fetch_official_collection(kind, id_, token)
-        else:
-            # Fallback to embed scraper
-            if kind == "track":
-                return _scrape_track(id_)
-            elif kind in ("album", "playlist"):
-                return _scrape_collection(kind, id_)
+            try:
+                if kind == "track":
+                    return _fetch_official_track(id_, token)
+                elif kind in ("album", "playlist"):
+                    return _fetch_official_collection(kind, id_, token)
+            except requests.exceptions.HTTPError as e:
+                # If 403/404, it might be a private playlist. Fallback to embed scraper!
+                if e.response.status_code in (403, 404):
+                    pass
+                else:
+                    raise e
+                    
+        # Fallback to embed scraper (either no token, or official API was forbidden)
+        if kind == "track":
+            return _scrape_track(id_)
+        elif kind in ("album", "playlist"):
+            return _scrape_collection(kind, id_)
+            
     except requests.RequestException as e:
         raise RuntimeError(f"Failed to fetch Spotify page/API: {e}")
     except Exception as e:
