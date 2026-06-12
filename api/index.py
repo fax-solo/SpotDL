@@ -8,7 +8,6 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
 from spotify import fetch_metadata
-from downloader import download_track
 
 app = FastAPI(title="SpotDL API", version="1.0.0")
 
@@ -28,6 +27,11 @@ class DownloadRequest(BaseModel):
     artwork_url: str | None = None
 
 
+@app.get("/api/ping")
+def ping():
+    return {"ok": True}
+
+
 @app.get("/api/metadata")
 def get_metadata(url: str = Query(..., description="Spotify track/album/playlist URL")):
     try:
@@ -41,6 +45,8 @@ def get_metadata(url: str = Query(..., description="Spotify track/album/playlist
 
 @app.post("/api/download")
 def download(body: DownloadRequest):
+    from downloader import download_track
+
     try:
         filepath, ext = download_track(body.title, body.artist, body.album, body.artwork_url)
     except Exception as e:
