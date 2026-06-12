@@ -13,94 +13,74 @@ from mutagen.mp4 import MP4, MP4Cover
 logger = logging.getLogger(__name__)
 
 
-def _config_home() -> str:
-    return os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+# ---------------------------------------------------------------------------
+# Cookie resolution – order: env var → cookies.txt file → browser cookies
+# ---------------------------------------------------------------------------
 
-
-def _has_firefox_cookies() -> bool:
-    roots = [
-        os.path.join(_config_home(), "mozilla/firefox"),
-        os.path.expanduser("~/.mozilla/firefox"),
-        os.path.expanduser("~/.var/app/org.mozilla.firefox/config/mozilla/firefox"),
-        os.path.expanduser("~/.var/app/org.mozilla.firefox/.mozilla/firefox"),
-        os.path.expanduser("~/snap/firefox/common/.mozilla/firefox"),
-    ]
-    for root in roots:
-        pattern = os.path.join(root, "*", "cookies.sqlite")
-        for path in glob.iglob(pattern):
-            if os.path.isfile(path) and os.path.getsize(path) > 0:
-                return True
-    return False
-
-
-def _has_chrome_cookies() -> bool:
-    config = _config_home()
-    chromium_browsers = {
-        "chrome": "google-chrome",
-        "chromium": "chromium",
-        "edge": "microsoft-edge",
-        "brave": "BraveSoftware/Brave-Browser",
-        "vivaldi": "vivaldi",
-        "opera": "opera",
-    }
-    for name, subdir in chromium_browsers.items():
-        browser_dir = os.path.join(config, subdir)
-        for pattern in ("*/Cookies", "Cookies"):
-            for path in glob.iglob(os.path.join(browser_dir, pattern)):
-                if os.path.isfile(path) and os.path.getsize(path) > 0:
-                    return True
-    return False
+_BROWSERS_TO_TRY = ["firefox", "chrome", "chromium", "edge", "brave", "opera", "vivaldi"]
 
 
 def _get_cookie_opts() -> dict:
+    """Resolve yt-dlp cookie options once at startup."""
+
+    # 1. Explicit file via environment variable
     env_file = os.environ.get("YT_DLP_COOKIES_FILE")
     if env_file and os.path.isfile(env_file):
         logger.info("Using cookies file from env: %s", env_file)
         return {"cookiefile": env_file}
 
-    if _has_firefox_cookies():
-        logger.info("Using cookies from firefox")
-        return {"cookiesfrombrowser": ("firefox",)}
-
-    if _has_chrome_cookies():
-        logger.info("Using cookies from chrome")
-        return {"cookiesfrombrowser": ("chrome",)}
-
+    # 2. cookies.txt next to this script (easiest manual method)
     cookies_file = os.path.join(os.path.dirname(__file__), "cookies.txt")
     if os.path.isfile(cookies_file):
         logger.info("Using cookies file: %s", cookies_file)
         return {"cookiefile": cookies_file}
 
-    logger.warning("No browser cookies or cookies.txt found")
+    # 3. Try each browser – actually probe yt-dlp with it
+    for browser in _BROWSERS_TO_TRY:
+        try:
+            test_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "extract_flat": True,
+                "skip_download": True,
+                "cookiesfrombrowser": (browser,),
+            }
+            with yt_dlp.YoutubeDL(test_opts) as ydl:
+                # A lightweight probe – just search, no download
+                ydl.extract_info("ytsearch1:test", download=False)
+            logger.info("Cookies from browser '%s' work — using them", browser)
+            return {"cookiesfrombrowser": (browser,)}
+        except Exception as exc:
+            logger.debug("Browser '%s' failed: %s", browser, exc)
+            continue
+
+    logger.warning(
+        "⚠ No browser cookies or cookies.txt found. "
+        "YouTube will likely block downloads. "
+        "Export your YouTube cookies to api/cookies.txt or log in to a browser on this machine."
+    )
     return {}
 
 
 _COOKIE_OPTS: dict = _get_cookie_opts()
 
+_COMMON_OPTS = {
+    "quiet": True,
+    "no_warnings": True,
+    "source_address": "0.0.0.0",
+    "extractor_retries": 3,
+    "retries": 5,
+    "user_agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+    ),
+    **_COOKIE_OPTS,
+}
+
 _EXTRACTOR_ARGS = {
     "youtube": {
         "skip": ["dash", "hls"],
     },
-}
-
-_SEARCH_OPTS = {
-    "quiet": True,
-    "no_warnings": True,
-    "source_address": "0.0.0.0",
-    "extractor_retries": 3,
-    "throttled_rate": "100K",
-    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-}
-
-_DOWNLOAD_OPTS = {
-    "quiet": True,
-    "no_warnings": True,
-    "source_address": "0.0.0.0",
-    "extractor_args": _EXTRACTOR_ARGS,
-    "extractor_retries": 3,
-    "retries": 5,
-    "throttled_rate": "100K",
-    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
 }
 
 
@@ -110,10 +90,9 @@ def _find_ffmpeg() -> bool:
 
 def search_youtube(query: str) -> str | None:
     opts = {
-        **_SEARCH_OPTS,
+        **_COMMON_OPTS,
         "extract_flat": True,
         "default_search": "ytsearch1",
-        **_COOKIE_OPTS,
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(f"ytsearch1:{query}", download=False)
@@ -145,7 +124,8 @@ def download_track(
 
     if ffmpeg_available:
         opts = {
-            **_DOWNLOAD_OPTS,
+            **_COMMON_OPTS,
+            "extractor_args": _EXTRACTOR_ARGS,
             "format": "bestaudio/best",
             "outtmpl": outtmpl,
             "postprocessors": [
@@ -155,14 +135,13 @@ def download_track(
                     "preferredquality": "320",
                 }
             ],
-            **_COOKIE_OPTS,
         }
     else:
         opts = {
-            **_DOWNLOAD_OPTS,
+            **_COMMON_OPTS,
+            "extractor_args": _EXTRACTOR_ARGS,
             "format": "bestaudio[ext=m4a]/bestaudio",
             "outtmpl": outtmpl,
-            **_COOKIE_OPTS,
         }
 
     with yt_dlp.YoutubeDL(opts) as ydl:
