@@ -71,17 +71,17 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
     setStatus('loading')
     setMessage(`Downloading 0/${trackList.length} tracks...`)
 
-    let failed = false
-    let done = 0
+    let success = 0
+    let fail = 0
 
-    async function downloadOne(track: TrackMeta) {
-      if (failed) return
+    for (let i = 0; i < trackList.length; i++) {
+      const track = trackList[i]
       try {
+        setMessage(`Downloading ${i + 1}/${trackList.length}: ${track.title}...`)
         const { blob, filename } = await downloadTrack(track)
         await downloadFile(blob, filename)
-        done++
-        setCompletedCount(done)
-        setMessage(`Downloading ${done}/${trackList.length} tracks...`)
+        success++
+        setCompletedCount(success)
         onDownloadComplete({
           title: track.title,
           artist: track.artist,
@@ -89,24 +89,23 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
           artworkUrl: track.artwork_url,
         })
       } catch (err) {
-        setStatus('error')
+        fail++
         const detail = err instanceof Error ? err.message : 'Unknown error'
-        setMessage(`Failed "${track.title}": ${detail}`)
-        failed = true
-        setDownloadingAll(false)
+        console.warn(`Skipped "${track.title}": ${detail}`)
       }
     }
 
-    // Download one at a time to avoid overwhelming the serverless backend
-    for (let i = 0; i < trackList.length; i++) {
-      if (failed) break
-      await downloadOne(trackList[i])
-    }
-
-    if (!failed) {
-      setDownloadingAll(false)
-      setStatus('success')
-      setMessage(`Downloaded all ${trackList.length} tracks!`)
+    setDownloadingAll(false)
+    if (success > 0) {
+      setStatus(fail > 0 ? 'success' : 'success')
+      setMessage(
+        fail > 0
+          ? `Downloaded ${success}/${trackList.length} tracks (${fail} skipped)`
+          : `Downloaded all ${trackList.length} tracks!`,
+      )
+    } else {
+      setStatus('error')
+      setMessage(`All ${trackList.length} tracks failed. Try adding cookies (see README).`)
     }
   }, [trackList, onDownloadComplete])
 
