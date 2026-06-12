@@ -55,7 +55,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 # Install ffmpeg for MP3 conversion (optional — M4A works without it)
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn index:app --host 0.0.0.0 --port 8000
 
 # Frontend (separate terminal)
 cd frontend
