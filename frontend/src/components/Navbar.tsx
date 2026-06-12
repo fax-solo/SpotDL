@@ -1,4 +1,5 @@
 import { Sun, Moon, Music } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useTheme } from '../hooks/useTheme'
 
 export function Navbar() {
@@ -6,10 +7,10 @@ export function Navbar() {
 
   return (
     <nav className="flex items-center justify-between px-6 py-4 border-b border-light-border dark:border-dark-border">
-      <div className="flex items-center gap-2 text-light-text dark:text-dark-text">
+      <Link to="/" className="flex items-center gap-2 text-light-text dark:text-dark-text hover:opacity-80 transition-opacity">
         <Music className="w-6 h-6 text-accent" />
         <span className="text-xl font-semibold">SpotDL</span>
-      </div>
+      </Link>
       <button
         onClick={toggle}
         className="p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
