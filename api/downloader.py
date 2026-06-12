@@ -63,20 +63,19 @@ try:
 except ImportError:
     _IMPERSONATE = None
 
-_COOKIE_OPTS = _resolve_cookies()
-
-_BASE_OPTS = {
-    "quiet": True,
-    "no_warnings": True,
-    "source_address": "0.0.0.0",
-    "extractor_retries": 3,
-    "retries": 5,
-    "throttled_rate": "100K",
-    **_COOKIE_OPTS,
-}
-
-if _IMPERSONATE:
-    _BASE_OPTS["impersonate"] = _IMPERSONATE
+def _get_base_opts() -> dict:
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "source_address": "0.0.0.0",
+        "extractor_retries": 3,
+        "retries": 5,
+        "throttled_rate": "100K",
+        **_resolve_cookies(),
+    }
+    if _IMPERSONATE:
+        opts["impersonate"] = _IMPERSONATE
+    return opts
 
 
 def _find_ffmpeg() -> bool:
@@ -85,7 +84,7 @@ def _find_ffmpeg() -> bool:
 
 def search_youtube(query: str) -> str | None:
     opts = {
-        **_BASE_OPTS,
+        **_get_base_opts(),
         "extract_flat": True,
         "default_search": "ytsearch1",
     }
@@ -119,7 +118,7 @@ def download_track(
 
     if ffmpeg_available:
         opts = {
-            **_BASE_OPTS,
+            **_get_base_opts(),
             "extractor_args": {"youtube": {"skip": ["dash", "hls"]}},
             "format": "bestaudio/best",
             "outtmpl": outtmpl,
@@ -133,7 +132,7 @@ def download_track(
         }
     else:
         opts = {
-            **_BASE_OPTS,
+            **_get_base_opts(),
             "extractor_args": {"youtube": {"skip": ["dash", "hls"]}},
             "format": "bestaudio[ext=m4a]/bestaudio",
             "outtmpl": outtmpl,
