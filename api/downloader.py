@@ -19,6 +19,14 @@ logger = logging.getLogger(__name__)
 # On Vercel: base64-encode the file and set as YT_DLP_COOKIES env var.
 # ---------------------------------------------------------------------------
 
+def _copy_to_writable(src: str) -> str:
+    """Copy cookies to writable temp so yt-dlp's MozillaCookieJar can save."""
+    dst = os.path.join(tempfile.gettempdir(), "cookies.txt")
+    shutil.copy2(src, dst)
+    os.chmod(dst, 0o600)
+    return dst
+
+
 def _resolve_cookies() -> dict:
     """Return yt-dlp cookiefile opts, checking multiple sources."""
 
@@ -36,12 +44,13 @@ def _resolve_cookies() -> dict:
         logger.info("Using cookies from YT_DLP_COOKIES env var")
         return {"cookiefile": dst}
 
-    # 2. cookies.txt in api/ or project root
+    # 2. cookies.txt in api/ or project root (always copy to /tmp/ for writability)
     for d in (os.path.dirname(__file__), os.path.join(os.path.dirname(__file__), "..")):
         path = os.path.normpath(os.path.join(d, "cookies.txt"))
         if os.path.isfile(path):
-            logger.info("Using cookies file: %s", path)
-            return {"cookiefile": path}
+            dst = _copy_to_writable(path)
+            logger.info("Using cookies file (copied to %s)", dst)
+            return {"cookiefile": dst}
 
     logger.warning("No cookies found — YouTube may block downloads")
     return {}
