@@ -11,89 +11,32 @@ from mutagen.mp4 import MP4, MP4Cover
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Authentication  –  cookies.txt (exported from browser extension)
-#
-# Locally: place cookies.txt in the project root or api/ directory.
-# On Vercel: base64-encode the file and set as YT_DLP_COOKIES env var.
-# ---------------------------------------------------------------------------
-
-def _copy_to_writable(src: str) -> str:
-    """Copy cookies to writable temp so yt-dlp's MozillaCookieJar can save."""
-    dst = os.path.join(tempfile.gettempdir(), "cookies.txt")
-    shutil.copy2(src, dst)
-    os.chmod(dst, 0o600)
-    return dst
-
-
-def _resolve_cookies() -> dict:
-    """Return yt-dlp cookiefile opts, checking multiple sources."""
-
-    # 1. Base64-encoded cookie content from env var (for Vercel)
-    env = os.environ.get("YT_DLP_COOKIES")
-    if env:
-        dst = os.path.join(tempfile.gettempdir(), "cookies.txt")
-        try:
-            import base64
-            content = base64.b64decode(env).decode("utf-8")
-        except Exception:
-            content = env
-        with open(dst, "w") as f:
-            f.write(content)
-        logger.info("Using cookies from YT_DLP_COOKIES env var")
-        return {"cookiefile": dst}
-
-    # 2. cookies.txt in api/ or project root (always copy to /tmp/ for writability)
-    for d in (os.path.dirname(__file__), os.path.join(os.path.dirname(__file__), "..")):
-        path = os.path.normpath(os.path.join(d, "cookies.txt"))
-        if os.path.isfile(path):
-            dst = _copy_to_writable(path)
-            logger.info("Using cookies file (copied to %s)", dst)
-            return {"cookiefile": dst}
-
-    logger.warning("No cookies found — YouTube may block downloads")
-    return {}
-
-
-# curl-cffi provides TLS fingerprint impersonation (mimics a real browser handshake)
-try:
-    from yt_dlp.networking.impersonate import ImpersonateTarget
-    _IMPERSONATE = ImpersonateTarget(client="chrome")
-except ImportError:
-    _IMPERSONATE = None
-
 def _get_base_opts() -> dict:
-    opts = {
+    return {
         "quiet": True,
         "no_warnings": True,
         "source_address": "0.0.0.0",
         "extractor_retries": 3,
         "retries": 5,
-        "throttled_rate": "100K",
-        **_resolve_cookies(),
+        "throttled_rate": "5M",
     }
-    if _IMPERSONATE:
-        opts["impersonate"] = _IMPERSONATE
-    return opts
 
 
 def _find_ffmpeg() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
-def search_youtube(query: str) -> str | None:
+def search_track(query: str) -> str | None:
     opts = {
         **_get_base_opts(),
         "extract_flat": True,
-        "default_search": "ytsearch1",
-        "extractor_args": {"youtube": {"client": ["android", "ios"]}},
+        "default_search": "scsearch1",
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(f"ytsearch1:{query}", download=False)
+        info = ydl.extract_info(f"scsearch1:{query}", download=False)
         if not info or "entries" not in info or not info["entries"]:
             return None
-        return f"https://www.youtube.com/watch?v={info['entries'][0]['id']}"
+        return info["entries"][0]["url"]
 
 
 def _safe(s: str) -> str:
@@ -106,10 +49,10 @@ def download_track(
     album: str,
     artwork_url: str | None,
 ) -> tuple[str, str]:
-    query = f"{artist} {title} official audio"
-    youtube_url = search_youtube(query)
-    if not youtube_url:
-        raise RuntimeError(f"No YouTube video found for '{title}' by {artist}")
+    query = f"{artist} {title}"
+    track_url = search_track(query)
+    if not track_url:
+        raise RuntimeError(f"No track found on SoundCloud for '{title}' by {artist}")
 
     tmpdir = tempfile.mkdtemp()
     safe_name = f"{_safe(artist)} - {_safe(title)}"
@@ -120,7 +63,6 @@ def download_track(
     if ffmpeg_available:
         opts = {
             **_get_base_opts(),
-            "extractor_args": {"youtube": {"skip": ["dash", "hls"], "client": ["android", "ios"]}},
             "format": "bestaudio/best",
             "outtmpl": outtmpl,
             "postprocessors": [
@@ -134,13 +76,12 @@ def download_track(
     else:
         opts = {
             **_get_base_opts(),
-            "extractor_args": {"youtube": {"skip": ["dash", "hls"], "client": ["android", "ios"]}},
-            "format": "bestaudio[ext=m4a]/bestaudio",
+            "format": "bestaudio/best",
             "outtmpl": outtmpl,
         }
 
     with yt_dlp.YoutubeDL(opts) as ydl:
-        ydl.download([youtube_url])
+        ydl.download([track_url])
 
     files = os.listdir(tmpdir)
     if not files:
@@ -152,7 +93,7 @@ def download_track(
 
     if ext == ".mp3":
         _tag_mp3(filepath, title, artist, album, artwork_url)
-    elif ext == ".m4a":
+    elif ext in [".m4a", ".aac", ".mp4"]:
         _tag_m4a(filepath, title, artist, album, artwork_url)
 
     return filepath, ext
@@ -183,15 +124,18 @@ def _tag_mp3(path: str, title: str, artist: str, album: str, artwork_url: str | 
 
 
 def _tag_m4a(path: str, title: str, artist: str, album: str, artwork_url: str | None):
-    audio = MP4(path)
-    audio["\xa9nam"] = title
-    audio["\xa9ART"] = artist
-    audio["\xa9alb"] = album
-    if artwork_url:
-        try:
-            resp = requests.get(artwork_url, timeout=10)
-            if resp.status_code == 200:
-                audio["covr"] = [MP4Cover(resp.content, MP4Cover.FORMAT_JPEG)]
-        except requests.RequestException:
-            pass
-    audio.save()
+    try:
+        audio = MP4(path)
+        audio["\xa9nam"] = title
+        audio["\xa9ART"] = artist
+        audio["\xa9alb"] = album
+        if artwork_url:
+            try:
+                resp = requests.get(artwork_url, timeout=10)
+                if resp.status_code == 200:
+                    audio["covr"] = [MP4Cover(resp.content, MP4Cover.FORMAT_JPEG)]
+            except requests.RequestException:
+                pass
+        audio.save()
+    except Exception as e:
+        logger.warning(f"Failed to tag m4a: {e}")
