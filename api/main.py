@@ -42,7 +42,7 @@ def get_metadata(url: str = Query(..., description="Spotify track/album/playlist
 @app.post("/api/download")
 def download(body: DownloadRequest):
     try:
-        filepath = download_track(body.title, body.artist, body.album, body.artwork_url)
+        filepath, ext = download_track(body.title, body.artist, body.album, body.artwork_url)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -51,10 +51,14 @@ def download(body: DownloadRequest):
         if os.path.isdir(parent):
             shutil.rmtree(parent, ignore_errors=True)
 
-    filename = f"{body.artist} - {body.title}.mp3".replace("/", "_")
+    safe_artist = body.artist.replace("/", "_").replace("\\", "_")
+    safe_title = body.title.replace("/", "_").replace("\\", "_")
+    filename = f"{safe_artist} - {safe_title}{ext}"
+    media_type = "audio/mpeg" if ext == ".mp3" else "audio/mp4"
+
     return FileResponse(
         path=filepath,
-        media_type="audio/mpeg",
+        media_type=media_type,
         filename=filename,
         background=BackgroundTask(cleanup),
     )

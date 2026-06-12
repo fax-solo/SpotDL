@@ -1,0 +1,13 @@
+{
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/main.py": {
+      "maxDuration": 60,
+      "memory": 512
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/main" }
+  ]
+}

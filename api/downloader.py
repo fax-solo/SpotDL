@@ -1,11 +1,16 @@
 import os
 import re
-import tempfile
 import shutil
+import tempfile
 
 import yt_dlp
 import requests
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, error as MutagenError
+from mutagen.mp4 import MP4, MP4Cover
+
+
+def _find_ffmpeg() -> bool:
+    return shutil.which("ffmpeg") is not None
 
 
 def search_youtube(query: str) -> str | None:
@@ -32,7 +37,7 @@ def download_track(
     artist: str,
     album: str,
     artwork_url: str | None,
-) -> str:
+) -> tuple[str, str]:
     query = f"{artist} {title} official audio"
     youtube_url = search_youtube(query)
     if not youtube_url:
@@ -42,46 +47,59 @@ def download_track(
     safe_name = f"{_safe(artist)} - {_safe(title)}"
     outtmpl = os.path.join(tmpdir, f"{safe_name}.%(ext)s")
 
-    opts = {
-        "format": "bestaudio/best",
-        "outtmpl": outtmpl,
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "320",
-            }
-        ],
-        "quiet": True,
-        "no_warnings": True,
-        "source_address": "0.0.0.0",
-    }
+    ffmpeg_available = _find_ffmpeg()
+
+    if ffmpeg_available:
+        opts = {
+            "format": "bestaudio/best",
+            "outtmpl": outtmpl,
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "320",
+                }
+            ],
+            "quiet": True,
+            "no_warnings": True,
+            "source_address": "0.0.0.0",
+        }
+    else:
+        opts = {
+            "format": "bestaudio[ext=m4a]/bestaudio",
+            "outtmpl": outtmpl,
+            "quiet": True,
+            "no_warnings": True,
+            "source_address": "0.0.0.0",
+        }
 
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([youtube_url])
 
-    mp3_files = [f for f in os.listdir(tmpdir) if f.endswith(".mp3")]
-    if not mp3_files:
+    files = os.listdir(tmpdir)
+    if not files:
         shutil.rmtree(tmpdir, ignore_errors=True)
-        raise RuntimeError("Downloaded file not found (ffmpeg may be missing)")
+        raise RuntimeError("No files downloaded")
 
-    filepath = os.path.join(tmpdir, mp3_files[0])
+    filepath = os.path.join(tmpdir, files[0])
+    ext = os.path.splitext(filepath)[1].lower()
 
-    tag_file(filepath, title, artist, album, artwork_url)
+    if ext == ".mp3":
+        _tag_mp3(filepath, title, artist, album, artwork_url)
+    elif ext == ".m4a":
+        _tag_m4a(filepath, title, artist, album, artwork_url)
 
-    return filepath
+    return filepath, ext
 
 
-def tag_file(path: str, title: str, artist: str, album: str, artwork_url: str | None):
+def _tag_mp3(path: str, title: str, artist: str, album: str, artwork_url: str | None):
     try:
         audio = ID3(path)
     except MutagenError:
         audio = ID3()
-
     audio["TIT2"] = TIT2(encoding=3, text=title)
     audio["TPE1"] = TPE1(encoding=3, text=artist)
     audio["TALB"] = TALB(encoding=3, text=album)
-
     if artwork_url:
         try:
             resp = requests.get(artwork_url, timeout=10)
@@ -95,5 +113,19 @@ def tag_file(path: str, title: str, artist: str, album: str, artwork_url: str | 
                 )
         except requests.RequestException:
             pass
-
     audio.save(path)
+
+
+def _tag_m4a(path: str, title: str, artist: str, album: str, artwork_url: str | None):
+    audio = MP4(path)
+    audio["\xa9nam"] = title
+    audio["\xa9ART"] = artist
+    audio["\xa9alb"] = album
+    if artwork_url:
+        try:
+            resp = requests.get(artwork_url, timeout=10)
+            if resp.status_code == 200:
+                audio["covr"] = [MP4Cover(resp.content, MP4Cover.FORMAT_JPEG)]
+        except requests.RequestException:
+            pass
+    audio.save()

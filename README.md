@@ -1,90 +1,73 @@
 # SpotDL — Spotify to MP3 Downloader
 
-Download any Spotify track, album, or playlist as high-quality MP3 files — **no API key, no Premium subscription required**.
+Download any Spotify track, album, or playlist as high-quality audio — **no API key, no Premium subscription required**.
 
 ## How It Works
 
 1. Paste a Spotify link → app scrapes public metadata (title, artist, album, cover art) from Spotify's OG tags
 2. Searches YouTube for the best matching audio using yt-dlp
-3. Downloads + converts to 320kbps MP3 via ffmpeg
-4. Tags the file with ID3 metadata (title, artist, album, cover art) via mutagen
+3. Downloads the best available audio (320kbps MP3 if ffmpeg is available, otherwise high-bitrate M4A)
+4. Tags the file with metadata (title, artist, album, cover art)
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS v4 |
-| Backend | FastAPI (Python 3.11+) |
-| Audio | yt-dlp + ffmpeg + mutagen |
-| Mobile | Capacitor (Android) |
-| Hosting | Vercel (frontend) + Railway (backend) |
+| Backend | FastAPI (Python 3.12+) — deployed as Vercel Serverless Function |
+| Audio | yt-dlp + mutagen |
+| Hosting | [Vercel](https://vercel.com) (frontend + API) |
 
-## Prerequisites
+## Deploy to Vercel
 
-- Python 3.11+
-- Node.js 20+
-- [ffmpeg](https://ffmpeg.org/) installed on your system
-- yt-dlp (installed via pip — included in requirements.txt)
+### Prerequisites
 
-## Local Development
-
-### Backend
+Push your repo to GitHub first:
 
 ```bash
-cd backend
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/<your-username>/spotdl.git
+git branch -M main
+git push -u origin main
+```
+
+### One-click deploy
+
+| Step | Action |
+|------|--------|
+| 1 | Go to [vercel.com/new](https://vercel.com/new) |
+| 2 | Import your `spotdl` repo |
+| 3 | Click **Deploy** — that's it |
+
+Vercel auto-detects:
+- `api/` → Python serverless function (FastAPI)
+- `frontend/` → Vite static site
+- `vercel.json` → routes `/api/*` to the backend, everything else to the frontend
+
+### Local Development
+
+```bash
+# Backend
+cd api
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+# Install ffmpeg for MP3 conversion (optional — M4A works without it)
 uvicorn main:app --host 0.0.0.0 --port 8000
-```
 
-### Frontend
-
-```bash
+# Frontend (separate terminal)
 cd frontend
 npm install
 VITE_API_URL=http://localhost:8000 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
-
-## Deployment
-
-### Backend → Railway
-
-| Step | Action |
-|------|--------|
-| 1 | Push repo to GitHub |
-| 2 | Go to [railway.app/new](https://railway.app/new) → **Deploy from GitHub repo** |
-| 3 | Set root directory to `backend` |
-| 4 | Railway auto-detects Python and installs ffmpeg (via `nixpacks.toml`) |
-| 5 | Copy your Railway URL (e.g. `https://spotdl-backend.up.railway.app`) |
-
-### Frontend → Vercel
-
-| Step | Action |
-|------|--------|
-| 1 | Go to [vercel.com/new](https://vercel.com/new) → import your repo |
-| 2 | Set root directory to `frontend` |
-| 3 | Add env variable: `VITE_API_URL` = your Railway URL |
-| 4 | Deploy |
-
-## Android Build (Capacitor)
-
-```bash
-cd frontend
-npm run build
-npx cap sync
-npx cap open android
-```
-
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_API_URL` | Yes (frontend) | Backend URL (e.g. `http://localhost:8000` or Railway URL) |
+None required for Vercel deployment. The frontend defaults to same-origin API requests.
 
-No Spotify API keys or environment variables are needed on the backend.
+For local development, set `VITE_API_URL` to your backend URL.
 
 ## License
 
