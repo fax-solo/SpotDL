@@ -1,0 +1,4 @@
+{
+  "buildDir": "./backend",
+  "aptPackages": ["ffmpeg"]
+}
