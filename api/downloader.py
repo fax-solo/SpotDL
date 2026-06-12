@@ -20,6 +20,15 @@ logger = logging.getLogger(__name__)
 _BROWSERS_TO_TRY = ["firefox", "chrome", "chromium", "edge", "brave", "opera", "vivaldi"]
 
 
+def _copy_to_writable(src: str) -> str:
+    """Copy cookie file to a writable temp location (Vercel's /var/task/ is read-only)."""
+    dst = os.path.join(tempfile.gettempdir(), "cookies.txt")
+    shutil.copy2(src, dst)
+    if src != dst:
+        logger.debug("Cookies file copied to writable path: %s", dst)
+    return dst
+
+
 def _get_cookie_opts() -> dict:
     """Resolve yt-dlp cookie options once at startup."""
 
@@ -27,14 +36,14 @@ def _get_cookie_opts() -> dict:
     env_file = os.environ.get("YT_DLP_COOKIES_FILE")
     if env_file and os.path.isfile(env_file):
         logger.info("Using cookies file from env: %s", env_file)
-        return {"cookiefile": env_file}
+        return {"cookiefile": _copy_to_writable(env_file)}
 
     # 2. cookies.txt next to this script or in project root
     for d in [os.path.dirname(__file__), os.path.join(os.path.dirname(__file__), "..")]:
         cookies_file = os.path.normpath(os.path.join(d, "cookies.txt"))
         if os.path.isfile(cookies_file):
             logger.info("Using cookies file: %s", cookies_file)
-            return {"cookiefile": cookies_file}
+            return {"cookiefile": _copy_to_writable(cookies_file)}
 
     # 3. Try each browser – actually probe yt-dlp with it
     for browser in _BROWSERS_TO_TRY:
@@ -47,7 +56,6 @@ def _get_cookie_opts() -> dict:
                 "cookiesfrombrowser": (browser,),
             }
             with yt_dlp.YoutubeDL(test_opts) as ydl:
-                # A lightweight probe – just search, no download
                 ydl.extract_info("ytsearch1:test", download=False)
             logger.info("Cookies from browser '%s' work — using them", browser)
             return {"cookiesfrombrowser": (browser,)}
@@ -56,11 +64,14 @@ def _get_cookie_opts() -> dict:
             continue
 
     logger.warning(
-        "⚠ No browser cookies or cookies.txt found. "
+        "No browser cookies or cookies.txt found. "
         "YouTube will likely block downloads. "
         "Export your YouTube cookies to api/cookies.txt or log in to a browser on this machine."
     )
     return {}
+
+
+_COOKIE_OPTS: dict = _get_cookie_opts()
 
 
 _COOKIE_OPTS: dict = _get_cookie_opts()
