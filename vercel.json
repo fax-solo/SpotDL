@@ -1,4 +1,10 @@
 {
   "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist"
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/hello.py": {
+      "maxDuration": 10,
+      "memory": 256
+    }
+  }
 }
