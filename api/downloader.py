@@ -1,3 +1,4 @@
+import glob
 import os
 import re
 import shutil
@@ -11,7 +12,44 @@ from mutagen.mp4 import MP4, MP4Cover
 
 logger = logging.getLogger(__name__)
 
-_BROWSERS = ["chrome", "firefox", "chromium", "edge", "opera"]
+
+def _config_home() -> str:
+    return os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+
+
+def _has_firefox_cookies() -> bool:
+    roots = [
+        os.path.join(_config_home(), "mozilla/firefox"),
+        os.path.expanduser("~/.mozilla/firefox"),
+        os.path.expanduser("~/.var/app/org.mozilla.firefox/config/mozilla/firefox"),
+        os.path.expanduser("~/.var/app/org.mozilla.firefox/.mozilla/firefox"),
+        os.path.expanduser("~/snap/firefox/common/.mozilla/firefox"),
+    ]
+    for root in roots:
+        pattern = os.path.join(root, "*", "cookies.sqlite")
+        for path in glob.iglob(pattern):
+            if os.path.isfile(path) and os.path.getsize(path) > 0:
+                return True
+    return False
+
+
+def _has_chrome_cookies() -> bool:
+    config = _config_home()
+    chromium_browsers = {
+        "chrome": "google-chrome",
+        "chromium": "chromium",
+        "edge": "microsoft-edge",
+        "brave": "BraveSoftware/Brave-Browser",
+        "vivaldi": "vivaldi",
+        "opera": "opera",
+    }
+    for name, subdir in chromium_browsers.items():
+        browser_dir = os.path.join(config, subdir)
+        for pattern in ("*/Cookies", "Cookies"):
+            for path in glob.iglob(os.path.join(browser_dir, pattern)):
+                if os.path.isfile(path) and os.path.getsize(path) > 0:
+                    return True
+    return False
 
 
 def _get_cookie_opts() -> dict:
@@ -20,20 +58,13 @@ def _get_cookie_opts() -> dict:
         logger.info("Using cookies file from env: %s", env_file)
         return {"cookiefile": env_file}
 
-    for browser in _BROWSERS:
-        try:
-            test_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "extract_flat": True,
-                "cookiesfrombrowser": (browser,),
-            }
-            with yt_dlp.YoutubeDL(test_opts) as ydl:
-                ydl.extract_info("ytsearch1:test", download=False)
-            logger.info("Using cookies from browser: %s", browser)
-            return {"cookiesfrombrowser": (browser,)}
-        except Exception:
-            continue
+    if _has_firefox_cookies():
+        logger.info("Using cookies from firefox")
+        return {"cookiesfrombrowser": ("firefox",)}
+
+    if _has_chrome_cookies():
+        logger.info("Using cookies from chrome")
+        return {"cookiesfrombrowser": ("chrome",)}
 
     cookies_file = os.path.join(os.path.dirname(__file__), "cookies.txt")
     if os.path.isfile(cookies_file):
@@ -49,6 +80,7 @@ _COOKIE_OPTS: dict = _get_cookie_opts()
 _EXTRACTOR_ARGS = {
     "youtube": {
         "skip": ["dash", "hls"],
+        "player_client": ["android", "web"],
     },
 }
 

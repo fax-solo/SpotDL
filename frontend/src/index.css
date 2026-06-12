@@ -4,10 +4,12 @@
 
 @theme {
   --color-dark-bg: #0B0F19;
+  --color-dark-surface: #111827;
   --color-dark-border: #1E293B;
   --color-dark-text: #F1F5F9;
   --color-dark-muted: #94A3B8;
   --color-light-bg: #F8FAFC;
+  --color-light-surface: #FFFFFF;
   --color-light-text: #0F172A;
   --color-light-border: #E2E8F0;
   --color-light-muted: #64748B;
