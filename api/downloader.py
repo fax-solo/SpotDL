@@ -1,4 +1,3 @@
-import glob
 import os
 import re
 import shutil
@@ -14,97 +13,61 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Cookie resolution – order: env var → cookies.txt file → browser cookies
+# Authentication  –  cookies.txt (exported from browser extension)
+#
+# Locally: place cookies.txt in the project root or api/ directory.
+# On Vercel: base64-encode the file and set as YT_DLP_COOKIES env var.
 # ---------------------------------------------------------------------------
 
-_BROWSERS_TO_TRY = ["firefox", "chrome", "chromium", "edge", "brave", "opera", "vivaldi"]
+def _resolve_cookies() -> dict:
+    """Return yt-dlp cookiefile opts, checking multiple sources."""
 
-
-def _copy_to_writable(src: str) -> str:
-    """Copy cookie file to a writable temp location (Vercel's /var/task/ is read-only)."""
-    dst = os.path.join(tempfile.gettempdir(), "cookies.txt")
-    shutil.copy2(src, dst)
-    if src != dst:
-        logger.debug("Cookies file copied to writable path: %s", dst)
-    return dst
-
-
-def _get_cookie_opts() -> dict:
-    """Resolve yt-dlp cookie options once at startup."""
-
-    # 1. Cookie content via env var (base64) — works on Vercel where filesystem is read-only
-    env_cookies = os.environ.get("YT_DLP_COOKIES")
-    if env_cookies:
+    # 1. Base64-encoded cookie content from env var (for Vercel)
+    env = os.environ.get("YT_DLP_COOKIES")
+    if env:
         dst = os.path.join(tempfile.gettempdir(), "cookies.txt")
         try:
             import base64
-            content = base64.b64decode(env_cookies).decode("utf-8")
+            content = base64.b64decode(env).decode("utf-8")
         except Exception:
-            content = env_cookies
+            content = env
         with open(dst, "w") as f:
             f.write(content)
-        logger.info("Using cookies from YT_DLP_COOKIES env var -> %s", dst)
+        logger.info("Using cookies from YT_DLP_COOKIES env var")
         return {"cookiefile": dst}
 
-    # 2. Explicit file path via environment variable
-    env_file = os.environ.get("YT_DLP_COOKIES_FILE")
-    if env_file and os.path.isfile(env_file):
-        logger.info("Using cookies file from env: %s", env_file)
-        return {"cookiefile": _copy_to_writable(env_file)}
+    # 2. cookies.txt in api/ or project root
+    for d in (os.path.dirname(__file__), os.path.join(os.path.dirname(__file__), "..")):
+        path = os.path.normpath(os.path.join(d, "cookies.txt"))
+        if os.path.isfile(path):
+            logger.info("Using cookies file: %s", path)
+            return {"cookiefile": path}
 
-    # 3. cookies.txt next to this script or in project root
-    for d in [os.path.dirname(__file__), os.path.join(os.path.dirname(__file__), "..")]:
-        cookies_file = os.path.normpath(os.path.join(d, "cookies.txt"))
-        if os.path.isfile(cookies_file):
-            logger.info("Using cookies file: %s", cookies_file)
-            return {"cookiefile": _copy_to_writable(cookies_file)}
-
-    # 4. Try each browser – actually probe yt-dlp with it
-    for browser in _BROWSERS_TO_TRY:
-        try:
-            test_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "extract_flat": True,
-                "skip_download": True,
-                "cookiesfrombrowser": (browser,),
-            }
-            with yt_dlp.YoutubeDL(test_opts) as ydl:
-                ydl.extract_info("ytsearch1:test", download=False)
-            logger.info("Cookies from browser '%s' work — using them", browser)
-            return {"cookiesfrombrowser": (browser,)}
-        except Exception as exc:
-            logger.debug("Browser '%s' failed: %s", browser, exc)
-            continue
-
-    logger.warning(
-        "No browser cookies or cookies.txt found. "
-        "YouTube will likely block downloads. "
-        "Export your YouTube cookies to api/cookies.txt or log in to a browser on this machine."
-    )
+    logger.warning("No cookies found — YouTube may block downloads")
     return {}
 
 
-_COOKIE_OPTS: dict = _get_cookie_opts()
+# curl-cffi provides TLS fingerprint impersonation (mimics a real browser handshake)
+try:
+    from yt_dlp.networking.impersonate import ImpersonateTarget
+    _IMPERSONATE = ImpersonateTarget(client="chrome")
+except ImportError:
+    _IMPERSONATE = None
 
-_COMMON_OPTS = {
+_COOKIE_OPTS = _resolve_cookies()
+
+_BASE_OPTS = {
     "quiet": True,
     "no_warnings": True,
     "source_address": "0.0.0.0",
     "extractor_retries": 3,
     "retries": 5,
-    "user_agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-    ),
+    "throttled_rate": "100K",
     **_COOKIE_OPTS,
 }
 
-_EXTRACTOR_ARGS = {
-    "youtube": {
-        "skip": ["dash", "hls"],
-    },
-}
+if _IMPERSONATE:
+    _BASE_OPTS["impersonate"] = _IMPERSONATE
 
 
 def _find_ffmpeg() -> bool:
@@ -113,7 +76,7 @@ def _find_ffmpeg() -> bool:
 
 def search_youtube(query: str) -> str | None:
     opts = {
-        **_COMMON_OPTS,
+        **_BASE_OPTS,
         "extract_flat": True,
         "default_search": "ytsearch1",
     }
@@ -147,8 +110,8 @@ def download_track(
 
     if ffmpeg_available:
         opts = {
-            **_COMMON_OPTS,
-            "extractor_args": _EXTRACTOR_ARGS,
+            **_BASE_OPTS,
+            "extractor_args": {"youtube": {"skip": ["dash", "hls"]}},
             "format": "bestaudio/best",
             "outtmpl": outtmpl,
             "postprocessors": [
@@ -161,8 +124,8 @@ def download_track(
         }
     else:
         opts = {
-            **_COMMON_OPTS,
-            "extractor_args": _EXTRACTOR_ARGS,
+            **_BASE_OPTS,
+            "extractor_args": {"youtube": {"skip": ["dash", "hls"]}},
             "format": "bestaudio[ext=m4a]/bestaudio",
             "outtmpl": outtmpl,
         }
