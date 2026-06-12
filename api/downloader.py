@@ -87,6 +87,7 @@ def search_youtube(query: str) -> str | None:
         **_get_base_opts(),
         "extract_flat": True,
         "default_search": "ytsearch1",
+        "extractor_args": {"youtube": {"client": ["android", "ios"]}},
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(f"ytsearch1:{query}", download=False)
@@ -119,7 +120,7 @@ def download_track(
     if ffmpeg_available:
         opts = {
             **_get_base_opts(),
-            "extractor_args": {"youtube": {"skip": ["dash", "hls"]}},
+            "extractor_args": {"youtube": {"skip": ["dash", "hls"], "client": ["android", "ios"]}},
             "format": "bestaudio/best",
             "outtmpl": outtmpl,
             "postprocessors": [
@@ -133,7 +134,7 @@ def download_track(
     else:
         opts = {
             **_get_base_opts(),
-            "extractor_args": {"youtube": {"skip": ["dash", "hls"]}},
+            "extractor_args": {"youtube": {"skip": ["dash", "hls"], "client": ["android", "ios"]}},
             "format": "bestaudio[ext=m4a]/bestaudio",
             "outtmpl": outtmpl,
         }
