@@ -72,6 +72,32 @@ def _scrape_track(track_id: str) -> dict:
     }
 
 
+def _extract_track_image(item: dict) -> str | None:
+    for path in ("coverArt", "albumOfTrack", "album"):
+        sub = item.get(path)
+        if isinstance(sub, dict):
+            try:
+                sources = sub.get("coverArt", sub).get("sources", [])
+                if not sources and "coverArt" in sub:
+                    sources = sub["coverArt"].get("sources", [])
+                if sources:
+                    sources.sort(key=lambda s: s.get("width") or 0, reverse=True)
+                    return sources[0].get("url")
+            except Exception:
+                continue
+    return None
+
+
+def _extract_track_album(item: dict) -> str | None:
+    for path in ("album", "albumOfTrack"):
+        sub = item.get(path)
+        if isinstance(sub, dict):
+            name = sub.get("name")
+            if name:
+                return name
+    return None
+
+
 def _scrape_collection(kind: str, collection_id: str) -> dict:
     entity = _fetch_embed_data(kind, collection_id)
     
@@ -87,14 +113,21 @@ def _scrape_collection(kind: str, collection_id: str) -> dict:
             continue
             
         tid = uri.split(":")[-1]
-        
-        # In a playlist, the cover art might differ per track, but the embed payload
-        # often only supplies the global coverArt.
+
+        per_track_artwork = _extract_track_image(item) or collection_artwork
+        per_track_album = _extract_track_album(item)
+
+        album = (
+            per_track_album
+            if per_track_album
+            else (collection_name if kind == "album" else "Unknown Album")
+        )
+
         tracks.append({
             "title": item.get("title", "Unknown Track"),
             "artist": item.get("subtitle", "Unknown Artist"),
-            "album": collection_name if kind == "album" else "Unknown Album",
-            "artwork_url": collection_artwork,
+            "album": album,
+            "artwork_url": per_track_artwork,
             "url": f"https://open.spotify.com/track/{tid}",
             "type": "track",
         })

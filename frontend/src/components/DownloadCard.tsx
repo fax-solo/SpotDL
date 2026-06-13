@@ -1,9 +1,31 @@
-import { useState, useCallback, type FormEvent } from 'react'
+import { useState, useCallback, type FormEvent, type SyntheticEvent } from 'react'
 import { Download, Music, DownloadCloud, Disc3, ListMusic } from 'lucide-react'
 import { fetchMetadata, downloadTrack, type TrackMeta, type CollectionMeta } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
 import { StatusBanner, type Status } from './StatusBanner'
 import type { HistoryEntry } from '../hooks/useHistory'
+
+function ArtworkImage({ src, alt, className, iconSize }: { src: string | null; alt: string; className: string; iconSize?: number }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) {
+    return (
+      <div className={`${className} bg-gray-200 dark:bg-gray-700 flex items-center justify-center`}>
+        <Music className="text-gray-400" style={{ width: iconSize ?? 16, height: iconSize ?? 16 }} />
+      </div>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={(e: SyntheticEvent<HTMLImageElement>) => {
+        setFailed(true)
+        e.currentTarget.style.display = 'none'
+      }}
+    />
+  )
+}
 
 interface DownloadCardProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -154,13 +176,12 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
 
       {mode === 'single' && singleTrack && (
         <div className="mt-4 p-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg flex items-center gap-4">
-          {singleTrack.artwork_url && (
-            <img
-              src={singleTrack.artwork_url}
-              alt={singleTrack.album}
-              className="w-16 h-16 rounded-md object-cover"
-            />
-          )}
+          <ArtworkImage
+            src={singleTrack.artwork_url}
+            alt={singleTrack.album}
+            className="w-16 h-16 rounded-md object-cover flex-shrink-0"
+            iconSize={24}
+          />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate">
               {singleTrack.title}
@@ -179,17 +200,20 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
         <div className="mt-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg overflow-hidden">
           {/* Collection Header */}
           <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-accent/10 to-transparent border-b border-light-border dark:border-dark-border">
-            {collection.collection_artwork ? (
-              <img
-                src={collection.collection_artwork}
-                alt={collection.collection_name}
-                className="w-20 h-20 rounded-lg object-cover shadow-md flex-shrink-0"
-              />
-            ) : (
-              <div className="w-20 h-20 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
-                <CollectionIcon className="w-8 h-8 text-accent" />
-              </div>
-            )}
+            <div className="w-20 h-20 rounded-lg flex-shrink-0 overflow-hidden">
+              {collection.collection_artwork ? (
+                <ArtworkImage
+                  src={collection.collection_artwork}
+                  alt={collection.collection_name}
+                  className="w-full h-full object-cover"
+                  iconSize={32}
+                />
+              ) : (
+                <div className="w-full h-full bg-accent/20 flex items-center justify-center">
+                  <CollectionIcon className="w-8 h-8 text-accent" />
+                </div>
+              )}
+            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <CollectionIcon className="w-3.5 h-3.5 text-accent flex-shrink-0" />
@@ -221,17 +245,11 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
                 <span className="text-xs text-light-muted dark:text-dark-muted w-6 text-right flex-shrink-0 tabular-nums">
                   {i + 1}
                 </span>
-                {track.artwork_url ? (
-                  <img
-                    src={track.artwork_url}
-                    alt={track.album}
-                    className="w-10 h-10 rounded object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                    <Music className="w-4 h-4 text-gray-400" />
-                  </div>
-                )}
+                <ArtworkImage
+                  src={track.artwork_url}
+                  alt={track.album}
+                  className="w-10 h-10 rounded object-cover flex-shrink-0"
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">
                     {track.title}
