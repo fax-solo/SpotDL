@@ -1,6 +1,7 @@
 frontend/node_modules/
 frontend/dist/
 api/__pycache__/
+api/venv/
 api/.env
 *.pyc
 .DS_Store
