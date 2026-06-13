@@ -1,4 +1,4 @@
-const CLIENT_ID = '9896a8bc854e4b5ea1ff42a4e63f75c6'
+const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '9896a8bc854e4b5ea1ff42a4e63f75c6'
 
 function base64url(input: ArrayBuffer): string {
   const bytes = new Uint8Array(input)
