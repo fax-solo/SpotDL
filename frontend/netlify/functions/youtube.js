@@ -4,49 +4,19 @@ const COMMON_HEADERS = {
 }
 
 const CLIENTS = [
-  {
-    name: 'ANDROID',
-    context: {
-      client: {
-        clientName: 'ANDROID',
-        clientVersion: '19.09.37',
-        androidSdkVersion: 30,
-      },
-    },
-  },
-  {
-    name: 'TV',
-    context: {
-      client: {
-        clientName: 'TVHTML5',
-        clientVersion: '7.20240101.00.00',
-      },
-    },
-  },
-  {
-    name: 'ANDROID_MUSIC',
-    context: {
-      client: {
-        clientName: 'ANDROID_MUSIC',
-        clientVersion: '6.27.52',
-        androidSdkVersion: 30,
-      },
-    },
-  },
-  {
-    name: 'WEB',
-    context: {
-      client: {
-        clientName: 'WEB',
-        clientVersion: '2.20240101.00.00',
-      },
-    },
-  },
+  { name: 'ANDROID', context: { client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30 } } },
+  { name: 'TV', context: { client: { clientName: 'TVHTML5', clientVersion: '7.20240101.00.00' } } },
+  { name: 'ANDROID_MUSIC', context: { client: { clientName: 'ANDROID_MUSIC', clientVersion: '6.27.52', androidSdkVersion: 30 } } },
+  { name: 'WEB', context: { client: { clientName: 'WEB', clientVersion: '2.20240101.00.00' } } },
 ]
 
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'
 const COOKIES = 'CONSENT=YES+; SOCS=CAISHAgCEhJqOHNfVUJfMl9xMHpKNHBpM1cYAiIBBiA='
-const PIPED_API = 'https://pipedapi.kavin.rocks'
+const PIPED_INSTANCES = [
+  'https://pipedapi.kavin.rocks',
+  'https://pipedapi.syncpundit.io',
+  'https://api.piped.privacydev.net',
+]
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -71,28 +41,24 @@ exports.handler = async (event) => {
 }
 
 async function handleSearch(query) {
-  // Try Piped API first
-  try {
-    const res = await fetch(`${PIPED_API}/search?q=${encodeURIComponent(query)}&filter=videos`, {
-      headers: COMMON_HEADERS,
-    })
-    const data = await res.json()
-    const items = data?.items || []
-    const results = items
-      .filter(item => item.url && item.url.includes('/watch?v='))
-      .slice(0, 5)
-      .map(item => ({
+  const errors = []
+  for (const piped of PIPED_INSTANCES) {
+    try {
+      const res = await fetch(`${piped}/search?q=${encodeURIComponent(query)}&filter=videos`, {
+        headers: COMMON_HEADERS, signal: AbortSignal.timeout(10000),
+      })
+      if (!res.ok) { errors.push(`piped ${piped}: status ${res.status}`); continue }
+      const data = await res.json()
+      const items = data?.items || []
+      const results = items.filter(item => item.url?.includes('/watch?v=')).slice(0, 5).map(item => ({
         videoId: item.url.split('v=')[1]?.split('&')[0] || '',
         title: item.title || 'Unknown',
         url: item.url,
-      }))
-      .filter(r => r.videoId)
-    if (results.length > 0) {
-      return { statusCode: 200, body: JSON.stringify({ results }) }
-    }
-  } catch {}
+      })).filter(r => r.videoId)
+      if (results.length > 0) return { statusCode: 200, body: JSON.stringify({ results }) }
+    } catch (e) { errors.push(`piped ${piped}: ${e.message}`) }
+  }
 
-  // Fallback: Innertube API
   for (const client of CLIENTS) {
     try {
       const payload = { context: client.context, query }
@@ -100,31 +66,27 @@ async function handleSearch(query) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, ...COMMON_HEADERS },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
       })
+      if (!res.ok) { errors.push(`innertube ${client.name}: status ${res.status}`); continue }
       const data = await res.json()
       const results = []
       const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || []
       for (const section of sections) {
-        const items = section?.itemSectionRenderer?.contents || []
-        for (const item of items) {
+        for (const item of (section?.itemSectionRenderer?.contents || [])) {
           const r = item?.videoRenderer
           if (!r?.videoId) continue
-          results.push({
-            videoId: r.videoId,
-            title: r.title?.runs?.[0]?.text || 'Unknown',
-            url: `https://youtube.com/watch?v=${r.videoId}`,
-          })
+          results.push({ videoId: r.videoId, title: r.title?.runs?.[0]?.text || 'Unknown', url: `https://youtube.com/watch?v=${r.videoId}` })
           if (results.length >= 5) break
         }
         if (results.length >= 5) break
       }
-      if (results.length > 0) {
-        return { statusCode: 200, body: JSON.stringify({ results }) }
-      }
-    } catch {}
+      if (results.length > 0) return { statusCode: 200, body: JSON.stringify({ results }) }
+      errors.push(`innertube ${client.name}: no results`)
+    } catch (e) { errors.push(`innertube ${client.name}: ${e.message}`) }
   }
 
-  return { statusCode: 200, body: JSON.stringify({ results: [] }) }
+  return { statusCode: 200, body: JSON.stringify({ results: [], debug: errors }) }
 }
 
 async function handleInfo(videoUrl) {
@@ -133,33 +95,38 @@ async function handleInfo(videoUrl) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid YouTube URL' }) }
   }
 
-  // Try Piped API first
-  try {
-    const res = await fetch(`${PIPED_API}/streams/${videoId}`, {
-      headers: COMMON_HEADERS,
-    })
-    const data = await res.json()
-    const audioStreams = data?.audioStreams || []
-    if (audioStreams.length > 0) {
-      const best = audioStreams
-        .filter(s => s.url)
-        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0]
-      if (best) {
-        return {
-          statusCode: 200,
-          body: JSON.stringify({
-            title: data.title || 'Unknown',
-            author: data.uploader || 'Unknown',
-            duration: String(data.duration || 0),
-            audioUrl: best.url,
-            thumbnail: data.thumbnailUrl || null,
-          }),
-        }
-      }
-    }
-  } catch {}
+  const errors = []
 
-  // Fallback: Innertube API clients
+  for (const piped of PIPED_INSTANCES) {
+    try {
+      const res = await fetch(`${piped}/streams/${videoId}`, {
+        headers: COMMON_HEADERS,
+        signal: AbortSignal.timeout(15000),
+      })
+      if (!res.ok) { errors.push(`piped ${piped}: status ${res.status}`); continue }
+      const data = await res.json()
+      const audioStreams = data?.audioStreams || []
+      if (audioStreams.length > 0) {
+        const best = audioStreams.filter(s => s.url).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0]
+        if (best) {
+          return {
+            statusCode: 200,
+            body: JSON.stringify({
+              title: data.title || 'Unknown',
+              author: data.uploader || 'Unknown',
+              duration: String(data.duration || 0),
+              audioUrl: best.url,
+              thumbnail: data.thumbnailUrl || null,
+            }),
+          }
+        }
+        errors.push(`piped ${piped}: no audio streams with URLs`)
+      } else {
+        errors.push(`piped ${piped}: no audioStreams field`)
+      }
+    } catch (e) { errors.push(`piped ${piped}: ${e.message}`) }
+  }
+
   for (const client of CLIENTS) {
     try {
       const payload = { context: client.context, videoId }
@@ -167,50 +134,64 @@ async function handleInfo(videoUrl) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, ...COMMON_HEADERS },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
       })
+      if (!res.ok) { errors.push(`innertube ${client.name}: status ${res.status}`); continue }
       const data = await res.json()
+      const ps = data?.playabilityStatus
+      if (ps?.status && ps.status !== 'OK') {
+        errors.push(`innertube ${client.name}: ${ps.status} - ${ps.reason || ''}`)
+        continue
+      }
       const result = extractAudio(data)
       if (result) return { statusCode: 200, body: JSON.stringify(result) }
-    } catch {}
+      errors.push(`innertube ${client.name}: no streamingData`)
+    } catch (e) { errors.push(`innertube ${client.name}: ${e.message}`) }
   }
 
-  // Fallback: get_video_info
   try {
     const res = await fetch(`https://www.youtube.com/get_video_info?video_id=${videoId}&eurl=https://youtube.googleapis.com/v/${videoId}&html5=1`, {
       headers: { 'Cookie': COOKIES, ...COMMON_HEADERS },
+      signal: AbortSignal.timeout(10000),
     })
-    const text = await res.text()
-    const params = new URLSearchParams(text)
-    const playerResponse = params.get('player_response')
-    if (playerResponse) {
-      const data = JSON.parse(decodeURIComponent(playerResponse))
-      const result = extractAudio(data)
-      if (result) return { statusCode: 200, body: JSON.stringify(result) }
+    if (res.ok) {
+      const text = await res.text()
+      const params = new URLSearchParams(text)
+      const status = params.get('status')
+      if (status !== 'ok') {
+        errors.push(`get_video_info: status=${status} reason=${params.get('reason') || ''}`)
+      } else {
+        const playerResponse = params.get('player_response')
+        if (playerResponse) {
+          const data = JSON.parse(decodeURIComponent(playerResponse))
+          const result = extractAudio(data)
+          if (result) return { statusCode: 200, body: JSON.stringify(result) }
+        }
+        errors.push('get_video_info: no player_response')
+      }
+    } else {
+      errors.push(`get_video_info: status ${res.status}`)
     }
-  } catch {}
+  } catch (e) { errors.push(`get_video_info: ${e.message}`) }
 
   return {
     statusCode: 502,
-    body: JSON.stringify({ error: 'Could not retrieve audio from any source' }),
+    body: JSON.stringify({ error: 'Could not retrieve audio from any source', debug: errors }),
   }
 }
 
 function extractAudio(data) {
   const sd = data?.streamingData
   if (!sd) return null
-
   const allFormats = [
     ...(sd.formats || []),
     ...(sd.adaptiveFormats || []),
   ]
-
   const audioFormats = allFormats
     .filter(f => f.mimeType?.startsWith('audio/') && f.url)
     .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
-
   const bestFormat = audioFormats[0]
   if (!bestFormat) return null
-
   const vd = data?.videoDetails || {}
   return {
     title: vd.title || 'Unknown',
