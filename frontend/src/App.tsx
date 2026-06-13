@@ -34,7 +34,7 @@ function App() {
           const code = url.searchParams.get('code')
           if (code) {
             try {
-              const res = await fetch(`${BASE_URL}/api/auth/spotify/exchange?code=${encodeURIComponent(code)}`)
+              const res = await fetch(`${BASE_URL}/api/auth/spotify/exchange?code=${encodeURIComponent(code)}&redirect_uri=spotdl://callback`)
               const data = await res.json()
               if (data.ok) {
                 setOauthMessage('Connected to Spotify!')

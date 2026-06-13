@@ -3,8 +3,11 @@ import re
 import json
 import base64
 import time
+import logging
 import urllib.parse
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Load .env manually (no python-dotenv dependency needed)
 _env_path = Path(__file__).parent / ".env"
@@ -152,12 +155,34 @@ def _scrape_collection(kind: str, collection_id: str) -> dict:
     }
 
 
-# ─── User OAuth token store (single-user, in-memory) ───
+# ─── User OAuth token store (persisted to disk) ───
 _user_auth: dict = {
     "access_token": None,
     "refresh_token": None,
     "expires_at": 0,
 }
+
+TOKEN_STORE_PATH = Path(__file__).parent / "data" / "token_store.json"
+
+
+def _save_token_store() -> None:
+    TOKEN_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    TOKEN_STORE_PATH.write_text(json.dumps(_user_auth, indent=2))
+
+
+def _load_token_store() -> None:
+    if TOKEN_STORE_PATH.exists():
+        try:
+            d = json.loads(TOKEN_STORE_PATH.read_text())
+            _user_auth["access_token"] = d.get("access_token")
+            _user_auth["refresh_token"] = d.get("refresh_token")
+            _user_auth["expires_at"] = d.get("expires_at", 0)
+        except Exception:
+            logger.warning("token_store.json corrupted, ignoring")
+            TOKEN_STORE_PATH.unlink(missing_ok=True)
+
+
+_load_token_store()
 
 
 def get_spotify_auth_url(redirect_uri: str | None = None) -> str:
@@ -166,7 +191,7 @@ def get_spotify_auth_url(redirect_uri: str | None = None) -> str:
         "SPOTIFY_REDIRECT_URI",
         "http://localhost:8000/api/auth/spotify/callback",
     )
-    scopes = "playlist-read-private playlist-read-collaborative"
+    scopes = "playlist-read-private playlist-read-collaborative offline_access"
     params = {
         "client_id": client_id,
         "response_type": "code",
@@ -176,10 +201,10 @@ def get_spotify_auth_url(redirect_uri: str | None = None) -> str:
     return f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
 
 
-def handle_spotify_callback(code: str) -> dict:
+def handle_spotify_callback(code: str, redirect_uri: str | None = None) -> dict:
     client_id = os.environ.get("SPOTIFY_CLIENT_ID")
     client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
-    redirect_uri = os.environ.get(
+    redirect_uri = redirect_uri or os.environ.get(
         "SPOTIFY_REDIRECT_URI",
         "http://localhost:8000/api/auth/spotify/callback",
     )
@@ -201,6 +226,7 @@ def handle_spotify_callback(code: str) -> dict:
     _user_auth["access_token"] = data["access_token"]
     _user_auth["refresh_token"] = data.get("refresh_token", "")
     _user_auth["expires_at"] = time.time() + data["expires_in"]
+    _save_token_store()
 
     return data
 
@@ -209,7 +235,20 @@ def get_user_token() -> str | None:
     if not _user_auth["access_token"]:
         return None
     if time.time() >= _user_auth["expires_at"]:
-        _refresh_user_token()
+        if not _user_auth.get("refresh_token"):
+            _user_auth["access_token"] = None
+            _user_auth["expires_at"] = 0
+            _save_token_store()
+            return None
+        try:
+            _refresh_user_token()
+        except Exception:
+            logger.warning("token refresh failed, clearing auth")
+            _user_auth["access_token"] = None
+            _user_auth["refresh_token"] = None
+            _user_auth["expires_at"] = 0
+            _save_token_store()
+            return None
     return _user_auth["access_token"]
 
 
@@ -234,10 +273,15 @@ def _refresh_user_token() -> None:
     _user_auth["expires_at"] = time.time() + data.get("expires_in", 3600)
     if "refresh_token" in data:
         _user_auth["refresh_token"] = data["refresh_token"]
+    _save_token_store()
 
 
 def is_user_authenticated() -> bool:
-    return _user_auth["access_token"] is not None
+    if not _user_auth["access_token"]:
+        return False
+    # treat as authenticated as long as we have a token;
+    # get_user_token will auto-refresh if expired
+    return True
 
 
 def _get_spotify_token() -> str | None:
@@ -281,49 +325,61 @@ def _fetch_official_track(track_id: str, token: str) -> dict:
     }
 
 
+def _extract_track_artwork(track: dict) -> str | None:
+    for key in ("album", "album_of_track"):
+        album = track.get(key)
+        if isinstance(album, dict) and album.get("images"):
+            images = album["images"]
+            images.sort(key=lambda i: i.get("width") or 0, reverse=True)
+            return images[0]["url"]
+    return None
+
 def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
-    
-    # Fetch collection details
+
     coll_resp = requests.get(f"https://api.spotify.com/v1/{kind}s/{collection_id}", headers=headers, timeout=10)
     coll_resp.raise_for_status()
     coll_data = coll_resp.json()
-    
+
     collection_name = coll_data.get("name", "Unknown Album/Playlist")
     collection_artwork = None
     if coll_data.get("images"):
         collection_artwork = coll_data["images"][0]["url"]
-        
+
     tracks = []
-    
-    # Pagination
+
     max_limit = 50 if kind == "album" else 100
     url = f"https://api.spotify.com/v1/{kind}s/{collection_id}/tracks?limit={max_limit}"
     while url:
         resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         data = resp.json()
-        
+
         for item in data.get("items", []):
             track = item.get("track") if kind == "playlist" else item
             if not track or not track.get("id"):
                 continue
-                
-            track_artwork = collection_artwork
-            if kind == "playlist" and track.get("album", {}).get("images"):
-                track_artwork = track["album"]["images"][0]["url"]
-                
+
+            track_artwork = (
+                _extract_track_artwork(track)
+                or collection_artwork
+            )
+
+            track_album = track.get("album", {}).get("name")
+            if not track_album:
+                track_album = collection_name if kind == "album" else "Unknown Album"
+
             tracks.append({
                 "title": track.get("name", "Unknown Track"),
                 "artist": ", ".join(a["name"] for a in track.get("artists", [])),
-                "album": track.get("album", {}).get("name", collection_name if kind == "album" else "Unknown Album"),
+                "album": track_album,
                 "artwork_url": track_artwork,
                 "url": track.get("external_urls", {}).get("spotify", f"https://open.spotify.com/track/{track['id']}"),
                 "type": "track",
             })
-            
+
         url = data.get("next")
-        
+
     return {
         "collection_name": collection_name,
         "collection_artwork": collection_artwork,
@@ -389,53 +445,51 @@ def _fetch_generic_metadata(url: str) -> dict:
             }
 
 
+def _try_official(kind: str, id_: str, token: str) -> dict | None:
+    try:
+        if kind == "track":
+            return _fetch_official_track(id_, token)
+        return _fetch_official_collection(kind, id_, token)
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code in (403, 404):
+            return None
+        raise
+
 def fetch_metadata(url: str) -> dict | list[dict]:
     parsed = parse_url(url)
     if not parsed:
-        # If it's not a Spotify URL, try extracting via yt-dlp (supports YT, SC, etc.)
         try:
             return _fetch_generic_metadata(url)
         except Exception as e:
             raise ValueError(f"Could not parse URL. Ensure it is a valid Spotify, YouTube, or SoundCloud link. ({e})")
-    
+
     kind, id_ = parsed
 
-    # For playlists, try user OAuth token first (supports full pagination)
-    if kind == "playlist":
-        user_token = get_user_token()
-        if user_token:
-            try:
-                return _fetch_official_collection(kind, id_, user_token)
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code not in (403, 404):
-                    raise e
-    
-    # Client Credentials token (works for tracks/albums, fails for most playlists)
-    token = _get_spotify_token()
-    
-    try:
-        if token:
-            try:
-                if kind == "track":
-                    return _fetch_official_track(id_, token)
-                elif kind in ("album", "playlist"):
-                    return _fetch_official_collection(kind, id_, token)
-            except requests.exceptions.HTTPError as e:
-                # If 403/404, it might be a private playlist. Fallback to embed scraper!
-                if e.response.status_code in (403, 404):
-                    pass
-                else:
-                    raise e
-                    
-        # Fallback to embed scraper (either no token, or official API was forbidden)
-        if kind == "track":
-            return _scrape_track(id_)
-        elif kind in ("album", "playlist"):
-            return _scrape_collection(kind, id_)
-            
-    except requests.RequestException as e:
-        raise RuntimeError(f"Failed to fetch Spotify page/API: {e}")
-    except Exception as e:
-        raise RuntimeError(str(e))
-        
+    user_token = get_user_token()
+    logger.info(f"fetch_metadata: kind={kind}, id={id_}")
+    if user_token:
+        logger.info("fetch_metadata: trying user OAuth token")
+        result = _try_official(kind, id_, user_token)
+        if result:
+            logger.info(f"fetch_metadata: user OAuth token SUCCESS, got {len(result.get('tracks', [])) if 'tracks' in result else 'track'} results")
+            return result
+        logger.warning("fetch_metadata: user OAuth token FAILED (403/404), trying client credentials")
+
+    cc_token = _get_spotify_token()
+    if cc_token:
+        logger.info("fetch_metadata: trying client credentials token")
+        result = _try_official(kind, id_, cc_token)
+        if result:
+            logger.info(f"fetch_metadata: client credentials SUCCESS, got {len(result.get('tracks', [])) if 'tracks' in result else 'track'} results")
+            return result
+        logger.warning("fetch_metadata: client credentials FAILED (403/404), falling back to scraper")
+    else:
+        logger.warning("fetch_metadata: no client credentials token available")
+
+    logger.info(f"fetch_metadata: using embed scraper for {kind}")
+    if kind == "track":
+        return _scrape_track(id_)
+    elif kind in ("album", "playlist"):
+        return _scrape_collection(kind, id_)
+
     raise ValueError(f"Unsupported type: {kind}")

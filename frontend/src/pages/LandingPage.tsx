@@ -1,42 +1,14 @@
 import { Link } from 'react-router-dom'
 import { Headphones, Zap, Tags, Smartphone, ArrowRight, Download, Music } from 'lucide-react'
-import { motion, useScroll, useTransform } from 'framer-motion'
-import { useRef } from 'react'
+import { motion } from 'framer-motion'
 
 export function LandingPage() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end start"]
-  })
-
-  const y1 = useTransform(scrollYProgress, [0, 1], [0, 200])
-  const y2 = useTransform(scrollYProgress, [0, 1], [0, -150])
-
   return (
-    <div ref={containerRef} className="min-h-[calc(100vh-73px)] flex flex-col relative overflow-hidden">
-      {/* Animated Background Gradients */}
+    <div className="min-h-[calc(100vh-73px)] flex flex-col relative overflow-hidden">
+      {/* Background Gradients */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
-        <motion.div 
-          style={{ y: y1 }}
-          animate={{ 
-            scale: [1, 1.2, 1],
-            rotate: [0, 90, 0],
-            opacity: [0.3, 0.5, 0.3]
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-[20%] -left-[10%] w-[800px] h-[800px] bg-accent/20 dark:bg-accent/10 blur-[120px] rounded-full" 
-        />
-        <motion.div 
-          style={{ y: y2 }}
-          animate={{ 
-            scale: [1, 1.5, 1],
-            rotate: [0, -90, 0],
-            opacity: [0.2, 0.4, 0.2]
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[40%] -right-[20%] w-[600px] h-[600px] bg-blue-500/20 dark:bg-blue-500/10 blur-[120px] rounded-full" 
-        />
+        <div className="absolute -top-[20%] -left-[10%] w-[800px] h-[800px] bg-accent/20 dark:bg-accent/10 blur-[120px] rounded-full" />
+        <div className="absolute top-[40%] -right-[20%] w-[600px] h-[600px] bg-blue-500/20 dark:bg-blue-500/10 blur-[120px] rounded-full" />
       </div>
 
       {/* Hero Section */}
