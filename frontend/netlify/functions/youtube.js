@@ -15,6 +15,15 @@ const CLIENTS = [
     },
   },
   {
+    name: 'TV',
+    context: {
+      client: {
+        clientName: 'TVHTML5',
+        clientVersion: '7.20240101.00.00',
+      },
+    },
+  },
+  {
     name: 'ANDROID_MUSIC',
     context: {
       client: {
@@ -34,6 +43,8 @@ const CLIENTS = [
     },
   },
 ]
+
+const COOKIES = 'CONSENT=YES+; SOCS=CAISHAgCEhJqOHNfVUJfMl9xMHpKNHBpM1cYAiIBBiA='
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -63,7 +74,7 @@ async function handleSearch(query) {
       const payload = { context: client.context, query }
       const res = await fetch('https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...COMMON_HEADERS },
+        headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, ...COMMON_HEADERS },
         body: JSON.stringify(payload),
       })
       const data = await res.json()
@@ -98,46 +109,66 @@ async function handleInfo(videoUrl) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid YouTube URL' }) }
   }
 
+  // Try all Innertube clients
   for (const client of CLIENTS) {
     try {
       const payload = { context: client.context, videoId }
       const res = await fetch('https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...COMMON_HEADERS },
+        headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, ...COMMON_HEADERS },
         body: JSON.stringify(payload),
       })
       const data = await res.json()
-      const streamingData = data?.streamingData
-      if (streamingData) {
-        const allFormats = [
-          ...(streamingData.formats || []),
-          ...(streamingData.adaptiveFormats || []),
-        ]
-        const audioFormats = allFormats
-          .filter(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url)
-          .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
-        const bestFormat = audioFormats[0] || null
-        const videoDetails = data?.videoDetails || {}
-
-        if (bestFormat) {
-          return {
-            statusCode: 200,
-            body: JSON.stringify({
-              title: videoDetails.title || 'Unknown',
-              author: videoDetails.author || videoDetails.channelOwnerName || 'Unknown',
-              duration: videoDetails.lengthSeconds || '0',
-              audioUrl: bestFormat.url,
-              thumbnail: videoDetails.thumbnail?.thumbnails?.slice(-1)?.[0]?.url || null,
-            }),
-          }
-        }
-      }
+      const result = extractAudio(data, client.name)
+      if (result) return { statusCode: 200, body: JSON.stringify(result) }
     } catch {}
   }
+
+  // Fallback: get_video_info endpoint
+  try {
+    const res = await fetch(`https://www.youtube.com/get_video_info?video_id=${videoId}&eurl=https://youtube.googleapis.com/v/${videoId}&html5=1`, {
+      headers: { 'Cookie': COOKIES, ...COMMON_HEADERS },
+    })
+    const text = await res.text()
+    const params = new URLSearchParams(text)
+    const playerResponse = params.get('player_response')
+    if (playerResponse) {
+      const data = JSON.parse(decodeURIComponent(playerResponse))
+      const result = extractAudio(data, 'get_video_info')
+      if (result) return { statusCode: 200, body: JSON.stringify(result) }
+    }
+  } catch {}
 
   return {
     statusCode: 502,
     body: JSON.stringify({ error: 'Could not retrieve audio from any YouTube client' }),
+  }
+}
+
+function extractAudio(data, clientName) {
+  const sd = data?.streamingData
+  if (!sd) return null
+
+  const allFormats = [
+    ...(sd.formats || []),
+    ...(sd.adaptiveFormats || []),
+  ]
+
+  // Filter formats with direct URLs (no signatureCipher)
+  const audioFormats = allFormats
+    .filter(f => f.mimeType?.startsWith('audio/') && f.url)
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
+
+  const bestFormat = audioFormats[0]
+  if (!bestFormat) return null
+
+  const vd = data?.videoDetails || {}
+  return {
+    title: vd.title || 'Unknown',
+    author: vd.author || vd.channelOwnerName || 'Unknown',
+    duration: vd.lengthSeconds || '0',
+    audioUrl: bestFormat.url,
+    thumbnail: vd.thumbnail?.thumbnails?.slice(-1)?.[0]?.url || null,
   }
 }
 
