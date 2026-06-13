@@ -197,7 +197,8 @@ def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dic
     tracks = []
     
     # Pagination
-    url = f"https://api.spotify.com/v1/{kind}s/{collection_id}/tracks?limit=100"
+    max_limit = 50 if kind == "album" else 100
+    url = f"https://api.spotify.com/v1/{kind}s/{collection_id}/tracks?limit={max_limit}"
     while url:
         resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
