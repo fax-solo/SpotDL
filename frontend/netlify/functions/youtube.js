@@ -1,15 +1,6 @@
-const API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'
-
 const COMMON_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
   'Accept-Language': 'en-US,en;q=0.9',
-}
-
-const INNERTUBE_CONTEXT = {
-  client: {
-    clientName: 'WEB',
-    clientVersion: '2.20240101.00.00',
-  },
 }
 
 exports.handler = async (event) => {
@@ -35,41 +26,45 @@ exports.handler = async (event) => {
 }
 
 async function handleSearch(query) {
-  const payload = {
-    context: INNERTUBE_CONTEXT,
-    query,
-  }
+  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`
+  const res = await fetch(searchUrl, { headers: COMMON_HEADERS })
+  const html = await res.text()
 
-  const res = await fetch(`https://www.youtube.com/youtubei/v1/search?key=${API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...COMMON_HEADERS },
-    body: JSON.stringify(payload),
-  })
-
-  if (!res.ok) {
-    return { statusCode: 502, body: JSON.stringify({ error: `YouTube search API returned ${res.status}` }) }
-  }
-
-  const data = await res.json()
   const results = []
+  const regex = /"videoRenderer":\{"videoId":"([^"]+)"[^}]*?"title":\{"runs":\[{"text":"([^"]+)"[^}]*?\}\][^}]*?\}[^}]*?\}/g
+  let match
 
-  try {
-    const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || []
-    for (const section of sections) {
-      const items = section?.itemSectionRenderer?.contents || []
-      for (const item of items) {
-        const renderer = item?.videoRenderer
-        if (!renderer || !renderer.videoId) continue
-        results.push({
-          videoId: renderer.videoId,
-          title: renderer.title?.runs?.[0]?.text || 'Unknown',
-          url: `https://youtube.com/watch?v=${renderer.videoId}`,
-        })
-        if (results.length >= 5) break
-      }
-      if (results.length >= 5) break
+  while ((match = regex.exec(html)) !== null) {
+    const videoId = match[1]
+    const title = match[2].replace(/\\u0026/g, '&').replace(/\\"/g, '"').replace(/\\/g, '')
+    if (!results.some(r => r.videoId === videoId)) {
+      results.push({ videoId, title, url: `https://youtube.com/watch?v=${videoId}` })
     }
-  } catch {
+    if (results.length >= 5) break
+  }
+
+  if (results.length === 0) {
+    const jsonMatch = html.match(/ytInitialData\s*=\s*({.+?});\s*<\/script>/)
+    if (jsonMatch) {
+      try {
+        const data = JSON.parse(jsonMatch[1])
+        const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || []
+        for (const section of sections) {
+          const items = section?.itemSectionRenderer?.contents || []
+          for (const item of items) {
+            const r = item?.videoRenderer
+            if (!r?.videoId) continue
+            results.push({
+              videoId: r.videoId,
+              title: r.title?.runs?.[0]?.text || 'Unknown',
+              url: `https://youtube.com/watch?v=${r.videoId}`,
+            })
+            if (results.length >= 5) break
+          }
+          if (results.length >= 5) break
+        }
+      } catch {}
+    }
   }
 
   return {
@@ -84,24 +79,33 @@ async function handleInfo(videoUrl) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid YouTube URL' }) }
   }
 
-  const payload = {
-    context: INNERTUBE_CONTEXT,
-    videoId,
-  }
-
-  const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...COMMON_HEADERS },
-    body: JSON.stringify(payload),
+  const pageUrl = `https://www.youtube.com/watch?v=${videoId}`
+  const res = await fetch(pageUrl, {
+    headers: {
+      ...COMMON_HEADERS,
+      'Accept': 'text/html,application/xhtml+xml',
+    },
   })
 
   if (!res.ok) {
-    return { statusCode: 502, body: JSON.stringify({ error: `YouTube API returned ${res.status}` }) }
+    return { statusCode: 502, body: JSON.stringify({ error: `YouTube page returned ${res.status}` }) }
   }
 
-  const data = await res.json()
-  const streamingData = data.streamingData
+  const html = await res.text()
 
+  const match = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});\s*(?:<\/script>|var)/)
+  if (!match) {
+    return { statusCode: 502, body: JSON.stringify({ error: 'Could not find player response' }) }
+  }
+
+  let data
+  try {
+    data = JSON.parse(match[1])
+  } catch {
+    return { statusCode: 502, body: JSON.stringify({ error: 'Failed to parse player response' }) }
+  }
+
+  const streamingData = data?.streamingData
   if (!streamingData) {
     return { statusCode: 502, body: JSON.stringify({ error: 'No streaming data available' }) }
   }
@@ -117,7 +121,7 @@ async function handleInfo(videoUrl) {
 
   const bestFormat = audioFormats[0] || null
 
-  const videoDetails = data.videoDetails || {}
+  const videoDetails = data?.videoDetails || {}
 
   return {
     statusCode: 200,
