@@ -30,6 +30,7 @@ class DownloadRequest(BaseModel):
     artist: str
     album: str = "Unknown Album"
     artwork_url: str | None = None
+    url: str | None = None
 
 
 @app.get("/api/ping")
@@ -54,7 +55,7 @@ def download(body: DownloadRequest):
     from downloader import download_track
 
     try:
-        filepath, ext = download_track(body.title, body.artist, body.album, body.artwork_url)
+        filepath, ext = download_track(body.title, body.artist, body.album, body.artwork_url, body.url)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=502, detail=str(e))

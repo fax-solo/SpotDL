@@ -48,11 +48,17 @@ def download_track(
     artist: str,
     album: str,
     artwork_url: str | None,
+    source_url: str | None = None,
 ) -> tuple[str, str]:
-    query = f"{artist} {title}"
-    track_url = search_track(query)
-    if not track_url:
-        raise RuntimeError(f"No track found on SoundCloud for '{title}' by {artist}")
+    if source_url and not source_url.startswith("https://open.spotify.com"):
+        # Direct URL provided (YouTube, SoundCloud, etc.) — use it directly
+        track_url = source_url
+    else:
+        # Spotify track — search SoundCloud for the audio
+        query = f"{artist} {title}"
+        track_url = search_track(query)
+        if not track_url:
+            raise RuntimeError(f"No track found on SoundCloud for '{title}' by {artist}")
 
     tmpdir = tempfile.mkdtemp()
     safe_name = f"{_safe(artist)} - {_safe(title)}"
@@ -79,6 +85,10 @@ def download_track(
             "format": "bestaudio[ext=mp3]/best[ext=mp3]/bestaudio/best",
             "outtmpl": outtmpl,
         }
+
+    # Add YouTube-specific args to bypass bot detection
+    if "youtube.com" in track_url or "youtu.be" in track_url:
+        opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
 
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([track_url])

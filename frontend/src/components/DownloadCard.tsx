@@ -130,7 +130,7 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
             setSingleTrack(null)
             setTrackList([])
           }}
-          placeholder="Paste a Spotify track, album, or playlist URL..."
+          placeholder="Paste a Spotify, YouTube, or SoundCloud URL..."
           className="flex-1 px-4 py-3 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg text-light-text dark:text-dark-text placeholder-light-muted dark:placeholder-dark-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors text-sm"
         />
         <button

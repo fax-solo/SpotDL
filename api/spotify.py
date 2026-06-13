@@ -3,6 +3,7 @@ import re
 import json
 import base64
 import requests
+import yt_dlp
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
@@ -187,10 +188,62 @@ def _fetch_official_collection(kind: str, collection_id: str, token: str) -> lis
     return tracks
 
 
+def _fetch_generic_metadata(url: str) -> dict | list[dict]:
+    opts = {
+        "extract_flat": True,
+        "quiet": True,
+        "no_warnings": True,
+        "extractor_args": {"youtube": {"client": ["android", "ios"]}}
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        
+        if not info:
+            raise ValueError("Could not extract metadata from this URL")
+
+        if "entries" in info:
+            tracks = []
+            collection_name = info.get("title", "Unknown Playlist")
+            for entry in info["entries"]:
+                if not entry:
+                    continue
+                # yt-dlp flat extraction sometimes lacks full thumbnails, grab best available
+                artwork = None
+                if entry.get("thumbnails"):
+                    artwork = entry["thumbnails"][-1].get("url")
+                
+                tracks.append({
+                    "title": entry.get("title", "Unknown Track"),
+                    "artist": entry.get("uploader", entry.get("channel", "Unknown Artist")),
+                    "album": collection_name,
+                    "artwork_url": artwork,
+                    "url": entry.get("url") or entry.get("webpage_url", url),
+                    "type": "track"
+                })
+            return tracks
+        else:
+            artwork = None
+            if info.get("thumbnails"):
+                artwork = info["thumbnails"][-1].get("url")
+                
+            return {
+                "title": info.get("title", "Unknown Track"),
+                "artist": info.get("uploader", info.get("channel", "Unknown Artist")),
+                "album": "Single",
+                "artwork_url": artwork,
+                "url": info.get("webpage_url", url),
+                "type": "track"
+            }
+
+
 def fetch_metadata(url: str) -> dict | list[dict]:
     parsed = parse_url(url)
     if not parsed:
-        raise ValueError("Could not parse Spotify URL")
+        # If it's not a Spotify URL, try extracting via yt-dlp (supports YT, SC, etc.)
+        try:
+            return _fetch_generic_metadata(url)
+        except Exception as e:
+            raise ValueError(f"Could not parse URL. Ensure it is a valid Spotify, YouTube, or SoundCloud link. ({e})")
     
     kind, id_ = parsed
     

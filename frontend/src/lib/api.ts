@@ -23,7 +23,7 @@ export async function fetchMetadata(url: string): Promise<MetadataResponse> {
   return res.json()
 }
 
-export async function downloadTrack(meta: { title: string; artist: string; album: string; artwork_url: string | null }): Promise<{ blob: Blob; filename: string }> {
+export async function downloadTrack(meta: { title: string; artist: string; album: string; artwork_url: string | null; url?: string }): Promise<{ blob: Blob; filename: string }> {
   const res = await fetch(`${BASE_URL}/api/download`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
