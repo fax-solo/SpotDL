@@ -2,6 +2,17 @@ import os
 import re
 import json
 import base64
+from pathlib import Path
+
+# Load .env manually (no python-dotenv dependency needed)
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    for _line in _env_path.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 import requests
 import yt_dlp
 from concurrent.futures import ThreadPoolExecutor, as_completed
