@@ -49,15 +49,21 @@ async function fetchWithAuth(url: string): Promise<any> {
   if (res.status === 401) {
     const { refreshToken } = await import('./spotifyAuth')
     const refreshed = await refreshToken()
-    if (!refreshed) throw new Error('Session expired')
+    if (!refreshed) throw new Error('Session expired — please login again')
     const newToken = getAccessToken()
     const retry = await fetch(url, {
       headers: { Authorization: `Bearer ${newToken}` },
     })
-    if (!retry.ok) throw new Error(`Spotify API error: ${retry.status}`)
+    if (!retry.ok) {
+      const body = await retry.text().catch(() => '')
+      throw new Error(`Spotify API error: ${retry.status}${body ? ` — ${body}` : ''}`)
+    }
     return retry.json()
   }
-  if (!res.ok) throw new Error(`Spotify API error: ${res.status}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Spotify API error: ${res.status}${body ? ` — ${body}` : ''}`)
+  }
   return res.json()
 }
 

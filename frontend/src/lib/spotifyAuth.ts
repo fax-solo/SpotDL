@@ -61,7 +61,7 @@ export async function login() {
     redirect_uri: redirectUri,
     code_challenge_method: 'S256',
     code_challenge: challenge,
-    scope: 'playlist-read-private playlist-read-collaborative',
+    scope: 'playlist-read-private playlist-read-collaborative playlist-read-private user-read-email',
   })
   window.location.href = `https://accounts.spotify.com/authorize?${params}`
 }
