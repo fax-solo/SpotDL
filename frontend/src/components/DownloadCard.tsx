@@ -1,6 +1,7 @@
 import { useState, useCallback, type FormEvent, type SyntheticEvent } from 'react'
 import { Download, Music, DownloadCloud, Disc3, ListMusic } from 'lucide-react'
-import { fetchMetadata, downloadTrack, type TrackMeta, type CollectionMeta } from '../lib/api'
+import { fetchMetadata, downloadTrack, isYouTubeUrl } from '../lib/api'
+import type { TrackMeta, CollectionMeta } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
 import { StatusBanner, type Status } from './StatusBanner'
 import type { HistoryEntry } from '../hooks/useHistory'
@@ -55,12 +56,12 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
     setStatus('loading')
     setMessage('Fetching metadata...')
     try {
-      const res = await fetchMetadata(url.trim())
-      if (isCollectionMeta(res.data)) {
-        setCollection(res.data)
+      const data = await fetchMetadata(url.trim())
+      if (isCollectionMeta(data)) {
+        setCollection(data)
         setMode('list')
       } else {
-        setSingleTrack(res.data)
+        setSingleTrack(data)
         setMode('single')
       }
       setStatus('idle')
@@ -73,9 +74,15 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
 
   const handleDownload = async (track: TrackMeta) => {
     setStatus('loading')
-    setMessage(`Downloading ${track.title}...`)
+    setMessage(`Preparing ${track.title}...`)
     try {
-      const { blob, filename } = await downloadTrack(track)
+      const { blob, filename } = await downloadTrack(track, (stage, pct) => {
+        if (pct !== undefined) {
+          setMessage(`${stage} ${pct}%`)
+        } else {
+          setMessage(stage)
+        }
+      })
       await downloadFile(blob, filename)
       setStatus('success')
       setMessage(`Downloaded ${track.title}!`)
@@ -106,7 +113,14 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
       const track = trackList[i]
       try {
         setMessage(`Downloading ${i + 1}/${trackList.length}: ${track.title}...`)
-        const { blob, filename } = await downloadTrack(track)
+        const { blob, filename } = await downloadTrack(track, (stage, pct) => {
+          const prefix = `[${i + 1}/${trackList.length}] `
+          if (pct !== undefined) {
+            setMessage(`${prefix}${stage} ${pct}%`)
+          } else {
+            setMessage(`${prefix}${stage}`)
+          }
+        })
         await downloadFile(blob, filename)
         success++
         setCompletedCount(success)
@@ -139,7 +153,9 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (mode === 'single' && singleTrack) {
+    if (mode === 'single' && singleTrack && !isYouTubeUrl(url)) {
+      handleDownload(singleTrack)
+    } else if (mode === 'single' && singleTrack && isYouTubeUrl(url)) {
       handleDownload(singleTrack)
     } else {
       handleMetadata()
@@ -198,7 +214,6 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
 
       {mode === 'list' && collection && trackList.length > 0 && (
         <div className="mt-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg overflow-hidden">
-          {/* Collection Header */}
           <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-accent/10 to-transparent border-b border-light-border dark:border-dark-border">
             <div className="w-20 h-20 rounded-lg flex-shrink-0 overflow-hidden">
               {collection.collection_artwork ? (
@@ -238,7 +253,6 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
             </button>
           </div>
 
-          {/* Track List */}
           <div className="divide-y divide-light-border dark:divide-dark-border max-h-[400px] overflow-y-auto">
             {trackList.map((track, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors group">

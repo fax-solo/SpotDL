@@ -1,9 +1,13 @@
 [build]
+  base = "frontend/"
   command = "npm ci && npm run build"
   publish = "dist"
 
 [build.environment]
-  VITE_API_URL = "https://your-backend.onrender.com"
+  VITE_API_URL = ""
+
+[functions]
+  directory = "netlify/functions"
 
 [[redirects]]
   from = "/*"

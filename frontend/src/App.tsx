@@ -4,8 +4,7 @@ import { Navbar } from './components/Navbar'
 import { LandingPage } from './pages/LandingPage'
 import { Downloader } from './pages/Downloader'
 import { useTheme } from './hooks/useTheme'
-
-const BASE_URL = import.meta.env.VITE_API_URL || ''
+import { handleOauthCallback } from './lib/api'
 
 function App() {
   const { setTheme } = useTheme()
@@ -21,38 +20,12 @@ function App() {
   }, [setTheme])
 
   useEffect(() => {
-    let cleanup: (() => void) | undefined
-
-    async function setupDeepLink() {
-      const { Capacitor } = await import('@capacitor/core')
-      if (!Capacitor.isNativePlatform()) return
-
-      const { App } = await import('@capacitor/app')
-      const listener = await App.addListener('appUrlOpen', async (event) => {
-        const url = new URL(event.url)
-        if (url.protocol === 'spotdl:') {
-          const code = url.searchParams.get('code')
-          if (code) {
-            try {
-              const res = await fetch(`${BASE_URL}/api/auth/spotify/exchange?code=${encodeURIComponent(code)}&redirect_uri=spotdl://callback`)
-              const data = await res.json()
-              if (data.ok) {
-                setOauthMessage('Connected to Spotify!')
-                setTimeout(() => window.location.reload(), 1500)
-              } else {
-                setOauthMessage('Authentication failed')
-              }
-            } catch {
-              setOauthMessage('Authentication failed: could not reach server')
-            }
-          }
-        }
-      })
-      cleanup = () => { listener.remove() }
-    }
-
-    setupDeepLink()
-    return () => { cleanup?.() }
+    handleOauthCallback().then((ok) => {
+      if (ok) {
+        setOauthMessage('Connected to Spotify!')
+        setTimeout(() => setOauthMessage(null), 3000)
+      }
+    })
   }, [])
 
   return (
