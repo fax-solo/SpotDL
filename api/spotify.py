@@ -72,7 +72,7 @@ def _scrape_track(track_id: str) -> dict:
     }
 
 
-def _scrape_collection(kind: str, collection_id: str) -> list[dict]:
+def _scrape_collection(kind: str, collection_id: str) -> dict:
     entity = _fetch_embed_data(kind, collection_id)
     
     collection_name = entity.get("title", "Unknown Album/Playlist")
@@ -99,7 +99,12 @@ def _scrape_collection(kind: str, collection_id: str) -> list[dict]:
             "type": "track",
         })
 
-    return tracks
+    return {
+        "collection_name": collection_name,
+        "collection_artwork": collection_artwork,
+        "collection_type": kind,
+        "tracks": tracks,
+    }
 
 
 def _get_spotify_token() -> str | None:
@@ -143,7 +148,7 @@ def _fetch_official_track(track_id: str, token: str) -> dict:
     }
 
 
-def _fetch_official_collection(kind: str, collection_id: str, token: str) -> list[dict]:
+def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
     
     # Fetch collection details
@@ -185,10 +190,15 @@ def _fetch_official_collection(kind: str, collection_id: str, token: str) -> lis
             
         url = data.get("next")
         
-    return tracks
+    return {
+        "collection_name": collection_name,
+        "collection_artwork": collection_artwork,
+        "collection_type": kind,
+        "tracks": tracks,
+    }
 
 
-def _fetch_generic_metadata(url: str) -> dict | list[dict]:
+def _fetch_generic_metadata(url: str) -> dict:
     opts = {
         "extract_flat": True,
         "quiet": True,
@@ -204,10 +214,13 @@ def _fetch_generic_metadata(url: str) -> dict | list[dict]:
         if "entries" in info:
             tracks = []
             collection_name = info.get("title", "Unknown Playlist")
+            collection_artwork = None
+            if info.get("thumbnails"):
+                collection_artwork = info["thumbnails"][-1].get("url")
+            
             for entry in info["entries"]:
                 if not entry:
                     continue
-                # yt-dlp flat extraction sometimes lacks full thumbnails, grab best available
                 artwork = None
                 if entry.get("thumbnails"):
                     artwork = entry["thumbnails"][-1].get("url")
@@ -220,7 +233,12 @@ def _fetch_generic_metadata(url: str) -> dict | list[dict]:
                     "url": entry.get("url") or entry.get("webpage_url", url),
                     "type": "track"
                 })
-            return tracks
+            return {
+                "collection_name": collection_name,
+                "collection_artwork": collection_artwork,
+                "collection_type": "playlist",
+                "tracks": tracks,
+            }
         else:
             artwork = None
             if info.get("thumbnails"):

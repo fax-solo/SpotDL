@@ -9,9 +9,16 @@ export interface TrackMeta {
   type: string
 }
 
+export interface CollectionMeta {
+  collection_name: string
+  collection_artwork: string | null
+  collection_type: string
+  tracks: TrackMeta[]
+}
+
 export interface MetadataResponse {
   ok: boolean
-  data: TrackMeta | TrackMeta[]
+  data: TrackMeta | CollectionMeta
 }
 
 export async function fetchMetadata(url: string): Promise<MetadataResponse> {

@@ -1,6 +1,6 @@
 import { useState, useCallback, type FormEvent } from 'react'
-import { Download, Music, DownloadCloud } from 'lucide-react'
-import { fetchMetadata, downloadTrack, type TrackMeta } from '../lib/api'
+import { Download, Music, DownloadCloud, Disc3, ListMusic } from 'lucide-react'
+import { fetchMetadata, downloadTrack, type TrackMeta, type CollectionMeta } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
 import { StatusBanner, type Status } from './StatusBanner'
 import type { HistoryEntry } from '../hooks/useHistory'
@@ -11,11 +11,15 @@ interface DownloadCardProps {
 
 type ViewMode = 'idle' | 'single' | 'list'
 
+function isCollectionMeta(data: TrackMeta | CollectionMeta): data is CollectionMeta {
+  return 'tracks' in data && 'collection_name' in data
+}
+
 export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
   const [url, setUrl] = useState('')
   const [mode, setMode] = useState<ViewMode>('idle')
   const [singleTrack, setSingleTrack] = useState<TrackMeta | null>(null)
-  const [trackList, setTrackList] = useState<TrackMeta[]>([])
+  const [collection, setCollection] = useState<CollectionMeta | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
@@ -25,13 +29,13 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
     if (!url.trim()) return
     setMode('idle')
     setSingleTrack(null)
-    setTrackList([])
+    setCollection(null)
     setStatus('loading')
     setMessage('Fetching metadata...')
     try {
       const res = await fetchMetadata(url.trim())
-      if (Array.isArray(res.data)) {
-        setTrackList(res.data)
+      if (isCollectionMeta(res.data)) {
+        setCollection(res.data)
         setMode('list')
       } else {
         setSingleTrack(res.data)
@@ -64,6 +68,8 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
       setMessage(err instanceof Error ? err.message : 'Download failed')
     }
   }
+
+  const trackList = collection?.tracks ?? []
 
   const handleDownloadAll = useCallback(async () => {
     setDownloadingAll(true)
@@ -105,7 +111,7 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
       )
     } else {
       setStatus('error')
-      setMessage(`All ${trackList.length} tracks failed. Try adding cookies (see README).`)
+      setMessage(`All ${trackList.length} tracks failed.`)
     }
   }, [trackList, onDownloadComplete])
 
@@ -118,6 +124,9 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
     }
   }
 
+  const collectionTypeLabel = collection?.collection_type === 'album' ? 'Album' : 'Playlist'
+  const CollectionIcon = collection?.collection_type === 'album' ? Disc3 : ListMusic
+
   return (
     <div className="w-full max-w-xl mx-auto">
       <form onSubmit={handleSubmit} className="flex gap-2">
@@ -128,7 +137,7 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
             setUrl(e.target.value)
             setMode('idle')
             setSingleTrack(null)
-            setTrackList([])
+            setCollection(null)
           }}
           placeholder="Paste a Spotify, YouTube, or SoundCloud URL..."
           className="flex-1 px-4 py-3 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg text-light-text dark:text-dark-text placeholder-light-muted dark:placeholder-dark-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors text-sm"
@@ -166,51 +175,82 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
         </div>
       )}
 
-      {mode === 'list' && trackList.length > 0 && (
-        <div className="mt-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg divide-y divide-light-border dark:divide-dark-border">
-          <div className="px-4 py-3 flex items-center justify-between text-light-text dark:text-dark-text">
-            <div className="flex items-center gap-2">
-              <Music className="w-4 h-4 text-accent" />
-              <span className="text-sm font-semibold">{trackList.length} tracks found</span>
+      {mode === 'list' && collection && trackList.length > 0 && (
+        <div className="mt-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg overflow-hidden">
+          {/* Collection Header */}
+          <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-accent/10 to-transparent border-b border-light-border dark:border-dark-border">
+            {collection.collection_artwork ? (
+              <img
+                src={collection.collection_artwork}
+                alt={collection.collection_name}
+                className="w-20 h-20 rounded-lg object-cover shadow-md flex-shrink-0"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                <CollectionIcon className="w-8 h-8 text-accent" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <CollectionIcon className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                <span className="text-xs font-medium text-accent uppercase tracking-wide">
+                  {collectionTypeLabel}
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-light-text dark:text-dark-text truncate">
+                {collection.collection_name}
+              </h2>
+              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+                {trackList.length} {trackList.length === 1 ? 'song' : 'songs'}
+              </p>
             </div>
             <button
               onClick={handleDownloadAll}
               disabled={status === 'loading'}
-              className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
-              <DownloadCloud className="w-3.5 h-3.5" />
+              <DownloadCloud className="w-4 h-4" />
               {downloadingAll ? `${completedCount}/${trackList.length}` : 'Download All'}
             </button>
           </div>
-          {trackList.map((track, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
-              {track.artwork_url ? (
-                <img
-                  src={track.artwork_url}
-                  alt={track.album}
-                  className="w-10 h-10 rounded object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">
-                  {track.title}
-                </p>
-                <p className="text-xs text-light-muted dark:text-dark-muted truncate">
-                  {track.artist}
-                </p>
+
+          {/* Track List */}
+          <div className="divide-y divide-light-border dark:divide-dark-border max-h-[400px] overflow-y-auto">
+            {trackList.map((track, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors group">
+                <span className="text-xs text-light-muted dark:text-dark-muted w-6 text-right flex-shrink-0 tabular-nums">
+                  {i + 1}
+                </span>
+                {track.artwork_url ? (
+                  <img
+                    src={track.artwork_url}
+                    alt={track.album}
+                    className="w-10 h-10 rounded object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                    <Music className="w-4 h-4 text-gray-400" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">
+                    {track.title}
+                  </p>
+                  <p className="text-xs text-light-muted dark:text-dark-muted truncate">
+                    {track.artist}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDownload(track)}
+                  disabled={status === 'loading'}
+                  className="p-2 rounded-lg bg-accent hover:bg-accent-hover text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 opacity-0 group-hover:opacity-100"
+                  aria-label={`Download ${track.title}`}
+                >
+                  <Download className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                onClick={() => handleDownload(track)}
-                disabled={status === 'loading'}
-                className="p-2 rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                aria-label={`Download ${track.title}`}
-              >
-                <Download className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
