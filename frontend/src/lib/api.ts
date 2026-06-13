@@ -1,5 +1,4 @@
 import { isAuthenticated, handleCallback } from './spotifyAuth'
-import { fetchTrack, fetchAlbum, fetchPlaylist } from './spotifyApi'
 import type { TrackMeta, CollectionMeta } from './spotifyApi'
 import { searchYouTube, getVideoInfo } from './youtubeClient'
 import { downloadAudio } from './audioProcessor'
@@ -33,18 +32,23 @@ export async function checkAuthStatus(): Promise<boolean> {
   return isAuthenticated()
 }
 
+async function fetchSpotifyViaScraper(url: string): Promise<TrackMeta | CollectionMeta> {
+  const res = await fetch('/.netlify/functions/spotify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error || 'Failed to fetch Spotify metadata')
+  }
+  return res.json()
+}
+
 export async function fetchMetadata(url: string): Promise<TrackMeta | CollectionMeta> {
   const parsed = parseSpotifyUrl(url)
   if (parsed) {
-    const { type, id } = parsed
-    switch (type) {
-      case 'track':
-        return fetchTrack(id)
-      case 'album':
-        return fetchAlbum(id)
-      case 'playlist':
-        return fetchPlaylist(id)
-    }
+    return fetchSpotifyViaScraper(url)
   }
 
   if (isYouTubeUrl(url)) {
