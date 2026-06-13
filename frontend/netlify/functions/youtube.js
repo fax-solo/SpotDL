@@ -4,19 +4,73 @@ const COMMON_HEADERS = {
 }
 
 const CLIENTS = [
-  { name: 'ANDROID', context: { client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30 } } },
-  { name: 'TV', context: { client: { clientName: 'TVHTML5', clientVersion: '7.20240101.00.00' } } },
-  { name: 'ANDROID_MUSIC', context: { client: { clientName: 'ANDROID_MUSIC', clientVersion: '6.27.52', androidSdkVersion: 30 } } },
-  { name: 'WEB', context: { client: { clientName: 'WEB', clientVersion: '2.20240101.00.00' } } },
+  {
+    name: 'ANDROID',
+    context: {
+      client: {
+        clientName: 'ANDROID',
+        clientVersion: '19.09.37',
+        androidSdkVersion: 30,
+        osName: 'Android',
+        osVersion: '13',
+        platform: 'MOBILE',
+        gl: 'US',
+        hl: 'en',
+      },
+    },
+  },
+  {
+    name: 'ANDROID_MUSIC',
+    context: {
+      client: {
+        clientName: 'ANDROID_MUSIC',
+        clientVersion: '6.27.52',
+        androidSdkVersion: 30,
+        osName: 'Android',
+        osVersion: '13',
+        platform: 'MOBILE',
+        gl: 'US',
+        hl: 'en',
+      },
+    },
+  },
+  {
+    name: 'TV',
+    context: {
+      client: {
+        clientName: 'TVHTML5',
+        clientVersion: '7.20240101.00.00',
+        gl: 'US',
+        hl: 'en',
+      },
+    },
+  },
+  {
+    name: 'WEB_REMIX',
+    context: {
+      client: {
+        clientName: 'WEB_REMIX',
+        clientVersion: '1.20240101.00.00',
+        gl: 'US',
+        hl: 'en',
+      },
+    },
+  },
+  {
+    name: 'WEB',
+    context: {
+      client: {
+        clientName: 'WEB',
+        clientVersion: '2.20240101.00.00',
+        gl: 'US',
+        hl: 'en',
+      },
+    },
+  },
 ]
 
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'
 const COOKIES = 'CONSENT=YES+; SOCS=CAISHAgCEhJqOHNfVUJfMl9xMHpKNHBpM1cYAiIBBiA='
-const PIPED_INSTANCES = [
-  'https://pipedapi.kavin.rocks',
-  'https://pipedapi.syncpundit.io',
-  'https://api.piped.privacydev.net',
-]
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -42,22 +96,6 @@ exports.handler = async (event) => {
 
 async function handleSearch(query) {
   const errors = []
-  for (const piped of PIPED_INSTANCES) {
-    try {
-      const res = await fetch(`${piped}/search?q=${encodeURIComponent(query)}&filter=videos`, {
-        headers: COMMON_HEADERS, signal: AbortSignal.timeout(10000),
-      })
-      if (!res.ok) { errors.push(`piped ${piped}: status ${res.status}`); continue }
-      const data = await res.json()
-      const items = data?.items || []
-      const results = items.filter(item => item.url?.includes('/watch?v=')).slice(0, 5).map(item => ({
-        videoId: item.url.split('v=')[1]?.split('&')[0] || '',
-        title: item.title || 'Unknown',
-        url: item.url,
-      })).filter(r => r.videoId)
-      if (results.length > 0) return { statusCode: 200, body: JSON.stringify({ results }) }
-    } catch (e) { errors.push(`piped ${piped}: ${e.message}`) }
-  }
 
   for (const client of CLIENTS) {
     try {
@@ -68,7 +106,11 @@ async function handleSearch(query) {
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(10000),
       })
-      if (!res.ok) { errors.push(`innertube ${client.name}: status ${res.status}`); continue }
+      if (!res.ok) {
+        const body = await res.text()
+        errors.push(`innertube ${client.name}: status ${res.status} - ${body.slice(0, 100)}`)
+        continue
+      }
       const data = await res.json()
       const results = []
       const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || []
@@ -97,36 +139,6 @@ async function handleInfo(videoUrl) {
 
   const errors = []
 
-  for (const piped of PIPED_INSTANCES) {
-    try {
-      const res = await fetch(`${piped}/streams/${videoId}`, {
-        headers: COMMON_HEADERS,
-        signal: AbortSignal.timeout(15000),
-      })
-      if (!res.ok) { errors.push(`piped ${piped}: status ${res.status}`); continue }
-      const data = await res.json()
-      const audioStreams = data?.audioStreams || []
-      if (audioStreams.length > 0) {
-        const best = audioStreams.filter(s => s.url).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0]
-        if (best) {
-          return {
-            statusCode: 200,
-            body: JSON.stringify({
-              title: data.title || 'Unknown',
-              author: data.uploader || 'Unknown',
-              duration: String(data.duration || 0),
-              audioUrl: best.url,
-              thumbnail: data.thumbnailUrl || null,
-            }),
-          }
-        }
-        errors.push(`piped ${piped}: no audio streams with URLs`)
-      } else {
-        errors.push(`piped ${piped}: no audioStreams field`)
-      }
-    } catch (e) { errors.push(`piped ${piped}: ${e.message}`) }
-  }
-
   for (const client of CLIENTS) {
     try {
       const payload = { context: client.context, videoId }
@@ -136,11 +148,15 @@ async function handleInfo(videoUrl) {
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(10000),
       })
-      if (!res.ok) { errors.push(`innertube ${client.name}: status ${res.status}`); continue }
+      if (!res.ok) {
+        const body = await res.text()
+        errors.push(`innertube ${client.name}: status ${res.status} - ${body.slice(0, 100)}`)
+        continue
+      }
       const data = await res.json()
       const ps = data?.playabilityStatus
       if (ps?.status && ps.status !== 'OK') {
-        errors.push(`innertube ${client.name}: ${ps.status} - ${ps.reason || ''}`)
+        errors.push(`innertube ${client.name}: ${ps.status} - ${ps.reason || ps.messages?.[0] || ''}`)
         continue
       }
       const result = extractAudio(data)
@@ -148,31 +164,6 @@ async function handleInfo(videoUrl) {
       errors.push(`innertube ${client.name}: no streamingData`)
     } catch (e) { errors.push(`innertube ${client.name}: ${e.message}`) }
   }
-
-  try {
-    const res = await fetch(`https://www.youtube.com/get_video_info?video_id=${videoId}&eurl=https://youtube.googleapis.com/v/${videoId}&html5=1`, {
-      headers: { 'Cookie': COOKIES, ...COMMON_HEADERS },
-      signal: AbortSignal.timeout(10000),
-    })
-    if (res.ok) {
-      const text = await res.text()
-      const params = new URLSearchParams(text)
-      const status = params.get('status')
-      if (status !== 'ok') {
-        errors.push(`get_video_info: status=${status} reason=${params.get('reason') || ''}`)
-      } else {
-        const playerResponse = params.get('player_response')
-        if (playerResponse) {
-          const data = JSON.parse(decodeURIComponent(playerResponse))
-          const result = extractAudio(data)
-          if (result) return { statusCode: 200, body: JSON.stringify(result) }
-        }
-        errors.push('get_video_info: no player_response')
-      }
-    } else {
-      errors.push(`get_video_info: status ${res.status}`)
-    }
-  } catch (e) { errors.push(`get_video_info: ${e.message}`) }
 
   return {
     statusCode: 502,
