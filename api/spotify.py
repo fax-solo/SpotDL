@@ -2,6 +2,8 @@ import os
 import re
 import json
 import base64
+import time
+import urllib.parse
 from pathlib import Path
 
 # Load .env manually (no python-dotenv dependency needed)
@@ -149,6 +151,92 @@ def _scrape_collection(kind: str, collection_id: str) -> dict:
         "collection_type": kind,
         "tracks": tracks,
     }
+
+
+# ─── User OAuth token store (single-user, in-memory) ───
+_user_auth: dict = {
+    "access_token": None,
+    "refresh_token": None,
+    "expires_at": 0,
+}
+
+
+def get_spotify_auth_url() -> str:
+    client_id = os.environ.get("SPOTIFY_CLIENT_ID")
+    redirect_uri = os.environ.get(
+        "SPOTIFY_REDIRECT_URI",
+        "http://localhost:8000/api/auth/spotify/callback",
+    )
+    scopes = "playlist-read-private playlist-read-collaborative"
+    params = {
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": redirect_uri,
+        "scope": scopes,
+    }
+    return f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
+
+
+def handle_spotify_callback(code: str) -> None:
+    client_id = os.environ.get("SPOTIFY_CLIENT_ID")
+    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
+    redirect_uri = os.environ.get(
+        "SPOTIFY_REDIRECT_URI",
+        "http://localhost:8000/api/auth/spotify/callback",
+    )
+
+    resp = requests.post(
+        "https://accounts.spotify.com/api/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+
+    _user_auth["access_token"] = data["access_token"]
+    _user_auth["refresh_token"] = data.get("refresh_token", "")
+    _user_auth["expires_at"] = time.time() + data["expires_in"]
+
+
+def get_user_token() -> str | None:
+    if not _user_auth["access_token"]:
+        return None
+    if time.time() >= _user_auth["expires_at"]:
+        _refresh_user_token()
+    return _user_auth["access_token"]
+
+
+def _refresh_user_token() -> None:
+    client_id = os.environ.get("SPOTIFY_CLIENT_ID")
+    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
+
+    resp = requests.post(
+        "https://accounts.spotify.com/api/token",
+        data={
+            "grant_type": "refresh_token",
+            "refresh_token": _user_auth["refresh_token"],
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+
+    _user_auth["access_token"] = data["access_token"]
+    _user_auth["expires_at"] = time.time() + data.get("expires_in", 3600)
+    if "refresh_token" in data:
+        _user_auth["refresh_token"] = data["refresh_token"]
+
+
+def is_user_authenticated() -> bool:
+    return _user_auth["access_token"] is not None
 
 
 def _get_spotify_token() -> str | None:
@@ -309,7 +397,18 @@ def fetch_metadata(url: str) -> dict | list[dict]:
             raise ValueError(f"Could not parse URL. Ensure it is a valid Spotify, YouTube, or SoundCloud link. ({e})")
     
     kind, id_ = parsed
+
+    # For playlists, try user OAuth token first (supports full pagination)
+    if kind == "playlist":
+        user_token = get_user_token()
+        if user_token:
+            try:
+                return _fetch_official_collection(kind, id_, user_token)
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code not in (403, 404):
+                    raise e
     
+    # Client Credentials token (works for tracks/albums, fails for most playlists)
     token = _get_spotify_token()
     
     try:

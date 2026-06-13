@@ -1,18 +1,24 @@
 import os
 import sys
 import shutil
+import urllib.parse
 import traceback
 
 # Ensure sibling modules are importable on Vercel
 sys.path.insert(0, os.path.dirname(__file__))
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
-from spotify import fetch_metadata
+from spotify import (
+    fetch_metadata,
+    get_spotify_auth_url,
+    handle_spotify_callback,
+    is_user_authenticated,
+)
 
 app = FastAPI(title="SpotDL API", version="1.0.0")
 
@@ -36,6 +42,29 @@ class DownloadRequest(BaseModel):
 @app.get("/api/ping")
 def ping():
     return {"ok": True}
+
+
+CLIENT_URL = os.environ.get("CLIENT_URL", "http://localhost:5173")
+
+
+@app.get("/api/auth/spotify/login")
+def spotify_login():
+    return RedirectResponse(url=get_spotify_auth_url())
+
+
+@app.get("/api/auth/spotify/callback")
+def spotify_callback(code: str = Query(...)):
+    try:
+        handle_spotify_callback(code)
+        return RedirectResponse(url=f"{CLIENT_URL}/")
+    except Exception as e:
+        traceback.print_exc()
+        return RedirectResponse(url=f"{CLIENT_URL}/?auth_error={urllib.parse.quote(str(e))}")
+
+
+@app.get("/api/auth/status")
+def auth_status():
+    return {"authenticated": is_user_authenticated()}
 
 
 @app.get("/api/metadata")

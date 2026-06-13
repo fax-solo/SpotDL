@@ -1,5 +1,15 @@
 const BASE_URL = import.meta.env.VITE_API_URL || ''
 
+export async function checkAuthStatus(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/status`)
+    const data = await res.json()
+    return data.authenticated
+  } catch {
+    return false
+  }
+}
+
 export interface TrackMeta {
   title: string
   artist: string
