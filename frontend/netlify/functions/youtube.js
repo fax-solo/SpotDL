@@ -44,7 +44,9 @@ const CLIENTS = [
   },
 ]
 
+const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'
 const COOKIES = 'CONSENT=YES+; SOCS=CAISHAgCEhJqOHNfVUJfMl9xMHpKNHBpM1cYAiIBBiA='
+const PIPED_API = 'https://pipedapi.kavin.rocks'
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -69,10 +71,32 @@ exports.handler = async (event) => {
 }
 
 async function handleSearch(query) {
+  // Try Piped API first
+  try {
+    const res = await fetch(`${PIPED_API}/search?q=${encodeURIComponent(query)}&filter=videos`, {
+      headers: COMMON_HEADERS,
+    })
+    const data = await res.json()
+    const items = data?.items || []
+    const results = items
+      .filter(item => item.url && item.url.includes('/watch?v='))
+      .slice(0, 5)
+      .map(item => ({
+        videoId: item.url.split('v=')[1]?.split('&')[0] || '',
+        title: item.title || 'Unknown',
+        url: item.url,
+      }))
+      .filter(r => r.videoId)
+    if (results.length > 0) {
+      return { statusCode: 200, body: JSON.stringify({ results }) }
+    }
+  } catch {}
+
+  // Fallback: Innertube API
   for (const client of CLIENTS) {
     try {
       const payload = { context: client.context, query }
-      const res = await fetch('https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8', {
+      const res = await fetch(`https://www.youtube.com/youtubei/v1/search?key=${INNERTUBE_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, ...COMMON_HEADERS },
         body: JSON.stringify(payload),
@@ -109,22 +133,48 @@ async function handleInfo(videoUrl) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid YouTube URL' }) }
   }
 
-  // Try all Innertube clients
+  // Try Piped API first
+  try {
+    const res = await fetch(`${PIPED_API}/streams/${videoId}`, {
+      headers: COMMON_HEADERS,
+    })
+    const data = await res.json()
+    const audioStreams = data?.audioStreams || []
+    if (audioStreams.length > 0) {
+      const best = audioStreams
+        .filter(s => s.url)
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0]
+      if (best) {
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            title: data.title || 'Unknown',
+            author: data.uploader || 'Unknown',
+            duration: String(data.duration || 0),
+            audioUrl: best.url,
+            thumbnail: data.thumbnailUrl || null,
+          }),
+        }
+      }
+    }
+  } catch {}
+
+  // Fallback: Innertube API clients
   for (const client of CLIENTS) {
     try {
       const payload = { context: client.context, videoId }
-      const res = await fetch('https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8', {
+      const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, ...COMMON_HEADERS },
         body: JSON.stringify(payload),
       })
       const data = await res.json()
-      const result = extractAudio(data, client.name)
+      const result = extractAudio(data)
       if (result) return { statusCode: 200, body: JSON.stringify(result) }
     } catch {}
   }
 
-  // Fallback: get_video_info endpoint
+  // Fallback: get_video_info
   try {
     const res = await fetch(`https://www.youtube.com/get_video_info?video_id=${videoId}&eurl=https://youtube.googleapis.com/v/${videoId}&html5=1`, {
       headers: { 'Cookie': COOKIES, ...COMMON_HEADERS },
@@ -134,18 +184,18 @@ async function handleInfo(videoUrl) {
     const playerResponse = params.get('player_response')
     if (playerResponse) {
       const data = JSON.parse(decodeURIComponent(playerResponse))
-      const result = extractAudio(data, 'get_video_info')
+      const result = extractAudio(data)
       if (result) return { statusCode: 200, body: JSON.stringify(result) }
     }
   } catch {}
 
   return {
     statusCode: 502,
-    body: JSON.stringify({ error: 'Could not retrieve audio from any YouTube client' }),
+    body: JSON.stringify({ error: 'Could not retrieve audio from any source' }),
   }
 }
 
-function extractAudio(data, clientName) {
+function extractAudio(data) {
   const sd = data?.streamingData
   if (!sd) return null
 
@@ -154,7 +204,6 @@ function extractAudio(data, clientName) {
     ...(sd.adaptiveFormats || []),
   ]
 
-  // Filter formats with direct URLs (no signatureCipher)
   const audioFormats = allFormats
     .filter(f => f.mimeType?.startsWith('audio/') && f.url)
     .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
