@@ -1,5 +1,5 @@
 fastapi
 uvicorn
-yt-dlp[default,curl-cffi]
+yt-dlp
 mutagen
 requests

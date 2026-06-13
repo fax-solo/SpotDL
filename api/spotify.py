@@ -16,7 +16,6 @@ if _env_path.exists():
             os.environ.setdefault(_k.strip(), _v.strip())
 
 import requests
-import yt_dlp
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
@@ -332,6 +331,7 @@ def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dic
 
 
 def _fetch_generic_metadata(url: str) -> dict:
+    import yt_dlp
     opts = {
         "extract_flat": True,
         "quiet": True,
