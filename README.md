@@ -4,57 +4,89 @@ Download any Spotify track, album, or playlist as high-quality audio — **no AP
 
 ## How It Works
 
-1. Paste a Spotify link → app scrapes public metadata (title, artist, album, cover art) from Spotify's OG tags
-2. Searches YouTube for the best matching audio using yt-dlp
-3. Downloads the best available audio (320kbps MP3 if ffmpeg is available, otherwise high-bitrate M4A)
-4. Tags the file with metadata (title, artist, album, cover art)
+1. Paste a Spotify link → app scrapes public metadata (title, artist, album, cover art) from Spotify's embed page
+2. Searches SoundCloud (or YouTube) for the best matching audio using yt-dlp
+3. Downloads the best available audio (320kbps MP3 if ffmpeg is available)
+4. Tags the file with ID3 metadata (title, artist, album, cover art)
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS v4 |
-| Backend | FastAPI (Python 3.12+) — deployed as Vercel Serverless Function |
+| Backend | FastAPI (Python 3.12+) — Docker container |
 | Audio | yt-dlp + mutagen |
-| Hosting | [Vercel](https://vercel.com) (frontend + API) |
+| Mobile | Capacitor 8 (Android APK) |
 
-## Deploy to Vercel
+## Architecture
 
-### Prerequisites
-
-Push your repo to GitHub first:
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/<your-username>/spotdl.git
-git branch -M main
-git push -u origin main
+```
+Android APK (Capacitor/React) ──HTTP──> Backend Server (FastAPI + yt-dlp)
 ```
 
-### One-click deploy
+The backend runs as a standalone server (Docker, Railway, Render, Fly.io, VPS).
+The mobile app connects to it via API.
 
-| Step | Action |
-|------|--------|
-| 1 | Go to [vercel.com/new](https://vercel.com/new) |
-| 2 | Import your `spotdl` repo |
-| 3 | Click **Deploy** — that's it |
+## Deploy Backend
 
-Vercel auto-detects:
-- `api/` → Python serverless function (FastAPI)
-- `frontend/` → Vite static site
-- `vercel.json` → routes `/api/*` to the backend, everything else to the frontend
-
-### Local Development
+### Option 1: Railway / Render / Fly.io (recommended)
 
 ```bash
-# Backend
+# Connect your GitHub repo
+# Set environment variables in the dashboard:
+#   SPOTIFY_CLIENT_ID
+#   SPOTIFY_CLIENT_SECRET
+#   SPOTIFY_REDIRECT_URI  (e.g. spotdl://callback for mobile, or https://your-app.com/api/auth/spotify/callback for web)
+#   CLIENT_URL            (e.g. https://your-app.com or spotdl:// for mobile)
+# Deploy — Dockerfile is auto-detected
+```
+
+### Option 2: Docker (any VPS)
+
+```bash
+docker compose up -d
+```
+
+### Option 3: Manual
+
+```bash
 cd api
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-# Install ffmpeg for MP3 conversion (optional — M4A works without it)
+uvicorn index:app --host 0.0.0.0 --port 8000
+```
+
+## Build Mobile APK
+
+```bash
+cd frontend
+npm install
+npm run build
+npx cap add android
+npx cap sync android
+npx cap open android
+```
+
+Then in Android Studio: **Build → Build Bundle(s) / APK(s) → Build APK**
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SPOTIFY_CLIENT_ID` | Yes | — | Spotify API OAuth client ID |
+| `SPOTIFY_CLIENT_SECRET` | Yes | — | Spotify API OAuth client secret |
+| `SPOTIFY_REDIRECT_URI` | No | `http://localhost:8000/api/auth/spotify/callback` | OAuth redirect URI |
+| `CLIENT_URL` | No | `http://localhost:5173` | Frontend URL for OAuth redirect |
+| `VITE_API_URL` | For mobile APK | `''` (same-origin) | Backend API URL (set at build time) |
+
+## Local Development
+
+```bash
+# Backend
+cd api
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 uvicorn index:app --host 0.0.0.0 --port 8000
 
 # Frontend (separate terminal)
@@ -62,12 +94,6 @@ cd frontend
 npm install
 VITE_API_URL=http://localhost:8000 npm run dev
 ```
-
-## Environment Variables
-
-None required for Vercel deployment. The frontend defaults to same-origin API requests.
-
-For local development, set `VITE_API_URL` to your backend URL.
 
 ## License
 

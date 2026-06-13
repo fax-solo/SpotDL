@@ -1,8 +1,8 @@
 frontend/node_modules/
 frontend/dist/
+frontend/android/
 api/__pycache__/
 api/venv/
 api/.env
 *.pyc
 .DS_Store
-.vercel

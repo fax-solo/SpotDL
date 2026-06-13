@@ -1,0 +1,11 @@
+services:
+  api:
+    build:
+      context: api
+    ports:
+      - "8000:8000"
+    environment:
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+      - SPOTIFY_REDIRECT_URI=${SPOTIFY_REDIRECT_URI:-http://localhost:8000/api/auth/spotify/callback}
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:5173}

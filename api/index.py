@@ -4,7 +4,6 @@ import shutil
 import urllib.parse
 import traceback
 
-# Ensure sibling modules are importable on Vercel
 sys.path.insert(0, os.path.dirname(__file__))
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -48,7 +47,9 @@ CLIENT_URL = os.environ.get("CLIENT_URL", "http://localhost:5173")
 
 
 @app.get("/api/auth/spotify/login")
-def spotify_login():
+def spotify_login(redirect_uri: str = Query(None, description="Override redirect URI (used by mobile app)")):
+    if redirect_uri:
+        return RedirectResponse(url=get_spotify_auth_url(redirect_uri))
     return RedirectResponse(url=get_spotify_auth_url())
 
 
@@ -61,6 +62,15 @@ def spotify_callback(code: str = Query(...)):
         traceback.print_exc()
         return RedirectResponse(url=f"{CLIENT_URL}/?auth_error={urllib.parse.quote(str(e))}")
 
+
+@app.get("/api/auth/spotify/exchange")
+def spotify_exchange(code: str = Query(...)):
+    try:
+        data = handle_spotify_callback(code)
+        return {"ok": True, "authenticated": True, "expires_in": data.get("expires_in", 3600)}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=str(e))
 
 @app.get("/api/auth/status")
 def auth_status():

@@ -160,9 +160,9 @@ _user_auth: dict = {
 }
 
 
-def get_spotify_auth_url() -> str:
+def get_spotify_auth_url(redirect_uri: str | None = None) -> str:
     client_id = os.environ.get("SPOTIFY_CLIENT_ID")
-    redirect_uri = os.environ.get(
+    redirect_uri = redirect_uri or os.environ.get(
         "SPOTIFY_REDIRECT_URI",
         "http://localhost:8000/api/auth/spotify/callback",
     )
@@ -176,7 +176,7 @@ def get_spotify_auth_url() -> str:
     return f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
 
 
-def handle_spotify_callback(code: str) -> None:
+def handle_spotify_callback(code: str) -> dict:
     client_id = os.environ.get("SPOTIFY_CLIENT_ID")
     client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
     redirect_uri = os.environ.get(
@@ -201,6 +201,8 @@ def handle_spotify_callback(code: str) -> None:
     _user_auth["access_token"] = data["access_token"]
     _user_auth["refresh_token"] = data.get("refresh_token", "")
     _user_auth["expires_at"] = time.time() + data["expires_in"]
+
+    return data
 
 
 def get_user_token() -> str | None:
