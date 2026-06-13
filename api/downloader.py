@@ -26,7 +26,7 @@ def _find_ffmpeg() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
-def search_track(query: str) -> str | None:
+def search_track(query: str) -> list[str]:
     opts = {
         **_get_base_opts(),
         "extract_flat": True,
@@ -35,8 +35,13 @@ def search_track(query: str) -> str | None:
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(f"scsearch1:{query}", download=False)
         if not info or "entries" not in info or not info["entries"]:
-            return None
-        return info["entries"][0]["url"]
+            return []
+        urls = []
+        for entry in info["entries"]:
+            url = entry.get("url")
+            if url:
+                urls.append(url)
+        return urls
 
 
 def _safe(s: str) -> str:
@@ -51,62 +56,75 @@ def download_track(
     source_url: str | None = None,
 ) -> tuple[str, str]:
     if source_url and not source_url.startswith("https://open.spotify.com"):
-        # Direct URL provided (YouTube, SoundCloud, etc.) — use it directly
-        track_url = source_url
+        track_urls = [source_url]
     else:
-        # Spotify track — search SoundCloud for the audio
         query = f"{artist} {title}"
-        track_url = search_track(query)
-        if not track_url:
+        track_urls = search_track(query)
+        if not track_urls:
             raise RuntimeError(f"No track found on SoundCloud for '{title}' by {artist}")
 
-    tmpdir = tempfile.mkdtemp()
-    safe_name = f"{_safe(artist)} - {_safe(title)}"
-    outtmpl = os.path.join(tmpdir, f"{safe_name}.%(ext)s")
-
     ffmpeg_available = _find_ffmpeg()
+    last_error: Exception | None = None
 
-    if ffmpeg_available:
+    for track_url in track_urls:
+        tmpdir = tempfile.mkdtemp()
+        safe_name = f"{_safe(artist)} - {_safe(title)}"
+        outtmpl = os.path.join(tmpdir, f"{safe_name}.%(ext)s")
+
         opts = {
             **_get_base_opts(),
-            "format": "bestaudio[ext=mp3]/bestaudio/best",
+            "format": "bestaudio[ext=mp3]/best[ext=mp3]/bestaudio/best"
+            if not ffmpeg_available
+            else "bestaudio[ext=mp3]/bestaudio/best",
             "outtmpl": outtmpl,
-            "postprocessors": [
+        }
+        if ffmpeg_available:
+            opts["postprocessors"] = [
                 {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
                     "preferredquality": "320",
                 }
-            ],
-        }
-    else:
-        opts = {
-            **_get_base_opts(),
-            "format": "bestaudio[ext=mp3]/best[ext=mp3]/bestaudio/best",
-            "outtmpl": outtmpl,
-        }
+            ]
 
-    # Add YouTube-specific args to bypass bot detection
-    if "youtube.com" in track_url or "youtu.be" in track_url:
-        opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
+        if "youtube.com" in track_url or "youtu.be" in track_url:
+            opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        ydl.download([track_url])
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([track_url])
 
-    files = os.listdir(tmpdir)
-    if not files:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        raise RuntimeError("No files downloaded")
+            files = os.listdir(tmpdir)
+            if not files:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+                continue
 
-    filepath = os.path.join(tmpdir, files[0])
-    ext = os.path.splitext(filepath)[1].lower()
+            filepath = os.path.join(tmpdir, files[0])
+            ext = os.path.splitext(filepath)[1].lower()
 
-    if ext == ".mp3":
-        _tag_mp3(filepath, title, artist, album, artwork_url)
-    elif ext in [".m4a", ".aac", ".mp4"]:
-        _tag_m4a(filepath, title, artist, album, artwork_url)
+            if ext == ".mp3":
+                _tag_mp3(filepath, title, artist, album, artwork_url)
+            elif ext in [".m4a", ".aac", ".mp4"]:
+                _tag_m4a(filepath, title, artist, album, artwork_url)
 
-    return filepath, ext
+            return filepath, ext
+
+        except yt_dlp.DownloadError as e:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            last_error = e
+            if "DRM" in str(e):
+                logger.warning(f"Source {track_url} is DRM protected, trying next result...")
+                continue
+            raise
+        except Exception as e:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            raise
+
+    raise RuntimeError(
+        f"Could not download '{title}' by {artist}. "
+        f"Tried {len(track_urls)} source(s). "
+        f"{'Last error: ' + str(last_error) if last_error else ''}"
+    )
 
 
 def _tag_mp3(path: str, title: str, artist: str, album: str, artwork_url: str | None):
