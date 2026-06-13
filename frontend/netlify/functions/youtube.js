@@ -35,21 +35,41 @@ exports.handler = async (event) => {
 }
 
 async function handleSearch(query) {
-  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`
-  const res = await fetch(searchUrl, { headers: COMMON_HEADERS })
-  const html = await res.text()
+  const payload = {
+    context: INNERTUBE_CONTEXT,
+    query,
+  }
 
+  const res = await fetch(`https://www.youtube.com/youtubei/v1/search?key=${API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...COMMON_HEADERS },
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    return { statusCode: 502, body: JSON.stringify({ error: `YouTube search API returned ${res.status}` }) }
+  }
+
+  const data = await res.json()
   const results = []
-  const regex = /"videoRenderer":\{"videoId":"([^"]+)"[^}]*?"title":\{"runs":\[{"text":"([^"]+)"[^}]*?\}\][^}]*?\}[^}]*?\}/g
-  let match
 
-  while ((match = regex.exec(html)) !== null) {
-    const videoId = match[1]
-    const title = match[2].replace(/\\u0026/g, '&').replace(/\\"/g, '"').replace(/\\/g, '')
-    if (!results.some(r => r.videoId === videoId)) {
-      results.push({ videoId, title, url: `https://youtube.com/watch?v=${videoId}` })
+  try {
+    const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || []
+    for (const section of sections) {
+      const items = section?.itemSectionRenderer?.contents || []
+      for (const item of items) {
+        const renderer = item?.videoRenderer
+        if (!renderer || !renderer.videoId) continue
+        results.push({
+          videoId: renderer.videoId,
+          title: renderer.title?.runs?.[0]?.text || 'Unknown',
+          url: `https://youtube.com/watch?v=${renderer.videoId}`,
+        })
+        if (results.length >= 5) break
+      }
+      if (results.length >= 5) break
     }
-    if (results.length >= 5) break
+  } catch {
   }
 
   return {
