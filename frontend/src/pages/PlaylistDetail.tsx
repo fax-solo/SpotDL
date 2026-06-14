@@ -1,13 +1,31 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Download, DownloadCloud, Music, ListMusic, RefreshCw, AlertCircle } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowLeft, Download, DownloadCloud, Music, ListMusic, AlertCircle } from 'lucide-react'
 import { downloadTrack } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
 import { mapConcurrent } from '../lib/concurrency'
 import type { CollectionMeta, TrackMeta } from '../lib/spotifyApi'
-import { StatusBanner, type Status } from '../components/StatusBanner'
+import { SkeletonRow } from '../components/SkeletonRow'
+import { useToast } from '../components/Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { apiUrl } from '../lib/apiConfig'
+
+interface TrackProgress {
+  stage: string
+  pct: number | null
+  done: boolean
+  failed: boolean
+}
+
+function visualPct(progress: TrackProgress): number {
+  if (progress.done) return 100
+  if (progress.failed) return 0
+  if (progress.stage.includes('Searching')) return 5
+  if (progress.stage.includes('Downloading')) return 10 + (progress.pct ?? 0) * 0.3
+  if (progress.stage.includes('Converting')) return 40 + (progress.pct ?? 0) * 0.6
+  return 0
+}
 
 interface PlaylistDetailProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -15,6 +33,7 @@ interface PlaylistDetailProps {
 
 function ArtworkImage({ src, alt, className, iconSize, loading }: { src: string | null; alt: string; className: string; iconSize?: number; loading?: 'lazy' | 'eager' }) {
   const [failed, setFailed] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   if (!src || failed) {
     return (
       <div className={`${className} bg-zinc-800 flex items-center justify-center`}>
@@ -23,14 +42,18 @@ function ArtworkImage({ src, alt, className, iconSize, loading }: { src: string 
     )
   }
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      loading={loading}
-      decoding="async"
-      onError={() => setFailed(true)}
-    />
+    <div className={`${className} relative overflow-hidden`}>
+      {!loaded && <div className="absolute inset-0 shimmer" />}
+      <img
+        src={src}
+        alt={alt}
+        className={`w-full h-full object-cover ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
+        loading={loading}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => { setFailed(true); setLoaded(true) }}
+      />
+    </div>
   )
 }
 
@@ -57,6 +80,15 @@ function TrackArtwork({ track, collectionArtwork, className, loading }: { track:
   return <ArtworkImage src={src} alt={track.album} className={className} loading={loading} />
 }
 
+const itemVariants = {
+  hidden: { opacity: 0, x: -20 } as const,
+  visible: (i: number) => ({
+    opacity: 1,
+    x: 0,
+    transition: { delay: i * 0.025, type: 'spring' as const, stiffness: 350, damping: 30 },
+  }),
+}
+
 export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -64,9 +96,10 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<Status>('idle')
-  const [message, setMessage] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [completedCount, setCompletedCount] = useState(0)
+  const [trackProgress, setTrackProgress] = useState<Record<number, TrackProgress>>({})
+  const { toast } = useToast()
 
   const fetchAttempted = useRef(false)
 
@@ -104,15 +137,10 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
   const tracks = collection?.tracks ?? []
 
   const handleDownload = async (track: TrackMeta) => {
-    setStatus('loading')
-    setMessage(`Preparing ${track.title}...`)
     try {
-      const { blob, filename } = await downloadTrack(track, (stage, pct) => {
-        setMessage(pct !== undefined ? `${stage} ${pct}%` : stage)
-      })
+      const { blob, filename } = await downloadTrack(track)
       await downloadFile(blob, filename)
-      setStatus('success')
-      setMessage(`Downloaded ${track.title}!`)
+      toast(`Downloaded ${track.title}`, 'success')
       onDownloadComplete({
         title: track.title,
         artist: track.artist,
@@ -120,8 +148,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
         artworkUrl: track.artwork_url,
       })
     } catch (err) {
-      setStatus('error')
-      setMessage(err instanceof Error ? err.message : 'Download failed')
+      toast(err instanceof Error ? err.message : 'Download failed', 'error')
     }
   }
 
@@ -129,19 +156,30 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
     setDownloadingAll(true)
     setCompletedCount(0)
     setStatus('loading')
-    setMessage(`Downloading 0/${tracks.length} tracks...`)
+    setTrackProgress({})
+
+    const initProgress: Record<number, TrackProgress> = {}
+    tracks.forEach((_, i) => {
+      initProgress[i] = { stage: 'Waiting...', pct: null, done: false, failed: false }
+    })
+    setTrackProgress(initProgress)
 
     const concurrency = tracks.length > 10 ? 3 : 2
     let success = 0
     let fail = 0
 
     const results = await mapConcurrent(tracks, async (track, i) => {
-      setMessage(`[${i + 1}/${tracks.length}] Downloading ${track.title}...`)
+      setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
       try {
         const { blob, filename } = await downloadTrack(track, (stage, pct) => {
-          setMessage(pct !== undefined ? `[${i + 1}/${tracks.length}] ${stage} ${pct}%` : `[${i + 1}/${tracks.length}] ${stage}`)
+          setTrackProgress(prev => ({
+            ...prev,
+            [i]: { stage, pct: pct ?? null, done: false, failed: false },
+          }))
         })
         await downloadFile(blob, filename)
+        setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
+        setCompletedCount(c => c + 1)
         onDownloadComplete({
           title: track.title,
           artist: track.artist,
@@ -150,6 +188,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
         })
         return true
       } catch {
+        setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Failed', pct: null, done: false, failed: true } }))
         return false
       }
     }, concurrency)
@@ -158,23 +197,27 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
     fail = results.length - success
 
     setDownloadingAll(false)
+    setStatus('idle')
     if (success > 0) {
-      setStatus('success')
-      setMessage(
-        fail > 0
-          ? `Downloaded ${success}/${tracks.length} (${fail} skipped)`
-          : `Downloaded all ${tracks.length} tracks!`,
-      )
+      const msg = fail > 0 ? `Downloaded ${success}/${tracks.length} (${fail} skipped)` : `Downloaded all ${tracks.length} tracks!`
+      toast(msg, 'success')
     } else {
-      setStatus('error')
-      setMessage(`All ${tracks.length} tracks failed.`)
+      toast(`All ${tracks.length} tracks failed.`, 'error')
     }
-  }, [tracks, onDownloadComplete])
+  }, [tracks, onDownloadComplete, toast])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-light-bg dark:bg-dark-bg">
-        <RefreshCw className="w-8 h-8 text-accent animate-spin" />
+      <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-24">
+        <div className="relative w-full aspect-[3/4] sm:aspect-square max-h-[60vh] bg-gray-200 dark:bg-zinc-800 animate-pulse" />
+        <div className="px-6 py-4">
+          <div className="h-12 bg-gray-200 dark:bg-zinc-800 rounded-xl animate-pulse" />
+        </div>
+        <div className="px-3 space-y-1 mt-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SkeletonRow key={i} />
+          ))}
+        </div>
       </div>
     )
   }
@@ -205,9 +248,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-24">
-      {/* Back + Header */}
       <div className="relative">
-        {/* Hero artwork */}
         <div className="relative w-full aspect-[3/4] sm:aspect-square max-h-[60vh] overflow-hidden">
           <ArtworkImage
             src={collection.collection_artwork}
@@ -219,16 +260,15 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-light-bg/30 dark:via-black/30 to-light-bg dark:to-black" />
         </div>
 
-        {/* Back button */}
-        <button
+        <motion.button
           onClick={() => navigate('/')}
+          whileTap={{ scale: 0.9 }}
           className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
         >
           <ArrowLeft className="w-5 h-5" />
-        </button>
+        </motion.button>
 
-        {/* Playlist info overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-6">
           <div className="flex items-center gap-2 mb-2">
             <ListMusic className="w-4 h-4 text-accent" />
@@ -245,63 +285,96 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
         </div>
       </div>
 
-      {/* Download All button */}
       <div className="px-6 py-4">
-        <button
+        <motion.button
           onClick={handleDownloadAll}
+          whileTap={{ scale: 0.97 }}
           disabled={status === 'loading'}
           className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <DownloadCloud className="w-5 h-5" />
           {downloadingAll ? `${completedCount}/${tracks.length}` : 'Download All'}
-        </button>
+        </motion.button>
       </div>
 
-      {/* Track list */}
       <div className="px-3">
-        {tracks.map((track, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-light-surface/50 dark:hover:bg-white/5 transition-colors group"
-          >
-            <span className="text-sm text-light-muted dark:text-zinc-500 w-6 text-right flex-shrink-0 tabular-nums">
-              {i + 1}
-            </span>
-            <TrackArtwork
-              track={track}
-              collectionArtwork={collection.collection_artwork}
-              className="w-11 h-11 rounded object-cover flex-shrink-0"
-              loading="lazy"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-light-text dark:text-white truncate">
-                {track.title}
-              </p>
-              <p className="text-xs text-light-muted dark:text-zinc-400 truncate">
-                {track.artist}
-              </p>
-            </div>
-            <button
-              onClick={() => handleDownload(track)}
-              disabled={status === 'loading'}
-              className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
-              aria-label={`Download ${track.title}`}
-            >
-              <Download className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
-      </div>
+        <AnimatePresence initial={false}>
+          {tracks.map((track, i) => {
+            const prog = trackProgress[i]
+            const showProgress = prog && !prog.done && !prog.failed
+            const pct = prog ? visualPct(prog) : 0
 
-      <div className="px-6 mt-4">
-        <StatusBanner status={status} message={message} />
+            return (
+              <motion.div
+                key={i}
+                custom={i}
+                variants={itemVariants}
+                initial="hidden"
+                animate="visible"
+                className="flex flex-col"
+              >
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-light-surface/50 dark:hover:bg-white/5 transition-colors group">
+                  <span className="text-sm text-light-muted dark:text-zinc-500 w-6 text-right flex-shrink-0 tabular-nums">
+                    {i + 1}
+                  </span>
+                  <TrackArtwork
+                    track={track}
+                    collectionArtwork={collection.collection_artwork}
+                    className="w-11 h-11 rounded object-cover flex-shrink-0"
+                    loading="lazy"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-light-text dark:text-white truncate">
+                      {track.title}
+                    </p>
+                    <p className="text-xs text-light-muted dark:text-zinc-400 truncate">
+                      {track.artist}
+                    </p>
+                    {prog && !prog.done && (
+                      <p className="text-[10px] text-accent mt-0.5 truncate">{prog.stage}{prog.pct !== null ? ` ${prog.pct}%` : ''}</p>
+                    )}
+                    {prog?.failed && (
+                      <p className="text-[10px] text-red-400 mt-0.5">Failed</p>
+                    )}
+                    {prog?.done && (
+                      <p className="text-[10px] text-green-400 mt-0.5">Downloaded</p>
+                    )}
+                  </div>
+                  <motion.button
+                    onClick={() => handleDownload(track)}
+                    whileTap={{ scale: 0.9 }}
+                    disabled={status === 'loading'}
+                    className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
+                    aria-label={`Download ${track.title}`}
+                  >
+                    <Download className="w-4 h-4" />
+                  </motion.button>
+                </div>
+                {showProgress && (
+                  <div className="px-3 pb-2">
+                    <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-accent rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
       </div>
 
       {isNative() && status === 'success' && (
-        <p className="mt-2 text-xs text-light-muted dark:text-zinc-500 text-center">
-          File saved to Documents folder
+        <p className="mt-4 text-xs text-light-muted dark:text-zinc-500 text-center">
+          Files saved to Documents folder
         </p>
       )}
     </div>
   )
 }
+
+type Status = 'idle' | 'loading' | 'success' | 'error'

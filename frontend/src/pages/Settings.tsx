@@ -20,10 +20,6 @@ export function Settings() {
     }
   }, [])
 
-  const handleLogin = async () => {
-    login()
-  }
-
   const handleLogout = () => {
     logout()
     setAuthed(false)
@@ -39,7 +35,6 @@ export function Settings() {
         <p className="text-sm text-light-muted dark:text-dark-muted mt-1">Manage your Spotify connection</p>
       </div>
 
-      {/* Spotify Account Section */}
       <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
         <div className="p-5">
           <div className="flex items-center gap-3 mb-4">
@@ -107,7 +102,7 @@ export function Settings() {
                 Connect your Spotify account to see your playlists, recently played tracks, and get recommendations.
               </p>
               <button
-                onClick={handleLogin}
+                onClick={login}
                 className="w-full py-3 px-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2 text-sm font-medium cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
@@ -118,7 +113,6 @@ export function Settings() {
         </div>
       </div>
 
-      {/* App Info */}
       <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
         <div className="p-5">
           <h2 className="text-lg font-semibold text-light-text dark:text-dark-text mb-2">About</h2>

@@ -1,33 +1,53 @@
-import { useState, useCallback, type FormEvent, type SyntheticEvent } from 'react'
+import { useState, useCallback, type FormEvent } from 'react'
 import { Download, Music, DownloadCloud, Disc3, ListMusic } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { fetchMetadata, downloadTrack } from '../lib/api'
 import type { TrackMeta, CollectionMeta } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
-import { StatusBanner, type Status } from './StatusBanner'
 import { mapConcurrent } from '../lib/concurrency'
+import { StatusBanner, type Status } from './StatusBanner'
+import { useToast } from './Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
+
+interface TrackProgress {
+  stage: string
+  pct: number | null
+  done: boolean
+  failed: boolean
+}
+
+function visualPct(progress: TrackProgress): number {
+  if (progress.done) return 100
+  if (progress.failed) return 0
+  if (progress.stage.includes('Searching')) return 5
+  if (progress.stage.includes('Downloading')) return 10 + (progress.pct ?? 0) * 0.3
+  if (progress.stage.includes('Converting')) return 40 + (progress.pct ?? 0) * 0.6
+  return 0
+}
 
 function ArtworkImage({ src, alt, className, iconSize, loading }: { src: string | null; alt: string; className: string; iconSize?: number; loading?: 'lazy' | 'eager' }) {
   const [failed, setFailed] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   if (!src || failed) {
     return (
-      <div className={`${className} bg-gray-200 dark:bg-gray-700 flex items-center justify-center`}>
+      <div className={`${className} bg-gray-200 dark:bg-zinc-700 flex items-center justify-center`}>
         <Music className="text-gray-400" style={{ width: iconSize ?? 16, height: iconSize ?? 16 }} />
       </div>
     )
   }
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      loading={loading}
-      decoding="async"
-      onError={(e: SyntheticEvent<HTMLImageElement>) => {
-        setFailed(true)
-        e.currentTarget.style.display = 'none'
-      }}
-    />
+    <div className={`${className} relative overflow-hidden`}>
+      {!loaded && <div className="absolute inset-0 shimmer" />}
+      <img
+        src={src}
+        alt={alt}
+        className={`w-full h-full object-cover ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
+        loading={loading}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => { setFailed(true); setLoaded(true) }}
+      />
+    </div>
   )
 }
 
@@ -42,6 +62,15 @@ function isCollectionMeta(data: TrackMeta | CollectionMeta): data is CollectionM
   return 'tracks' in data && 'collection_name' in data
 }
 
+const itemVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: (i: number) => ({
+    opacity: 1,
+    x: 0,
+    transition: { delay: i * 0.03, type: 'spring' as const, stiffness: 350, damping: 30 },
+  }),
+}
+
 export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadCardProps) {
   const [url, setUrl] = useState('')
   const [mode, setMode] = useState<ViewMode>(presetCollection ? 'list' : 'idle')
@@ -51,6 +80,8 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
   const [message, setMessage] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [completedCount, setCompletedCount] = useState(0)
+  const [trackProgress, setTrackProgress] = useState<Record<number, TrackProgress>>({})
+  const { toast } = useToast()
 
   const handleMetadata = async () => {
     if (!url.trim()) return
@@ -73,6 +104,7 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
     } catch (err) {
       setStatus('error')
       setMessage(err instanceof Error ? err.message : 'Failed to fetch metadata')
+      toast(err instanceof Error ? err.message : 'Failed to fetch metadata', 'error')
     }
   }
 
@@ -81,15 +113,12 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
     setMessage(`Preparing ${track.title}...`)
     try {
       const { blob, filename } = await downloadTrack(track, (stage, pct) => {
-        if (pct !== undefined) {
-          setMessage(`${stage} ${pct}%`)
-        } else {
-          setMessage(stage)
-        }
+        setMessage(pct !== undefined ? `${stage} ${pct}%` : stage)
       })
       await downloadFile(blob, filename)
       setStatus('success')
       setMessage(`Downloaded ${track.title}!`)
+      toast(`Downloaded ${track.title}`, 'success')
       onDownloadComplete({
         title: track.title,
         artist: track.artist,
@@ -98,7 +127,9 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
       })
     } catch (err) {
       setStatus('error')
-      setMessage(err instanceof Error ? err.message : 'Download failed')
+      const msg = err instanceof Error ? err.message : 'Download failed'
+      setMessage(msg)
+      toast(msg, 'error')
     }
   }
 
@@ -109,19 +140,30 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
     setCompletedCount(0)
     setStatus('loading')
     setMessage(`Downloading 0/${trackList.length} tracks...`)
+    setTrackProgress({})
+
+    const initProgress: Record<number, TrackProgress> = {}
+    trackList.forEach((_, i) => {
+      initProgress[i] = { stage: 'Waiting...', pct: null, done: false, failed: false }
+    })
+    setTrackProgress(initProgress)
 
     const concurrency = trackList.length > 10 ? 3 : 2
     let success = 0
     let fail = 0
 
     const results = await mapConcurrent(trackList, async (track, i) => {
-      setMessage(`Downloading ${i + 1}/${trackList.length}: ${track.title}...`)
+      setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
       try {
         const { blob, filename } = await downloadTrack(track, (stage, pct) => {
-          const prefix = `[${i + 1}/${trackList.length}] `
-          setMessage(pct !== undefined ? `${prefix}${stage} ${pct}%` : `${prefix}${stage}`)
+          setTrackProgress(prev => ({
+            ...prev,
+            [i]: { stage, pct: pct ?? null, done: false, failed: false },
+          }))
         })
         await downloadFile(blob, filename)
+        setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
+        setCompletedCount(c => c + 1)
         onDownloadComplete({
           title: track.title,
           artist: track.artist,
@@ -130,6 +172,7 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
         })
         return true
       } catch {
+        setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Failed', pct: null, done: false, failed: true } }))
         return false
       }
     }, concurrency)
@@ -140,16 +183,16 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
     setDownloadingAll(false)
     if (success > 0) {
       setStatus('success')
-      setMessage(
-        fail > 0
-          ? `Downloaded ${success}/${trackList.length} tracks (${fail} skipped)`
-          : `Downloaded all ${trackList.length} tracks!`,
-      )
+      const msg = fail > 0 ? `Downloaded ${success}/${trackList.length} (${fail} skipped)` : `Downloaded all ${trackList.length} tracks!`
+      setMessage(msg)
+      toast(msg, 'success')
     } else {
       setStatus('error')
-      setMessage(`All ${trackList.length} tracks failed.`)
+      const msg = `All ${trackList.length} tracks failed.`
+      setMessage(msg)
+      toast(msg, 'error')
     }
-  }, [trackList, onDownloadComplete])
+  }, [trackList, onDownloadComplete, toast])
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -178,18 +221,23 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
           placeholder="Paste a Spotify, YouTube, or SoundCloud URL..."
           className="flex-1 px-4 py-3 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg text-light-text dark:text-dark-text placeholder-light-muted dark:placeholder-dark-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors text-sm"
         />
-        <button
+        <motion.button
           type="submit"
+          whileTap={{ scale: 0.95 }}
           className="px-6 py-3 bg-accent hover:bg-accent-hover text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!url.trim() || status === 'loading'}
         >
           <Download className="w-4 h-4" />
           {mode === 'single' ? 'Download' : 'Preview'}
-        </button>
+        </motion.button>
       </form>
 
       {mode === 'single' && singleTrack && (
-        <div className="mt-4 p-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg flex items-center gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-4 p-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg flex items-center gap-4"
+        >
           <ArtworkImage
             src={singleTrack.artwork_url}
             alt={singleTrack.album}
@@ -208,13 +256,20 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
               {singleTrack.album}
             </p>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {mode === 'list' && collection && trackList.length > 0 && (
-        <div className="mt-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-4 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-dark-bg overflow-hidden"
+        >
           <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-accent/10 to-transparent border-b border-light-border dark:border-dark-border">
-            <div className="w-20 h-20 rounded-lg flex-shrink-0 overflow-hidden">
+            <motion.div
+              className="w-20 h-20 rounded-lg flex-shrink-0 overflow-hidden"
+              whileTap={{ scale: 0.95 }}
+            >
               {collection.collection_artwork ? (
                 <ArtworkImage
                   src={collection.collection_artwork}
@@ -227,7 +282,7 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
                   <CollectionIcon className="w-8 h-8 text-accent" />
                 </div>
               )}
-            </div>
+            </motion.div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <CollectionIcon className="w-3.5 h-3.5 text-accent flex-shrink-0" />
@@ -242,47 +297,87 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
                 {trackList.length} {trackList.length === 1 ? 'song' : 'songs'}
               </p>
             </div>
-            <button
+            <motion.button
               onClick={handleDownloadAll}
+              whileTap={{ scale: 0.95 }}
               disabled={status === 'loading'}
               className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               <DownloadCloud className="w-4 h-4" />
               {downloadingAll ? `${completedCount}/${trackList.length}` : 'Download All'}
-            </button>
+            </motion.button>
           </div>
 
           <div className="divide-y divide-light-border dark:divide-dark-border max-h-[400px] overflow-y-auto">
-            {trackList.map((track, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors group">
-                <span className="text-xs text-light-muted dark:text-dark-muted w-6 text-right flex-shrink-0 tabular-nums">
-                  {i + 1}
-                </span>
-                <ArtworkImage
-                  src={track.artwork_url}
-                  alt={track.album}
-                  className="w-10 h-10 rounded object-cover flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">
-                    {track.title}
-                  </p>
-                  <p className="text-xs text-light-muted dark:text-dark-muted truncate">
-                    {track.artist}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleDownload(track)}
-                  disabled={status === 'loading'}
-                  className="p-2 rounded-lg bg-accent hover:bg-accent-hover text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0                   md:opacity-0 md:group-hover:opacity-100"
-                  aria-label={`Download ${track.title}`}
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+            <AnimatePresence initial={false}>
+              {trackList.map((track, i) => {
+                const prog = trackProgress[i]
+                const showProgress = prog && !prog.done && !prog.failed
+                const pct = prog ? visualPct(prog) : 0
+
+                return (
+                  <motion.div
+                    key={i}
+                    custom={i}
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="flex flex-col"
+                  >
+                    <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors group">
+                      <span className="text-xs text-light-muted dark:text-dark-muted w-6 text-right flex-shrink-0 tabular-nums">
+                        {i + 1}
+                      </span>
+                      <ArtworkImage
+                        src={track.artwork_url}
+                        alt={track.album}
+                        className="w-10 h-10 rounded object-cover flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">
+                          {track.title}
+                        </p>
+                        <p className="text-xs text-light-muted dark:text-dark-muted truncate">
+                          {track.artist}
+                        </p>
+                        {prog && !prog.done && (
+                          <p className="text-[10px] text-accent mt-0.5 truncate">{prog.stage}{prog.pct !== null ? ` ${prog.pct}%` : ''}</p>
+                        )}
+                        {prog?.failed && (
+                          <p className="text-[10px] text-red-500 mt-0.5">Failed</p>
+                        )}
+                        {prog?.done && (
+                          <p className="text-[10px] text-green-500 mt-0.5">Downloaded</p>
+                        )}
+                      </div>
+                      <motion.button
+                        onClick={() => handleDownload(track)}
+                        whileTap={{ scale: 0.9 }}
+                        disabled={status === 'loading'}
+                        className="p-2 rounded-lg bg-accent hover:bg-accent-hover text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
+                        aria-label={`Download ${track.title}`}
+                      >
+                        <Download className="w-4 h-4" />
+                      </motion.button>
+                    </div>
+                    {showProgress && (
+                      <div className="px-4 pb-2">
+                        <div className="h-1 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-accent rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 0.3, ease: 'easeOut' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
       )}
 
       <StatusBanner status={status} message={message} />

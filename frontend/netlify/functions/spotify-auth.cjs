@@ -1,65 +1,98 @@
 const crypto = require('crypto')
+const fs = require('fs')
+const path = require('path')
+
+const envPath = path.join(__dirname, '..', '..', '.env')
+
+if (fs.existsSync(envPath)) {
+  const lines = fs.readFileSync(envPath, 'utf-8').split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eq = trimmed.indexOf('=')
+    if (eq === -1) continue
+    const key = trimmed.slice(0, eq).trim()
+    const value = trimmed.slice(eq + 1).trim()
+    if (!process.env[key]) {
+      process.env[key] = value
+    }
+  }
+}
 
 const CLIENT_ID = process.env.VITE_SPOTIFY_CLIENT_ID || process.env.SPOTIFY_CLIENT_ID || '9896a8bc854e4b5ea1ff42a4e63f75c6'
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || ''
 
 exports.handler = async (event) => {
   const params = event.queryStringParameters || {}
-  const { action, code, state, error } = params
-
-  if (error) {
-    return {
-      statusCode: 302,
-      headers: { Location: '/?error=spotify_auth_denied' },
-      body: '',
-    }
-  }
+  const { action, origin } = params
 
   if (action === 'login') {
-    const origin = params.origin
-    if (!origin) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing origin parameter' }) }
-    }
+    if (!origin) return { statusCode: 400, body: JSON.stringify({ error: 'Missing origin' }) }
 
-    const csrfToken = crypto.randomBytes(16).toString('hex')
-    const statePayload = Buffer.from(JSON.stringify({ csrf: csrfToken, origin })).toString('base64url')
-    const redirectUri = `${origin}/.netlify/functions/spotify-auth`
+    const state = crypto.randomBytes(16).toString('hex')
+    const redirectUri = `${origin}/callback`
 
     const authorizeUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
       client_id: CLIENT_ID,
       response_type: 'code',
       redirect_uri: redirectUri,
-      state: statePayload,
+      state,
       scope: 'user-read-private user-read-email user-read-recently-played user-top-read playlist-read-private playlist-read-collaborative',
     })
 
     return {
       statusCode: 302,
-      headers: {
-        Location: authorizeUrl,
-        'Set-Cookie': `spotify_csrf=${csrfToken}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300`,
-      },
+      headers: { Location: authorizeUrl },
       body: '',
     }
   }
 
-  if (code && state) {
-    let origin = '/'
+  if (event.httpMethod === 'POST') {
+    let body = {}
     try {
-      const parsed = JSON.parse(Buffer.from(state, 'base64url').toString())
-      origin = parsed.origin || '/'
+      body = event.parsedBody || JSON.parse(event.body || '{}')
     } catch {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid state parameter' }) }
+      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body' }) }
     }
 
-    const redirectUri = `${origin}/.netlify/functions/spotify-auth`
+    const { code, redirect_uri: redirectUri, refresh_token: refreshToken } = body
+
+    if (refreshToken) {
+      try {
+        const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: CLIENT_ID,
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+          }),
+        })
+
+        if (!tokenRes.ok) {
+          return { statusCode: 502, body: JSON.stringify({ error: 'Token refresh failed' }) }
+        }
+
+        const tokens = await tokenRes.json()
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token || refreshToken,
+            expires_in: tokens.expires_in,
+          }),
+        }
+      } catch (err) {
+        return { statusCode: 502, body: JSON.stringify({ error: err.message }) }
+      }
+    }
+
+    if (!code || !redirectUri) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing code or redirect_uri' }) }
+    }
 
     if (!CLIENT_SECRET) {
-      return {
-        statusCode: 302,
-        headers: { Location: `${origin}/?error=missing_client_secret` },
-        body: '',
-      }
+      return { statusCode: 500, body: JSON.stringify({ error: 'SPOTIFY_CLIENT_SECRET not configured' }) }
     }
 
     try {
@@ -77,31 +110,26 @@ exports.handler = async (event) => {
       })
 
       if (!tokenRes.ok) {
-        const errText = await tokenRes.text().catch(() => 'unknown error')
+        const errText = await tokenRes.text().catch(() => 'unknown')
         return {
-          statusCode: 302,
-          headers: { Location: `${origin}/?error=token_exchange_failed` },
-          body: '',
+          statusCode: 502,
+          body: JSON.stringify({ error: 'Token exchange failed', detail: errText }),
         }
       }
 
       const tokens = await tokenRes.json()
-      const hashParams = new URLSearchParams({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token || '',
-        expires_in: String(tokens.expires_in),
-      })
-
       return {
-        statusCode: 302,
-        headers: { Location: `${origin}/?${hashParams}` },
-        body: '',
+        statusCode: 200,
+        body: JSON.stringify({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || '',
+          expires_in: tokens.expires_in,
+        }),
       }
-    } catch {
+    } catch (err) {
       return {
-        statusCode: 302,
-        headers: { Location: `${origin}/?error=token_exchange_failed` },
-        body: '',
+        statusCode: 502,
+        body: JSON.stringify({ error: err.message }),
       }
     }
   }

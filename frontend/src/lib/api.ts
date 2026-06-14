@@ -1,4 +1,4 @@
-import { isAuthenticated, handleCallback } from './spotifyAuth'
+import { isAuthenticated } from './spotifyAuth'
 import type { TrackMeta, CollectionMeta } from './spotifyApi'
 import { findAudio, findAudioFromUrl } from './sources'
 import { downloadAudio } from './audioProcessor'
@@ -30,10 +30,6 @@ const DIRECT_URL_PATTERNS = [
 
 export function isDirectUrl(url: string): boolean {
   return DIRECT_URL_PATTERNS.some(p => p.test(url))
-}
-
-export async function handleOauthCallback(): Promise<boolean> {
-  return handleCallback()
 }
 
 export async function checkAuthStatus(): Promise<boolean> {

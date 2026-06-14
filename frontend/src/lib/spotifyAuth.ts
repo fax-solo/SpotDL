@@ -1,3 +1,5 @@
+import { apiUrl } from './apiConfig'
+
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '9896a8bc854e4b5ea1ff42a4e63f75c6'
 
 export interface SpotifyUserProfile {
@@ -72,28 +74,27 @@ export function login() {
   window.location.href = `${origin}/.netlify/functions/spotify-auth?action=login&origin=${encodeURIComponent(origin)}`
 }
 
-export async function handleCallback(): Promise<boolean> {
-  const params = new URLSearchParams(window.location.search)
-  const error = params.get('error')
-  const accessToken = params.get('access_token')
-
-  if (error) {
+export async function exchangeCode(code: string, redirectUri: string): Promise<boolean> {
+  try {
+    const res = await fetch(apiUrl('/.netlify/functions/spotify-auth'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, redirect_uri: redirectUri }),
+    })
+    if (!res.ok) {
+      clearStored()
+      clearStoredProfile()
+      return false
+    }
+    const data = await res.json()
+    store(data)
+    await fetchUserProfile().catch(() => {})
+    return true
+  } catch {
     clearStored()
     clearStoredProfile()
-    window.history.replaceState({}, '', window.location.pathname)
     return false
   }
-
-  if (!accessToken) return false
-
-  const refreshToken = params.get('refresh_token') || ''
-  const expiresIn = parseInt(params.get('expires_in') || '3600', 10)
-
-  store({ access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn })
-  window.history.replaceState({}, '', window.location.pathname)
-
-  await fetchUserProfile().catch(() => {})
-  return true
 }
 
 export async function refreshToken(): Promise<boolean> {
@@ -101,14 +102,10 @@ export async function refreshToken(): Promise<boolean> {
   if (!stored.refresh_token) return false
 
   try {
-    const res = await fetch('https://accounts.spotify.com/api/token', {
+    const res = await fetch(apiUrl('/.netlify/functions/spotify-auth'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: CLIENT_ID,
-        grant_type: 'refresh_token',
-        refresh_token: stored.refresh_token,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: stored.refresh_token }),
     })
     if (!res.ok) {
       clearStored()
