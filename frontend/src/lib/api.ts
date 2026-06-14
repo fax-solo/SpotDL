@@ -1,7 +1,9 @@
 import { isAuthenticated, handleCallback } from './spotifyAuth'
 import type { TrackMeta, CollectionMeta } from './spotifyApi'
-import { searchYouTube, getVideoInfo } from './youtubeClient'
+import { findAudio, findAudioFromUrl } from './sources'
 import { downloadAudio } from './audioProcessor'
+import { apiUrl } from './apiConfig'
+import { cachedFetch } from './requestCache'
 
 export type { TrackMeta, CollectionMeta }
 export type { YouTubeSearchResult, YouTubeInfo } from './youtubeClient'
@@ -20,8 +22,14 @@ export function parseSpotifyUrl(url: string): { type: string; id: string } | nul
   return null
 }
 
-export function isYouTubeUrl(url: string): boolean {
-  return /youtube\.com|youtu\.be/i.test(url)
+const DIRECT_URL_PATTERNS = [
+  /youtube\.com|youtu\.be/i,
+  /soundcloud\.com/i,
+  /bandcamp\.com/i,
+]
+
+export function isDirectUrl(url: string): boolean {
+  return DIRECT_URL_PATTERNS.some(p => p.test(url))
 }
 
 export async function handleOauthCallback(): Promise<boolean> {
@@ -33,16 +41,18 @@ export async function checkAuthStatus(): Promise<boolean> {
 }
 
 async function fetchSpotifyViaScraper(url: string): Promise<TrackMeta | CollectionMeta> {
-  const res = await fetch('/.netlify/functions/spotify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+  return cachedFetch(`spotify:${url}`, async () => {
+    const res = await fetch(apiUrl('/.netlify/functions/spotify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      throw new Error(err.error || 'Failed to fetch Spotify metadata')
+    }
+    return res.json()
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || 'Failed to fetch Spotify metadata')
-  }
-  return res.json()
 }
 
 export async function fetchMetadata(url: string): Promise<TrackMeta | CollectionMeta> {
@@ -51,44 +61,35 @@ export async function fetchMetadata(url: string): Promise<TrackMeta | Collection
     return fetchSpotifyViaScraper(url)
   }
 
-  if (isYouTubeUrl(url)) {
-    const info = await getVideoInfo(url)
+  if (isDirectUrl(url)) {
+    const result = await findAudioFromUrl(url)
     return {
-      title: info.title,
-      artist: info.author,
+      title: result.info.title,
+      artist: result.info.author,
       album: 'Single',
-      artwork_url: info.thumbnail,
+      artwork_url: result.info.thumbnail,
       url,
       type: 'track',
     } as TrackMeta
   }
 
-  throw new Error('Unsupported URL. Paste a Spotify or YouTube link.')
+  throw new Error('Unsupported URL. Paste a Spotify, YouTube, SoundCloud, or Bandcamp link.')
 }
 
 export async function downloadTrack(
   meta: TrackMeta,
   onProgress?: (stage: string, pct?: number) => void,
 ): Promise<{ blob: Blob; filename: string }> {
-  onProgress?.('Searching YouTube...')
-
   const query = `${meta.artist} ${meta.title}`
-  const searchResults = await searchYouTube(query)
+  onProgress?.(`Searching...`)
 
-  if (!searchResults.length) {
-    throw new Error(`No results found on YouTube for "${meta.title}" by ${meta.artist}`)
-  }
-
-  const bestMatch = searchResults[0]
-  onProgress?.('Getting audio stream...')
-
-  const info = await getVideoInfo(bestMatch.url)
+  const { info, source } = await findAudio(query)
 
   if (!info.audioUrl) {
-    throw new Error('No downloadable audio found for this track')
+    throw new Error(`No downloadable audio found on ${source}`)
   }
 
-  onProgress?.('Converting to MP3...', 0)
+  onProgress?.(`Downloading from ${source}...`, 0)
 
   const blob = await downloadAudio(
     info.audioUrl,
@@ -98,7 +99,7 @@ export async function downloadTrack(
       album: meta.album,
       artworkUrl: meta.artwork_url,
     },
-    (pct) => onProgress?.('Converting to MP3...', pct),
+    (pct) => onProgress?.(`Converting...`, pct),
   )
 
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')

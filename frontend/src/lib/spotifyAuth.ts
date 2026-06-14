@@ -1,32 +1,11 @@
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '9896a8bc854e4b5ea1ff42a4e63f75c6'
 
-function base64url(input: ArrayBuffer): string {
-  const bytes = new Uint8Array(input)
-  let binary = ''
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
-}
-
-async function generateCodeVerifier(): Promise<string> {
-  const array = new Uint8Array(32)
-  crypto.getRandomValues(array)
-  return base64url(array.buffer)
-}
-
-async function generateCodeChallenge(verifier: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(verifier)
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return base64url(digest)
-}
-
-function getRedirectUri(): string {
-  return window.location.origin + '/download'
+export interface SpotifyUserProfile {
+  id: string
+  display_name: string
+  email: string
+  images: { url: string; width: number; height: number }[]
+  product: string
 }
 
 function getStored(): { access_token?: string; refresh_token?: string; expires_at?: number } {
@@ -49,57 +28,72 @@ function clearStored() {
   sessionStorage.removeItem('spotifyAuth')
 }
 
-export async function login() {
-  const verifier = await generateCodeVerifier()
-  const challenge = await generateCodeChallenge(verifier)
-  sessionStorage.setItem('codeVerifier', verifier)
+function getStoredProfile(): SpotifyUserProfile | null {
+  try {
+    return JSON.parse(localStorage.getItem('spotifyProfile') || 'null')
+  } catch {
+    return null
+  }
+}
 
-  const redirectUri = getRedirectUri()
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID,
-    response_type: 'code',
-    redirect_uri: redirectUri,
-    code_challenge_method: 'S256',
-    code_challenge: challenge,
-    scope: 'playlist-read-private playlist-read-collaborative playlist-read-private user-read-email',
+function storeProfile(profile: SpotifyUserProfile) {
+  localStorage.setItem('spotifyProfile', JSON.stringify(profile))
+}
+
+function clearStoredProfile() {
+  localStorage.removeItem('spotifyProfile')
+}
+
+export async function fetchUserProfile(): Promise<SpotifyUserProfile> {
+  const token = getAccessToken()
+  if (!token) throw new Error('Not authenticated')
+  const res = await fetch('https://api.spotify.com/v1/me', {
+    headers: { Authorization: `Bearer ${token}` },
   })
-  window.location.href = `https://accounts.spotify.com/authorize?${params}`
+  if (!res.ok) throw new Error('Failed to fetch profile')
+  const data = await res.json()
+  const profile: SpotifyUserProfile = {
+    id: data.id,
+    display_name: data.display_name || data.id,
+    email: data.email || '',
+    images: data.images || [],
+    product: data.product || 'free',
+  }
+  storeProfile(profile)
+  return profile
+}
+
+export function getCachedProfile(): SpotifyUserProfile | null {
+  return getStoredProfile()
+}
+
+export function login() {
+  const origin = window.location.origin
+  window.location.href = `${origin}/.netlify/functions/spotify-auth?action=login&origin=${encodeURIComponent(origin)}`
 }
 
 export async function handleCallback(): Promise<boolean> {
   const params = new URLSearchParams(window.location.search)
-  const code = params.get('code')
   const error = params.get('error')
+  const accessToken = params.get('access_token')
+
   if (error) {
     clearStored()
-    return false
-  }
-  if (!code) return false
-
-  const verifier = sessionStorage.getItem('codeVerifier')
-  if (!verifier) return false
-
-  try {
-    const res = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: CLIENT_ID,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: getRedirectUri(),
-        code_verifier: verifier,
-      }),
-    })
-    if (!res.ok) return false
-    const data = await res.json()
-    store(data)
-    sessionStorage.removeItem('codeVerifier')
+    clearStoredProfile()
     window.history.replaceState({}, '', window.location.pathname)
-    return true
-  } catch {
     return false
   }
+
+  if (!accessToken) return false
+
+  const refreshToken = params.get('refresh_token') || ''
+  const expiresIn = parseInt(params.get('expires_in') || '3600', 10)
+
+  store({ access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn })
+  window.history.replaceState({}, '', window.location.pathname)
+
+  await fetchUserProfile().catch(() => {})
+  return true
 }
 
 export async function refreshToken(): Promise<boolean> {
@@ -118,6 +112,7 @@ export async function refreshToken(): Promise<boolean> {
     })
     if (!res.ok) {
       clearStored()
+      clearStoredProfile()
       return false
     }
     const data = await res.json()
@@ -126,6 +121,7 @@ export async function refreshToken(): Promise<boolean> {
     return true
   } catch {
     clearStored()
+    clearStoredProfile()
     return false
   }
 }
@@ -145,4 +141,5 @@ export function isAuthenticated(): boolean {
 
 export function logout() {
   clearStored()
+  clearStoredProfile()
 }

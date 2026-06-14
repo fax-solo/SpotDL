@@ -1,12 +1,13 @@
 import { useState, useCallback, type FormEvent, type SyntheticEvent } from 'react'
 import { Download, Music, DownloadCloud, Disc3, ListMusic } from 'lucide-react'
-import { fetchMetadata, downloadTrack, isYouTubeUrl } from '../lib/api'
+import { fetchMetadata, downloadTrack } from '../lib/api'
 import type { TrackMeta, CollectionMeta } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
 import { StatusBanner, type Status } from './StatusBanner'
+import { mapConcurrent } from '../lib/concurrency'
 import type { HistoryEntry } from '../hooks/useHistory'
 
-function ArtworkImage({ src, alt, className, iconSize }: { src: string | null; alt: string; className: string; iconSize?: number }) {
+function ArtworkImage({ src, alt, className, iconSize, loading }: { src: string | null; alt: string; className: string; iconSize?: number; loading?: 'lazy' | 'eager' }) {
   const [failed, setFailed] = useState(false)
   if (!src || failed) {
     return (
@@ -20,6 +21,8 @@ function ArtworkImage({ src, alt, className, iconSize }: { src: string | null; a
       src={src}
       alt={alt}
       className={className}
+      loading={loading}
+      decoding="async"
       onError={(e: SyntheticEvent<HTMLImageElement>) => {
         setFailed(true)
         e.currentTarget.style.display = 'none'
@@ -30,6 +33,7 @@ function ArtworkImage({ src, alt, className, iconSize }: { src: string | null; a
 
 interface DownloadCardProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
+  presetCollection?: CollectionMeta | null
 }
 
 type ViewMode = 'idle' | 'single' | 'list'
@@ -38,11 +42,11 @@ function isCollectionMeta(data: TrackMeta | CollectionMeta): data is CollectionM
   return 'tracks' in data && 'collection_name' in data
 }
 
-export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
+export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadCardProps) {
   const [url, setUrl] = useState('')
-  const [mode, setMode] = useState<ViewMode>('idle')
+  const [mode, setMode] = useState<ViewMode>(presetCollection ? 'list' : 'idle')
   const [singleTrack, setSingleTrack] = useState<TrackMeta | null>(null)
-  const [collection, setCollection] = useState<CollectionMeta | null>(null)
+  const [collection, setCollection] = useState<CollectionMeta | null>(presetCollection || null)
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
@@ -106,40 +110,36 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
     setStatus('loading')
     setMessage(`Downloading 0/${trackList.length} tracks...`)
 
+    const concurrency = trackList.length > 10 ? 3 : 2
     let success = 0
     let fail = 0
 
-    for (let i = 0; i < trackList.length; i++) {
-      const track = trackList[i]
+    const results = await mapConcurrent(trackList, async (track, i) => {
+      setMessage(`Downloading ${i + 1}/${trackList.length}: ${track.title}...`)
       try {
-        setMessage(`Downloading ${i + 1}/${trackList.length}: ${track.title}...`)
         const { blob, filename } = await downloadTrack(track, (stage, pct) => {
           const prefix = `[${i + 1}/${trackList.length}] `
-          if (pct !== undefined) {
-            setMessage(`${prefix}${stage} ${pct}%`)
-          } else {
-            setMessage(`${prefix}${stage}`)
-          }
+          setMessage(pct !== undefined ? `${prefix}${stage} ${pct}%` : `${prefix}${stage}`)
         })
         await downloadFile(blob, filename)
-        success++
-        setCompletedCount(success)
         onDownloadComplete({
           title: track.title,
           artist: track.artist,
           album: track.album,
           artworkUrl: track.artwork_url,
         })
-      } catch (err) {
-        fail++
-        const detail = err instanceof Error ? err.message : 'Unknown error'
-        console.warn(`Skipped "${track.title}": ${detail}`)
+        return true
+      } catch {
+        return false
       }
-    }
+    }, concurrency)
+
+    success = results.filter(Boolean).length
+    fail = results.length - success
 
     setDownloadingAll(false)
     if (success > 0) {
-      setStatus(fail > 0 ? 'success' : 'success')
+      setStatus('success')
       setMessage(
         fail > 0
           ? `Downloaded ${success}/${trackList.length} tracks (${fail} skipped)`
@@ -153,9 +153,7 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (mode === 'single' && singleTrack && !isYouTubeUrl(url)) {
-      handleDownload(singleTrack)
-    } else if (mode === 'single' && singleTrack && isYouTubeUrl(url)) {
+    if (mode === 'single' && singleTrack) {
       handleDownload(singleTrack)
     } else {
       handleMetadata()
@@ -197,6 +195,7 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
             alt={singleTrack.album}
             className="w-16 h-16 rounded-md object-cover flex-shrink-0"
             iconSize={24}
+            loading="lazy"
           />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate">
@@ -275,7 +274,7 @@ export function DownloadCard({ onDownloadComplete }: DownloadCardProps) {
                 <button
                   onClick={() => handleDownload(track)}
                   disabled={status === 'loading'}
-                  className="p-2 rounded-lg bg-accent hover:bg-accent-hover text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 opacity-0 group-hover:opacity-100"
+                  className="p-2 rounded-lg bg-accent hover:bg-accent-hover text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0                   md:opacity-0 md:group-hover:opacity-100"
                   aria-label={`Download ${track.title}`}
                 >
                   <Download className="w-4 h-4" />

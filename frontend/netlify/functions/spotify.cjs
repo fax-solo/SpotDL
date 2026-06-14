@@ -10,7 +10,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { url } = JSON.parse(event.body)
+    const { url, summary } = JSON.parse(event.body)
     if (!url) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing url' }) }
     }
@@ -50,13 +50,30 @@ exports.handler = async (event) => {
       return { statusCode: 502, body: JSON.stringify({ error: 'Unexpected embed JSON structure' }) }
     }
 
+    if (summary && kind !== 'track') {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          id,
+          name: entity.title || 'Unknown',
+          image: extractImage(entity),
+          track_count: (entity.trackList || []).length,
+          owner: entity.ownerName || entity.subtitle || 'Spotify',
+          description: entity.description || '',
+        }),
+      }
+    }
+
     if (kind === 'track') {
+      const artistName = entity.artists
+        ? entity.artists.map(a => a.name).join(', ')
+        : entity.subtitle || 'Unknown Artist'
       return {
         statusCode: 200,
         body: JSON.stringify({
           type: 'track',
           title: entity.title || 'Unknown Track',
-          artist: entity.subtitle || 'Unknown Artist',
+          artist: artistName,
           album: 'Single',
           artwork_url: extractImage(entity),
           url: `https://open.spotify.com/track/${id}`,
@@ -109,6 +126,14 @@ function extractImage(entity) {
     if (sources.length) {
       sources.sort((a, b) => (b.width || 0) - (a.width || 0))
       return sources[0].url
+    }
+  } catch {}
+  // Track embeds use visualIdentity.image instead of coverArt
+  try {
+    const images = entity.visualIdentity?.image || []
+    if (images.length) {
+      images.sort((a, b) => (b.maxHeight || 0) - (a.maxHeight || 0))
+      return images[0].url
     }
   } catch {}
   return null
