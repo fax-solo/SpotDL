@@ -17,7 +17,7 @@ export function Downloader() {
   useEffect(() => {
     if (!listId) return
     setFetchingPlaylist(true)
-    fetch(`/.netlify/functions/spotify`, {
+    fetch(`/api/spotify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: `https://open.spotify.com/playlist/${listId}` }),
@@ -33,7 +33,7 @@ export function Downloader() {
       setFetchingPlaylist(true)
       setPresetCollection(null)
       try {
-        const res = await fetch(`/.netlify/functions/spotify`, {
+        const res = await fetch(`/api/spotify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: `https://open.spotify.com/playlist/${listId}` }),
@@ -72,6 +72,7 @@ export function Downloader() {
               entries={entries}
               onClear={clearHistory}
               onRemove={removeEntry}
+              onRedownload={addEntry}
             />
           )}
         </div>

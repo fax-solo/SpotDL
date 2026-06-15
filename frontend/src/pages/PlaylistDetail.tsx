@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Download, DownloadCloud, ListMusic, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Download, DownloadCloud, ListMusic, AlertCircle, XCircle } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
@@ -33,26 +33,7 @@ interface PlaylistDetailProps {
 }
 
 function TrackArtwork({ track, collectionArtwork, className, loading }: { track: TrackMeta; collectionArtwork: string | null; className: string; loading?: 'lazy' | 'eager' }) {
-  const hasOwnArtwork = track.artwork_url && track.artwork_url !== collectionArtwork
-  const [src, setSrc] = useState<string | null>(hasOwnArtwork ? track.artwork_url : collectionArtwork)
-  const fetched = useRef(false)
-
-  useEffect(() => {
-    if (hasOwnArtwork || fetched.current) return
-    fetched.current = true
-    const match = track.url.match(/\/track\/([a-zA-Z0-9]+)/)
-    if (!match) return
-    fetch(apiUrl('/.netlify/functions/spotify'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: `https://open.spotify.com/track/${match[1]}` }),
-    })
-      .then(r => r.json())
-      .then(data => { if (data.artwork_url) setSrc(data.artwork_url) })
-      .catch(() => {})
-  }, [track.url, hasOwnArtwork])
-
-  return <ArtworkImage src={src} alt={track.album} className={className} loading={loading} />
+  return <ArtworkImage src={track.artwork_url || collectionArtwork} alt={track.album} className={className} loading={loading} />
 }
 
 const itemVariants = {
@@ -67,6 +48,8 @@ const itemVariants = {
 export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const contentType = (location.state as { type?: string } | null)?.type || 'playlist'
   const [collection, setCollection] = useState<CollectionMeta | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -74,6 +57,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [completedCount, setCompletedCount] = useState(0)
   const [trackProgress, setTrackProgress] = useState<Record<number, TrackProgress>>({})
+  const abortRef = useRef<AbortController | null>(null)
   const { toast } = useToast()
 
   const fetchAttempted = useRef(false)
@@ -83,10 +67,10 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
     setError(null)
     fetchAttempted.current = true
     try {
-      const res = await fetch(apiUrl('/.netlify/functions/spotify'), {
+      const res = await fetch(apiUrl('/api/spotify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: `https://open.spotify.com/playlist/${playlistId}` }),
+        body: JSON.stringify({ url: `https://open.spotify.com/${contentType}/${playlistId}` }),
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => null)
@@ -111,6 +95,11 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
 
   const tracks = collection?.tracks ?? []
 
+  const goToTrack = (trackUrl: string) => {
+    const match = trackUrl.match(/\/track\/([a-zA-Z0-9]+)/)
+    if (match) navigate(`/track/${match[1]}`)
+  }
+
   const handleDownload = async (track: TrackMeta) => {
     try {
       const { blob, filename } = await downloadTrack(track)
@@ -127,7 +116,13 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
     }
   }
 
+  const handleCancelDownload = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
+
   const handleDownloadAll = useCallback(async () => {
+    abortRef.current = new AbortController()
+    const signal = abortRef.current.signal
     setDownloadingAll(true)
     setCompletedCount(0)
     setStatus('loading')
@@ -144,6 +139,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
     let fail = 0
 
     const results = await mapConcurrent(tracks, async (track, i) => {
+      signal.throwIfAborted()
       setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
       try {
         const { blob, filename } = await downloadTrack(track, (stage, pct) => {
@@ -151,7 +147,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
             ...prev,
             [i]: { stage, pct: pct ?? null, done: false, failed: false },
           }))
-        })
+        }, signal)
         await downloadFile(blob, filename)
         setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
         setCompletedCount(c => c + 1)
@@ -162,7 +158,11 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
           artworkUrl: track.artwork_url,
         })
         return true
-      } catch {
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') {
+          setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Cancelled', pct: null, done: false, failed: true } }))
+          return false
+        }
         setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Failed', pct: null, done: false, failed: true } }))
         return false
       }
@@ -262,16 +262,27 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
         </div>
       </div>
 
-      <div className="px-6 py-4">
-        <motion.button
-          onClick={handleDownloadAll}
-          whileTap={{ scale: 0.97 }}
-          disabled={status === 'loading'}
-          className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <DownloadCloud className="w-5 h-5" />
-          {downloadingAll ? `${completedCount}/${tracks.length}` : 'Download All'}
-        </motion.button>
+      <div className="px-6 py-4 space-y-2">
+        {downloadingAll ? (
+          <motion.button
+            onClick={handleCancelDownload}
+            whileTap={{ scale: 0.97 }}
+            className="w-full py-3.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <XCircle className="w-5 h-5" />
+            Cancel — {completedCount}/{tracks.length} done
+          </motion.button>
+        ) : (
+          <motion.button
+            onClick={handleDownloadAll}
+            whileTap={{ scale: 0.97 }}
+            disabled={status === 'loading'}
+            className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <DownloadCloud className="w-5 h-5" />
+            Download All
+          </motion.button>
+        )}
       </div>
 
       <div className="px-3">
@@ -290,7 +301,10 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
                 animate="visible"
                 className="flex flex-col"
               >
-                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-light-surface/50 dark:hover:bg-white/5 transition-colors group">
+                <div
+                  onClick={() => goToTrack(track.url)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-light-surface/50 dark:hover:bg-white/5 transition-colors group cursor-pointer"
+                >
                   <span className="text-sm text-light-muted dark:text-zinc-500 w-6 text-right flex-shrink-0 tabular-nums">
                     {i + 1}
                   </span>
@@ -318,7 +332,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
                     )}
                   </div>
                   <motion.button
-                    onClick={() => handleDownload(track)}
+                    onClick={(e) => { e.stopPropagation(); handleDownload(track) }}
                     whileTap={{ scale: 0.9 }}
                     disabled={status === 'loading'}
                     className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"

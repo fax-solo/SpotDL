@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Download, DownloadCloud, Music, Mic2, Users, Verified } from 'lucide-react'
+import { ArrowLeft, Download, DownloadCloud, Music, Mic2, Users, Verified, Disc3, Sparkles, XCircle } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
@@ -65,6 +65,7 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [completedCount, setCompletedCount] = useState(0)
   const [trackProgress, setTrackProgress] = useState<Record<number, TrackProgress>>({})
+  const abortRef = useRef<AbortController | null>(null)
   const { toast } = useToast()
 
   const doFetch = useCallback(async (artistId: string) => {
@@ -105,7 +106,13 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
     }
   }
 
+  const handleCancelDownload = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
+
   const handleDownloadAll = useCallback(async () => {
+    abortRef.current = new AbortController()
+    const signal = abortRef.current.signal
     setDownloadingAll(true)
     setCompletedCount(0)
     setTrackProgress({})
@@ -121,6 +128,7 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
     let fail = 0
 
     const results = await mapConcurrent(tracks, async (track, i) => {
+      signal.throwIfAborted()
       setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
       try {
         const meta = { title: track.title, artist: track.artist, album: track.album, artwork_url: track.artwork_url, url: track.url, type: 'track' }
@@ -129,7 +137,7 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
             ...prev,
             [i]: { stage, pct: pct ?? null, done: false, failed: false },
           }))
-        })
+        }, signal)
         await downloadFile(blob, filename)
         setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
         setCompletedCount(c => c + 1)
@@ -140,7 +148,11 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
           artworkUrl: track.artwork_url,
         })
         return true
-      } catch {
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') {
+          setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Cancelled', pct: null, done: false, failed: true } }))
+          return false
+        }
         setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Failed', pct: null, done: false, failed: true } }))
         return false
       }
@@ -251,21 +263,58 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
       </div>
 
       {tracks.length > 0 && (
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 space-y-2">
+          {downloadingAll ? (
+            <motion.button
+              onClick={handleCancelDownload}
+              whileTap={{ scale: 0.97 }}
+              className="w-full py-3.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+              Cancel — {completedCount}/{tracks.length} done
+            </motion.button>
+          ) : (
+            <motion.button
+              onClick={handleDownloadAll}
+              whileTap={{ scale: 0.97 }}
+              disabled={downloadingAll}
+              className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <DownloadCloud className="w-5 h-5" />
+              Download Top {tracks.length}
+            </motion.button>
+          )}
+        </div>
+      )}
+
+      {artist.latest_release && (
+        <div className="px-3 mt-4">
+          <div className="flex items-center gap-2 mb-3 px-3">
+            <Sparkles className="w-4 h-4 text-accent" />
+            <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Latest Release</h2>
+          </div>
           <motion.button
-            onClick={handleDownloadAll}
+            onClick={() => navigate(`/playlist/${artist.latest_release!.id}`, { state: { type: 'album' } })}
             whileTap={{ scale: 0.97 }}
-            disabled={downloadingAll}
-            className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-gradient-to-r from-accent/10 to-accent/5 border border-accent/20 hover:bg-accent/15 transition-colors cursor-pointer text-left"
           >
-            <DownloadCloud className="w-5 h-5" />
-            {downloadingAll ? `${completedCount}/${tracks.length}` : `Download Top ${tracks.length}`}
+            <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 shadow-md">
+              <ArtworkImage src={artist.latest_release.image} alt={artist.latest_release.name} className="w-full h-full object-cover" iconSize={28} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-light-text dark:text-white truncate">{artist.latest_release.name}</p>
+              <p className="text-xs text-light-muted dark:text-zinc-400">
+                {artist.latest_release.type ? artist.latest_release.type.charAt(0).toUpperCase() + artist.latest_release.type.slice(1) : 'Album'}
+                {artist.latest_release.year ? ` • ${artist.latest_release.year}` : ''}
+              </p>
+            </div>
+            <Disc3 className="w-5 h-5 text-accent flex-shrink-0" />
           </motion.button>
         </div>
       )}
 
       {tracks.length > 0 && (
-        <div className="px-3 mt-2">
+        <div className="px-3 mt-6">
           <div className="flex items-center gap-2 mb-3 px-3">
             <Mic2 className="w-4 h-4 text-accent" />
             <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Popular</h2>
@@ -349,21 +398,21 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
         </div>
       )}
 
-      {artist.albums && artist.albums.length > 0 && (
+      {artist.featuring && artist.featuring.length > 0 && (
         <div className="px-3 mt-6">
           <div className="flex items-center gap-2 mb-3 px-3">
             <Music className="w-4 h-4 text-accent" />
-            <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Discography</h2>
+            <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Featuring</h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {artist.albums.slice(0, 10).map((album, i) => (
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {artist.featuring.slice(0, 10).map((album, i) => (
               <motion.button
                 key={album.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => navigate(`/playlist/${album.id}`)}
+                onClick={() => navigate(`/playlist/${album.id}`, { state: { type: 'album' } })}
                 className="flex-shrink-0 w-[150px] text-left group"
               >
                 <div className="aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 mb-2 shadow-md">
@@ -373,6 +422,33 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
                 {album.year && (
                   <p className="text-xs text-light-muted dark:text-dark-muted">{album.year}</p>
                 )}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {artist.related_artists && artist.related_artists.length > 0 && (
+        <div className="px-3 mt-6">
+          <div className="flex items-center gap-2 mb-3 px-3">
+            <Users className="w-4 h-4 text-accent" />
+            <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Fans Also Like</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {artist.related_artists.slice(0, 10).map((ra, i) => (
+              <motion.button
+                key={ra.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => { doFetch(ra.id); navigate(`/artist/${ra.id}`, { replace: true }) }}
+                className="flex-shrink-0 w-[120px] text-center group"
+              >
+                <div className="w-[120px] h-[120px] rounded-full overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 mb-2 shadow-md mx-auto">
+                  <ArtworkImage src={ra.image} alt={ra.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} />
+                </div>
+                <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate leading-tight">{ra.name}</p>
               </motion.button>
             ))}
           </div>

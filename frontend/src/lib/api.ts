@@ -38,7 +38,7 @@ export async function checkAuthStatus(): Promise<boolean> {
 
 async function fetchSpotifyViaScraper(url: string): Promise<TrackMeta | CollectionMeta> {
   return cachedFetch(`spotify:${url}`, async () => {
-    const res = await fetch(apiUrl('/.netlify/functions/spotify'), {
+    const res = await fetch(apiUrl('/api/spotify'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
@@ -75,9 +75,11 @@ export async function fetchMetadata(url: string): Promise<TrackMeta | Collection
 export async function downloadTrack(
   meta: TrackMeta,
   onProgress?: (stage: string, pct?: number) => void,
+  signal?: AbortSignal,
 ): Promise<{ blob: Blob; filename: string }> {
   const query = `${meta.artist} ${meta.title}`
   onProgress?.(`Searching...`)
+  signal?.throwIfAborted()
 
   const { info, source } = await findAudio(query)
 
@@ -85,6 +87,7 @@ export async function downloadTrack(
     throw new Error(`No downloadable audio found on ${source}`)
   }
 
+  signal?.throwIfAborted()
   onProgress?.(`Downloading from ${source}...`, 0)
 
   const blob = await downloadAudio(
@@ -96,6 +99,7 @@ export async function downloadTrack(
       artworkUrl: meta.artwork_url,
     },
     (pct) => onProgress?.(`Converting...`, pct),
+    signal,
   )
 
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')

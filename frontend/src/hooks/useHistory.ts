@@ -9,9 +9,12 @@ export interface HistoryEntry {
   timestamp: number
 }
 
+const MAX_ENTRIES = 200
+const STORAGE_KEY = 'downloadHistory'
+
 function load(): HistoryEntry[] {
   try {
-    const raw = localStorage.getItem('downloadHistory')
+    const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
   } catch {
     return []
@@ -19,7 +22,16 @@ function load(): HistoryEntry[] {
 }
 
 function save(entries: HistoryEntry[]) {
-  localStorage.setItem('downloadHistory', JSON.stringify(entries))
+  try {
+    const trimmed = entries.slice(0, MAX_ENTRIES)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
+  } catch {
+    // localStorage full — clear oldest entries and retry
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, 50)))
+    } catch {}
+  }
 }
 
 export function useHistory() {
@@ -32,7 +44,7 @@ export function useHistory() {
         ...prev,
       ]
       save(next)
-      return next
+      return next.length > MAX_ENTRIES ? next.slice(0, MAX_ENTRIES) : next
     })
   }, [])
 

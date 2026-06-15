@@ -2,14 +2,12 @@ import http from 'http'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { createRequire } from 'module'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const require = createRequire(import.meta.url)
 const PORT = 9999
-const FUNCTIONS_DIR = path.join(__dirname, 'netlify', 'functions')
+const FUNCTIONS_DIR = path.join(__dirname, 'functions', 'api')
 
-// Load .env for local development
+const env = {}
 try {
   const envPath = path.join(__dirname, '.env')
   if (fs.existsSync(envPath)) {
@@ -22,7 +20,7 @@ try {
       const k = t.slice(0, i).trim()
       let v = t.slice(i + 1).trim()
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
-      if (!process.env[k]) process.env[k] = v
+      env[k] = v
     }
   }
 } catch (e) {
@@ -31,7 +29,7 @@ try {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
-  const match = url.pathname.match(/^\/\.netlify\/functions\/([\w-]+)$/)
+  const match = url.pathname.match(/^\/api\/([\w-]+)$/)
 
   if (!match) {
     res.writeHead(404)
@@ -40,7 +38,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   const functionName = match[1]
-  const functionPath = path.join(FUNCTIONS_DIR, `${functionName}.cjs`)
+  const functionPath = path.join(FUNCTIONS_DIR, `${functionName}.js`)
 
   if (!fs.existsSync(functionPath)) {
     res.writeHead(404, { 'Content-Type': 'application/json' })
@@ -49,47 +47,52 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    delete require.cache[require.resolve(functionPath)]
-    const fn = require(functionPath)
+    const cachePath = `file://${functionPath}?t=${Date.now()}`
+    const fn = await import(cachePath)
 
     let body = ''
     req.on('data', chunk => body += chunk)
+
     req.on('end', async () => {
-      const queryStringParameters = {}
-      url.searchParams.forEach((value, key) => { queryStringParameters[key] = value })
-
-      let parsedBody = null
+      let requestBody = null
       if (body && req.headers['content-type']?.includes('application/json')) {
-        try { parsedBody = JSON.parse(body) } catch {}
+        try { requestBody = JSON.parse(body) } catch {}
       }
 
-      const event = {
-        httpMethod: req.method || 'GET',
-        path: url.pathname,
-        queryStringParameters,
-        body: body || null,
+      const request = new Request(`http://localhost:${PORT}/api/${functionName}`, {
+        method: req.method || 'GET',
         headers: req.headers,
-        ...(parsedBody ? { parsedBody } : {}),
+        body: body || null,
+      })
+
+      const context = {
+        request,
+        env,
+        params: {},
+        next: () => {},
       }
 
-      const result = await fn.handler(event)
+      const result = await fn.onRequest(context)
+      const statusCode = result.status || 200
 
-      const statusCode = result.statusCode || 200
-      const headers = result.headers || {}
+      const responseHeaders = {}
+      result.headers.forEach((value, key) => {
+        responseHeaders[key] = value
+      })
 
-      // Netlify functions return the body directly or use headers for redirects
-      if (statusCode >= 300 && statusCode < 400 && headers.Location) {
-        res.writeHead(statusCode, headers)
+      if (statusCode >= 300 && statusCode < 400 && responseHeaders['location']) {
+        res.writeHead(statusCode, responseHeaders)
         res.end()
         return
       }
 
+      const responseBody = await result.text()
       res.writeHead(statusCode, {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        ...headers,
+        ...responseHeaders,
       })
-      res.end(result.body || '')
+      res.end(responseBody)
     })
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json' })

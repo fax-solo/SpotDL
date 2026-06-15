@@ -28,7 +28,7 @@ export interface PlaylistSummary {
 }
 
 async function callSpotify(body: Record<string, unknown>): Promise<any> {
-  const res = await fetch(apiUrl('/.netlify/functions/spotify'), {
+  const res = await fetch(apiUrl('/api/spotify'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -92,6 +92,7 @@ export interface SearchAlbum {
   image: string | null
   year: string | null
   url: string
+  type?: string
 }
 
 export interface SearchResults {
@@ -111,6 +112,9 @@ export interface ArtistDetails {
   popularity: number
   top_tracks: SearchTrack[]
   albums: SearchAlbum[]
+  latest_release: SearchAlbum | null
+  featuring: SearchAlbum[]
+  related_artists: { id: string; name: string; image: string | null }[]
 }
 
 export async function searchSpotify(query: string, types: string = 'track,artist', limit: number = 8): Promise<SearchResults> {
@@ -133,7 +137,7 @@ export interface YouTubeSearchTrack {
 }
 
 export async function searchYouTubeTracks(query: string): Promise<YouTubeSearchTrack[]> {
-  const res = await fetch(apiUrl('/.netlify/functions/youtube'), {
+  const res = await fetch(apiUrl('/api/youtube'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'music-search', query }),
@@ -227,7 +231,7 @@ export function clearWebPlayerToken(): void {
 
 export async function testWebPlayerToken(token: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const hashes = await fetch(apiUrl('/.netlify/functions/spotify-partner'), {
+    const hashes = await fetch(apiUrl('/api/spotify-partner'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'test-token', token }),
@@ -245,7 +249,7 @@ export async function testWebPlayerToken(token: string): Promise<{ ok: boolean; 
 }
 
 async function callPartner(action: string, body: Record<string, unknown>): Promise<any> {
-  const res = await fetch(apiUrl('/.netlify/functions/spotify-partner'), {
+  const res = await fetch(apiUrl('/api/spotify-partner'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...body }),

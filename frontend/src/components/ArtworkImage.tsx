@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Music } from 'lucide-react'
+import { optimizeImageUrl } from '../lib/imageOptimizer'
 
 interface ArtworkImageProps {
   src: string | null
@@ -8,11 +9,18 @@ interface ArtworkImageProps {
   iconSize?: number
   loading?: 'lazy' | 'eager'
   fetchPriority?: 'high' | 'low' | 'auto'
+  width?: number
+  height?: number
 }
 
-export function ArtworkImage({ src, alt, className, iconSize = 16, loading = 'lazy', fetchPriority }: ArtworkImageProps) {
+export function ArtworkImage({ src, alt, className, iconSize = 16, loading = 'lazy', fetchPriority, width, height }: ArtworkImageProps) {
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
+
+  const optimizedSrc = useMemo(
+    () => optimizeImageUrl(src, Math.max(iconSize * 2, 64)),
+    [src, iconSize],
+  )
 
   if (!src || failed) {
     return (
@@ -26,8 +34,10 @@ export function ArtworkImage({ src, alt, className, iconSize = 16, loading = 'la
     <div className={`${className} relative overflow-hidden`}>
       {!loaded && <div className="absolute inset-0 shimmer" />}
       <img
-        src={src}
+        src={optimizedSrc ?? undefined}
         alt={alt}
+        width={width}
+        height={height}
         className={`w-full h-full object-cover ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
         loading={loading}
         decoding="async"

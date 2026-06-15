@@ -20,7 +20,7 @@ interface SourceInfo {
 }
 
 async function callFunction(name: string, body: Record<string, unknown>) {
-  const res = await fetch(apiUrl(`/.netlify/functions/${name}`), {
+  const res = await fetch(apiUrl(`/api/${name}`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -79,7 +79,9 @@ export async function findAudio(query: string): Promise<SourceResult> {
       if (info && info.audioUrl) {
         return { info, source: source.name }
       }
-    } catch {}
+    } catch (err) {
+      console.warn(`[sources] ${source.name} search failed:`, err)
+    }
   }
 
   throw new Error('No audio found on any source. Try a direct YouTube or SoundCloud URL.')

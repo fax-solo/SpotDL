@@ -69,12 +69,12 @@ export function getCachedProfile(): SpotifyUserProfile | null {
 
 export function login() {
   const origin = window.location.origin
-  window.location.href = `${origin}/.netlify/functions/spotify-auth?action=login&origin=${encodeURIComponent(origin)}`
+  window.location.href = `${origin}/api/spotify-auth?action=login&origin=${encodeURIComponent(origin)}`
 }
 
 export async function exchangeCode(code: string, redirectUri: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch(apiUrl('/.netlify/functions/spotify-auth'), {
+    const res = await fetch(apiUrl('/api/spotify-auth'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, redirect_uri: redirectUri }),
@@ -104,7 +104,7 @@ export async function refreshToken(): Promise<boolean> {
   if (!stored.refresh_token) return false
 
   try {
-    const res = await fetch(apiUrl('/.netlify/functions/spotify-auth'), {
+    const res = await fetch(apiUrl('/api/spotify-auth'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: stored.refresh_token }),

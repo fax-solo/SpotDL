@@ -1,5 +1,5 @@
 import { apiUrl } from './apiConfig'
-const FUNCTIONS_BASE = () => apiUrl('/.netlify/functions/youtube')
+const FUNCTIONS_BASE = () => apiUrl('/api/youtube')
 const PIPED_API = 'https://pipedapi.kavin.rocks'
 
 export interface YouTubeSearchResult {

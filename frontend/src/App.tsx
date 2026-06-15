@@ -5,6 +5,7 @@ import { FileQuestion, WifiOff } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
 import { ToastProvider } from './components/Toast'
+import { DownloadOverlayProvider } from './components/DownloadOverlay'
 import { SwipeNavigator } from './components/SwipeNavigator'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
@@ -234,7 +235,9 @@ function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <AppContent />
+        <DownloadOverlayProvider>
+          <AppContent />
+        </DownloadOverlayProvider>
       </ToastProvider>
     </BrowserRouter>
   )

@@ -1,47 +1,61 @@
-// @ts-nocheck
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
 
-let ffmpeg: FFmpeg | null = null
+type FfmpegInstance = FFmpeg & {
+  on?: (event: string, cb: (...args: unknown[]) => void) => void
+  off?: (event: string, cb: (...args: unknown[]) => void) => void
+}
+
+let ffmpeg: FfmpegInstance | null = null
 let loading: Promise<void> | null = null
 
-async function getFFmpeg(): Promise<FFmpeg> {
+async function getFFmpeg(): Promise<FfmpegInstance> {
   if (ffmpeg) return ffmpeg
   if (!loading) {
     loading = (async () => {
-      ffmpeg = new FFmpeg()
+      ffmpeg = new FFmpeg() as FfmpegInstance
       await ffmpeg.load()
     })()
   }
   await loading
-  return ffmpeg
+  return ffmpeg!
 }
 
-export async function convertToMp3(audioUrl: string, onProgress?: (pct: number) => void): Promise<ArrayBuffer> {
+export async function convertToMp3(audioUrl: string, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<ArrayBuffer> {
   const instance = await getFFmpeg()
 
-  if (onProgress) {
-    instance.on('progress', ({ progress }: { progress: number }) => {
-      onProgress(Math.round(progress * 100))
-    })
+  const progressHandler = ({ progress }: { progress: number }) => {
+    onProgress?.(Math.round(progress * 100))
   }
 
-  const inputName = 'input'
-  const outputName = 'output.mp3'
+  if (onProgress) {
+    instance.on?.('progress', progressHandler)
+  }
 
-  const data = await fetchFile(audioUrl)
-  await instance.writeFile(inputName, data)
+  try {
+    const inputName = 'input'
+    const outputName = 'output.mp3'
 
-  await instance.exec([
-    '-i', inputName,
-    '-c:a', 'libmp3lame',
-    '-b:a', '320k',
-    '-id3v2_version', '3',
-    '-y', outputName,
-  ])
+    const data = signal
+      ? new Uint8Array(await (await fetch(audioUrl, { signal })).arrayBuffer())
+      : await fetchFile(audioUrl)
+    await instance.writeFile(inputName, data)
 
-  const outData: Uint8Array = await instance.readFile(outputName)
-  return outData.buffer
+    await instance.exec([
+      '-i', inputName,
+      '-c:a', 'libmp3lame',
+      '-b:a', '320k',
+      '-id3v2_version', '3',
+      '-y', outputName,
+    ])
+
+    const outData = await instance.readFile(outputName) as Uint8Array
+    return outData.slice().buffer
+  } finally {
+    if (onProgress) {
+      instance.off?.('progress', progressHandler)
+    }
+  }
 }
 
 export async function writeId3Tags(
@@ -80,8 +94,8 @@ export async function writeId3Tags(
     }
   }
 
-  writer.addTag()
-  return writer.getBlob()
+  const tagged = await writer.addTag()
+  return new Blob([tagged], { type: 'audio/mpeg' })
 }
 
 export async function downloadAudio(
@@ -93,8 +107,11 @@ export async function downloadAudio(
     artworkUrl: string | null
   },
   onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
 ): Promise<Blob> {
-  const mp3Data = await convertToMp3(audioUrl, onProgress)
+  signal?.throwIfAborted()
+  const mp3Data = await convertToMp3(audioUrl, onProgress, signal)
+  signal?.throwIfAborted()
   const taggedBlob = await writeId3Tags(mp3Data, metadata)
   return taggedBlob
 }
