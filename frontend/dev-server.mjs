@@ -9,6 +9,26 @@ const require = createRequire(import.meta.url)
 const PORT = 9999
 const FUNCTIONS_DIR = path.join(__dirname, 'netlify', 'functions')
 
+// Load .env for local development
+try {
+  const envPath = path.join(__dirname, '.env')
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf-8').split('\n')
+    for (const line of lines) {
+      const t = line.trim()
+      if (!t || t.startsWith('#')) continue
+      const i = t.indexOf('=')
+      if (i === -1) continue
+      const k = t.slice(0, i).trim()
+      let v = t.slice(i + 1).trim()
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
+      if (!process.env[k]) process.env[k] = v
+    }
+  }
+} catch (e) {
+  console.error('Failed to load .env:', e.message)
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
   const match = url.pathname.match(/^\/\.netlify\/functions\/([\w-]+)$/)

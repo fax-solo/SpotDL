@@ -1,29 +1,8 @@
-import { Clock, Trash2, ChevronDown, ChevronUp, Music } from 'lucide-react'
-import { useState, type SyntheticEvent } from 'react'
+import { Clock, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { HistoryEntry } from '../hooks/useHistory'
-
-function ArtworkImage({ src, alt, className }: { src: string | null; alt: string; className: string }) {
-  const [failed, setFailed] = useState(false)
-  if (!src || failed) {
-    return (
-      <div className={`${className} bg-gray-200 dark:bg-gray-700 flex items-center justify-center`}>
-        <Music className="w-4 h-4 text-gray-400" />
-      </div>
-    )
-  }
-  return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      onError={(e: SyntheticEvent<HTMLImageElement>) => {
-        setFailed(true)
-        e.currentTarget.style.display = 'none'
-      }}
-    />
-  )
-}
+import { ArtworkImage } from './ArtworkImage'
 
 interface HistoryProps {
   entries: HistoryEntry[]

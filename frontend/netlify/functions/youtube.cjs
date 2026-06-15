@@ -15,6 +15,7 @@ exports.handler = async (event) => {
   try {
     const { action, query, url } = JSON.parse(event.body)
     if (action === 'search') return await handleSearch(query)
+    if (action === 'music-search') return await handleMusicSearch(query)
     if (action === 'info') return await handleInfo(url)
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid action' }) }
   } catch (err) {
@@ -48,6 +49,98 @@ async function handleSearch(query) {
     } catch {}
   }
   return { statusCode: 200, body: JSON.stringify({ results: [] }) }
+}
+
+async function handleMusicSearch(query) {
+  const musicClient = CLIENTS.find(c => c.name === 'ANDROID_MUSIC') || CLIENTS[2]
+  try {
+    const res = await fetch(`https://music.youtube.com/youtubei/v1/search?key=${KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
+      body: JSON.stringify({ context: musicClient.context, query }),
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) return { statusCode: 200, body: JSON.stringify({ results: [] }) }
+
+    const data = await res.json()
+    const results = []
+
+    // Try YT Music format (tabbed search with musicShelfRenderer)
+    const tabs = data?.contents?.tabbedSearchResultsRenderer?.tabs || []
+    for (const tab of tabs) {
+      const tabRenderer = tab?.tabRenderer
+      if (!tabRenderer) continue
+
+      const tabTitle = typeof tabRenderer.title === 'string'
+        ? tabRenderer.title
+        : tabRenderer.title?.runs?.[0]?.text || ''
+
+      if (tabTitle !== 'Songs') continue
+
+      const sections = tabRenderer?.content?.sectionListRenderer?.contents || []
+      for (const section of sections) {
+        const shelf = section?.musicShelfRenderer
+        if (!shelf) continue
+
+        for (const item of (shelf.contents || [])) {
+          const r = item?.musicResponsiveListItemRenderer
+          if (!r?.videoId) continue
+
+          const title = r?.flexColumns?.[0]
+            ?.musicResponsiveListItemFlexColumnRenderer
+            ?.text?.runs?.[0]?.text || 'Unknown'
+
+          const thumbnails = r?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || []
+
+          results.push({
+            videoId: r.videoId,
+            title,
+            url: `https://music.youtube.com/watch?v=${r.videoId}`,
+            thumbnail: thumbnails[thumbnails.length - 1]?.url || null,
+          })
+          if (results.length >= 10) break
+        }
+        if (results.length >= 10) break
+      }
+      if (results.length >= 10) break
+    }
+
+    // If no results from tab parsing, try fallback through all clients on regular YouTube
+    if (results.length === 0) {
+      for (const c of CLIENTS) {
+        try {
+          const fallback = await fetch(`https://www.youtube.com/youtubei/v1/search?key=${KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, 'User-Agent': 'Mozilla/5.0' },
+            body: JSON.stringify({ context: c.context, query }),
+            signal: AbortSignal.timeout(10000),
+          })
+          if (!fallback.ok) continue
+          const fbData = await fallback.json()
+          const sections = fbData?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || []
+          for (const section of sections) {
+            for (const item of (section?.itemSectionRenderer?.contents || [])) {
+              const r = item?.videoRenderer
+              if (!r?.videoId) continue
+              results.push({
+                videoId: r.videoId,
+                title: r.title?.runs?.[0]?.text || 'Unknown',
+                url: `https://music.youtube.com/watch?v=${r.videoId}`,
+                thumbnail: r?.thumbnail?.thumbnails?.[r.thumbnail.thumbnails.length - 1]?.url || null,
+              })
+              if (results.length >= 10) break
+            }
+            if (results.length >= 10) break
+          }
+          if (results.length > 0) break
+        } catch {}
+      }
+    }
+
+    return { statusCode: 200, body: JSON.stringify({ results }) }
+  } catch {
+    return { statusCode: 200, body: JSON.stringify({ results: [] }) }
+  }
 }
 
 async function handleInfo(videoUrl) {

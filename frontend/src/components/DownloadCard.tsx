@@ -1,5 +1,6 @@
 import { useState, useCallback, type FormEvent } from 'react'
-import { Download, Music, DownloadCloud, Disc3, ListMusic } from 'lucide-react'
+import { Download, DownloadCloud, Disc3, ListMusic } from 'lucide-react'
+import { ArtworkImage } from './ArtworkImage'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fetchMetadata, downloadTrack } from '../lib/api'
 import type { TrackMeta, CollectionMeta } from '../lib/api'
@@ -23,32 +24,6 @@ function visualPct(progress: TrackProgress): number {
   if (progress.stage.includes('Downloading')) return 10 + (progress.pct ?? 0) * 0.3
   if (progress.stage.includes('Converting')) return 40 + (progress.pct ?? 0) * 0.6
   return 0
-}
-
-function ArtworkImage({ src, alt, className, iconSize, loading }: { src: string | null; alt: string; className: string; iconSize?: number; loading?: 'lazy' | 'eager' }) {
-  const [failed, setFailed] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  if (!src || failed) {
-    return (
-      <div className={`${className} bg-gray-200 dark:bg-zinc-700 flex items-center justify-center`}>
-        <Music className="text-gray-400" style={{ width: iconSize ?? 16, height: iconSize ?? 16 }} />
-      </div>
-    )
-  }
-  return (
-    <div className={`${className} relative overflow-hidden`}>
-      {!loaded && <div className="absolute inset-0 shimmer" />}
-      <img
-        src={src}
-        alt={alt}
-        className={`w-full h-full object-cover ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
-        loading={loading}
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-        onError={() => { setFailed(true); setLoaded(true) }}
-      />
-    </div>
-  )
 }
 
 interface DownloadCardProps {

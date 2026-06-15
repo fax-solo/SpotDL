@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Download, DownloadCloud, Music, ListMusic, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Download, DownloadCloud, ListMusic, AlertCircle } from 'lucide-react'
+import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
 import { mapConcurrent } from '../lib/concurrency'
@@ -29,32 +30,6 @@ function visualPct(progress: TrackProgress): number {
 
 interface PlaylistDetailProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
-}
-
-function ArtworkImage({ src, alt, className, iconSize, loading }: { src: string | null; alt: string; className: string; iconSize?: number; loading?: 'lazy' | 'eager' }) {
-  const [failed, setFailed] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  if (!src || failed) {
-    return (
-      <div className={`${className} bg-zinc-800 flex items-center justify-center`}>
-        <Music className="text-zinc-600" style={{ width: iconSize ?? 24, height: iconSize ?? 24 }} />
-      </div>
-    )
-  }
-  return (
-    <div className={`${className} relative overflow-hidden`}>
-      {!loaded && <div className="absolute inset-0 shimmer" />}
-      <img
-        src={src}
-        alt={alt}
-        className={`w-full h-full object-cover ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
-        loading={loading}
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-        onError={() => { setFailed(true); setLoaded(true) }}
-      />
-    </div>
-  )
 }
 
 function TrackArtwork({ track, collectionArtwork, className, loading }: { track: TrackMeta; collectionArtwork: string | null; className: string; loading?: 'lazy' | 'eager' }) {
@@ -256,6 +231,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
             className="w-full h-full object-cover"
             iconSize={64}
             loading="eager"
+            fetchPriority="high"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-light-bg/30 dark:via-black/30 to-light-bg dark:to-black" />
         </div>
@@ -265,8 +241,9 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
           whileTap={{ scale: 0.9 }}
           className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+          aria-label="Go back"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5" aria-hidden="true" />
         </motion.button>
 
         <div className="absolute bottom-0 left-0 right-0 p-6">
@@ -347,7 +324,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
                     className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
                     aria-label={`Download ${track.title}`}
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-4 h-4" aria-hidden="true" />
                   </motion.button>
                 </div>
                 {showProgress && (

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { RefreshCw, CheckCircle, XCircle } from 'lucide-react'
+import { RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react'
 import { exchangeCode } from '../lib/spotifyAuth'
 
 export function CallbackPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing')
+  const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
     const code = searchParams.get('code')
@@ -14,25 +15,27 @@ export function CallbackPage() {
 
     if (error) {
       setStatus('error')
-      setTimeout(() => navigate('/'), 1500)
+      setErrorMsg('Spotify denied authorization.')
+      setTimeout(() => navigate('/'), 2000)
       return
     }
 
     if (!code) {
       setStatus('error')
-      setTimeout(() => navigate('/'), 1500)
+      setErrorMsg('No authorization code received.')
+      setTimeout(() => navigate('/'), 2000)
       return
     }
 
     const redirectUri = window.location.origin + '/callback'
 
-    exchangeCode(code, redirectUri).then(ok => {
-      if (ok) {
+    exchangeCode(code, redirectUri).then(result => {
+      if (result.ok) {
         setStatus('success')
-        setTimeout(() => navigate('/settings'), 1000)
+        setTimeout(() => navigate('/settings'), result.error ? 2000 : 1000)
       } else {
         setStatus('error')
-        setTimeout(() => navigate('/'), 1500)
+        setErrorMsg(result.error || 'Token exchange failed')
       }
     })
   }, [searchParams, navigate])
@@ -53,8 +56,9 @@ export function CallbackPage() {
       )}
       {status === 'error' && (
         <>
-          <XCircle className="w-10 h-10 text-red-500 mb-4" />
-          <p className="text-sm text-red-500">Connection failed. Redirecting...</p>
+          <AlertTriangle className="w-10 h-10 text-red-500 mb-4" />
+          <p className="text-sm text-red-500 font-medium mb-2">Connection failed</p>
+          <p className="text-xs text-red-400 text-center max-w-xs">{errorMsg}</p>
         </>
       )}
     </div>

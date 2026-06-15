@@ -1,7 +1,5 @@
 import { apiUrl } from './apiConfig'
 
-const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '9896a8bc854e4b5ea1ff42a4e63f75c6'
-
 export interface SpotifyUserProfile {
   id: string
   display_name: string
@@ -74,7 +72,7 @@ export function login() {
   window.location.href = `${origin}/.netlify/functions/spotify-auth?action=login&origin=${encodeURIComponent(origin)}`
 }
 
-export async function exchangeCode(code: string, redirectUri: string): Promise<boolean> {
+export async function exchangeCode(code: string, redirectUri: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(apiUrl('/.netlify/functions/spotify-auth'), {
       method: 'POST',
@@ -84,16 +82,20 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<b
     if (!res.ok) {
       clearStored()
       clearStoredProfile()
-      return false
+      const errBody = await res.json().catch(() => ({}))
+      return { ok: false, error: errBody.detail || errBody.error || `HTTP ${res.status}` }
     }
     const data = await res.json()
     store(data)
-    await fetchUserProfile().catch(() => {})
-    return true
-  } catch {
+    const profileOk = await fetchUserProfile().then(() => true).catch(() => false)
+    if (!profileOk) {
+      return { ok: true, error: 'Token acquired but Spotify API requires Premium for the app owner.' }
+    }
+    return { ok: true }
+  } catch (err) {
     clearStored()
     clearStoredProfile()
-    return false
+    return { ok: false, error: 'Network error: ' + (err instanceof Error ? err.message : 'failed to reach function server') }
   }
 }
 
@@ -130,6 +132,11 @@ export function getAccessToken(): string | null {
     return null
   }
   return stored.access_token
+}
+
+export function getRefreshToken(): string | null {
+  const stored = getStored()
+  return stored.refresh_token || null
 }
 
 export function isAuthenticated(): boolean {

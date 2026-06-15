@@ -49,5 +49,9 @@ export function useHistory() {
     })
   }, [])
 
-  return { entries, addEntry, clearHistory, removeEntry }
+  const reload = useCallback(() => {
+    setEntries(load())
+  }, [])
+
+  return { entries, addEntry, clearHistory, removeEntry, reload }
 }

@@ -1,9 +1,22 @@
 const CACHE = 'spotdl-v1'
+const API_CACHE = 'spotdl-api-v1'
+const IMAGE_CACHE = 'spotdl-images-v1'
+
 const STATIC = [
   '/',
 ]
 
-const API_CACHE = 'spotdl-api-v1'
+const IMAGE_HOSTS = [
+  'i.scdn.co',
+  'i.ytimg.com',
+  'image-cdn-ak.spotifycdn.com',
+  'image-cdn-fa.spotifycdn.com',
+  'mosaic.scdn.co',
+  'seed-mix-image.spotifycdn.com',
+  'thisis-images.scdn.co',
+  'dailymix-images.scdn.co',
+  'newjams-images.scdn.co',
+]
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
@@ -27,13 +40,18 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  if (IMAGE_HOSTS.includes(url.hostname)) {
+    event.respondWith(cacheFirst(request, IMAGE_CACHE))
+    return
+  }
+
   if (url.origin === self.location.origin) {
     event.respondWith(networkFirst(request, CACHE))
     return
   }
 
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    event.respondWith(cacheFirst(request))
+    event.respondWith(cacheFirst(request, CACHE))
     return
   }
 })
@@ -49,12 +67,12 @@ async function networkFirst(request, cacheName) {
   }
 }
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request)
+async function cacheFirst(request, cacheName) {
+  const cache = await caches.open(cacheName)
+  const cached = await cache.match(request)
   if (cached) return cached
   const response = await fetch(request)
   if (response.ok) {
-    const cache = await caches.open(CACHE)
     cache.put(request, response.clone())
   }
   return response

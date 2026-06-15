@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle, AlertCircle, X, Loader2 } from 'lucide-react'
 
@@ -25,6 +25,75 @@ export function useToast() {
 
 let toastId = 0
 
+function SwipeableToast({ toast: t, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }) {
+  const startX = useRef(0)
+  const currentX = useRef(0)
+  const [dragging, setDragging] = useState(false)
+  const [offsetX, setOffsetX] = useState(0)
+  const toastRef = useRef<HTMLDivElement>(null)
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX
+    currentX.current = 0
+    setDragging(true)
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const diff = e.touches[0].clientX - startX.current
+    if (Math.abs(diff) > Math.abs(0)) {
+      currentX.current = diff
+      setOffsetX(diff)
+    }
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    setDragging(false)
+    if (Math.abs(currentX.current) > 100) {
+      onDismiss(t.id)
+    }
+    setOffsetX(0)
+  }, [t.id, onDismiss])
+
+  return (
+    <motion.div
+      ref={toastRef}
+      layout
+      initial={{ opacity: 0, y: 50, scale: 0.95 }}
+      animate={{
+        opacity: dragging ? 0.8 : 1,
+        y: 0,
+        scale: 1,
+        x: dragging ? offsetX : 0,
+      }}
+      exit={{ opacity: 0, y: 20, scale: 0.95, x: offsetX }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      style={{ touchAction: 'pan-y' }}
+      className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur-xl cursor-pointer select-none ${
+        t.type === 'success' ? 'bg-green-500/10 dark:bg-green-500/15 border-green-500/30 text-green-700 dark:text-green-400' :
+        t.type === 'error' ? 'bg-red-500/10 dark:bg-red-500/15 border-red-500/30 text-red-700 dark:text-red-400' :
+        t.type === 'loading' ? 'bg-accent-subtle border-accent/30 text-accent' :
+        'bg-white/90 dark:bg-dark-surface/90 border-light-border/50 dark:border-dark-border/50 text-light-text dark:text-dark-text'
+      }`}
+      role="status"
+      aria-live="polite"
+    >
+      {t.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0" />}
+      {t.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+      {t.type === 'loading' && <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin" />}
+      {t.type === 'info' && <Loader2 className="w-5 h-5 flex-shrink-0" />}
+      <span className="text-sm font-medium flex-1">{t.message}</span>
+      {t.type !== 'loading' && (
+        <button onClick={() => onDismiss(t.id)} className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0" aria-label="Dismiss notification">
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </motion.div>
+  )
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
@@ -46,31 +115,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div className="fixed bottom-24 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[100] flex flex-col gap-2 pointer-events-none">
         <AnimatePresence mode="popLayout">
           {toasts.map(t => (
-            <motion.div
-              key={t.id}
-              layout
-              initial={{ opacity: 0, y: 50, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur-xl ${
-                t.type === 'success' ? 'bg-green-500/10 dark:bg-green-500/15 border-green-500/30 text-green-700 dark:text-green-400' :
-                t.type === 'error' ? 'bg-red-500/10 dark:bg-red-500/15 border-red-500/30 text-red-700 dark:text-red-400' :
-                t.type === 'loading' ? 'bg-accent-subtle border-accent/30 text-accent' :
-                'bg-white/90 dark:bg-dark-surface/90 border-light-border/50 dark:border-dark-border/50 text-light-text dark:text-dark-text'
-              }`}
-            >
-              {t.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0" />}
-              {t.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
-              {t.type === 'loading' && <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin" />}
-              {t.type === 'info' && <Loader2 className="w-5 h-5 flex-shrink-0" />}
-              <span className="text-sm font-medium flex-1">{t.message}</span>
-              {t.type !== 'loading' && (
-                <button onClick={() => dismiss(t.id)} className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0">
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </motion.div>
+            <SwipeableToast key={t.id} toast={t} onDismiss={dismiss} />
           ))}
         </AnimatePresence>
       </div>

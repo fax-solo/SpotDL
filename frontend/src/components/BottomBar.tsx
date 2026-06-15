@@ -21,13 +21,15 @@ export function BottomBar() {
             <button
               key={tab.path}
               onClick={() => navigate(tab.path)}
+              aria-label={tab.label}
+              aria-current={active ? 'page' : undefined}
                className={`flex flex-col items-center gap-0.5 py-3 px-6 min-w-0 transition-colors cursor-pointer ${
-                active
-                  ? 'text-accent'
-                  : 'text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
-              }`}
+                 active
+                   ? 'text-accent'
+                   : 'text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+               }`}
             >
-              <tab.icon className={`w-5 h-5 ${active ? 'fill-accent/20' : ''}`} />
+              <tab.icon className={`w-5 h-5 ${active ? 'fill-accent/20' : ''}`} aria-hidden="true" />
               <span className="text-[10px] font-medium">{tab.label}</span>
             </button>
           )
