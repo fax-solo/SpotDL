@@ -74,24 +74,24 @@ export async function fetchMetadata(url: string): Promise<TrackMeta | Collection
       const tracks = await nativeFetchMetadata(url)
       if (tracks.length === 1) {
         const t = tracks[0]
-        return { type: 'track', title: t.title, artist: t.artist, album: t.album, artwork_url: t.artworkUrl, url: t.url } as TrackMeta
+        return { title: t.title, artist: t.artist, album: t.album, artwork_url: t.artworkUrl, url: t.url, type: 'track' }
       }
       if (tracks.length > 1) {
         const first = tracks[0]
         const collectionType = url.includes('/album/') ? 'album' : 'playlist'
         return {
-          type: 'collection',
-          collection_type: collectionType,
           collection_name: first.album,
           collection_artwork: first.artworkUrl,
+          collection_type: collectionType,
           tracks: tracks.map(t => ({
             title: t.title,
             artist: t.artist,
             album: t.album,
             artwork_url: t.artworkUrl,
             url: t.url,
+            type: 'track',
           })),
-        } as CollectionMeta
+        }
       }
     } catch {
       // Fall through to server mode
