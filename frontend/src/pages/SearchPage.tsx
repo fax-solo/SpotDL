@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { searchSpotify, searchYouTubeTracks, type SearchResults } from '../lib/spotifyApi'
+import { Capacitor } from '@capacitor/core'
 
 export function SearchPage() {
   const navigate = useNavigate()
@@ -14,52 +15,51 @@ export function SearchPage() {
   const [searchingPlay, setSearchingPlay] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const isNative = Capacitor.isNativePlatform()
 
   useEffect(() => {
-    // Auto-focus the search input when the page mounts
-    setTimeout(() => {
-      searchInputRef.current?.focus()
-    }, 100)
+    setTimeout(() => { searchInputRef.current?.focus() }, 100)
   }, [])
 
   const handleSearch = useCallback(async (query: string) => {
     const trimmed = query.trim()
     if (!trimmed) { setSearchResults(null); setPlayResults(null); return }
+
     setSearching(true)
+    setSearchingPlay(true)
     setSearchResults(null)
     setPlayResults(null)
-    try {
-      const results = await searchSpotify(trimmed, 'track,artist,show,playlist', 8)
-      setSearchResults(results)
 
-      const hasResults = (results.tracks?.length ?? 0) > 0 || (results.artists?.length ?? 0) > 0
-      const hasArabic = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(trimmed)
-      if (!hasResults || hasArabic) {
-        setSearchingPlay(true)
-        try {
-          const ytResults = await searchYouTubeTracks(trimmed)
-          setPlayResults(ytResults)
-        } catch { setPlayResults(null) }
-        setSearchingPlay(false)
-      }
-    } catch {
-      setSearchResults(null)
-      setSearchingPlay(true)
-      try {
-        const ytResults = await searchYouTubeTracks(trimmed)
-        setPlayResults(ytResults)
-      } catch { setPlayResults(null) }
-      setSearchingPlay(false)
-    }
+    const hasArabic = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(trimmed)
+
+    // Always run both in parallel — if Spotify fails, YouTube results still show
+    const [spotifyResult, youtubeResult] = await Promise.allSettled([
+      hasArabic ? Promise.reject('arabic-skip') : searchSpotify(trimmed, 'track,artist,show,playlist', 8),
+      searchYouTubeTracks(trimmed),
+    ])
+
     setSearching(false)
+    setSearchingPlay(false)
+
+    if (spotifyResult.status === 'fulfilled') {
+      const r = spotifyResult.value
+      const hasAny = (r.tracks?.length ?? 0) > 0 || (r.artists?.length ?? 0) > 0 ||
+                     (r.playlists?.length ?? 0) > 0 || (r.shows?.length ?? 0) > 0
+      if (hasAny) setSearchResults(r)
+    }
+
+    if (youtubeResult.status === 'fulfilled' && youtubeResult.value.length > 0) {
+      setPlayResults(youtubeResult.value)
+    }
   }, [])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!searchQuery.trim()) { setSearchResults(null); setPlayResults(null); return }
-    debounceRef.current = setTimeout(() => handleSearch(searchQuery), 350)
+    // 500ms on native to reduce hammering on slow mobile keyboards
+    debounceRef.current = setTimeout(() => handleSearch(searchQuery), isNative ? 500 : 350)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [searchQuery, handleSearch])
+  }, [searchQuery, handleSearch, isNative])
 
   const clearSearch = useCallback(() => {
     setSearchQuery('')
@@ -216,6 +216,14 @@ export function SearchPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Search className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
             <p className="text-light-muted dark:text-dark-muted text-sm">Start typing to search</p>
+          </div>
+        )}
+
+        {searchQuery && !searching && !searchingPlay && !searchResults && !youtubeResults && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <Music className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
+            <p className="text-light-muted dark:text-dark-muted text-sm font-medium">No results found</p>
+            <p className="text-light-muted dark:text-dark-muted text-xs mt-1">Try a different search term</p>
           </div>
         )}
       </div>

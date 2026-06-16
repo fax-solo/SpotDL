@@ -4,6 +4,7 @@ import { History } from '../components/History'
 import { PullToRefresh } from '../components/PullToRefresh'
 import { useHistory } from '../hooks/useHistory'
 import { useEffect, useState, useCallback } from 'react'
+import { apiUrl } from '../lib/apiConfig'
 import type { CollectionMeta } from '../lib/spotifyApi'
 
 export function Downloader() {
@@ -17,7 +18,7 @@ export function Downloader() {
   useEffect(() => {
     if (!listId) return
     setFetchingPlaylist(true)
-    fetch(`/api/spotify`, {
+    fetch(apiUrl('/api/spotify'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: `https://open.spotify.com/playlist/${listId}` }),
@@ -33,7 +34,7 @@ export function Downloader() {
       setFetchingPlaylist(true)
       setPresetCollection(null)
       try {
-        const res = await fetch(`/api/spotify`, {
+        const res = await fetch(apiUrl('/api/spotify'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: `https://open.spotify.com/playlist/${listId}` }),
@@ -47,35 +48,37 @@ export function Downloader() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <main className="px-4 pt-6 pb-24">
+      <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-4 pt-6 pb-28">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
-            {presetCollection?.collection_name || 'Download Music'}
+            {presetCollection?.collection_name || 'Downloads'}
           </h1>
           <p className="text-sm text-light-muted dark:text-dark-muted mt-1">
             {presetCollection
               ? `${presetCollection.tracks.length} tracks`
-              : 'Paste a Spotify or YouTube URL to download as MP3'}
+              : 'Paste a Spotify or YouTube URL'}
           </p>
         </div>
 
         {fetchingPlaylist && (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
-        <div>
-          <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} />
-          {!presetCollection && (
-            <History
-              entries={entries}
-              onClear={clearHistory}
-              onRemove={removeEntry}
-              onRedownload={addEntry}
-            />
-          )}
-        </div>
+        {!fetchingPlaylist && (
+          <div className="space-y-5">
+            <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} />
+            {!presetCollection && (
+              <History
+                entries={entries}
+                onClear={clearHistory}
+                onRemove={removeEntry}
+                onRedownload={addEntry}
+              />
+            )}
+          </div>
+        )}
       </main>
     </PullToRefresh>
   )

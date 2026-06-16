@@ -1,4 +1,6 @@
+import { Capacitor } from '@capacitor/core'
 import { apiUrl } from './apiConfig'
+
 const FUNCTIONS_BASE = () => apiUrl('/api/youtube')
 const PIPED_API = 'https://pipedapi.kavin.rocks'
 
@@ -6,6 +8,8 @@ export interface YouTubeSearchResult {
   videoId: string
   title: string
   url: string
+  author?: string
+  thumbnail?: string | null
 }
 
 export interface YouTubeInfo {
@@ -16,10 +20,23 @@ export interface YouTubeInfo {
   thumbnail: string | null
 }
 
+function isNative() {
+  return Capacitor.isNativePlatform()
+}
+
+/** On native, route an audio URL through the Cloudflare proxy to avoid CORS */
+export function proxyAudioUrl(url: string): string {
+  if (!isNative()) return url
+  const base = apiUrl('/api/proxy')
+  return `${base}?url=${encodeURIComponent(url)}`
+}
+
 async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null> {
+  // Skip Piped on native — it's slow and unreliable on mobile networks
+  if (isNative()) return null
   try {
     const res = await fetch(`${PIPED_API}/search?q=${encodeURIComponent(query)}&filter=videos`, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(4000),
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -31,6 +48,7 @@ async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null>
         videoId: item.url.split('v=')[1]?.split('&')[0] || '',
         title: item.title || 'Unknown',
         url: item.url,
+        thumbnail: item.thumbnail || null,
       }))
       .filter((r: YouTubeSearchResult) => r.videoId)
     return results.length > 0 ? results : null
@@ -40,9 +58,11 @@ async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null>
 }
 
 async function pipedInfo(videoId: string): Promise<YouTubeInfo | null> {
+  // Skip Piped on native
+  if (isNative()) return null
   try {
     const res = await fetch(`${PIPED_API}/streams/${videoId}`, {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -56,7 +76,7 @@ async function pipedInfo(videoId: string): Promise<YouTubeInfo | null> {
           title: data.title || 'Unknown',
           author: data.uploader || 'Unknown',
           duration: String(data.duration || 0),
-          audioUrl: best.url,
+          audioUrl: proxyAudioUrl(best.url),
           thumbnail: data.thumbnailUrl || null,
         }
       }
@@ -68,13 +88,16 @@ async function pipedInfo(videoId: string): Promise<YouTubeInfo | null> {
 }
 
 export async function searchYouTube(query: string): Promise<YouTubeSearchResult[]> {
-  const piped = await pipedSearch(query)
-  if (piped) return piped
+  // Try Piped first on web (faster), skip on native
+  if (!isNative()) {
+    const piped = await pipedSearch(query)
+    if (piped) return piped
+  }
 
   const res = await fetch(FUNCTIONS_BASE(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'search', query }),
+    body: JSON.stringify({ action: 'music-search', query }),
   })
   if (!res.ok) throw new Error('Search failed')
   const data = await res.json()
@@ -85,8 +108,11 @@ export async function getVideoInfo(url: string): Promise<YouTubeInfo> {
   const videoId = extractVideoId(url)
   if (!videoId) throw new Error('Invalid YouTube URL')
 
-  const piped = await pipedInfo(videoId)
-  if (piped && piped.audioUrl) return piped
+  // Try Piped first on web only
+  if (!isNative()) {
+    const piped = await pipedInfo(videoId)
+    if (piped?.audioUrl) return piped
+  }
 
   const res = await fetch(FUNCTIONS_BASE(), {
     method: 'POST',
@@ -97,7 +123,12 @@ export async function getVideoInfo(url: string): Promise<YouTubeInfo> {
     const body = await res.text().catch(() => '')
     throw new Error(`Failed to get video info${body ? `: ${body}` : ''}`)
   }
-  return res.json()
+  const info: YouTubeInfo = await res.json()
+  // Proxy the audio URL on native so CORS is bypassed
+  if (info.audioUrl) {
+    info.audioUrl = proxyAudioUrl(info.audioUrl)
+  }
+  return info
 }
 
 function extractVideoId(url: string): string | null {
@@ -106,6 +137,7 @@ function extractVideoId(url: string): string | null {
     /youtu\.be\/([a-zA-Z0-9_-]{11})/,
     /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
     /youtube\.com\/v\/([a-zA-Z0-9_-]{11})/,
+    /music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
   ]
   for (const pattern of patterns) {
     const m = pattern.exec(url)

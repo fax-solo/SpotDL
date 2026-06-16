@@ -87,7 +87,7 @@ async function handleSearch(query) {
 }
 
 async function handleMusicSearch(query) {
-  const musicClient = CLIENTS.find(c => c.name === 'ANDROID_MUSIC') || CLIENTS[2]
+  const musicClient = CLIENTS.find(c => c.name === 'WEB_REMIX') || CLIENTS[4]
   try {
     const res = await fetch(`https://music.youtube.com/youtubei/v1/search?key=${KEY}`, {
       method: 'POST',
