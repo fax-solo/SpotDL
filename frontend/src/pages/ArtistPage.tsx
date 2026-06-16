@@ -93,13 +93,14 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
     try {
       const meta = { title: track.title, artist: track.artist, album: track.album, artwork_url: track.artwork_url, url: track.url, type: 'track' }
       const { blob, filename } = await downloadTrack(meta)
-      await downloadFile(blob, filename)
+      const filePath = await downloadFile(blob, filename)
       toast(`Downloaded ${track.title}`, 'success')
       onDownloadComplete({
         title: track.title,
         artist: track.artist,
         album: track.album,
         artworkUrl: track.artwork_url,
+        filePath,
       })
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Download failed', 'error')
@@ -138,7 +139,7 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
             [i]: { stage, pct: pct ?? null, done: false, failed: false },
           }))
         }, signal)
-        await downloadFile(blob, filename)
+        const filePath = await downloadFile(blob, filename)
         setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
         setCompletedCount(c => c + 1)
         onDownloadComplete({
@@ -146,6 +147,7 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
           artist: track.artist,
           album: track.album,
           artworkUrl: track.artwork_url,
+          filePath,
         })
         return true
       } catch (err) {

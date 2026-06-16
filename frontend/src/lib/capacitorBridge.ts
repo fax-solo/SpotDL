@@ -38,3 +38,17 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.readAsDataURL(blob)
   })
 }
+
+export async function readAudioFile(path: string): Promise<string | null> {
+  if (!isNative()) return null
+  try {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem')
+    const result = await Filesystem.readFile({
+      path,
+      directory: Directory.Documents,
+    })
+    return `data:audio/mpeg;base64,${result.data}`
+  } catch {
+    return null
+  }
+}

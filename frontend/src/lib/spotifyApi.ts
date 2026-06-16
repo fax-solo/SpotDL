@@ -99,7 +99,8 @@ export interface SearchResults {
   tracks: SearchTrack[]
   albums: SearchAlbum[]
   artists: SearchArtist[]
-  playlists: any[]
+  playlists: PlaylistSummary[]
+  shows: SearchShow[]
   top_artist: SearchArtist | null
 }
 
@@ -129,6 +130,59 @@ export async function fetchTrackDetails(id: string): Promise<SearchTrack> {
   return callSpotify({ action: 'track', id })
 }
 
+export interface NewReleaseAlbum {
+  id: string
+  name: string
+  artist: string
+  image: string | null
+  year: string | null
+  url: string
+  type: string
+  total_tracks: number
+}
+
+export interface SpotifyCategory {
+  id: string
+  name: string
+  image: string | null
+}
+
+export async function fetchNewReleases(limit = 20): Promise<NewReleaseAlbum[]> {
+  const data = await callSpotify({ action: 'new-releases', limit })
+  return data.albums || []
+}
+
+export async function fetchRecentlyPlayed(limit = 20): Promise<SearchTrack[]> {
+  const data = await callSpotify({ action: 'recently-played', limit })
+  return data.tracks || []
+}
+
+export async function fetchSpotifyCategories(limit = 50): Promise<SpotifyCategory[]> {
+  const data = await callSpotify({ action: 'categories', limit })
+  return data.categories || []
+}
+
+export async function fetchCategoryPlaylists(categoryId: string, limit = 20): Promise<PlaylistSummary[]> {
+  const data = await callSpotify({ action: 'category-playlists', categoryId, limit })
+  return data.playlists || []
+}
+
+export async function fetchRecommendations(
+  seedArtists: string[] = [],
+  seedTracks: string[] = [],
+  seedGenres: string[] = [],
+  limit = 20
+): Promise<SearchTrack[]> {
+  const data = await callSpotify({
+    action: 'recommendations',
+    seed_artists: seedArtists,
+    seed_tracks: seedTracks,
+    seed_genres: seedGenres,
+    limit,
+  })
+  return data.tracks || []
+}
+
 export interface YouTubeSearchTrack {
   videoId: string
   title: string
@@ -151,6 +205,51 @@ export async function searchYouTubeTracks(query: string): Promise<YouTubeSearchT
     url: r.url || `https://music.youtube.com/watch?v=${r.videoId}`,
     thumbnail: r.thumbnail || `https://i.ytimg.com/vi/${r.videoId}/default.jpg`,
   }))
+}
+
+export interface Show {
+  id: string
+  name: string
+  description: string
+  publisher: string
+  image: string | null
+  total_episodes: number
+  explicit: boolean
+  media_type: string
+}
+
+export interface Episode {
+  id: string
+  title: string
+  description: string
+  audio_preview_url: string | null
+  duration_ms: number
+  image: string | null
+  release_date: string
+  explicit: boolean
+  show: {
+    id: string
+    name: string
+    publisher: string
+    image: string | null
+  } | null
+}
+
+export interface SearchShow {
+  id: string
+  name: string
+  publisher: string
+  description: string
+  image: string | null
+  total_episodes: number
+}
+
+export async function fetchShow(id: string): Promise<{ show: Show; episodes: Episode[] }> {
+  return callSpotify({ action: 'show', id })
+}
+
+export async function fetchEpisode(id: string): Promise<Episode> {
+  return callSpotify({ action: 'episode', id })
 }
 
 export interface PlaylistCategory {
@@ -213,6 +312,25 @@ export async function enrichCategoryWithImages(category: PlaylistCategory): Prom
     })
   )
   return { ...category, playlists: enriched }
+}
+
+export async function fetchLiveCategories(): Promise<PlaylistCategory[]> {
+  try {
+    const categories = await fetchSpotifyCategories(20)
+    const results = await Promise.all(
+      categories.map(async (cat) => {
+        try {
+          const playlists = await fetchCategoryPlaylists(cat.id, 8)
+          return { name: cat.name, playlists }
+        } catch {
+          return null
+        }
+      })
+    )
+    return results.filter(Boolean) as PlaylistCategory[]
+  } catch {
+    return []
+  }
 }
 
 const WP_TOKEN_KEY = 'spotdl_web_player_token'

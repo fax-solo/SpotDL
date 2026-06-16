@@ -1,4 +1,4 @@
-import { Clock, Trash2, Download, ChevronDown, ChevronUp } from 'lucide-react'
+import { Clock, Trash2, Download, ChevronDown, ChevronUp, Play } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { HistoryEntry } from '../hooks/useHistory'
@@ -9,6 +9,7 @@ interface HistoryProps {
   onClear: () => void
   onRemove: (id: string) => void
   onRedownload: (entry: HistoryEntry) => void
+  onPlay?: (entry: HistoryEntry) => void
 }
 
 const itemVariants = {
@@ -39,11 +40,13 @@ function SwipeableRow({
   index,
   onRemove,
   onRedownload,
+  onPlay,
 }: {
   entry: HistoryEntry
   index: number
   onRemove: (id: string) => void
   onRedownload: (entry: HistoryEntry) => void
+  onPlay?: (entry: HistoryEntry) => void
 }) {
   const startX = useRef(0)
   const [offsetX, setOffsetX] = useState(0)
@@ -117,6 +120,15 @@ function SwipeableRow({
           </p>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {onPlay && (
+            <button
+              onClick={() => onPlay(entry)}
+              className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 focus-visible:ring-2 focus-visible:ring-green-400/40 transition-colors cursor-pointer"
+              aria-label={`Play ${entry.title}`}
+            >
+              <Play className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={() => onRedownload(entry)}
             className="p-2 rounded-lg text-accent hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors cursor-pointer"
@@ -137,7 +149,7 @@ function SwipeableRow({
   )
 }
 
-export function History({ entries, onClear, onRemove, onRedownload }: HistoryProps) {
+export function History({ entries, onClear, onRemove, onRedownload, onPlay }: HistoryProps) {
   const [open, setOpen] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
 
@@ -224,6 +236,7 @@ export function History({ entries, onClear, onRemove, onRedownload }: HistoryPro
                   index={i}
                   onRemove={onRemove}
                   onRedownload={onRedownload}
+                  onPlay={onPlay}
                 />
               ))}
             </AnimatePresence>

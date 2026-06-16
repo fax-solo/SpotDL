@@ -210,7 +210,7 @@ async function handleSearch(query, types, limit) {
       result.artists = items.map(a => ({
         id: a.id, name: a.name,
         image: a.thumbnail || a.image || a.images?.[0]?.url || null,
-        genres: a.genres || [], followers: a.followers || 0,
+        genres: a.genres || [], followers: a.followers?.total || 0,
         url: `https://open.spotify.com/artist/${a.id}`,
       }))
     } else if (type === 'album') {

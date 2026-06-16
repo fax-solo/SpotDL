@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { FileQuestion, WifiOff } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
+import { MiniPlayerBar } from './components/MiniPlayerBar'
 import { ToastProvider } from './components/Toast'
 import { DownloadOverlayProvider } from './components/DownloadOverlay'
 import { SwipeNavigator } from './components/SwipeNavigator'
@@ -11,6 +12,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
 import { useHistory } from './hooks/useHistory'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
+import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 
@@ -21,10 +23,14 @@ const HistoryPage = lazy(() => import('./pages/HistoryPage').then(m => ({ defaul
 const PlaylistDetail = lazy(() => import('./pages/PlaylistDetail').then(m => ({ default: m.PlaylistDetail })))
 const ArtistPage = lazy(() => import('./pages/ArtistPage').then(m => ({ default: m.ArtistPage })))
 const TrackDetail = lazy(() => import('./pages/TrackDetail').then(m => ({ default: m.TrackDetail })))
+const EpisodeDetail = lazy(() => import('./pages/EpisodeDetail').then(m => ({ default: m.EpisodeDetail })))
+const ShowDetail = lazy(() => import('./pages/ShowDetail').then(m => ({ default: m.ShowDetail })))
+const PlayerScreen = lazy(() => import('./pages/PlayerScreen').then(m => ({ default: m.PlayerScreen })))
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 const CallbackPage = lazy(() => import('./pages/CallbackPage').then(m => ({ default: m.CallbackPage })))
+const YtTrackDetail = lazy(() => import('./pages/YtTrackDetail').then(m => ({ default: m.YtTrackDetail })))
 
-const PAGE_ORDER = ['/', '/download', '/history', '/settings']
+const PAGE_ORDER = ['/', '/download', '/history', '/settings', '/player']
 
 function isMobile() {
   return Capacitor.isNativePlatform()
@@ -153,10 +159,12 @@ function AppContent() {
   }, [mobile, location.pathname, navigate])
 
   function isDetailPageRoute(path: string) {
-    return path.startsWith('/playlist/') || path.startsWith('/artist/') || path.startsWith('/track/')
+    return path.startsWith('/playlist/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
   }
 
   const isDetailPage = isDetailPageRoute(location.pathname)
+  const { currentTrack } = usePlayer()
+  const isPlayerPage = location.pathname === '/player'
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col" style={{ WebkitTapHighlightColor: 'transparent' }}>
@@ -197,15 +205,23 @@ function AppContent() {
                       <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
                       <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
                       <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
+                      <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
+                      <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
+                      <Route path="/show/:id" element={<ShowDetail />} />
+                      <Route path="/player" element={<PlayerScreen />} />
                       <Route path="*" element={<NotFound />} />
                     </>
                   ) : (
                     <>
                       <Route path="/" element={<LandingPage />} />
                       <Route path="/download" element={<Downloader />} />
+                      <Route path="/player" element={<PlayerScreen />} />
                       <Route path="/callback" element={<CallbackPage />} />
                       <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
                       <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
+                      <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
+                      <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
+                      <Route path="/show/:id" element={<ShowDetail />} />
                       <Route path="*" element={<NotFound />} />
                     </>
                   )}
@@ -215,7 +231,8 @@ function AppContent() {
           </AnimatePresence>
         </Suspense>
       </ErrorBoundary>
-      {mobile && !isDetailPage && !keyboardOpen && <BottomBar />}
+      {mobile && !isDetailPage && !keyboardOpen && !isPlayerPage && <BottomBar />}
+      {!isPlayerPage && <MiniPlayerBar />}
     </div>
   )
 }
@@ -236,7 +253,9 @@ function App() {
     <BrowserRouter>
       <ToastProvider>
         <DownloadOverlayProvider>
-          <AppContent />
+          <PlayerProvider>
+            <AppContent />
+          </PlayerProvider>
         </DownloadOverlayProvider>
       </ToastProvider>
     </BrowserRouter>

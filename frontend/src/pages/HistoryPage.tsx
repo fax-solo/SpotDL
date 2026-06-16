@@ -1,7 +1,9 @@
 import { useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { History } from '../components/History'
 import { PullToRefresh } from '../components/PullToRefresh'
 import { useHistory } from '../hooks/useHistory'
+import { usePlayer } from '../hooks/usePlayer'
 import { useToast } from '../components/Toast'
 import { useHaptics } from '../hooks/useHaptics'
 import { downloadTrack } from '../lib/api'
@@ -10,7 +12,9 @@ import { useDownloadProgress } from '../components/DownloadOverlay'
 import type { TrackMeta } from '../lib/spotifyApi'
 
 export function HistoryPage() {
+  const navigate = useNavigate()
   const { entries, addEntry, clearHistory, removeEntry, reload } = useHistory()
+  const { play } = usePlayer()
   const { toast } = useToast()
   const { notify } = useHaptics()
   const { trackDownload } = useDownloadProgress()
@@ -18,6 +22,15 @@ export function HistoryPage() {
   const handleRefresh = useCallback(async () => {
     reload()
   }, [reload])
+
+  const handlePlay = useCallback((entry: import('../hooks/useHistory').HistoryEntry) => {
+    if (!entry.filePath) {
+      toast('No local file available. Re-download first.', 'warning')
+      return
+    }
+    play(entry, entries)
+    navigate('/player')
+  }, [play, entries, navigate, toast])
 
   const handleRedownload = useCallback(async (entry: import('../hooks/useHistory').HistoryEntry) => {
     const track: TrackMeta = {
@@ -33,9 +46,9 @@ export function HistoryPage() {
       const { blob, filename } = await downloadTrack(track, (stage, pct) => {
         prog.update(stage, pct)
       })
-      await downloadFile(blob, filename)
+      const filePath = await downloadFile(blob, filename)
       prog.done()
-      addEntry({ title: entry.title, artist: entry.artist, album: entry.album, artworkUrl: entry.artworkUrl })
+      addEntry({ title: entry.title, artist: entry.artist, album: entry.album, artworkUrl: entry.artworkUrl, filePath })
       toast(`Re-downloaded ${entry.title}`, 'success')
       notify('SUCCESS')
     } catch (err) {
@@ -56,6 +69,7 @@ export function HistoryPage() {
           onClear={clearHistory}
           onRemove={removeEntry}
           onRedownload={handleRedownload}
+          onPlay={handlePlay}
         />
       </div>
     </PullToRefresh>

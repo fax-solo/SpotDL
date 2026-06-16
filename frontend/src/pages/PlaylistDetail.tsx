@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Download, DownloadCloud, ListMusic, AlertCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Download, DownloadCloud, ListMusic, AlertCircle, XCircle, CheckCircle2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
 import { downloadFile, isNative } from '../lib/capacitorBridge'
@@ -9,8 +9,20 @@ import { mapConcurrent } from '../lib/concurrency'
 import type { CollectionMeta, TrackMeta } from '../lib/spotifyApi'
 import { SkeletonRow } from '../components/SkeletonRow'
 import { useToast } from '../components/Toast'
-import type { HistoryEntry } from '../hooks/useHistory'
+import { useHistory, type HistoryEntry } from '../hooks/useHistory'
 import { apiUrl } from '../lib/apiConfig'
+
+function norm(s: string): string {
+  return s.toLowerCase().replace(/[^\w\s]/g, '').trim()
+}
+
+function isTrackDownloaded(track: TrackMeta, entries: HistoryEntry[]): boolean {
+  const trackTitle = norm(track.title)
+  const trackArtist = norm(track.artist)
+  return entries.some(e =>
+    norm(e.title) === trackTitle && norm(e.artist) === trackArtist
+  )
+}
 
 interface TrackProgress {
   stage: string
@@ -59,7 +71,7 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
   const [trackProgress, setTrackProgress] = useState<Record<number, TrackProgress>>({})
   const abortRef = useRef<AbortController | null>(null)
   const { toast } = useToast()
-
+  const { entries } = useHistory()
   const fetchAttempted = useRef(false)
 
   const doFetch = useCallback(async (playlistId: string) => {
@@ -95,6 +107,13 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
 
   const tracks = collection?.tracks ?? []
 
+  const downloadedSet = new Set<number>()
+  const downloadedCount = tracks.filter((t, i) => {
+    const d = isTrackDownloaded(t, entries)
+    if (d) downloadedSet.add(i)
+    return d
+  }).length
+
   const goToTrack = (trackUrl: string) => {
     const match = trackUrl.match(/\/track\/([a-zA-Z0-9]+)/)
     if (match) navigate(`/track/${match[1]}`)
@@ -103,13 +122,14 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
   const handleDownload = async (track: TrackMeta) => {
     try {
       const { blob, filename } = await downloadTrack(track)
-      await downloadFile(blob, filename)
+      const filePath = await downloadFile(blob, filename)
       toast(`Downloaded ${track.title}`, 'success')
       onDownloadComplete({
         title: track.title,
         artist: track.artist,
         album: track.album,
         artworkUrl: track.artwork_url,
+        filePath,
       })
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Download failed', 'error')
@@ -121,6 +141,12 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
   }, [])
 
   const handleDownloadAll = useCallback(async () => {
+    const missingIndices = tracks.map((_, i) => i).filter(i => !downloadedSet.has(i))
+    if (missingIndices.length === 0) {
+      toast('All tracks are already in your library', 'success')
+      return
+    }
+
     abortRef.current = new AbortController()
     const signal = abortRef.current.signal
     setDownloadingAll(true)
@@ -130,7 +156,11 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
 
     const initProgress: Record<number, TrackProgress> = {}
     tracks.forEach((_, i) => {
-      initProgress[i] = { stage: 'Waiting...', pct: null, done: false, failed: false }
+      if (downloadedSet.has(i)) {
+        initProgress[i] = { stage: 'Done', pct: null, done: true, failed: false }
+      } else {
+        initProgress[i] = { stage: 'Waiting...', pct: null, done: false, failed: false }
+      }
     })
     setTrackProgress(initProgress)
 
@@ -138,32 +168,34 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
     let success = 0
     let fail = 0
 
-    const results = await mapConcurrent(tracks, async (track, i) => {
+    const downloadItems = missingIndices.map(idx => ({ track: tracks[idx], index: idx }))
+    const results = await mapConcurrent(downloadItems, async ({ track, index: origIndex }) => {
       signal.throwIfAborted()
-      setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
+      setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
       try {
         const { blob, filename } = await downloadTrack(track, (stage, pct) => {
           setTrackProgress(prev => ({
             ...prev,
-            [i]: { stage, pct: pct ?? null, done: false, failed: false },
+            [origIndex]: { stage, pct: pct ?? null, done: false, failed: false },
           }))
         }, signal)
-        await downloadFile(blob, filename)
-        setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
+        const filePath = await downloadFile(blob, filename)
+        setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Done', pct: null, done: true, failed: false } }))
         setCompletedCount(c => c + 1)
         onDownloadComplete({
           title: track.title,
           artist: track.artist,
           album: track.album,
           artworkUrl: track.artwork_url,
+          filePath,
         })
         return true
       } catch (err) {
         if ((err as Error)?.name === 'AbortError') {
-          setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Cancelled', pct: null, done: false, failed: true } }))
+          setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Cancelled', pct: null, done: false, failed: true } }))
           return false
         }
-        setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Failed', pct: null, done: false, failed: true } }))
+        setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Failed', pct: null, done: false, failed: true } }))
         return false
       }
     }, concurrency)
@@ -174,10 +206,10 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
     setDownloadingAll(false)
     setStatus('idle')
     if (success > 0) {
-      const msg = fail > 0 ? `Downloaded ${success}/${tracks.length} (${fail} skipped)` : `Downloaded all ${tracks.length} tracks!`
+      const msg = fail > 0 ? `Downloaded ${success}/${missingIndices.length} (${fail} skipped)` : `Downloaded ${missingIndices.length === 1 ? '1 missing track' : `all ${missingIndices.length} missing tracks`}!`
       toast(msg, 'success')
     } else {
-      toast(`All ${tracks.length} tracks failed.`, 'error')
+      toast(`Download failed for ${missingIndices.length} track${missingIndices.length > 1 ? 's' : ''}.`, 'error')
     }
   }, [tracks, onDownloadComplete, toast])
 
@@ -280,10 +312,30 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
             className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <DownloadCloud className="w-5 h-5" />
-            Download All
+            {downloadedCount > 0 ? `Download Missing (${tracks.length - downloadedCount})` : 'Download All'}
           </motion.button>
         )}
       </div>
+
+      {downloadedCount > 0 && (
+        <div className="px-6 pb-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+              <span className="text-xs font-medium text-light-text dark:text-dark-text">{downloadedCount}/{tracks.length} in your library</span>
+            </div>
+            {downloadedCount < tracks.length && (
+              <span className="text-[10px] text-light-muted dark:text-dark-muted">{tracks.length - downloadedCount} to download</span>
+            )}
+          </div>
+          <div className="h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500 rounded-full transition-all duration-500"
+              style={{ width: `${(downloadedCount / tracks.length) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="px-3">
         <AnimatePresence initial={false}>
@@ -331,15 +383,21 @@ export function PlaylistDetail({ onDownloadComplete }: PlaylistDetailProps) {
                       <p className="text-[10px] text-green-400 mt-0.5">Downloaded</p>
                     )}
                   </div>
-                  <motion.button
-                    onClick={(e) => { e.stopPropagation(); handleDownload(track) }}
-                    whileTap={{ scale: 0.9 }}
-                    disabled={status === 'loading'}
-                    className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
-                    aria-label={`Download ${track.title}`}
-                  >
-                    <Download className="w-4 h-4" aria-hidden="true" />
-                  </motion.button>
+                  {downloadedSet.has(i) ? (
+                    <div className="p-2 flex-shrink-0" title="In your library">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    </div>
+                  ) : (
+                    <motion.button
+                      onClick={(e) => { e.stopPropagation(); handleDownload(track) }}
+                      whileTap={{ scale: 0.9 }}
+                      disabled={status === 'loading'}
+                      className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
+                      aria-label={`Download ${track.title}`}
+                    >
+                      <Download className="w-4 h-4" aria-hidden="true" />
+                    </motion.button>
+                  )}
                 </div>
                 {showProgress && (
                   <div className="px-3 pb-2">

@@ -13,6 +13,8 @@ const SPOTIFY_PATTERNS = {
   album: /spotify\.com\/album\/([a-zA-Z0-9]+)/,
   playlist: /spotify\.com\/playlist\/([a-zA-Z0-9]+)/,
   artist: /spotify\.com\/artist\/([a-zA-Z0-9]+)/,
+  show: /spotify\.com\/show\/([a-zA-Z0-9]+)/,
+  episode: /spotify\.com\/episode\/([a-zA-Z0-9]+)/,
 }
 
 function hasArabic(text) {
@@ -352,7 +354,7 @@ async function handleSearch(context, query, types, limit) {
     } catch {}
   }
 
-  const result = { tracks: [], albums: [], artists: [], playlists: [], top_artist: null }
+  const result = { tracks: [], albums: [], artists: [], playlists: [], shows: [], top_artist: null }
   for (const { type, data } of results) {
     if (!data) continue
     const items = data.results || data || []
@@ -372,7 +374,7 @@ async function handleSearch(context, query, types, limit) {
       result.artists = items.map(a => ({
         id: a.id, name: a.name,
         image: a.thumbnail || a.image || a.images?.[0]?.url || null,
-        genres: a.genres || [], followers: a.followers || 0,
+        genres: a.genres || [], followers: a.followers?.total || 0,
         url: `https://open.spotify.com/artist/${a.id}`,
       }))
     } else if (type === 'album') {
@@ -388,6 +390,12 @@ async function handleSearch(context, query, types, limit) {
         image: p.thumbnail || p.images?.[0]?.url || null,
         owner: p.owner || p.owner?.display_name || 'Spotify',
         trackCount: p.track_count || p.tracks?.total || 0,
+      }))
+    } else if (type === 'show') {
+      result.shows = items.map(s => ({
+        id: s.id, name: s.name, publisher: s.publisher,
+        description: s.description || '', image: s.thumbnail || null,
+        total_episodes: s.total_episodes || 0,
       }))
     }
   }
@@ -445,6 +453,10 @@ async function officialSearch(context, query, type, limit) {
   if (type === 'playlist') return (data.playlists?.items || []).map(p => ({
     id: p.id, name: p.name, description: p.description || '', thumbnail: p.images?.[0]?.url || null,
     owner: p.owner?.display_name || 'Spotify', track_count: p.tracks?.total || 0,
+  }))
+  if (type === 'show') return (data.shows?.items || []).map(s => ({
+    id: s.id, name: s.name, publisher: s.publisher, description: s.description || '',
+    thumbnail: s.images?.[0]?.url || null, total_episodes: s.total_episodes || 0,
   }))
   return null
 }
@@ -707,6 +719,146 @@ async function handleTestCredentials(context) {
   }
 }
 
+async function handleNewReleases(context, limit = 20) {
+  const token = await getSpotifyToken(context)
+  if (!token) return jsonError('No Spotify token available', 401)
+  const res = await fetch(
+    `https://api.spotify.com/v1/browse/new-releases?limit=${limit}&market=EG`,
+    { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(10000) }
+  )
+  if (!res.ok) return jsonError('Failed to fetch new releases', res.status)
+  const data = await res.json()
+  const albums = (data.albums?.items || []).map(a => ({
+    id: a.id, name: a.name, artist: a.artists?.map(ar => ar.name).join(', ') || '',
+    image: a.images?.[0]?.url || null, year: a.release_date?.slice(0, 4) || null,
+    url: a.external_urls?.spotify || `https://open.spotify.com/album/${a.id}`,
+    type: a.album_type || 'album', total_tracks: a.total_tracks || 0,
+  }))
+  return jsonOk({ albums })
+}
+
+async function handleRecentlyPlayed(context, limit = 20) {
+  const token = await getSpotifyToken(context)
+  if (!token) return jsonError('No Spotify token available', 401)
+  const res = await fetch(
+    `https://api.spotify.com/v1/me/player/recently-played?limit=${limit}`,
+    { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(10000) }
+  )
+  if (!res.ok) return jsonError('Failed to fetch recently played', res.status)
+  const data = await res.json()
+  const tracks = (data.items || []).map(item => {
+    const t = item.track
+    if (!t) return null
+    return {
+      id: t.id, title: t.name || 'Unknown Track',
+      artist: t.artists?.map(a => a.name).join(', ') || 'Unknown Artist',
+      artist_id: t.artists?.[0]?.id || null,
+      album: t.album?.name || 'Unknown Album', album_id: t.album?.id || null,
+      artwork_url: t.album?.images?.[0]?.url || null,
+      url: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
+      duration_ms: t.duration_ms || 0, played_at: item.played_at || null,
+    }
+  }).filter(Boolean)
+  return jsonOk({ tracks })
+}
+
+async function handleCategories(context, limit = 50) {
+  const token = await getSpotifyToken(context)
+  if (!token) return jsonError('No Spotify token available', 401)
+  const res = await fetch(
+    `https://api.spotify.com/v1/browse/categories?limit=${limit}&locale=en_US`,
+    { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(10000) }
+  )
+  if (!res.ok) return jsonError('Failed to fetch categories', res.status)
+  const data = await res.json()
+  const categories = (data.categories?.items || []).map(c => ({
+    id: c.id, name: c.name, image: c.icons?.[0]?.url || null,
+  }))
+  return jsonOk({ categories })
+}
+
+async function handleCategoryPlaylists(context, categoryId, limit = 20) {
+  const token = await getSpotifyToken(context)
+  if (!token) return jsonError('No Spotify token available', 401)
+  const res = await fetch(
+    `https://api.spotify.com/v1/browse/categories/${categoryId}/playlists?limit=${limit}&market=EG`,
+    { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(10000) }
+  )
+  if (!res.ok) return jsonError('Failed to fetch category playlists', res.status)
+  const data = await res.json()
+  const playlists = (data.playlists?.items || []).map(p => ({
+    id: p.id, name: p.name, description: p.description || '',
+    image: p.images?.[0]?.url || null, owner: p.owner?.display_name || 'Spotify',
+    trackCount: p.tracks?.total || 0,
+  }))
+  return jsonOk({ playlists })
+}
+
+async function handleRecommendations(context, seedArtists, seedTracks, seedGenres, limit = 20) {
+  const token = await getSpotifyToken(context)
+  if (!token) return jsonError('No Spotify token available', 401)
+  const params = new URLSearchParams({ limit })
+  if (seedArtists?.length) params.set('seed_artists', seedArtists.slice(0, 5).join(','))
+  if (seedTracks?.length) params.set('seed_tracks', seedTracks.slice(0, 5).join(','))
+  if (seedGenres?.length) params.set('seed_genres', seedGenres.slice(0, 5).join(','))
+  const res = await fetch(
+    `https://api.spotify.com/v1/recommendations?${params.toString()}`,
+    { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(10000) }
+  )
+  if (!res.ok) return jsonError('Failed to fetch recommendations', res.status)
+  const data = await res.json()
+  const tracks = (data.tracks || []).map(t => ({
+    id: t.id, title: t.name || 'Unknown Track',
+    artist: t.artists?.map(a => a.name).join(', ') || 'Unknown Artist',
+    artist_id: t.artists?.[0]?.id || null,
+    album: t.album?.name || 'Unknown Album', album_id: t.album?.id || null,
+    artwork_url: t.album?.images?.[0]?.url || null,
+    url: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
+    duration_ms: t.duration_ms || 0,
+  }))
+  return jsonOk({ tracks })
+}
+
+async function handleShow(context, id) {
+  const token = await getSpotifyToken(context)
+  if (!token) return jsonError('No Spotify token available', 401)
+  const [showData, episodesData] = await Promise.all([
+    officialFetch(context, `/shows/${id}`),
+    officialFetch(context, `/shows/${id}/episodes?limit=20&market=EG`),
+  ])
+  if (!showData) return jsonError('Show not found', 404)
+  const show = {
+    id: showData.id, name: showData.name, description: showData.description,
+    publisher: showData.publisher, image: showData.images?.[0]?.url || null,
+    total_episodes: showData.total_episodes, explicit: showData.explicit,
+    media_type: showData.media_type,
+  }
+  const episodes = (episodesData?.items || []).map(e => ({
+    id: e.id, title: e.name, description: e.description,
+    audio_preview_url: e.audio_preview_url, duration_ms: e.duration_ms,
+    image: e.images?.[0]?.url || show.image, release_date: e.release_date,
+    explicit: e.explicit,
+  }))
+  return jsonOk({ show, episodes })
+}
+
+async function handleEpisode(context, id) {
+  const token = await getSpotifyToken(context)
+  if (!token) return jsonError('No Spotify token available', 401)
+  const data = await officialFetch(context, `/episodes/${id}`)
+  if (!data) return jsonError('Episode not found', 404)
+  return jsonOk({
+    id: data.id, title: data.name, description: data.description,
+    audio_preview_url: data.audio_preview_url, duration_ms: data.duration_ms,
+    image: data.images?.[0]?.url || null, release_date: data.release_date,
+    explicit: data.explicit,
+    show: data.show ? {
+      id: data.show.id, name: data.show.name, publisher: data.show.publisher,
+      image: data.show.images?.[0]?.url || null,
+    } : null,
+  })
+}
+
 function jsonOk(data) {
   return new Response(JSON.stringify(data), {
     status: 200,
@@ -730,6 +882,13 @@ export async function onRequest(context) {
     if (body.action === 'search') return await handleSearch(context, body.query, body.types || 'track,artist,album,playlist', body.limit || 10)
     if (body.action === 'artist') return await handleArtist(context, body.id)
     if (body.action === 'track') return await handleTrack(context, body.id)
+    if (body.action === 'new-releases') return await handleNewReleases(context, body.limit || 20)
+    if (body.action === 'recently-played') return await handleRecentlyPlayed(context, body.limit || 20)
+    if (body.action === 'categories') return await handleCategories(context, body.limit || 50)
+    if (body.action === 'category-playlists') return await handleCategoryPlaylists(context, body.categoryId, body.limit || 20)
+    if (body.action === 'recommendations') return await handleRecommendations(context, body.seed_artists, body.seed_tracks, body.seed_genres, body.limit || 20)
+    if (body.action === 'show') return await handleShow(context, body.id)
+    if (body.action === 'episode') return await handleEpisode(context, body.id)
     if (body.action === 'test-credentials') return await handleTestCredentials(context)
     if (body.action === 'test-playlist') {
       const token = await getSpotifyToken(context)

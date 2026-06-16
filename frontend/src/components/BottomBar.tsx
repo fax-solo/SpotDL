@@ -1,10 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Download, Clock, Settings } from 'lucide-react'
+import { Home, Download, Clock, Disc3, Settings } from 'lucide-react'
 
 const TABS = [
   { path: '/', icon: Home, label: 'Home' },
   { path: '/download', icon: Download, label: 'Download' },
   { path: '/history', icon: Clock, label: 'History' },
+  { path: '/player', icon: Disc3, label: 'Player' },
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 

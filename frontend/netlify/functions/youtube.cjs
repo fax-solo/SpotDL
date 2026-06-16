@@ -40,7 +40,8 @@ async function handleSearch(query) {
         for (const item of (section?.itemSectionRenderer?.contents || [])) {
           const r = item?.videoRenderer
           if (!r?.videoId) continue
-          results.push({ videoId: r.videoId, title: r.title?.runs?.[0]?.text || 'Unknown', url: `https://youtube.com/watch?v=${r.videoId}` })
+          const ownerRuns = r?.ownerText?.runs || r?.longBylineText?.runs || []
+          results.push({ videoId: r.videoId, title: r.title?.runs?.[0]?.text || 'Unknown', author: ownerRuns[0]?.text || 'Unknown', url: `https://youtube.com/watch?v=${r.videoId}` })
           if (results.length >= 5) break
         }
         if (results.length >= 5) break

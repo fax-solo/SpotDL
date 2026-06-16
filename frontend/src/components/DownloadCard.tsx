@@ -90,10 +90,9 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
       const result = await downloadTrack(track, (stage, pct) => {
         setMessage(pct !== undefined ? `${stage} ${pct}%` : stage)
       })
-      // In native mode, the file is saved directly to disk by the plugin
-      // In web/server mode, we get a blob that we need to save
+      let filePath: string | null = null
       if (result.blob.size > 0) {
-        await downloadFile(result.blob, result.filename)
+        filePath = await downloadFile(result.blob, result.filename)
       }
       setStatus('success')
       setMessage(`Downloaded ${track.title}!`)
@@ -103,6 +102,7 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
         artist: track.artist,
         album: track.album,
         artworkUrl: track.artwork_url,
+        filePath,
       })
     } catch (err) {
       setStatus('error')
@@ -140,8 +140,9 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
             [i]: { stage, pct: pct ?? null, done: false, failed: false },
           }))
         })
+        let filePath: string | null = null
         if (result.blob.size > 0) {
-          await downloadFile(result.blob, result.filename)
+          filePath = await downloadFile(result.blob, result.filename)
         }
         setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
         setCompletedCount(c => c + 1)
@@ -150,6 +151,7 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
           artist: track.artist,
           album: track.album,
           artworkUrl: track.artwork_url,
+          filePath,
         })
         return true
       } catch {

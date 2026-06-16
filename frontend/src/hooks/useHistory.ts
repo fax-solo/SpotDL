@@ -6,6 +6,7 @@ export interface HistoryEntry {
   artist: string
   album: string
   artworkUrl: string | null
+  filePath: string | null
   timestamp: number
 }
 
@@ -40,7 +41,7 @@ export function useHistory() {
   const addEntry = useCallback((entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => {
     setEntries(prev => {
       const next = [
-        { ...entry, id: crypto.randomUUID(), timestamp: Date.now() },
+        { ...entry, id: crypto.randomUUID(), filePath: entry.filePath || null, timestamp: Date.now() },
         ...prev,
       ]
       save(next)
