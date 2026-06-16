@@ -8,6 +8,9 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
   },
   plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
     SpotDL: {
       appId: 'com.spotdl.app',
     },

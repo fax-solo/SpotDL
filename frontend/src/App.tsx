@@ -140,6 +140,17 @@ function AppContent() {
   }, [mobile])
 
   useEffect(() => {
+    const handleDownload = (e: Event) => {
+      const customEvent = e as CustomEvent
+      if (customEvent.detail) {
+        addEntry(customEvent.detail)
+      }
+    }
+    window.addEventListener('trackDownloaded', handleDownload)
+    return () => window.removeEventListener('trackDownloaded', handleDownload)
+  }, [addEntry])
+
+  useEffect(() => {
     if (!mobile || !Capacitor.isNativePlatform()) return
     let unlisten: (() => void) | null = null
     CapacitorApp.addListener('backButton', () => {

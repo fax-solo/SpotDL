@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
-import { readAudioFile } from '../lib/capacitorBridge'
+import { getAudioSrc } from '../lib/capacitorBridge'
 import type { HistoryEntry } from './useHistory'
 
 export interface PlayerState {
@@ -103,9 +103,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     audio.src = ''
 
     if (track.filePath) {
-      const dataUri = await readAudioFile(track.filePath)
-      if (dataUri) {
-        audio.src = dataUri
+      const src = getAudioSrc(track.filePath)
+      if (src) {
+        audio.src = src
       }
     }
 
@@ -114,6 +114,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       try {
         await audio.play()
         setIsPlaying(true)
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: track.title,
+            artist: track.artist,
+            album: track.album,
+            artwork: track.artworkUrl ? [{ src: track.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : []
+          })
+        }
       } catch {
         setIsPlaying(false)
       }
@@ -166,6 +174,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const setVolumeFn = useCallback((vol: number) => {
     setVolumeState(Math.max(0, Math.min(1, vol)))
   }, [])
+
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', resume)
+      navigator.mediaSession.setActionHandler('pause', pause)
+      navigator.mediaSession.setActionHandler('previoustrack', prev)
+      navigator.mediaSession.setActionHandler('nexttrack', next)
+    }
+  }, [resume, pause, prev, next])
 
   return (
     <PlayerContext.Provider value={{

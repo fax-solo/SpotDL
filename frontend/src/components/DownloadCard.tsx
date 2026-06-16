@@ -1,22 +1,15 @@
-import { useState, useCallback, type FormEvent } from 'react'
+import { useState, useCallback, useEffect, type FormEvent } from 'react'
 import { Download, DownloadCloud, Disc3, ListMusic, Link2, CheckCircle2, XCircle, Loader2, Music } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
 import { motion, AnimatePresence } from 'framer-motion'
-import { fetchMetadata, downloadTrack } from '../lib/api'
+import { fetchMetadata } from '../lib/api'
 import type { TrackMeta, CollectionMeta } from '../lib/api'
-import { downloadFile, isNative } from '../lib/capacitorBridge'
-import { mapConcurrent } from '../lib/concurrency'
+import { isNative } from '../lib/capacitorBridge'
 import { useToast } from './Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
+import { useDownloads, type DownloadProgress } from '../hooks/useDownloads'
 
-interface TrackProgress {
-  stage: string
-  pct: number | null
-  done: boolean
-  failed: boolean
-}
-
-function visualPct(progress: TrackProgress): number {
+function visualPct(progress: DownloadProgress): number {
   if (progress.done) return 100
   if (progress.failed) return 0
   if (progress.stage.includes('Searching')) return 8
@@ -25,9 +18,10 @@ function visualPct(progress: TrackProgress): number {
   return 5
 }
 
-interface DownloadCardProps {
+export interface DownloadCardProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
   presetCollection?: CollectionMeta | null
+  initialUrl?: string
 }
 
 type ViewMode = 'idle' | 'single' | 'list'
@@ -36,30 +30,27 @@ function isCollectionMeta(data: TrackMeta | CollectionMeta): data is CollectionM
   return 'tracks' in data && 'collection_name' in data
 }
 
-export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadCardProps) {
-  const [url, setUrl] = useState('')
+export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCollection, initialUrl }: DownloadCardProps) {
+  const [url, setUrl] = useState(initialUrl || '')
   const [mode, setMode] = useState<ViewMode>(presetCollection ? 'list' : 'idle')
   const [singleTrack, setSingleTrack] = useState<TrackMeta | null>(null)
   const [collection, setCollection] = useState<CollectionMeta | null>(presetCollection || null)
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState<string | null>(null)
-  const [singleDownloading, setSingleDownloading] = useState(false)
-  const [singleProgress, setSingleProgress] = useState(0)
-  const [singleStage, setSingleStage] = useState('')
-  const [downloadingAll, setDownloadingAll] = useState(false)
-  const [completedCount, setCompletedCount] = useState(0)
-  const [trackProgress, setTrackProgress] = useState<Record<number, TrackProgress>>({})
+  
+  const { queue, addDownload, addMultipleDownloads } = useDownloads()
   const { toast } = useToast()
 
-  const handleMetadata = async () => {
-    if (!url.trim()) return
+  const handleMetadata = useCallback(async (targetUrl?: string) => {
+    const fetchUrl = targetUrl || url.trim()
+    if (!fetchUrl) return
     setMode('idle')
     setSingleTrack(null)
     setCollection(null)
     setLoading(true)
     setLoadingMsg('Fetching track info...')
     try {
-      const data = await fetchMetadata(url.trim())
+      const data = await fetchMetadata(fetchUrl)
       if (isCollectionMeta(data)) {
         setCollection(data)
         setMode('list')
@@ -73,96 +64,37 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
       setLoading(false)
       setLoadingMsg(null)
     }
-  }
+  }, [url, toast])
+
+  // Effect to automatically start fetching if initialUrl is provided
+  useEffect(() => {
+    if (initialUrl && !presetCollection) {
+      handleMetadata(initialUrl)
+    }
+  }, [initialUrl, presetCollection, handleMetadata])
+
+  const singleQueueItem = singleTrack 
+    ? queue.find(q => q.track.url === singleTrack.url || (q.track.title === singleTrack.title && q.track.artist === singleTrack.artist)) 
+    : null
+  
+  const singleDownloading = singleQueueItem && !singleQueueItem.done && !singleQueueItem.failed
+  const singleProgress = singleQueueItem ? visualPct(singleQueueItem) : 0
+  const singleStage = singleQueueItem?.stage ?? ''
 
   const handleDownloadSingle = async (track: TrackMeta) => {
-    setSingleDownloading(true)
-    setSingleProgress(0)
-    setSingleStage('Starting...')
-    try {
-      const result = await downloadTrack(track, (stage, pct) => {
-        setSingleStage(stage)
-        if (pct !== undefined) setSingleProgress(pct)
-      })
-      let filePath: string | null = null
-      if (result.blob.size > 0) {
-        filePath = await downloadFile(result.blob, result.filename)
-      }
-      setSingleStage('Done!')
-      setSingleProgress(100)
-      toast(`Downloaded ${track.title}`, 'success')
-      onDownloadComplete({
-        title: track.title,
-        artist: track.artist,
-        album: track.album,
-        artworkUrl: track.artwork_url,
-        filePath,
-      })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Download failed'
-      toast(msg, 'error')
-    } finally {
-      setTimeout(() => {
-        setSingleDownloading(false)
-        setSingleProgress(0)
-        setSingleStage('')
-      }, 1500)
-    }
+    addDownload(track)
   }
 
   const trackList = collection?.tracks ?? []
+  
+  const downloadingAll = trackList.length > 0 && queue.some(q => 
+    !q.done && !q.failed && trackList.some(t => t.url === q.track.url || (t.title === q.track.title && t.artist === q.track.artist))
+  )
 
   const handleDownloadAll = useCallback(async () => {
-    setDownloadingAll(true)
-    setCompletedCount(0)
-    setTrackProgress({})
-
-    const initProgress: Record<number, TrackProgress> = {}
-    trackList.forEach((_, i) => {
-      initProgress[i] = { stage: 'Waiting...', pct: null, done: false, failed: false }
-    })
-    setTrackProgress(initProgress)
-
-    const concurrency = trackList.length > 10 ? 3 : 2
-    let success = 0
-
-    const results = await mapConcurrent(trackList, async (track, i) => {
-      setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
-      try {
-        const result = await downloadTrack(track, (stage, pct) => {
-          setTrackProgress(prev => ({
-            ...prev,
-            [i]: { stage, pct: pct ?? null, done: false, failed: false },
-          }))
-        })
-        let filePath: string | null = null
-        if (result.blob.size > 0) {
-          filePath = await downloadFile(result.blob, result.filename)
-        }
-        setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
-        setCompletedCount(c => c + 1)
-        onDownloadComplete({
-          title: track.title,
-          artist: track.artist,
-          album: track.album,
-          artworkUrl: track.artwork_url,
-          filePath,
-        })
-        return true
-      } catch {
-        setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Failed', pct: null, done: false, failed: true } }))
-        return false
-      }
-    }, concurrency)
-
-    success = results.filter(Boolean).length
-    const fail = results.length - success
-    setDownloadingAll(false)
-    const msg = fail > 0
-      ? `Downloaded ${success}/${trackList.length} (${fail} failed)`
-      : `All ${trackList.length} tracks downloaded!`
-    toast(msg, success > 0 ? 'success' : 'error')
-  }, [trackList, onDownloadComplete, toast])
+    addMultipleDownloads(trackList)
+    toast(`Queued ${trackList.length} tracks for download`, 'success')
+  }, [trackList, addMultipleDownloads, toast])
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -247,7 +179,7 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
             <div className="p-4">
               <button
                 onClick={() => handleDownloadSingle(singleTrack)}
-                disabled={singleDownloading}
+                disabled={!!singleDownloading}
                 className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed relative overflow-hidden"
               >
                 {singleDownloading && (
@@ -309,7 +241,7 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
                 <h2 className="text-base font-bold text-light-text dark:text-dark-text truncate">{collection.collection_name}</h2>
                 <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
                   {trackList.length} {trackList.length === 1 ? 'song' : 'songs'}
-                  {downloadingAll && ` · ${completedCount} done`}
+                  {downloadingAll && ` · Downloading...`}
                 </p>
               </div>
               <motion.button
@@ -323,14 +255,14 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
                 ) : (
                   <DownloadCloud className="w-4 h-4" />
                 )}
-                {downloadingAll ? `${completedCount}/${trackList.length}` : 'All'}
+                {downloadingAll ? `Downloading` : 'All'}
               </motion.button>
             </div>
 
             {/* Track list */}
             <div className="divide-y divide-light-border/30 dark:divide-dark-border/30 max-h-[420px] overflow-y-auto overscroll-contain">
               {trackList.map((track, i) => {
-                const prog = trackProgress[i]
+                const prog = queue.find(q => q.track.url === track.url || (q.track.title === track.title && q.track.artist === track.artist))
                 const pct = prog ? visualPct(prog) : 0
 
                 return (

@@ -195,7 +195,7 @@ export async function searchYouTubeTracks(query: string): Promise<YouTubeSearchT
   const res = await fetch(apiUrl('/api/youtube'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'music-search', query }),
+    body: JSON.stringify({ action: 'search', query }),
   })
   if (!res.ok) return []
   const data = await res.json()

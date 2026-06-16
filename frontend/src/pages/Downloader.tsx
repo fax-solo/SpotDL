@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useLocation } from 'react-router-dom'
 import { DownloadCard } from '../components/DownloadCard'
 import { History } from '../components/History'
 import { PullToRefresh } from '../components/PullToRefresh'
@@ -10,10 +10,12 @@ import type { CollectionMeta } from '../lib/spotifyApi'
 export function Downloader() {
   const { entries, addEntry, clearHistory, removeEntry } = useHistory()
   const [searchParams] = useSearchParams()
+  const location = useLocation()
   const [presetCollection, setPresetCollection] = useState<CollectionMeta | null>(null)
   const [fetchingPlaylist, setFetchingPlaylist] = useState(false)
 
   const listId = searchParams.get('list')
+  const initialUrl = location.state?.url || ''
 
   useEffect(() => {
     if (!listId) return
@@ -68,7 +70,7 @@ export function Downloader() {
 
         {!fetchingPlaylist && (
           <div className="space-y-5">
-            <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} />
+            <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} initialUrl={initialUrl} />
             {!presetCollection && (
               <History
                 entries={entries}

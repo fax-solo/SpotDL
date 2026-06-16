@@ -4,6 +4,11 @@ export function isNative(): boolean {
   return Capacitor.isNativePlatform()
 }
 
+/**
+ * Saves a blob to disk.
+ * On Android: writes to the Documents directory and returns the file:// URI.
+ * On web: triggers a browser download and returns null.
+ */
 export async function downloadFile(blob: Blob, filename: string): Promise<string | null> {
   if (isNative()) {
     const { Filesystem, Directory } = await import('@capacitor/filesystem')
@@ -12,6 +17,7 @@ export async function downloadFile(blob: Blob, filename: string): Promise<string
       path: filename,
       data: base64,
       directory: Directory.Documents,
+      recursive: true,
     })
     return result.uri
   }
@@ -39,16 +45,21 @@ function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
-export async function readAudioFile(path: string): Promise<string | null> {
+/**
+ * Converts a stored file path / URI into a URL the <audio> element can play.
+ * On Android: uses Capacitor.convertFileSrc() to rewrite file:// → http://localhost/...
+ * On web: returns null (local files can't be played on web).
+ */
+export function getAudioSrc(filePath: string): string | null {
   if (!isNative()) return null
   try {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    const result = await Filesystem.readFile({
-      path,
-      directory: Directory.Documents,
-    })
-    return `data:audio/mpeg;base64,${result.data}`
+    return Capacitor.convertFileSrc(filePath)
   } catch {
     return null
   }
+}
+
+/** @deprecated Use getAudioSrc instead — avoid reading the whole MP3 into memory */
+export async function readAudioFile(path: string): Promise<string | null> {
+  return getAudioSrc(path)
 }

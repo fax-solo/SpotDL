@@ -57,34 +57,41 @@ async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null>
   }
 }
 
+const PIPED_INSTANCES = [
+  'https://pipedapi.kavin.rocks',
+  'https://pipedapi.adminforge.de',
+  'https://piped-api.garudalinux.org'
+]
+
 async function pipedInfo(videoId: string): Promise<YouTubeInfo | null> {
-  // Skip Piped on native
-  if (isNative()) return null
-  try {
-    const res = await fetch(`${PIPED_API}/streams/${videoId}`, {
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    const audioStreams = data?.audioStreams || []
-    if (audioStreams.length > 0) {
-      const best = audioStreams
-        .filter((s: any) => s.url)
-        .sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0))[0]
-      if (best) {
-        return {
-          title: data.title || 'Unknown',
-          author: data.uploader || 'Unknown',
-          duration: String(data.duration || 0),
-          audioUrl: proxyAudioUrl(best.url),
-          thumbnail: data.thumbnailUrl || null,
+  // Try multiple Piped instances since they can be unstable
+  for (const api of PIPED_INSTANCES) {
+    try {
+      const res = await fetch(`${api}/streams/${videoId}`, {
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      const audioStreams = data?.audioStreams || []
+      if (audioStreams.length > 0) {
+        const best = audioStreams
+          .filter((s: any) => s.url)
+          .sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0))[0]
+        if (best) {
+          return {
+            title: data.title || 'Unknown',
+            author: data.uploader || 'Unknown',
+            duration: String(data.duration || 0),
+            audioUrl: proxyAudioUrl(best.url), // Proxy the stream url to bypass CORS/403
+            thumbnail: data.thumbnailUrl || null,
+          }
         }
       }
+    } catch {
+      continue
     }
-    return null
-  } catch {
-    return null
   }
+  return null
 }
 
 export async function searchYouTube(query: string): Promise<YouTubeSearchResult[]> {
@@ -97,7 +104,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult[
   const res = await fetch(FUNCTIONS_BASE(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'music-search', query }),
+    body: JSON.stringify({ action: 'search', query }),
   })
   if (!res.ok) throw new Error('Search failed')
   const data = await res.json()
@@ -108,11 +115,10 @@ export async function getVideoInfo(url: string): Promise<YouTubeInfo> {
   const videoId = extractVideoId(url)
   if (!videoId) throw new Error('Invalid YouTube URL')
 
-  // Try Piped first on web only
-  if (!isNative()) {
-    const piped = await pipedInfo(videoId)
-    if (piped?.audioUrl) return piped
-  }
+  // Try Piped instances directly from the client (Web and Native)
+  // This avoids Cloudflare IP blocks when getting video streams
+  const piped = await pipedInfo(videoId)
+  if (piped?.audioUrl) return piped
 
   const res = await fetch(FUNCTIONS_BASE(), {
     method: 'POST',

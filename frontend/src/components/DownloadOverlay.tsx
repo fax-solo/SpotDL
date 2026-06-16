@@ -1,62 +1,28 @@
-import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
-
-interface DownloadItem {
-  id: string
-  title: string
-  stage: string
-  pct: number | null
-  done: boolean
-  failed: boolean
-}
-
-interface DownloadOverlayContextValue {
-  activeDownloads: DownloadItem[]
-  addDownload: (id: string, title: string) => void
-  updateDownload: (id: string, updates: Partial<DownloadItem>) => void
-  removeDownload: (id: string) => void
-}
-
-const DownloadOverlayContext = createContext<DownloadOverlayContextValue | null>(null)
-
-export function useDownloadOverlay() {
-  const ctx = useContext(DownloadOverlayContext)
-  if (!ctx) throw new Error('useDownloadOverlay must be used within DownloadOverlayProvider')
-  return ctx
-}
-
-let downloadIdCounter = 0
+import { useDownloads } from '../hooks/useDownloads'
 
 export function DownloadOverlayProvider({ children }: { children: ReactNode }) {
-  const [downloads, setDownloads] = useState<DownloadItem[]>([])
-  const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const { queue, clearCompleted } = useDownloads()
 
-  const addDownload = useCallback((id: string, title: string) => {
-    setDownloads(prev => {
-      if (prev.some(d => d.id === id)) return prev
-      return [...prev, { id, title, stage: 'Starting…', pct: null, done: false, failed: false }]
-    })
-  }, [])
+  // Auto-clear completed items after 3 seconds
+  useEffect(() => {
+    const completed = queue.filter(d => d.done || d.failed)
+    if (completed.length > 0) {
+      const timer = setTimeout(() => {
+        clearCompleted()
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [queue, clearCompleted])
 
-  const updateDownload = useCallback((id: string, updates: Partial<DownloadItem>) => {
-    setDownloads(prev =>
-      prev.map(d => d.id === id ? { ...d, ...updates } : d)
-    )
-  }, [])
+  const activeCount = queue.filter(d => !d.done && !d.failed).length
+  const totalCount = queue.length
+  const completedCount = queue.filter(d => d.done).length
 
-  const removeDownload = useCallback((id: string) => {
-    const timer = timers.current.get(id)
-    if (timer) clearTimeout(timer)
-    timers.current.delete(id)
-    setDownloads(prev => prev.filter(d => d.id !== id))
-  }, [])
-
-  const activeCount = downloads.filter(d => !d.done && !d.failed).length
-  const totalCount = downloads.length
-  const completedCount = downloads.filter(d => d.done).length
   const overallPct = totalCount > 0
-    ? Math.round(downloads.reduce((sum, d) => {
+    ? Math.round(queue.reduce((sum, d) => {
         if (d.done) return sum + 100
         if (d.failed) return sum + 0
         if (d.stage.includes('Searching')) return sum + 5
@@ -66,10 +32,8 @@ export function DownloadOverlayProvider({ children }: { children: ReactNode }) {
       }, 0) / totalCount)
     : 0
 
-  const value: DownloadOverlayContextValue = { activeDownloads: downloads, addDownload, updateDownload, removeDownload }
-
   return (
-    <DownloadOverlayContext.Provider value={value}>
+    <>
       {children}
 
       <AnimatePresence>
@@ -88,7 +52,7 @@ export function DownloadOverlayProvider({ children }: { children: ReactNode }) {
                     <Loader2 className="w-4 h-4 text-accent animate-spin flex-shrink-0" />
                     <span className="text-sm font-medium text-light-text dark:text-dark-text truncate">
                       {activeCount === 1
-                        ? downloads.find(d => !d.done && !d.failed)?.title || 'Downloading…'
+                        ? queue.find(d => !d.done && !d.failed)?.track.title || 'Downloading…'
                         : `Downloading ${completedCount + 1}/${totalCount}…`}
                     </span>
                   </div>
@@ -106,7 +70,7 @@ export function DownloadOverlayProvider({ children }: { children: ReactNode }) {
                 </div>
                 {activeCount > 1 && (
                   <div className="flex items-center gap-1 mt-1.5">
-                    {downloads.slice(0, 5).map(d => (
+                    {queue.slice(0, 5).map(d => (
                       <div
                         key={d.id}
                         className={`w-1.5 h-1.5 rounded-full ${
@@ -116,9 +80,9 @@ export function DownloadOverlayProvider({ children }: { children: ReactNode }) {
                         }`}
                       />
                     ))}
-                    {downloads.length > 5 && (
+                    {queue.length > 5 && (
                       <span className="text-[9px] text-light-muted dark:text-dark-muted ml-0.5">
-                        +{downloads.length - 5}
+                        +{queue.length - 5}
                       </span>
                     )}
                   </div>
@@ -128,33 +92,21 @@ export function DownloadOverlayProvider({ children }: { children: ReactNode }) {
           </motion.div>
         )}
       </AnimatePresence>
-    </DownloadOverlayContext.Provider>
+    </>
   )
 }
 
+// Keep a mock hook for backward compatibility if needed, though most places will now use useDownloads
 export function useDownloadProgress() {
-  const { addDownload, updateDownload, removeDownload } = useDownloadOverlay()
-
-  const trackDownload = useCallback((title: string) => {
-    const id = `dl-${++downloadIdCounter}`
-    addDownload(id, title)
-
-    const update = (stage: string, pct?: number) => {
-      updateDownload(id, { stage, pct: pct ?? null })
+  const trackDownload = (title: string) => {
+    // This is essentially a no-op dummy now for HistoryPage's re-download since HistoryPage should be refactored
+    return {
+      id: title,
+      update: () => {},
+      done: () => {},
+      fail: () => {}
     }
-
-    const done = () => {
-      updateDownload(id, { stage: 'Done', pct: null, done: true, failed: false })
-      setTimeout(() => removeDownload(id), 2000)
-    }
-
-    const fail = () => {
-      updateDownload(id, { stage: 'Failed', pct: null, done: false, failed: true })
-      setTimeout(() => removeDownload(id), 3000)
-    }
-
-    return { id, update, done, fail }
-  }, [addDownload, updateDownload, removeDownload])
+  }
 
   return { trackDownload }
 }

@@ -10,6 +10,7 @@ interface HistoryProps {
   onRemove: (id: string) => void
   onRedownload: (entry: HistoryEntry) => void
   onPlay?: (entry: HistoryEntry) => void
+  minimal?: boolean
 }
 
 const itemVariants = {
@@ -149,13 +150,31 @@ function SwipeableRow({
   )
 }
 
-export function History({ entries, onClear, onRemove, onRedownload, onPlay }: HistoryProps) {
-  const [open, setOpen] = useState(false)
+export function History({ entries, onClear, onRemove, onRedownload, onPlay, minimal }: HistoryProps) {
+  const [open, setOpen] = useState(minimal ? true : false)
   const [confirmClear, setConfirmClear] = useState(false)
 
   if (entries.length === 0) return null
 
   const recentCount = entries.filter(e => Date.now() - e.timestamp < 86_400_000).length
+
+  if (minimal) {
+    return (
+      <div className="w-full flex-1 flex flex-col h-full bg-white dark:bg-dark-surface">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-light-border/50 dark:border-dark-border/50">
+          <span className="text-sm font-medium text-light-text dark:text-dark-text">Downloads Queue</span>
+          <span className="text-xs text-light-muted dark:text-dark-muted">{entries.length} songs</span>
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y divide-light-border/50 dark:divide-dark-border/50 overscroll-contain">
+          <AnimatePresence initial={false} mode="popLayout">
+            {entries.map((entry, i) => (
+              <SwipeableRow key={entry.id} entry={entry} index={i} onRemove={onRemove} onRedownload={onRedownload} onPlay={onPlay} />
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full max-w-xl mx-auto mt-8">

@@ -6,18 +6,16 @@ import { useHistory } from '../hooks/useHistory'
 import { usePlayer } from '../hooks/usePlayer'
 import { useToast } from '../components/Toast'
 import { useHaptics } from '../hooks/useHaptics'
-import { downloadTrack } from '../lib/api'
-import { downloadFile } from '../lib/capacitorBridge'
-import { useDownloadProgress } from '../components/DownloadOverlay'
+import { useDownloads } from '../hooks/useDownloads'
 import type { TrackMeta } from '../lib/spotifyApi'
 
 export function HistoryPage() {
   const navigate = useNavigate()
-  const { entries, addEntry, clearHistory, removeEntry, reload } = useHistory()
+  const { entries, clearHistory, removeEntry, reload } = useHistory()
   const { play } = usePlayer()
   const { toast } = useToast()
   const { notify } = useHaptics()
-  const { trackDownload } = useDownloadProgress()
+  const { addDownload } = useDownloads()
 
   const handleRefresh = useCallback(async () => {
     reload()
@@ -38,24 +36,13 @@ export function HistoryPage() {
       artist: entry.artist,
       album: entry.album,
       artwork_url: entry.artworkUrl,
-      url: '',
+      url: '', // We don't have the original URL, but api will fall back to search
       type: 'track',
     }
-    const prog = trackDownload(entry.title)
-    try {
-      const { blob, filename } = await downloadTrack(track, (stage, pct) => {
-        prog.update(stage, pct)
-      })
-      const filePath = await downloadFile(blob, filename)
-      prog.done()
-      addEntry({ title: entry.title, artist: entry.artist, album: entry.album, artworkUrl: entry.artworkUrl, filePath })
-      toast(`Re-downloaded ${entry.title}`, 'success')
-      notify('SUCCESS')
-    } catch (err) {
-      prog.fail()
-      toast(err instanceof Error ? err.message : 'Re-download failed', 'error')
-    }
-  }, [addEntry, toast, notify, trackDownload])
+    
+    addDownload(track)
+    toast(`Queued re-download for ${entry.title}`, 'success')
+  }, [addDownload, toast, notify])
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>

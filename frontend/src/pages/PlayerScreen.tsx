@@ -1,10 +1,15 @@
 import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowDown, Play, Pause, SkipBack, SkipForward, Music, Mic2 } from 'lucide-react'
+import { ArrowDown, Play, Pause, SkipBack, SkipForward, Music, Mic2, ListMusic } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { LyricsView } from '../components/LyricsView'
+import { History } from '../components/History'
 import { usePlayer } from '../hooks/usePlayer'
+import { useHistory } from '../hooks/useHistory'
+import { useToast } from '../components/Toast'
+import type { TrackMeta } from '../lib/api'
+import { useDownloads } from '../hooks/useDownloads'
 
 function formatTime(sec: number): string {
   if (!isFinite(sec) || sec < 0) return '0:00'
@@ -15,9 +20,35 @@ function formatTime(sec: number): string {
 
 export function PlayerScreen() {
   const navigate = useNavigate()
-  const { currentTrack, isPlaying, currentTime, duration, volume, pause, resume, next, prev, seek, setVolume } = usePlayer()
+  const { currentTrack, isPlaying, currentTime, duration, volume, pause, resume, next, prev, seek, setVolume, play } = usePlayer()
+  const { entries, removeEntry, clearHistory } = useHistory()
+  const { addDownload } = useDownloads()
+  const { toast } = useToast()
+  
   const [showLyrics, setShowLyrics] = useState(false)
+  const [showQueue, setShowQueue] = useState(false)
   const progressRef = useRef<HTMLDivElement>(null)
+
+  const handleRedownload = useCallback(async (entry: import('../hooks/useHistory').HistoryEntry) => {
+    const track: TrackMeta = {
+      title: entry.title,
+      artist: entry.artist,
+      album: entry.album,
+      artwork_url: entry.artworkUrl,
+      url: '',
+      type: 'track',
+    }
+    addDownload(track)
+    toast(`Queued re-download for ${entry.title}`, 'success')
+  }, [addDownload, toast])
+
+  const handlePlay = useCallback((entry: import('../hooks/useHistory').HistoryEntry) => {
+    if (!entry.filePath) {
+      toast('No local file available. Re-download first.', 'error')
+      return
+    }
+    play(entry, entries)
+  }, [play, entries, toast])
 
   const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!duration || !progressRef.current) return
@@ -52,16 +83,34 @@ export function PlayerScreen() {
           <ArrowDown className="w-5 h-5 text-light-muted dark:text-dark-muted" />
         </button>
         <span className="text-xs font-medium text-light-muted dark:text-dark-muted uppercase tracking-wider">Now Playing</span>
-        <button
-          onClick={() => setShowLyrics(v => !v)}
-          className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-            showLyrics
-              ? 'bg-accent text-white'
-              : 'hover:bg-white/10 dark:hover:bg-zinc-800/50 text-light-muted dark:text-dark-muted'
-          }`}
-        >
-          <Mic2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setShowQueue(false)
+              setShowLyrics(v => !v)
+            }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              showLyrics
+                ? 'bg-accent text-white'
+                : 'hover:bg-white/10 dark:hover:bg-zinc-800/50 text-light-muted dark:text-dark-muted'
+            }`}
+          >
+            <Mic2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              setShowLyrics(false)
+              setShowQueue(v => !v)
+            }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              showQueue
+                ? 'bg-accent text-white'
+                : 'hover:bg-white/10 dark:hover:bg-zinc-800/50 text-light-muted dark:text-dark-muted'
+            }`}
+          >
+            <ListMusic className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-8 pb-8 min-h-0">
@@ -79,6 +128,22 @@ export function PlayerScreen() {
               albumName={currentTrack.album}
               duration={duration}
               currentTime={currentTime}
+            />
+          </motion.div>
+        ) : showQueue ? (
+          <motion.div
+            key="queue"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="w-full flex-1 min-h-0 mb-4 rounded-2xl overflow-hidden bg-white/50 dark:bg-dark-surface/50 border border-light-border/40 dark:border-dark-border/30"
+          >
+            <History 
+              entries={entries} 
+              onClear={clearHistory} 
+              onRemove={removeEntry} 
+              onRedownload={handleRedownload}
+              onPlay={handlePlay}
+              minimal 
             />
           </motion.div>
         ) : (
