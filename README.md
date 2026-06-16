@@ -15,17 +15,31 @@ Download any Spotify track, album, or playlist as high-quality audio — **no AP
 |-------|-----------|
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS v4 |
 | Backend | FastAPI (Python 3.12+) — Docker container |
-| Audio | yt-dlp + mutagen |
-| Mobile | Capacitor 8 (Android APK) |
+| Audio | yt-dlp + mutagen / FFmpeg WASM (client-side) |
+| Mobile | Capacitor 8 (Android APK) + Native SpotDL Plugin |
+| Native Runtime | Python 3.8 + SpotDL + FFmpeg (ARM64, bundled in APK) |
 
 ## Architecture
 
 ```
+Native Mode (Android APK):
+┌──────────────────────────────────────────────────┐
+│ Android App (Capacitor/React)                    │
+│  └─ Capacitor Plugin → ProcessBuilder → Python   │
+│                      + SpotDL + FFmpeg (on-device)│
+└──────────────────────────────────────────────────┘
+        ↓ falls back to
+
+Server Mode (Web / Any):
 Android APK (Capacitor/React) ──HTTP──> Backend Server (FastAPI + yt-dlp)
+                │
+                └── or ──> Netlify/CF Functions + Client-side FFmpeg WASM
 ```
 
-The backend runs as a standalone server (Docker, Railway, Render, Fly.io, VPS).
-The mobile app connects to it via API.
+The app auto-detects the fastest mode:
+1. **Native Android** — Python + SpotDL + FFmpeg bundled in APK (fully offline)
+2. **Server** — FastAPI backend with yt-dlp (Docker)
+3. **Client** — Serverless functions for metadata + browser FFmpeg WASM for conversion
 
 ## Deploy Backend
 

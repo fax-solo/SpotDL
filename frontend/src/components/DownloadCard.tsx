@@ -87,10 +87,14 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
     setStatus('loading')
     setMessage(`Preparing ${track.title}...`)
     try {
-      const { blob, filename } = await downloadTrack(track, (stage, pct) => {
+      const result = await downloadTrack(track, (stage, pct) => {
         setMessage(pct !== undefined ? `${stage} ${pct}%` : stage)
       })
-      await downloadFile(blob, filename)
+      // In native mode, the file is saved directly to disk by the plugin
+      // In web/server mode, we get a blob that we need to save
+      if (result.blob.size > 0) {
+        await downloadFile(result.blob, result.filename)
+      }
       setStatus('success')
       setMessage(`Downloaded ${track.title}!`)
       toast(`Downloaded ${track.title}`, 'success')
@@ -130,13 +134,15 @@ export function DownloadCard({ onDownloadComplete, presetCollection }: DownloadC
     const results = await mapConcurrent(trackList, async (track, i) => {
       setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
       try {
-        const { blob, filename } = await downloadTrack(track, (stage, pct) => {
+        const result = await downloadTrack(track, (stage, pct) => {
           setTrackProgress(prev => ({
             ...prev,
             [i]: { stage, pct: pct ?? null, done: false, failed: false },
           }))
         })
-        await downloadFile(blob, filename)
+        if (result.blob.size > 0) {
+          await downloadFile(result.blob, result.filename)
+        }
         setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
         setCompletedCount(c => c + 1)
         onDownloadComplete({

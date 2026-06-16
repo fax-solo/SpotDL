@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import shutil
 import logging
 import urllib.parse
@@ -11,7 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
@@ -23,7 +24,7 @@ from spotify import (
     is_user_authenticated,
 )
 
-app = FastAPI(title="SpotDL API", version="1.0.0")
+app = FastAPI(title="SpotDL API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,38 +43,25 @@ class DownloadRequest(BaseModel):
     url: str | None = None
 
 
+# ─── Health ───
+
 @app.get("/api/ping")
 def ping():
-    return {"ok": True}
+    return {"ok": True, "version": "2.0.0"}
 
 
-@app.get("/api/debug/auth")
-def debug_auth():
-    import requests as req
-    token = get_user_token()
-    info = {
+@app.get("/api/status")
+def status():
+    has_ffmpeg = shutil.which("ffmpeg") is not None
+    return {
+        "ok": True,
+        "ffmpeg": has_ffmpeg,
         "authenticated": is_user_authenticated(),
-        "has_token": token is not None,
-        "token_prefix": token[:10] + "..." if token else None,
+        "has_spotify_creds": bool(os.environ.get("SPOTIFY_CLIENT_ID")),
     }
-    if token:
-        try:
-            r = req.get("https://api.spotify.com/v1/me", headers={"Authorization": f"Bearer {token}"}, timeout=10)
-            info["me_status"] = r.status_code
-            if r.ok:
-                info["me"] = r.json().get("id")
-            else:
-                info["me_error"] = r.text[:200]
-        except Exception as e:
-            info["me_error"] = str(e)
-    try:
-        r = req.get("https://api.spotify.com/v1/playlists/37i9dQZF1DWXRqgorJj26U", headers={"Authorization": f"Bearer {token or ''}"}, timeout=10)
-        info["playlist_status"] = r.status_code
-        info["playlist_tracks_url"] = r.json().get("tracks", {}).get("href") if r.ok else None
-    except Exception as e:
-        info["playlist_error"] = str(e)
-    return info
 
+
+# ─── Spotify Auth ───
 
 CLIENT_URL = os.environ.get("CLIENT_URL", "http://localhost:5173")
 
@@ -104,10 +92,13 @@ def spotify_exchange(code: str = Query(...), redirect_uri: str = Query(None)):
         traceback.print_exc()
         raise HTTPException(status_code=502, detail=str(e))
 
+
 @app.get("/api/auth/status")
 def auth_status():
     return {"authenticated": is_user_authenticated()}
 
+
+# ─── Metadata ───
 
 @app.get("/api/metadata")
 def get_metadata(url: str = Query(..., description="Spotify track/album/playlist URL")):
@@ -120,6 +111,8 @@ def get_metadata(url: str = Query(..., description="Spotify track/album/playlist
         traceback.print_exc()
         raise HTTPException(status_code=502, detail=str(e))
 
+
+# ─── Download (sync, returns file) ───
 
 @app.post("/api/download")
 def download(body: DownloadRequest):
@@ -147,3 +140,55 @@ def download(body: DownloadRequest):
         filename=filename,
         background=BackgroundTask(cleanup),
     )
+
+
+# ─── Download (streaming, with progress) ───
+
+@app.post("/api/download/stream")
+async def download_stream(body: DownloadRequest):
+    from downloader import stream_download
+
+    async def generate():
+        buffer = b""
+        async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url):
+            if isinstance(chunk, str):
+                yield chunk.encode()
+            else:
+                buffer += chunk
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+@app.get("/api/debug/auth")
+def debug_auth():
+    import requests as req
+    token = get_user_token()
+    info = {
+        "authenticated": is_user_authenticated(),
+        "has_token": token is not None,
+        "token_prefix": token[:10] + "..." if token else None,
+    }
+    if token:
+        try:
+            r = req.get("https://api.spotify.com/v1/me", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+            info["me_status"] = r.status_code
+            if r.ok:
+                info["me"] = r.json().get("id")
+            else:
+                info["me_error"] = r.text[:200]
+        except Exception as e:
+            info["me_error"] = str(e)
+    try:
+        r = req.get("https://api.spotify.com/v1/playlists/37i9dQZF1DWXRqgorJj26U", headers={"Authorization": f"Bearer {token or ''}"}, timeout=10)
+        info["playlist_status"] = r.status_code
+        info["playlist_tracks_url"] = r.json().get("tracks", {}).get("href") if r.ok else None
+    except Exception as e:
+        info["playlist_error"] = str(e)
+    return info

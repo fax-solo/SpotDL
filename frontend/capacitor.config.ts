@@ -7,6 +7,11 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
   },
+  plugins: {
+    SpotDL: {
+      appId: 'com.spotdl.app',
+    },
+  },
 }
 
 export default config

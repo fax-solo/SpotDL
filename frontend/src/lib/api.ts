@@ -4,9 +4,23 @@ import { findAudio, findAudioFromUrl } from './sources'
 import { downloadAudio } from './audioProcessor'
 import { apiUrl } from './apiConfig'
 import { cachedFetch } from './requestCache'
+import { isNativeSpotDLAvailable, nativeFetchMetadata, nativeDownloadTrack } from './nativePlugin'
 
 export type { TrackMeta, CollectionMeta }
 export type { YouTubeSearchResult, YouTubeInfo } from './youtubeClient'
+
+let _nativeAvailable: boolean | null = null
+
+async function nativeAvailable(): Promise<boolean> {
+  if (_nativeAvailable === null) {
+    _nativeAvailable = await isNativeSpotDLAvailable()
+    // If plugin exists but wasn't initialized, try once more
+    if (!_nativeAvailable) {
+      _nativeAvailable = await isNativeSpotDLAvailable()
+    }
+  }
+  return _nativeAvailable
+}
 
 const SPOTIFY_PATTERNS: Record<string, RegExp> = {
   track: /spotify\.com\/track\/([a-zA-Z0-9]+)/,
@@ -53,6 +67,37 @@ async function fetchSpotifyViaScraper(url: string): Promise<TrackMeta | Collecti
 
 export async function fetchMetadata(url: string): Promise<TrackMeta | CollectionMeta> {
   const parsed = parseSpotifyUrl(url)
+
+  // Try native plugin first if available
+  if (parsed && await nativeAvailable()) {
+    try {
+      const tracks = await nativeFetchMetadata(url)
+      if (tracks.length === 1) {
+        const t = tracks[0]
+        return { type: 'track', title: t.title, artist: t.artist, album: t.album, artwork_url: t.artworkUrl, url: t.url } as TrackMeta
+      }
+      if (tracks.length > 1) {
+        const first = tracks[0]
+        const collectionType = url.includes('/album/') ? 'album' : 'playlist'
+        return {
+          type: 'collection',
+          collection_type: collectionType,
+          collection_name: first.album,
+          collection_artwork: first.artworkUrl,
+          tracks: tracks.map(t => ({
+            title: t.title,
+            artist: t.artist,
+            album: t.album,
+            artwork_url: t.artworkUrl,
+            url: t.url,
+          })),
+        } as CollectionMeta
+      }
+    } catch {
+      // Fall through to server mode
+    }
+  }
+
   if (parsed) {
     return fetchSpotifyViaScraper(url)
   }
@@ -77,6 +122,58 @@ export async function downloadTrack(
   onProgress?: (stage: string, pct?: number) => void,
   signal?: AbortSignal,
 ): Promise<{ blob: Blob; filename: string }> {
+  const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
+  const filename = `${safe(meta.artist)} - ${safe(meta.title)}.mp3`
+
+  // Try native plugin first (Android only)
+  if (await nativeAvailable() && meta.url) {
+    try {
+      onProgress?.('Downloading via native SpotDL...', 0)
+      await nativeDownloadTrack(meta.url, (pct) => {
+        onProgress?.(`Downloading... ${Math.round(pct)}%`, pct)
+      })
+      onProgress?.('Done', 100)
+      // For native mode, we return a minimal blob as the file is saved directly
+      return { blob: new Blob([], { type: 'audio/mpeg' }), filename }
+    } catch (err) {
+      console.warn('[api] Native download failed, falling back to server mode:', err)
+    }
+  }
+
+  // Try server download if backend is available
+  try {
+    const pingUrl = apiUrl('/api/ping')
+    if (pingUrl && !pingUrl.startsWith('/')) {
+      const ping = await fetch(pingUrl, { signal: AbortSignal.timeout(3000) })
+      if (ping.ok) {
+        onProgress?.('Downloading from server...', 0)
+        const res = await fetch(apiUrl('/api/download'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: meta.title,
+            artist: meta.artist,
+            album: meta.album,
+            artwork_url: meta.artwork_url,
+            url: meta.url,
+          }),
+          signal,
+        })
+        if (res.ok) {
+          const blob = await res.blob()
+          if (blob.size > 0) {
+            onProgress?.('Done', 100)
+            return { blob, filename }
+          }
+        }
+        // If server responds but no blob, fall through to client mode
+        console.warn('[api] Server returned empty response, falling back to client mode')
+      }
+    }
+  } catch (err) {
+    console.warn('[api] Server not available, falling back to client mode:', err)
+  }
+
   const query = `${meta.artist} ${meta.title}`
   onProgress?.(`Searching...`)
   signal?.throwIfAborted()
@@ -101,9 +198,6 @@ export async function downloadTrack(
     (pct) => onProgress?.(`Converting...`, pct),
     signal,
   )
-
-  const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
-  const filename = `${safe(meta.artist)} - ${safe(meta.title)}.mp3`
 
   return { blob, filename }
 }
