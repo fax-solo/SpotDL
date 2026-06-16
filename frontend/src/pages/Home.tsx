@@ -144,7 +144,7 @@ export function Home() {
   function openPlaylist(id: string) { navigate(`/playlist/${id}`) }
 
   return (
-    <PullToRefresh onRefresh={() => { loadCategories(); loadNewReleases(); loadRecentlyPlayed() }}>
+    <PullToRefresh onRefresh={async () => { await Promise.all([loadCategories(), loadNewReleases(), loadRecentlyPlayed()]) }}>
       <div className="px-4 pt-6 pb-24">
         <motion.div
           initial={{ opacity: 0, y: -10 }}

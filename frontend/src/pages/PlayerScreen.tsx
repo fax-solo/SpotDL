@@ -17,7 +17,6 @@ export function PlayerScreen() {
   const navigate = useNavigate()
   const { currentTrack, isPlaying, currentTime, duration, volume, pause, resume, next, prev, seek, setVolume } = usePlayer()
   const [showLyrics, setShowLyrics] = useState(false)
-  const seekingRef = useRef(false)
   const progressRef = useRef<HTMLDivElement>(null)
 
   const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {

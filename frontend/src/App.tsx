@@ -163,7 +163,7 @@ function AppContent() {
   }
 
   const isDetailPage = isDetailPageRoute(location.pathname)
-  const { currentTrack } = usePlayer()
+  usePlayer()
   const isPlayerPage = location.pathname === '/player'
 
   return (

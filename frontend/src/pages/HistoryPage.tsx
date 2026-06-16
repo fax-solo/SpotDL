@@ -25,7 +25,7 @@ export function HistoryPage() {
 
   const handlePlay = useCallback((entry: import('../hooks/useHistory').HistoryEntry) => {
     if (!entry.filePath) {
-      toast('No local file available. Re-download first.', 'warning')
+      toast('No local file available. Re-download first.', 'error')
       return
     }
     play(entry, entries)

@@ -134,7 +134,7 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
 
           {episode.show?.id ? (
             <button
-              onClick={() => navigate(`/show/${episode.show.id}`)}
+              onClick={() => navigate(`/show/${episode.show?.id}`)}
               className="text-base text-light-muted dark:text-zinc-400 hover:text-accent dark:hover:text-accent transition-colors cursor-pointer"
             >
               <Mic2 className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
