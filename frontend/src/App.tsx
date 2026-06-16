@@ -29,6 +29,7 @@ const PlayerScreen = lazy(() => import('./pages/PlayerScreen').then(m => ({ defa
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 const CallbackPage = lazy(() => import('./pages/CallbackPage').then(m => ({ default: m.CallbackPage })))
 const YtTrackDetail = lazy(() => import('./pages/YtTrackDetail').then(m => ({ default: m.YtTrackDetail })))
+const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default: m.SearchPage })))
 
 const PAGE_ORDER = ['/', '/download', '/history', '/settings', '/player']
 
@@ -159,7 +160,7 @@ function AppContent() {
   }, [mobile, location.pathname, navigate])
 
   function isDetailPageRoute(path: string) {
-    return path.startsWith('/playlist/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
+    return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
   }
 
   const isDetailPage = isDetailPageRoute(location.pathname)
@@ -167,7 +168,7 @@ function AppContent() {
   const isPlayerPage = location.pathname === '/player'
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col" style={{ WebkitTapHighlightColor: 'transparent' }}>
+    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col" style={{ WebkitTapHighlightColor: 'transparent', paddingTop: 'env(safe-area-inset-top)' }}>
       {!isOnline && (
         <div className="sticky top-0 z-[60] bg-red-500/90 dark:bg-red-600/90 backdrop-blur-sm text-white text-xs font-medium text-center py-2 px-4 flex items-center justify-center gap-2" role="alert" aria-live="assertive">
           <WifiOff className="w-3.5 h-3.5 flex-shrink-0" />
@@ -198,6 +199,7 @@ function AppContent() {
                   {mobile ? (
                     <>
                       <Route path="/" element={<Home />} />
+                      <Route path="/search" element={<SearchPage />} />
                       <Route path="/download" element={<Downloader />} />
                       <Route path="/history" element={<HistoryPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
@@ -214,6 +216,7 @@ function AppContent() {
                   ) : (
                     <>
                       <Route path="/" element={<LandingPage />} />
+                      <Route path="/search" element={<SearchPage />} />
                       <Route path="/download" element={<Downloader />} />
                       <Route path="/player" element={<PlayerScreen />} />
                       <Route path="/callback" element={<CallbackPage />} />

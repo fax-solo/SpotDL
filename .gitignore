@@ -7,3 +7,5 @@ api/venv/
 api/.env
 *.pyc
 .DS_Store
+
+INSTRUCTIONS.md

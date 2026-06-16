@@ -19,9 +19,18 @@ const CLIENTS = [
 const KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'
 const COOKIES = 'CONSENT=YES+; SOCS=CAISHAgCEhJqOHNfVUJfMl9xMHpKNHBpM1cYAiIBBiA='
 
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
 export async function onRequest(context) {
+  if (context.request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS })
+  }
   if (context.request.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 })
+    return new Response('Method Not Allowed', { status: 405, headers: CORS })
   }
   try {
     const { action, query, url } = await context.request.json()
@@ -30,12 +39,12 @@ export async function onRequest(context) {
     if (action === 'info') return await handleInfo(url)
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
     })
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
     })
   }
 }
@@ -66,14 +75,14 @@ async function handleSearch(query) {
       if (results.length > 0) {
         return new Response(JSON.stringify({ results }), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...CORS },
         })
       }
     } catch {}
   }
   return new Response(JSON.stringify({ results: [] }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...CORS },
   })
 }
 
@@ -89,7 +98,7 @@ async function handleMusicSearch(query) {
     if (!res.ok) {
       return new Response(JSON.stringify({ results: [] }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...CORS },
       })
     }
 
@@ -176,12 +185,12 @@ async function handleMusicSearch(query) {
 
     return new Response(JSON.stringify({ results }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
     })
   } catch {
     return new Response(JSON.stringify({ results: [] }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
     })
   }
 }
@@ -191,7 +200,7 @@ async function handleInfo(videoUrl) {
   if (!videoId) {
     return new Response(JSON.stringify({ error: 'Invalid YouTube URL' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...CORS },
     })
   }
 
@@ -211,7 +220,7 @@ async function handleInfo(videoUrl) {
       if (result) {
         return new Response(JSON.stringify(result), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...CORS },
         })
       }
     } catch {}
@@ -219,7 +228,7 @@ async function handleInfo(videoUrl) {
 
   return new Response(JSON.stringify({ error: 'Could not retrieve audio from any source' }), {
     status: 502,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...CORS },
   })
 }
 

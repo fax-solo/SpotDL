@@ -186,6 +186,7 @@ export async function fetchRecommendations(
 export interface YouTubeSearchTrack {
   videoId: string
   title: string
+  author?: string
   url: string
   thumbnail?: string | null
 }
@@ -202,6 +203,7 @@ export async function searchYouTubeTracks(query: string): Promise<YouTubeSearchT
   return results.map((r: any) => ({
     videoId: r.videoId,
     title: r.title || 'Unknown',
+    author: r.author || 'Unknown',
     url: r.url || `https://music.youtube.com/watch?v=${r.videoId}`,
     thumbnail: r.thumbnail || `https://i.ytimg.com/vi/${r.videoId}/default.jpg`,
   }))

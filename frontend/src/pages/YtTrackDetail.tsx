@@ -3,17 +3,26 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Download, Play, Clock, User } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { getVideoInfo, type YouTubeInfo } from '../lib/youtubeClient'
+import { downloadTrack } from '../lib/api'
+import { downloadFile } from '../lib/capacitorBridge'
+import { useToast } from '../components/Toast'
+import { useHistory } from '../hooks/useHistory'
 
 export function YtTrackDetail() {
   const { videoId } = useParams<{ videoId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
 
-  const state = location.state as { title?: string; thumbnail?: string; url?: string } | null
+  const state = location.state as { title?: string; thumbnail?: string; url?: string; author?: string } | null
   const stateUrl = state?.url || `https://music.youtube.com/watch?v=${videoId}`
+  const { toast } = useToast()
+  const { addEntry } = useHistory()
 
   const [info, setInfo] = useState<YouTubeInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
+  const [downloadStatus, setDownloadStatus] = useState('')
 
   useEffect(() => {
     if (!videoId) return
@@ -26,11 +35,41 @@ export function YtTrackDetail() {
 
   const title = info?.title || state?.title || 'Unknown'
   const thumbnail = info?.thumbnail || state?.thumbnail || null
-  const author = info?.author || 'Unknown'
+  const author = info?.author || state?.author || 'Unknown'
   const duration = info?.duration
 
-  const handleDownload = () => {
-    navigate('/download', { state: { url: stateUrl } })
+  const handleDownload = async () => {
+    setDownloading(true)
+    setDownloadProgress(0)
+    setDownloadStatus('Starting download...')
+    try {
+      const meta = {
+        title,
+        artist: author,
+        album: 'YouTube',
+        artwork_url: thumbnail,
+        url: stateUrl,
+        type: 'track',
+      }
+      const { blob, filename } = await downloadTrack(meta, (stage, pct) => {
+        setDownloadStatus(stage)
+        if (pct) setDownloadProgress(pct)
+      })
+      const filePath = await downloadFile(blob, filename)
+      toast(`Downloaded ${title}`, 'success')
+      addEntry({
+        title,
+        artist: author,
+        album: 'YouTube',
+        artworkUrl: thumbnail,
+        filePath,
+      })
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Download failed', 'error')
+    }
+    setDownloading(false)
+    setDownloadStatus('')
+    setDownloadProgress(0)
   }
 
   if (loading) {
@@ -86,10 +125,19 @@ export function YtTrackDetail() {
         <div className="w-full max-w-sm mt-8">
           <button
             onClick={handleDownload}
-            className="w-full py-3.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            disabled={downloading}
+            className="w-full py-3.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden"
           >
-            <Download className="w-5 h-5" />
-            Download
+            {downloading && (
+              <div 
+                className="absolute left-0 top-0 bottom-0 bg-red-600 transition-all duration-300"
+                style={{ width: `${downloadProgress}%` }}
+              />
+            )}
+            <span className="relative flex items-center gap-2 z-10">
+              <Download className="w-5 h-5" />
+              {downloading ? downloadStatus || 'Downloading...' : 'Download'}
+            </span>
           </button>
         </div>
 
