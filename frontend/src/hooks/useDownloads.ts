@@ -115,23 +115,31 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 })
 
                 let filePath: string | null = null
-                if (result.blob.size > 0) {
-                  filePath = await downloadFile(result.blob, result.filename)
+                try {
+                  if (result.blob.size > 0) {
+                    filePath = await downloadFile(result.blob, result.filename)
+                  }
+                } catch (err) {
+                  console.warn('[downloads] downloadFile failed:', err)
                 }
 
                 // Fetch lyrics if the user opted in (defaults to on)
                 let plainLyrics: string | null = null
                 let syncedLyrics: string | null = null
-                if (getDownloadLyrics()) {
-                  get()._updateProgress(item.id, { stage: 'Fetching lyrics...', pct: null })
-                  const lyrics = await fetchLyricsForTrack(
-                    item.track.title,
-                    item.track.artist,
-                    item.track.album,
-                    undefined,
-                  )
-                  plainLyrics = lyrics.plainLyrics
-                  syncedLyrics = lyrics.syncedLyrics
+                try {
+                  if (getDownloadLyrics()) {
+                    get()._updateProgress(item.id, { stage: 'Fetching lyrics...', pct: null })
+                    const lyrics = await fetchLyricsForTrack(
+                      item.track.title,
+                      item.track.artist,
+                      item.track.album,
+                      undefined,
+                    )
+                    plainLyrics = lyrics.plainLyrics
+                    syncedLyrics = lyrics.syncedLyrics
+                  }
+                } catch (err) {
+                  console.warn('[downloads] lyrics fetch failed:', err)
                 }
 
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
@@ -151,10 +159,12 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   }),
                 )
               } catch (err) {
+                console.error('[downloads] download failed:', err)
+                const message = err instanceof Error ? err.message : 'Unknown error'
                 get()._updateProgress(item.id, {
                   stage: 'Failed',
                   failed: true,
-                  error: err instanceof Error ? err.message : 'Unknown error',
+                  error: message,
                 })
               }
             }),

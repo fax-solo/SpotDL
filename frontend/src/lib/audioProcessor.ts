@@ -115,6 +115,11 @@ export async function downloadAudio(
   signal?.throwIfAborted()
   const mp3Data = await convertToMp3(audioUrl, onProgress, signal)
   signal?.throwIfAborted()
-  const taggedBlob = await writeId3Tags(mp3Data, metadata)
-  return taggedBlob
+  try {
+    const taggedBlob = await writeId3Tags(mp3Data, metadata)
+    return taggedBlob
+  } catch (err) {
+    console.warn('[audioProcessor] writeId3Tags failed, returning untagged MP3:', err)
+    return new Blob([mp3Data], { type: 'audio/mpeg' })
+  }
 }

@@ -246,7 +246,7 @@ function AppContent() {
         </Suspense>
       </ErrorBoundary>
       {mobile && !isDetailPage && !keyboardOpen && !isPlayerPage && <BottomBar />}
-      {!isPlayerPage && <MiniPlayerBar />}
+      <MiniPlayerBar />
       <DownloadOverlay />
     </div>
   )

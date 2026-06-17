@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Play, Pause, ChevronUp } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
@@ -6,7 +6,9 @@ import { usePlayer } from '../hooks/usePlayer'
 
 export function MiniPlayerBar() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { currentTrack, isPlaying, pause, resume } = usePlayer()
+  const isPlayerPage = location.pathname === '/player'
 
   if (!currentTrack) return null
 
@@ -15,7 +17,9 @@ export function MiniPlayerBar() {
       initial={{ y: 80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 80, opacity: 0 }}
-      className="fixed bottom-[60px] left-2 right-2 z-50 mx-auto max-w-xl"
+      className={`fixed left-2 right-2 z-50 mx-auto max-w-xl ${
+        isPlayerPage ? 'bottom-2' : 'bottom-[60px]'
+      }`}
     >
       <button
         onClick={() => navigate('/player')}
