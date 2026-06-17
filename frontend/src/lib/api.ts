@@ -150,7 +150,7 @@ export async function downloadTrack(
   meta: TrackMeta,
   onProgress?: (stage: string, pct?: number) => void,
   signal?: AbortSignal,
-): Promise<{ blob: Blob; filename: string }> {
+): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
   const filename = `${safe(meta.artist)} - ${safe(meta.title)}.mp3`
 
@@ -158,12 +158,11 @@ export async function downloadTrack(
   if (await nativeAvailable() && meta.url) {
     try {
       onProgress?.('Downloading via native SpotDL...', 0)
-      await nativeDownloadTrack(meta.url, (pct) => {
+      const nativeResult = await nativeDownloadTrack(meta.url, (pct) => {
         onProgress?.(`Downloading... ${Math.round(pct)}%`, pct)
       })
       onProgress?.('Done', 100)
-      // For native mode, we return a minimal blob as the file is saved directly
-      return { blob: new Blob([], { type: 'audio/mpeg' }), filename }
+      return { blob: new Blob([], { type: 'audio/mpeg' }), filename, nativeFilePath: nativeResult.filePath }
     } catch (err) {
       console.warn('[api] Native download failed, falling back to server mode:', err)
     }
