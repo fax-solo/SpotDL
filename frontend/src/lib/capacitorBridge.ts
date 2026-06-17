@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core'
-import { getBlobUrl } from './blobCache'
+import { getBlobUrl, isBlobPath } from './blobCache'
 
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
@@ -73,6 +73,7 @@ export function getAudioSrc(filePath: string): string | null {
  * Returns true if the file exists (or we can't determine — optimistically assume it does).
  */
 export async function fileExists(filePath: string): Promise<boolean> {
+  if (isBlobPath(filePath)) return !!getBlobUrl(filePath)
   if (!isNative()) return false
   try {
     const { Filesystem } = await import('@capacitor/filesystem')
