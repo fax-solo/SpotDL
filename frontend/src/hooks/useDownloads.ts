@@ -114,34 +114,14 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   }
                 })
 
+                // Save file to disk — result.nativeFilePath is set when native
+                // SpotDL plugin handled the download directly
                 let filePath: string | null = result.nativeFilePath ?? null
-                try {
-                  if (!filePath && result.blob.size > 0) {
-                    filePath = await downloadFile(result.blob, result.filename)
-                  }
-                } catch (err) {
-                  console.warn('[downloads] downloadFile failed:', err)
+                if (!filePath && result.blob.size > 0) {
+                  filePath = await downloadFile(result.blob, result.filename)
                 }
 
-                // Fetch lyrics if the user opted in (defaults to on)
-                let plainLyrics: string | null = null
-                let syncedLyrics: string | null = null
-                try {
-                  if (getDownloadLyrics()) {
-                    get()._updateProgress(item.id, { stage: 'Fetching lyrics...', pct: null })
-                    const lyrics = await fetchLyricsForTrack(
-                      item.track.title,
-                      item.track.artist,
-                      item.track.album,
-                      undefined,
-                    )
-                    plainLyrics = lyrics.plainLyrics
-                    syncedLyrics = lyrics.syncedLyrics
-                  }
-                } catch (err) {
-                  console.warn('[downloads] lyrics fetch failed:', err)
-                }
-
+                // Dispatch "Done" immediately so the track is playable
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
 
                 // Notify the rest of the app that a track was downloaded
@@ -153,11 +133,35 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                       album: item.track.album,
                       artworkUrl: item.track.artwork_url,
                       filePath,
-                      plainLyrics,
-                      syncedLyrics,
                     } satisfies Omit<HistoryEntry, 'id' | 'timestamp'>,
                   }),
                 )
+
+                // Fetch lyrics in the background — never blocks "Done" or the event
+                if (getDownloadLyrics()) {
+                  fetchLyricsForTrack(
+                    item.track.title,
+                    item.track.artist,
+                    item.track.album,
+                    undefined,
+                  ).then(lyrics => {
+                    if (lyrics.plainLyrics || lyrics.syncedLyrics) {
+                      window.dispatchEvent(
+                        new CustomEvent('lyricsFetched', {
+                          detail: {
+                            title: item.track.title,
+                            artist: item.track.artist,
+                            album: item.track.album,
+                            plainLyrics: lyrics.plainLyrics,
+                            syncedLyrics: lyrics.syncedLyrics,
+                          },
+                        }),
+                      )
+                    }
+                  }).catch(() => {
+                    // Lyrics are best-effort — ignore failures
+                  })
+                }
               } catch (err) {
                 console.error('[downloads] download failed:', err)
                 const message = err instanceof Error ? err.message : 'Unknown error'

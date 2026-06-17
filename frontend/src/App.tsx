@@ -56,7 +56,7 @@ function NotFound() {
 function AppContent() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { addEntry } = useHistory()
+  const { addEntry, updateEntryLyrics } = useHistory()
   const isOnline = useOnlineStatus()
   const [mobile, setMobile] = useState(isMobile)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
@@ -94,6 +94,17 @@ function AppContent() {
     window.addEventListener('trackDownloaded', handleDownload)
     return () => window.removeEventListener('trackDownloaded', handleDownload)
   }, [addEntry])
+
+  useEffect(() => {
+    const handleLyrics = (e: Event) => {
+      const { title, artist, plainLyrics, syncedLyrics } = (e as CustomEvent).detail
+      if (title && artist) {
+        updateEntryLyrics(title, artist, plainLyrics, syncedLyrics)
+      }
+    }
+    window.addEventListener('lyricsFetched', handleLyrics)
+    return () => window.removeEventListener('lyricsFetched', handleLyrics)
+  }, [updateEntryLyrics])
 
   useEffect(() => {
     if (!mobile || !Capacitor.isNativePlatform()) return

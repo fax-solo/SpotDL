@@ -68,5 +68,16 @@ export function useHistory() {
     setEntries(load())
   }, [])
 
-  return { entries, addEntry, clearHistory, removeEntry, reload }
+  const updateEntryLyrics = useCallback((title: string, artist: string, plainLyrics: string | null, syncedLyrics: string | null) => {
+    setEntries(prev => {
+      const idx = prev.findIndex(e => e.title === title && e.artist === artist)
+      if (idx === -1) return prev
+      const next = [...prev]
+      next[idx] = { ...next[idx], plainLyrics, syncedLyrics }
+      save(next)
+      return next
+    })
+  }, [])
+
+  return { entries, addEntry, clearHistory, removeEntry, reload, updateEntryLyrics }
 }
