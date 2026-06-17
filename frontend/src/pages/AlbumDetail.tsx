@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Download, DownloadCloud, Album, AlertCircle, XCircle, CheckCircle2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
-import { downloadFile, isNative } from '../lib/capacitorBridge'
+import { saveOrCacheBlob, isNative } from '../lib/capacitorBridge'
 import { mapConcurrent } from '../lib/concurrency'
 import type { CollectionMeta, TrackMeta } from '../lib/spotifyApi'
 import { SkeletonRow } from '../components/SkeletonRow'
@@ -119,8 +119,8 @@ export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
 
   const handleDownload = async (track: TrackMeta) => {
     try {
-      const { blob, filename } = await downloadTrack(track)
-      const filePath = await downloadFile(blob, filename)
+      const { blob, filename } = await downloadTrack(track, undefined, undefined, 1)
+      const filePath = await saveOrCacheBlob(blob, filename)
       toast(`Downloaded ${track.title}`, 'success')
       onDownloadComplete({
         title: track.title,
@@ -174,8 +174,8 @@ export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
             ...prev,
             [origIndex]: { stage, pct: pct ?? null, done: false, failed: false },
           }))
-        }, signal)
-        const filePath = await downloadFile(blob, filename)
+        }, signal, 1)
+        const filePath = await saveOrCacheBlob(blob, filename)
         setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Done', pct: null, done: true, failed: false } }))
         setCompletedCount(c => c + 1)
         onDownloadComplete({

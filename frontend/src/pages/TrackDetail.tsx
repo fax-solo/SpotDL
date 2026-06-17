@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Download, Music, Mic2, Disc3, Clock } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
-import { downloadFile, isNative } from '../lib/capacitorBridge'
+import { saveOrCacheBlob, isNative } from '../lib/capacitorBridge'
 import { fetchTrackDetails, type SearchTrack } from '../lib/spotifyApi'
 import { useToast } from '../components/Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
@@ -53,8 +53,8 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
       const meta = { title: track.title, artist: track.artist, album: track.album, artwork_url: track.artwork_url, url: track.url, type: 'track' }
       const { blob, filename } = await downloadTrack(meta, (stage, pct) => {
         toast(`${stage}${pct ? ` ${pct}%` : ''}`, 'info')
-      })
-      const filePath = await downloadFile(blob, filename)
+      }, undefined, 1)
+      const filePath = await saveOrCacheBlob(blob, filename)
       toast(`Downloaded ${track.title}`, 'success')
       onDownloadComplete({
         title: track.title,

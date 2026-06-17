@@ -146,10 +146,15 @@ export async function fetchLyricsForTrack(
   }
 }
 
+async function delay(ms: number) {
+  return new Promise(r => setTimeout(r, ms))
+}
+
 export async function downloadTrack(
   meta: TrackMeta,
   onProgress?: (stage: string, pct?: number) => void,
   signal?: AbortSignal,
+  retries = 1,
 ): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
   const filename = `${safe(meta.artist)} - ${safe(meta.title)}.mp3`
@@ -206,29 +211,44 @@ export async function downloadTrack(
   }
 
   const query = `${meta.artist} ${meta.title}`
-  onProgress?.(`Searching...`)
-  signal?.throwIfAborted()
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      onProgress?.(`Retrying (${attempt}/${retries})...`)
+      await delay(1000 * attempt)
+    }
+    try {
+      onProgress?.(`Searching...`)
+      signal?.throwIfAborted()
 
-  const { info, source } = await findAudio(query)
+      const { info, source } = await findAudio(query)
 
-  if (!info.audioUrl) {
-    throw new Error(`No downloadable audio found on ${source}`)
+      if (!info.audioUrl) {
+        throw new Error(`No downloadable audio found on ${source}`)
+      }
+
+      signal?.throwIfAborted()
+      onProgress?.(`Downloading from ${source}...`, 0)
+
+      const blob = await downloadAudio(
+        info.audioUrl,
+        {
+          title: meta.title,
+          artist: meta.artist,
+          album: meta.album,
+          artworkUrl: meta.artwork_url,
+        },
+        (pct) => onProgress?.(`Converting...`, pct),
+        signal,
+      )
+
+      return { blob, filename }
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+      if (attempt < retries) {
+        console.warn(`[api] Client download attempt ${attempt + 1} failed, retrying:`, lastError.message)
+      }
+    }
   }
-
-  signal?.throwIfAborted()
-  onProgress?.(`Downloading from ${source}...`, 0)
-
-  const blob = await downloadAudio(
-    info.audioUrl,
-    {
-      title: meta.title,
-      artist: meta.artist,
-      album: meta.album,
-      artworkUrl: meta.artwork_url,
-    },
-    (pct) => onProgress?.(`Converting...`, pct),
-    signal,
-  )
-
-  return { blob, filename }
+  throw lastError || new Error('Download failed after retries')
 }

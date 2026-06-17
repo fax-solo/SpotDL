@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core'
-import { getBlobUrl, isBlobPath } from './blobCache'
+import { getBlobUrl, isBlobPath, storeBlob } from './blobCache'
 
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
@@ -87,4 +87,12 @@ export async function fileExists(filePath: string): Promise<boolean> {
 /** @deprecated Use getAudioSrc instead — avoid reading the whole MP3 into memory */
 export async function readAudioFile(path: string): Promise<string | null> {
   return getAudioSrc(path)
+}
+
+export async function saveOrCacheBlob(blob: Blob, filename: string): Promise<string | null> {
+  let path = await downloadFile(blob, filename)
+  if (!path) {
+    path = storeBlob(filename, blob)
+  }
+  return path
 }

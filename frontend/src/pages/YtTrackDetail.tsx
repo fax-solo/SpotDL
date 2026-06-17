@@ -4,7 +4,7 @@ import { ArrowLeft, Download, Play, Clock, User } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { getVideoInfo, type YouTubeInfo } from '../lib/youtubeClient'
 import { downloadTrack } from '../lib/api'
-import { downloadFile } from '../lib/capacitorBridge'
+import { saveOrCacheBlob } from '../lib/capacitorBridge'
 import { useToast } from '../components/Toast'
 import { useHistory } from '../hooks/useHistory'
 
@@ -54,8 +54,8 @@ export function YtTrackDetail() {
       const { blob, filename } = await downloadTrack(meta, (stage, pct) => {
         setDownloadStatus(stage)
         if (pct) setDownloadProgress(pct)
-      })
-      const filePath = await downloadFile(blob, filename)
+      }, undefined, 1)
+      const filePath = await saveOrCacheBlob(blob, filename)
       toast(`Downloaded ${title}`, 'success')
       addEntry({
         title,

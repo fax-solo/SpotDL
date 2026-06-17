@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Download, Headphones, Mic2, Clock, Calendar } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
-import { downloadFile, isNative } from '../lib/capacitorBridge'
+import { saveOrCacheBlob, isNative } from '../lib/capacitorBridge'
 import { fetchEpisode, type Episode } from '../lib/spotifyApi'
 import { useToast } from '../components/Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
@@ -60,8 +60,8 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
       }
       const { blob, filename } = await downloadTrack(meta, (stage, pct) => {
         toast(`${stage}${pct ? ` ${pct}%` : ''}`, 'info')
-      })
-      const filePath = await downloadFile(blob, filename)
+      }, undefined, 1)
+      const filePath = await saveOrCacheBlob(blob, filename)
       toast(`Downloaded ${episode.title}`, 'success')
       onDownloadComplete({
         title: episode.title,

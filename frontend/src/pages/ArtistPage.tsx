@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Download, DownloadCloud, Music, Mic2, Users, Verified, Disc3, Sparkles, XCircle } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
-import { downloadFile, isNative } from '../lib/capacitorBridge'
+import { saveOrCacheBlob, isNative } from '../lib/capacitorBridge'
 import { mapConcurrent } from '../lib/concurrency'
 import { fetchArtistDetails, type ArtistDetails, type SearchTrack } from '../lib/spotifyApi'
 import { SkeletonRow } from '../components/SkeletonRow'
@@ -92,8 +92,8 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
   const handleDownload = async (track: SearchTrack) => {
     try {
       const meta = { title: track.title, artist: track.artist, album: track.album, artwork_url: track.artwork_url, url: track.url, type: 'track' }
-      const { blob, filename } = await downloadTrack(meta)
-      const filePath = await downloadFile(blob, filename)
+      const { blob, filename } = await downloadTrack(meta, undefined, undefined, 1)
+      const filePath = await saveOrCacheBlob(blob, filename)
       toast(`Downloaded ${track.title}`, 'success')
       onDownloadComplete({
         title: track.title,
@@ -138,8 +138,8 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
             ...prev,
             [i]: { stage, pct: pct ?? null, done: false, failed: false },
           }))
-        }, signal)
-        const filePath = await downloadFile(blob, filename)
+        }, signal, 1)
+        const filePath = await saveOrCacheBlob(blob, filename)
         setTrackProgress(prev => ({ ...prev, [i]: { stage: 'Done', pct: null, done: true, failed: false } }))
         setCompletedCount(c => c + 1)
         onDownloadComplete({
