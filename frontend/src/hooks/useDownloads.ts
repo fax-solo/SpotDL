@@ -1,10 +1,9 @@
 import { create } from 'zustand'
-import { downloadTrack, fetchLyricsForTrack } from '../lib/api'
+import { downloadTrack } from '../lib/api'
 import type { TrackMeta } from '../lib/api'
 import { downloadFile } from '../lib/capacitorBridge'
 import type { HistoryEntry } from './useHistory'
 import { Capacitor } from '@capacitor/core'
-import { getDownloadLyrics } from '../lib/lyricsSettings'
 
 let processing = false
 
@@ -34,7 +33,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
   isProcessing: false,
 
   addDownload: (track: TrackMeta) => {
-    // Prevent adding the same track twice while it's still pending or active
     const exists = get().queue.some(q =>
       !q.done && !q.failed && (q.track.url === track.url || (q.track.title === track.title && q.track.artist === track.artist))
     )
@@ -44,7 +42,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     set((state: DownloadsState) => ({
       queue: [...state.queue, { id, track, stage: 'Waiting...', pct: null, done: false, failed: false }],
     }))
-    // Fire-and-forget — intentionally not awaited
     get()._processQueue()
   },
 
@@ -77,7 +74,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
   },
 
   _processQueue: () => {
-    // Module-level mutex prevents parallel runs (atomic check-and-set)
     if (processing) return
     processing = true
 
@@ -85,14 +81,11 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       let taskId: string | undefined
 
       try {
-        // Tell Android to keep the app awake during the download
         if (Capacitor.isNativePlatform()) {
           try {
             const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
-            taskId = await BackgroundTask.beforeExit(async () => {/* keep alive */})
-          } catch {
-            // BackgroundTask not available in this environment — ignore
-          }
+            taskId = await BackgroundTask.beforeExit(async () => {})
+          } catch {}
         }
 
         while (true) {
@@ -100,7 +93,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           const pending = state.queue.filter((q) => !q.done && !q.failed && q.stage === 'Waiting...')
           if (pending.length === 0) break
 
-          // Process up to 3 at a time
           const batch = pending.slice(0, 3)
           batch.forEach((item) => get()._updateProgress(item.id, { stage: 'Starting...' }))
 
@@ -108,23 +100,18 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
             batch.map(async (item) => {
               try {
                 const result = await downloadTrack(item.track, (stage, pct) => {
-                  // Stale-closure guard: verify item still exists before updating
                   if (get().queue.some(q => q.id === item.id)) {
                     get()._updateProgress(item.id, { stage, pct: pct ?? null })
                   }
                 })
 
-                // Save file to disk — result.nativeFilePath is set when native
-                // SpotDL plugin handled the download directly
-                let filePath: string | null = result.nativeFilePath ?? null
-                if (!filePath && result.blob.size > 0) {
+                let filePath: string | null = null
+                if (result.blob.size > 0) {
                   filePath = await downloadFile(result.blob, result.filename)
                 }
 
-                // Dispatch "Done" immediately so the track is playable
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
 
-                // Notify the rest of the app that a track was downloaded
                 window.dispatchEvent(
                   new CustomEvent('trackDownloaded', {
                     detail: {
@@ -136,32 +123,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                     } satisfies Omit<HistoryEntry, 'id' | 'timestamp'>,
                   }),
                 )
-
-                // Fetch lyrics in the background — never blocks "Done" or the event
-                if (getDownloadLyrics()) {
-                  fetchLyricsForTrack(
-                    item.track.title,
-                    item.track.artist,
-                    item.track.album,
-                    undefined,
-                  ).then(lyrics => {
-                    if (lyrics.plainLyrics || lyrics.syncedLyrics) {
-                      window.dispatchEvent(
-                        new CustomEvent('lyricsFetched', {
-                          detail: {
-                            title: item.track.title,
-                            artist: item.track.artist,
-                            album: item.track.album,
-                            plainLyrics: lyrics.plainLyrics,
-                            syncedLyrics: lyrics.syncedLyrics,
-                          },
-                        }),
-                      )
-                    }
-                  }).catch(() => {
-                    // Lyrics are best-effort — ignore failures
-                  })
-                }
               } catch (err) {
                 console.error('[downloads] download failed:', err)
                 const message = err instanceof Error ? err.message : 'Unknown error'
@@ -180,7 +141,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           try {
             const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
             BackgroundTask.finish({ taskId })
-          } catch {/* ignore */}
+          } catch {}
         }
       }
     }

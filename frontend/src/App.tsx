@@ -4,7 +4,7 @@ import { FileQuestion, WifiOff } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
 import { MiniPlayerBar } from './components/MiniPlayerBar'
-import { ToastProvider } from './components/Toast'
+import { ToastProvider, useToast } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
@@ -13,6 +13,7 @@ import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
+import { fetchLyricsForTrack } from './lib/api'
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })))
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
@@ -57,6 +58,7 @@ function AppContent() {
   const location = useLocation()
   const navigate = useNavigate()
   const { addEntry, updateEntryLyrics } = useHistory()
+  const { toast } = useToast()
   const isOnline = useOnlineStatus()
   const [mobile, setMobile] = useState(isMobile)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
@@ -86,25 +88,24 @@ function AppContent() {
 
   useEffect(() => {
     const handleDownload = (e: Event) => {
-      const customEvent = e as CustomEvent
-      if (customEvent.detail) {
-        addEntry(customEvent.detail)
-      }
+      const detail = (e as CustomEvent).detail
+      if (!detail) return
+      addEntry(detail)
+
+      // Fire-and-forget lyrics fetch — never blocks the download flow
+      fetchLyricsForTrack(detail.title, detail.artist, detail.album, undefined)
+        .then(lyrics => {
+          if (lyrics.plainLyrics || lyrics.syncedLyrics) {
+            updateEntryLyrics(detail.title, detail.artist, lyrics.plainLyrics, lyrics.syncedLyrics)
+          }
+        })
+        .catch(() => {
+          toast('Failed to fetch lyrics', 'error')
+        })
     }
     window.addEventListener('trackDownloaded', handleDownload)
     return () => window.removeEventListener('trackDownloaded', handleDownload)
-  }, [addEntry])
-
-  useEffect(() => {
-    const handleLyrics = (e: Event) => {
-      const { title, artist, plainLyrics, syncedLyrics } = (e as CustomEvent).detail
-      if (title && artist) {
-        updateEntryLyrics(title, artist, plainLyrics, syncedLyrics)
-      }
-    }
-    window.addEventListener('lyricsFetched', handleLyrics)
-    return () => window.removeEventListener('lyricsFetched', handleLyrics)
-  }, [updateEntryLyrics])
+  }, [addEntry, updateEntryLyrics])
 
   useEffect(() => {
     if (!mobile || !Capacitor.isNativePlatform()) return
