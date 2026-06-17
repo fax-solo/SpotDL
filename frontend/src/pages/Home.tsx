@@ -147,7 +147,7 @@ export function Home() {
               {newReleases.map((album, i) => (
                 <motion.button
                   key={album.id}
-                  onClick={() => navigate(`/playlist/${album.id}`, { state: { type: 'album' } })}
+                  onClick={() => navigate(`/album/${album.id}`)}
                   whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}

@@ -296,7 +296,7 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
             <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Latest Release</h2>
           </div>
           <motion.button
-            onClick={() => navigate(`/playlist/${artist.latest_release!.id}`, { state: { type: 'album' } })}
+            onClick={() => navigate(`/album/${artist.latest_release!.id}`)}
             whileTap={{ scale: 0.97 }}
             className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-gradient-to-r from-accent/10 to-accent/5 border border-accent/20 hover:bg-accent/15 transition-colors cursor-pointer text-left"
           >
@@ -414,7 +414,7 @@ export function ArtistPage({ onDownloadComplete }: ArtistPageProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => navigate(`/playlist/${album.id}`, { state: { type: 'album' } })}
+                onClick={() => navigate(`/album/${album.id}`)}
                 className="flex-shrink-0 w-[150px] text-left group"
               >
                 <div className="aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 mb-2 shadow-md">

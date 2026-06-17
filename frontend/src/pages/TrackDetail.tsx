@@ -142,7 +142,7 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
 
           {track.album_id ? (
             <button
-              onClick={() => navigate(`/playlist/${track.album_id}`)}
+              onClick={() => navigate(`/album/${track.album_id}`)}
               className="text-sm text-light-muted dark:text-zinc-500 hover:text-accent dark:hover:text-accent transition-colors cursor-pointer mt-1 block"
             >
               <Disc3 className="w-3 h-3 inline mr-1.5 -mt-0.5" />

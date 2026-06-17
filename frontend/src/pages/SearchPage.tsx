@@ -34,7 +34,7 @@ export function SearchPage() {
 
     // Always run both in parallel — if Spotify fails, YouTube results still show
     const [spotifyResult, youtubeResult] = await Promise.allSettled([
-      hasArabic ? Promise.reject('arabic-skip') : searchSpotify(trimmed, 'track,artist,show,playlist', 8),
+      hasArabic ? Promise.reject('arabic-skip') : searchSpotify(trimmed, 'track,artist,album,show,playlist', 8),
       searchYouTubeTracks(trimmed),
     ])
 
@@ -44,7 +44,7 @@ export function SearchPage() {
     if (spotifyResult.status === 'fulfilled') {
       const r = spotifyResult.value
       const hasAny = (r.tracks?.length ?? 0) > 0 || (r.artists?.length ?? 0) > 0 ||
-                     (r.playlists?.length ?? 0) > 0 || (r.shows?.length ?? 0) > 0
+                     (r.albums?.length ?? 0) > 0 || (r.playlists?.length ?? 0) > 0 || (r.shows?.length ?? 0) > 0
       if (hasAny) setSearchResults(r)
     }
 
@@ -104,13 +104,14 @@ export function SearchPage() {
       <div className="flex-1 overflow-y-auto">
         {searchResults && (
           <div className="space-y-2 mb-6">
-            {(['artists', 'tracks', 'playlists', 'shows'] as const).map(type => {
+            {(['artists', 'tracks', 'albums', 'playlists', 'shows'] as const).map(type => {
               const items = type === 'artists' ? searchResults.artists
                 : type === 'tracks' ? searchResults.tracks
+                : type === 'albums' ? searchResults.albums
                 : type === 'playlists' ? searchResults.playlists
                 : searchResults.shows
               if (!items?.length) return null
-              const icon = type === 'artists' ? Mic2 : type === 'tracks' ? Music : type === 'playlists' ? ListMusic : Podcast
+              const icon = type === 'artists' ? Mic2 : type === 'tracks' ? Music : type === 'albums' ? ListMusic : type === 'playlists' ? ListMusic : Podcast
               const Icon = icon
               return (
                 <div key={type}>
@@ -127,6 +128,7 @@ export function SearchPage() {
                       onClick={() => navigate(
                         type === 'artists' ? `/artist/${item.id}`
                         : type === 'tracks' ? `/track/${item.id}`
+                        : type === 'albums' ? `/album/${item.id}`
                         : type === 'playlists' ? `/playlist/${item.id}`
                         : `/show/${item.id}`
                       )}
@@ -149,6 +151,7 @@ export function SearchPage() {
                         <p className="text-xs text-light-muted dark:text-dark-muted truncate">
                           {type === 'artists' && `${item.followers?.toLocaleString() || 0} followers${item.genres?.length ? ` • ${item.genres.slice(0, 2).join(', ')}` : ''}`}
                           {type === 'tracks' && `${item.artist} • ${item.album}`}
+                          {type === 'albums' && `${item.artist}${item.year ? ` • ${item.year}` : ''}`}
                           {type === 'playlists' && `${item.trackCount || 0} tracks${item.owner ? ` • ${item.owner}` : ''}`}
                           {type === 'shows' && `${item.publisher} • ${item.total_episodes || 0} episodes`}
                         </p>
@@ -159,7 +162,7 @@ export function SearchPage() {
               )
             })}
 
-            {!searchResults.artists?.length && !searchResults.tracks?.length && !searchResults.playlists?.length && !searchResults.shows?.length && (
+            {!searchResults.artists?.length && !searchResults.tracks?.length && !searchResults.albums?.length && !searchResults.playlists?.length && !searchResults.shows?.length && (
               <p className="text-center text-light-muted dark:text-dark-muted py-8 text-sm">No results found</p>
             )}
           </div>

@@ -363,11 +363,12 @@ export function PlayerScreen() {
 
   // ── Now playing view ──
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+  const pageRef = useRef<HTMLDivElement>(null)
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col">
+    <div className="h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
         <button
           onClick={() => navigate(-1)}
           className="w-9 h-9 rounded-full hover:bg-white/10 dark:hover:bg-zinc-800/50 flex items-center justify-center transition-colors cursor-pointer"
@@ -399,15 +400,9 @@ export function PlayerScreen() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-8 pb-8 min-h-0">
+      <div ref={pageRef} className={`flex-1 ${showLyrics ? 'overflow-y-auto' : 'flex flex-col items-center justify-center'} px-8 pb-8 min-h-0`}>
         {showLyrics ? (
-          <motion.div
-            key="lyrics"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="w-full flex-1 min-h-0 mb-4 rounded-2xl overflow-hidden relative"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-blue-500/5" />
+          <div className="w-full pt-4">
             <LyricsView
               trackName={currentTrack.title}
               artistName={currentTrack.artist}
@@ -415,8 +410,9 @@ export function PlayerScreen() {
               duration={duration}
               currentTime={currentTime}
               storedLyrics={currentTrackLyrics ? { plainLyrics: currentTrackLyrics.plainLyrics ?? null, syncedLyrics: currentTrackLyrics.syncedLyrics ?? null } : null}
+              scrollRef={pageRef}
             />
-          </motion.div>
+          </div>
         ) : showQueue ? (
           <motion.div
             key="queue"

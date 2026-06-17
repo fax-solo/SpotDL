@@ -20,6 +20,7 @@ const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
 const Downloader = lazy(() => import('./pages/Downloader').then(m => ({ default: m.Downloader })))
 const HistoryPage = lazy(() => import('./pages/HistoryPage').then(m => ({ default: m.HistoryPage })))
 const PlaylistDetail = lazy(() => import('./pages/PlaylistDetail').then(m => ({ default: m.PlaylistDetail })))
+const AlbumDetail = lazy(() => import('./pages/AlbumDetail').then(m => ({ default: m.AlbumDetail })))
 const ArtistPage = lazy(() => import('./pages/ArtistPage').then(m => ({ default: m.ArtistPage })))
 const TrackDetail = lazy(() => import('./pages/TrackDetail').then(m => ({ default: m.TrackDetail })))
 const EpisodeDetail = lazy(() => import('./pages/EpisodeDetail').then(m => ({ default: m.EpisodeDetail })))
@@ -128,7 +129,7 @@ function AppContent() {
   }, [mobile, location.pathname, navigate])
 
   function isDetailPageRoute(path: string) {
-    return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
+    return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/album/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
   }
 
   const isDetailPage = isDetailPageRoute(location.pathname)
@@ -160,6 +161,7 @@ function AppContent() {
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/callback" element={<CallbackPage />} />
                   <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
+                  <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
                   <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
                   <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
                   <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
@@ -175,6 +177,7 @@ function AppContent() {
                   <Route path="/download" element={<Downloader />} />
                   <Route path="/player" element={<PlayerScreen />} />
                   <Route path="/callback" element={<CallbackPage />} />
+                  <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
                   <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
                   <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
                   <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
@@ -188,7 +191,7 @@ function AppContent() {
         </Suspense>
       </ErrorBoundary>
       {mobile && !isDetailPage && !keyboardOpen && !isPlayerPage && <BottomBar />}
-      <MiniPlayerBar />
+      {!isPlayerPage && <MiniPlayerBar />}
       <DownloadOverlay />
     </div>
   )
