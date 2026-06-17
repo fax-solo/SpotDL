@@ -1,6 +1,7 @@
 import { useSearchParams, useLocation } from 'react-router-dom'
 import { DownloadCard } from '../components/DownloadCard'
 import { History } from '../components/History'
+import { DownloadQueue } from '../components/DownloadQueue'
 import { PullToRefresh } from '../components/PullToRefresh'
 import { useHistory } from '../hooks/useHistory'
 import { useEffect, useState, useCallback } from 'react'
@@ -71,6 +72,7 @@ export function Downloader() {
         {!fetchingPlaylist && (
           <div className="space-y-5">
             <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} initialUrl={initialUrl} />
+            <DownloadQueue />
             {!presetCollection && (
               <History
                 entries={entries}

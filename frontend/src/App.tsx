@@ -1,13 +1,11 @@
 import { lazy, Suspense, useEffect, useState, useRef } from 'react'
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, Link } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
 import { FileQuestion, WifiOff } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
 import { MiniPlayerBar } from './components/MiniPlayerBar'
 import { ToastProvider } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
-import { SwipeNavigator } from './components/SwipeNavigator'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
 import { useHistory } from './hooks/useHistory'
@@ -55,71 +53,18 @@ function NotFound() {
   )
 }
 
-function useReducedMotion() {
-  const mql = useRef<MediaQueryList | null>(null)
-  const [reduced, setReduced] = useState(false)
-  useEffect(() => {
-    mql.current = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReduced(mql.current.matches)
-    const handler = (e: MediaQueryListEvent) => setReduced(e.matches)
-    mql.current.addEventListener('change', handler)
-    return () => mql.current?.removeEventListener('change', handler)
-  }, [])
-  return reduced
-}
-
-const pageVariants = {
-  initial: (dir: number) => ({
-    x: dir > 0 ? 80 : -80,
-    opacity: 0,
-  }),
-  animate: {
-    x: 0,
-    opacity: 1,
-    transition: { type: 'spring' as const, stiffness: 350, damping: 30, mass: 0.8 },
-  },
-  exit: (dir: number) => ({
-    x: dir > 0 ? -80 : 80,
-    opacity: 0,
-    transition: { duration: 0.12 } as const,
-  }),
-}
-
-const reducedVariants = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1, transition: { duration: 0.1 } },
-  exit: { opacity: 0, transition: { duration: 0.05 } },
-}
-
 function AppContent() {
   const location = useLocation()
   const navigate = useNavigate()
   const { addEntry } = useHistory()
   const isOnline = useOnlineStatus()
-  const reduced = useReducedMotion()
   const [mobile, setMobile] = useState(isMobile)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
-  const lastPath = useRef(location.pathname)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [direction, setDirection] = useState(0)
-
-  const variants = reduced ? reducedVariants : pageVariants
 
   useEffect(() => {
-    const prev = lastPath.current
-    lastPath.current = location.pathname
-    const prevIdx = PAGE_ORDER.indexOf(prev)
-    const currIdx = PAGE_ORDER.indexOf(location.pathname)
-    if (prevIdx !== -1 && currIdx !== -1) {
-      setDirection(currIdx - prevIdx)
-    } else {
-      setDirection(0)
-    }
+    contentRef.current?.scrollTo({ top: 0, behavior: 'auto' })
   }, [location.pathname])
-
-  useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })
-  }, [location.pathname, reduced])
 
   useEffect(() => {
     const onResize = () => setMobile(isMobile())
@@ -189,60 +134,45 @@ function AppContent() {
       {!mobile && <Navbar />}
       <ErrorBoundary>
         <Suspense fallback={<div className="flex-1 flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>}>
-          <AnimatePresence mode="popLayout" custom={direction}>
-            <SwipeNavigator
-              paths={PAGE_ORDER}
-              currentPath={location.pathname}
-              enabled={mobile && PAGE_ORDER.includes(location.pathname)}
-            >
-              <motion.div
-                ref={contentRef}
-                key={location.pathname}
-                custom={direction}
-                variants={variants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                layout={reduced ? false : true}
-                className="flex-1 flex flex-col overflow-y-auto"
-              >
-                <Routes location={location}>
-                  {mobile ? (
-                    <>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/search" element={<SearchPage />} />
-                      <Route path="/download" element={<Downloader />} />
-                      <Route path="/history" element={<HistoryPage />} />
-                      <Route path="/settings" element={<SettingsPage />} />
-                      <Route path="/callback" element={<CallbackPage />} />
-                      <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
-                      <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
-                      <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
-                      <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
-                      <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
-                      <Route path="/show/:id" element={<ShowDetail />} />
-                      <Route path="/player" element={<PlayerScreen />} />
-                      <Route path="*" element={<NotFound />} />
-                    </>
-                  ) : (
-                    <>
-                      <Route path="/" element={<LandingPage />} />
-                      <Route path="/search" element={<SearchPage />} />
-                      <Route path="/download" element={<Downloader />} />
-                      <Route path="/player" element={<PlayerScreen />} />
-                      <Route path="/callback" element={<CallbackPage />} />
-                      <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
-                      <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
-                      <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
-                      <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
-                      <Route path="/show/:id" element={<ShowDetail />} />
-                      <Route path="*" element={<NotFound />} />
-                    </>
-                  )}
-                </Routes>
-              </motion.div>
-            </SwipeNavigator>
-          </AnimatePresence>
+          <div
+            ref={contentRef}
+            className="flex-1 flex flex-col overflow-y-auto"
+          >
+            <Routes location={location}>
+              {mobile ? (
+                <>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/search" element={<SearchPage />} />
+                  <Route path="/download" element={<Downloader />} />
+                  <Route path="/history" element={<HistoryPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/callback" element={<CallbackPage />} />
+                  <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
+                  <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
+                  <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
+                  <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
+                  <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
+                  <Route path="/show/:id" element={<ShowDetail />} />
+                  <Route path="/player" element={<PlayerScreen />} />
+                  <Route path="*" element={<NotFound />} />
+                </>
+              ) : (
+                <>
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/search" element={<SearchPage />} />
+                  <Route path="/download" element={<Downloader />} />
+                  <Route path="/player" element={<PlayerScreen />} />
+                  <Route path="/callback" element={<CallbackPage />} />
+                  <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
+                  <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
+                  <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
+                  <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
+                  <Route path="/show/:id" element={<ShowDetail />} />
+                  <Route path="*" element={<NotFound />} />
+                </>
+              )}
+            </Routes>
+          </div>
         </Suspense>
       </ErrorBoundary>
       {mobile && !isDetailPage && !keyboardOpen && !isPlayerPage && <BottomBar />}
