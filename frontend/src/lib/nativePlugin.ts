@@ -62,9 +62,13 @@ export async function nativeFetchMetadata(
 export async function nativeDownloadTrack(
   url: string,
   onProgress?: (pct: number, line: string) => void,
-): Promise<void> {
-  await post<{ files: string[]; output_dir: string }>('/download', { url })
+): Promise<{ filePath: string; filename: string }> {
+  const result = await post<{ files: string[]; output_dir: string }>('/download', { url })
   onProgress?.(1, 'Complete')
+  const file = result.files?.[0] || ''
+  const filename = file.split('/').pop() || `${Date.now()}.mp3`
+  const filePath = file ? `${result.output_dir}/${file}` : ''
+  return { filePath, filename }
 }
 
 export async function checkServerHealth(): Promise<boolean> {

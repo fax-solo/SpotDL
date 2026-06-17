@@ -105,8 +105,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   }
                 })
 
-                let filePath: string | null = null
-                if (result.blob.size > 0) {
+                let filePath: string | null = result.nativeFilePath ?? null
+                if (!filePath && result.blob.size > 0) {
                   filePath = await downloadFile(result.blob, result.filename)
                 }
 
