@@ -3,6 +3,7 @@ import { LogIn, LogOut, Music, ExternalLink, CheckCircle, AlertTriangle, Key, He
 import { ArtworkImage } from '../components/ArtworkImage'
 import { isAuthenticated, login, logout, getCachedProfile, fetchUserProfile, type SpotifyUserProfile } from '../lib/spotifyAuth'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
+import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
 
 export function Settings() {
   const [authed, setAuthed] = useState(false)
@@ -16,6 +17,7 @@ export function Settings() {
   const [wpTokenStatus, setWpTokenStatus] = useState<'idle' | 'valid' | 'invalid'>(getWebPlayerToken() ? 'idle' : 'idle')
   const [wpTokenError, setWpTokenError] = useState<string | null>(null)
   const [wpTokenSaved, setWpTokenSaved] = useState(!!getWebPlayerToken())
+  const [downloadLyrics, setDownloadLyricsState] = useState(getDownloadLyrics())
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -258,6 +260,41 @@ export function Settings() {
                 <p className="text-amber-500">Note: The token expires after a few hours. Come back here to refresh it.</p>
               </div>
             </details>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+        <div className="p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <Music className="w-5 h-5 text-accent" />
+            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Downloads</h2>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-light-text dark:text-dark-text">Download lyrics</p>
+              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+                Fetch synced lyrics for each track during download
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const next = !downloadLyrics
+                setDownloadLyricsState(next)
+                setDownloadLyrics(next)
+              }}
+              className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                downloadLyrics ? 'bg-accent' : 'bg-zinc-300 dark:bg-zinc-600'
+              }`}
+              role="switch"
+              aria-checked={downloadLyrics}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+                  downloadLyrics ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
         </div>
       </div>

@@ -29,7 +29,7 @@ export async function downloadFile(blob: Blob, filename: string): Promise<string
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
   return null
 }
 
@@ -56,6 +56,21 @@ export function getAudioSrc(filePath: string): string | null {
     return Capacitor.convertFileSrc(filePath)
   } catch {
     return null
+  }
+}
+
+/**
+ * Checks whether a file still exists at the given path on native.
+ * Returns true if the file exists (or we can't determine — optimistically assume it does).
+ */
+export async function fileExists(filePath: string): Promise<boolean> {
+  if (!isNative()) return false
+  try {
+    const { Filesystem } = await import('@capacitor/filesystem')
+    await Filesystem.stat({ path: filePath })
+    return true
+  } catch {
+    return false
   }
 }
 

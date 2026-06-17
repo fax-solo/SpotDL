@@ -3,7 +3,19 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 import { useDownloads } from '../hooks/useDownloads'
 
+/**
+ * Thin provider that does NOT subscribe to download state,
+ * preventing full-tree re-renders on every progress tick.
+ */
 export function DownloadOverlayProvider({ children }: { children: ReactNode }) {
+  return <>{children}</>
+}
+
+/** 
+ * Standalone overlay banner that subscribes to useDownloads independently.
+ * Render this as a sibling (not wrapper) inside AppContent.
+ */
+export function DownloadOverlay() {
   const { queue, clearCompleted } = useDownloads()
 
   // Auto-clear completed items after 3 seconds
@@ -33,66 +45,62 @@ export function DownloadOverlayProvider({ children }: { children: ReactNode }) {
     : 0
 
   return (
-    <>
-      {children}
-
-      <AnimatePresence>
-        {activeCount > 0 && (
-          <motion.div
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-            className="fixed bottom-20 left-3 right-3 z-[90] mx-auto max-w-xl"
-          >
-            <div className="rounded-xl bg-white/95 dark:bg-dark-surface/95 backdrop-blur-xl border border-light-border/60 dark:border-dark-border/60 shadow-lg overflow-hidden">
-              <div className="px-4 py-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Loader2 className="w-4 h-4 text-accent animate-spin flex-shrink-0" />
-                    <span className="text-sm font-medium text-light-text dark:text-dark-text truncate">
-                      {activeCount === 1
-                        ? queue.find(d => !d.done && !d.failed)?.track.title || 'Downloading…'
-                        : `Downloading ${completedCount + 1}/${totalCount}…`}
-                    </span>
-                  </div>
-                  <span className="text-xs text-light-muted dark:text-dark-muted tabular-nums flex-shrink-0 ml-2">
-                    {overallPct}%
+    <AnimatePresence>
+      {activeCount > 0 && (
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 80, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+          className="fixed bottom-20 left-3 right-3 z-[90] mx-auto max-w-xl"
+        >
+          <div className="rounded-xl bg-white/95 dark:bg-dark-surface/95 backdrop-blur-xl border border-light-border/60 dark:border-dark-border/60 shadow-lg overflow-hidden">
+            <div className="px-4 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Loader2 className="w-4 h-4 text-accent animate-spin flex-shrink-0" />
+                  <span className="text-sm font-medium text-light-text dark:text-dark-text truncate">
+                    {activeCount === 1
+                      ? queue.find(d => !d.done && !d.failed)?.track.title || 'Downloading…'
+                      : `Downloading ${completedCount + 1}/${totalCount}…`}
                   </span>
                 </div>
-                <div className="h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-accent rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${overallPct}%` }}
-                    transition={{ duration: 0.3, ease: 'easeOut' }}
-                  />
-                </div>
-                {activeCount > 1 && (
-                  <div className="flex items-center gap-1 mt-1.5">
-                    {queue.slice(0, 5).map(d => (
-                      <div
-                        key={d.id}
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          d.done ? 'bg-green-500'
-                          : d.failed ? 'bg-red-500'
-                          : 'bg-accent/50'
-                        }`}
-                      />
-                    ))}
-                    {queue.length > 5 && (
-                      <span className="text-[9px] text-light-muted dark:text-dark-muted ml-0.5">
-                        +{queue.length - 5}
-                      </span>
-                    )}
-                  </div>
-                )}
+                <span className="text-xs text-light-muted dark:text-dark-muted tabular-nums flex-shrink-0 ml-2">
+                  {overallPct}%
+                </span>
               </div>
+              <div className="h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-accent rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${overallPct}%` }}
+                  transition={{ duration: 0.3, ease: 'easeOut' }}
+                />
+              </div>
+              {activeCount > 1 && (
+                <div className="flex items-center gap-1 mt-1.5">
+                  {queue.slice(0, 5).map(d => (
+                    <div
+                      key={d.id}
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        d.done ? 'bg-green-500'
+                        : d.failed ? 'bg-red-500'
+                        : 'bg-accent/50'
+                      }`}
+                    />
+                  ))}
+                  {queue.length > 5 && (
+                    <span className="text-[9px] text-light-muted dark:text-dark-muted ml-0.5">
+                      +{queue.length - 5}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 

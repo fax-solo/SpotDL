@@ -39,7 +39,14 @@ function parseLRC(lrc: string): SyncedLine[] {
   return result
 }
 
-export function useLyrics(trackName: string, artistName: string, albumName: string, duration: number, currentTime: number) {
+export function useLyrics(
+  trackName: string,
+  artistName: string,
+  albumName: string,
+  duration: number,
+  currentTime: number,
+  storedLyrics?: { plainLyrics: string | null; syncedLyrics: string | null } | null,
+) {
   const [state, setState] = useState<LyricsState>({
     plainLyrics: null,
     syncedLines: [],
@@ -53,6 +60,20 @@ export function useLyrics(trackName: string, artistName: string, albumName: stri
   useEffect(() => {
     if (!trackName || !artistName) {
       setState({ plainLyrics: null, syncedLines: [], synced: false, currentLine: -1, loading: false, error: null })
+      return
+    }
+
+    // If storedLyrics was passed (from history), use it immediately without fetching
+    if (storedLyrics) {
+      const syncedLines = storedLyrics.syncedLyrics ? parseLRC(storedLyrics.syncedLyrics) : []
+      setState({
+        plainLyrics: storedLyrics.plainLyrics,
+        syncedLines,
+        synced: syncedLines.length > 0,
+        currentLine: -1,
+        loading: false,
+        error: null,
+      })
       return
     }
 
@@ -112,7 +133,7 @@ export function useLyrics(trackName: string, artistName: string, albumName: stri
       })
 
     return () => { cancelled = true; clearTimeout(timeoutId); controller.abort() }
-  }, [trackName, artistName, albumName, duration])
+  }, [trackName, artistName, albumName, duration, storedLyrics])
 
   useEffect(() => {
     if (!state.synced || state.syncedLines.length === 0) return

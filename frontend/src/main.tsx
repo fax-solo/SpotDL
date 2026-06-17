@@ -7,16 +7,6 @@ import { registerServiceWorker } from './serviceWorker'
 registerServiceWorker()
 
 const root = document.getElementById('root')!
-
-if (root.hasChildNodes()) {
-  createRoot(root).render(<StrictMode><App /></StrictMode>)
-} else {
-  const observer = new MutationObserver(() => {
-    if (root.hasChildNodes()) {
-      observer.disconnect()
-      createRoot(root).render(<StrictMode><App /></StrictMode>)
-    }
-  })
-  observer.observe(root, { childList: true })
-  createRoot(root).render(<StrictMode><App /></StrictMode>)
-}
+createRoot(root).render(
+  import.meta.env.PROD ? <App /> : <StrictMode><App /></StrictMode>,
+)

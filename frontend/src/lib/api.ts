@@ -117,6 +117,35 @@ export async function fetchMetadata(url: string): Promise<TrackMeta | Collection
   throw new Error('Unsupported URL. Paste a Spotify, YouTube, SoundCloud, or Bandcamp link.')
 }
 
+export interface LyricsResult {
+  plainLyrics: string | null
+  syncedLyrics: string | null
+}
+
+export async function fetchLyricsForTrack(
+  trackName: string,
+  artistName: string,
+  albumName?: string,
+  duration?: number,
+): Promise<LyricsResult> {
+  try {
+    const res = await fetch(apiUrl('/api/lyrics'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackName, artistName, albumName: albumName || undefined, duration: duration || undefined }),
+      signal: AbortSignal.timeout(6000),
+    })
+    if (!res.ok) return { plainLyrics: null, syncedLyrics: null }
+    const data = await res.json()
+    return {
+      plainLyrics: data.plainLyrics || null,
+      syncedLyrics: data.syncedLyrics || null,
+    }
+  } catch {
+    return { plainLyrics: null, syncedLyrics: null }
+  }
+}
+
 export async function downloadTrack(
   meta: TrackMeta,
   onProgress?: (stage: string, pct?: number) => void,

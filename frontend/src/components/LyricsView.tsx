@@ -7,11 +7,12 @@ interface LyricsViewProps {
   albumName: string
   duration: number
   currentTime: number
+  storedLyrics?: { plainLyrics: string | null; syncedLyrics: string | null } | null
 }
 
-export function LyricsView({ trackName, artistName, albumName, duration, currentTime }: LyricsViewProps) {
+export function LyricsView({ trackName, artistName, albumName, duration, currentTime, storedLyrics }: LyricsViewProps) {
   const { plainLyrics, syncedLines, synced, currentLine, loading, error } = useLyrics(
-    trackName, artistName, albumName, duration, currentTime
+    trackName, artistName, albumName, duration, currentTime, storedLyrics,
   )
   const containerRef = useRef<HTMLDivElement>(null)
   const activeRef = useRef<HTMLDivElement>(null)
@@ -55,10 +56,10 @@ export function LyricsView({ trackName, artistName, albumName, duration, current
     return (
       <div
         ref={containerRef}
-        className="h-full overflow-y-auto scrollbar-hide px-4 py-8"
+        className="h-full overflow-y-auto scrollbar-hide px-4"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        <div className="flex flex-col items-center justify-start min-h-full gap-4">
+        <div className="flex flex-col items-center justify-start min-h-full gap-4 pt-[45%] pb-[45%]">
           {syncedLines.map((line, i) => {
             const isActive = i === currentLine
             const isPast = i < currentLine
@@ -66,13 +67,19 @@ export function LyricsView({ trackName, artistName, albumName, duration, current
               <div
                 key={i}
                 ref={isActive ? activeRef : undefined}
-                className={`text-center transition-all duration-300 ${
+                className={`text-center transition-all duration-500 ease-out ${
                   isActive
-                    ? 'text-white text-lg font-semibold scale-100 opacity-100'
+                    ? 'text-white text-xl font-semibold scale-100 opacity-100 drop-shadow-[0_0_14px_rgba(255,255,255,0.4)]'
                     : isPast
-                    ? 'text-white/30 text-base font-normal scale-95'
-                    : 'text-white/40 text-base font-normal scale-95'
+                    ? 'text-white/25 text-sm font-normal scale-90'
+                    : 'text-white/45 text-sm font-normal scale-90'
                 }`}
+                style={isActive ? {
+                  background: 'linear-gradient(to right, rgba(255,255,255,0.8) 0%, #fff 40%, #fff 60%, rgba(255,255,255,0.8) 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                } : undefined}
               >
                 {line.text}
               </div>
@@ -84,8 +91,8 @@ export function LyricsView({ trackName, artistName, albumName, duration, current
   }
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-8" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-      <div className="flex flex-col items-center gap-3">
+    <div className="h-full overflow-y-auto px-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="flex flex-col items-center gap-3 pt-[45%] pb-[45%]">
         {plainLyrics?.split('\n').filter(l => l.trim()).map((line, i) => (
           <p key={i} className="text-white/60 text-base text-center leading-relaxed">{line}</p>
         ))}

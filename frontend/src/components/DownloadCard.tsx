@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type FormEvent } from 'react'
-import { Download, DownloadCloud, Disc3, ListMusic, Link2, CheckCircle2, XCircle, Loader2, Music } from 'lucide-react'
+import { Download, DownloadCloud, Disc3, ListMusic, Link2, CheckCircle2, XCircle, Loader2, Music, RefreshCw } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fetchMetadata } from '../lib/api'
@@ -290,15 +290,23 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                         {prog?.done ? (
                           <CheckCircle2 className="w-5 h-5 text-green-500" />
                         ) : prog?.failed ? (
-                          <XCircle className="w-5 h-5 text-red-400" />
+                          <motion.button
+                            onClick={() => { handleDownloadSingle(track); toast(`Retrying ${track.title}...`, 'success') }}
+                            whileTap={{ scale: 0.9 }}
+                            className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center transition-colors cursor-pointer group"
+                            aria-label={`Retry ${track.title}`}
+                            title="Tap to retry"
+                          >
+                            <XCircle className="w-5 h-5 text-red-400 group-hover:hidden" />
+                            <RefreshCw className="w-4 h-4 text-red-400 hidden group-hover:block" />
+                          </motion.button>
                         ) : prog && !prog.done ? (
                           <Loader2 className="w-4 h-4 text-accent animate-spin" />
                         ) : (
                           <motion.button
-                            onClick={() => handleDownloadSingle(track)}
+                            onClick={() => { handleDownloadSingle(track); toast(`Queued ${track.title}`, 'success') }}
                             whileTap={{ scale: 0.9 }}
-                            disabled={downloadingAll}
-                            className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40"
+                            className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors cursor-pointer"
                           >
                             <Download className="w-3.5 h-3.5 text-accent" />
                           </motion.button>

@@ -32,10 +32,10 @@ export async function convertToMp3(audioUrl: string, onProgress?: (pct: number) 
     instance.on?.('progress', progressHandler)
   }
 
-  try {
-    const inputName = 'input'
-    const outputName = 'output.mp3'
+  const inputName = 'input'
+  const outputName = 'output.mp3'
 
+  try {
     const data = signal
       ? new Uint8Array(await (await fetch(audioUrl, { signal })).arrayBuffer())
       : await fetchFile(audioUrl)
@@ -55,6 +55,9 @@ export async function convertToMp3(audioUrl: string, onProgress?: (pct: number) 
     if (onProgress) {
       instance.off?.('progress', progressHandler)
     }
+    // Clean up temp files from FFmpeg virtual FS to prevent WASM memory leak
+    try { await instance.deleteFile(inputName) } catch { /* ignore */ }
+    try { await instance.deleteFile(outputName) } catch { /* ignore */ }
   }
 }
 

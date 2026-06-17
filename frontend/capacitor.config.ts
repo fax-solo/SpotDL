@@ -6,6 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   android: {
     allowMixedContent: true,
+    cleartextNavigation: ['127.0.0.1', 'localhost'],
   },
   plugins: {
     CapacitorHttp: {
@@ -13,6 +14,15 @@ const config: CapacitorConfig = {
     },
     SpotDL: {
       appId: 'com.spotdl.app',
+    },
+    SplashScreen: {
+      launchAutoHide: false,
+      backgroundColor: '#0B0F19',
+      androidSplashResourceName: 'splash',
+      androidScaleType: 'CENTER_CROP',
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
     },
   },
 }

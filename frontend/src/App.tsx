@@ -6,7 +6,7 @@ import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
 import { MiniPlayerBar } from './components/MiniPlayerBar'
 import { ToastProvider } from './components/Toast'
-import { DownloadOverlayProvider } from './components/DownloadOverlay'
+import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
 import { SwipeNavigator } from './components/SwipeNavigator'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
@@ -247,6 +247,7 @@ function AppContent() {
       </ErrorBoundary>
       {mobile && !isDetailPage && !keyboardOpen && !isPlayerPage && <BottomBar />}
       {!isPlayerPage && <MiniPlayerBar />}
+      <DownloadOverlay />
     </div>
   )
 }

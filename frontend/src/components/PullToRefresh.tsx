@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
 
 interface PullToRefreshProps {
   onRefresh: () => Promise<void>
@@ -9,6 +10,8 @@ interface PullToRefreshProps {
 const THRESHOLD = 60
 
 export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
+  // Disable custom pull-to-refresh on native — Capacitor WebView handles its own
+  if (Capacitor.isNativePlatform()) return <>{children}</>
   const [pulling, setPulling] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)
   const [refreshing, setRefreshing] = useState(false)

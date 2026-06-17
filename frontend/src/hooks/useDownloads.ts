@@ -1,9 +1,12 @@
 import { create } from 'zustand'
-import { downloadTrack } from '../lib/api'
+import { downloadTrack, fetchLyricsForTrack } from '../lib/api'
 import type { TrackMeta } from '../lib/api'
 import { downloadFile } from '../lib/capacitorBridge'
 import type { HistoryEntry } from './useHistory'
 import { Capacitor } from '@capacitor/core'
+import { getDownloadLyrics } from '../lib/lyricsSettings'
+
+let processing = false
 
 export interface DownloadProgress {
   id: string
@@ -31,6 +34,12 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
   isProcessing: false,
 
   addDownload: (track: TrackMeta) => {
+    // Prevent adding the same track twice while it's still pending or active
+    const exists = get().queue.some(q =>
+      !q.done && !q.failed && (q.track.url === track.url || (q.track.title === track.title && q.track.artist === track.artist))
+    )
+    if (exists) return
+
     const id = `dl-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
     set((state: DownloadsState) => ({
       queue: [...state.queue, { id, track, stage: 'Waiting...', pct: null, done: false, failed: false }],
@@ -68,27 +77,27 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
   },
 
   _processQueue: () => {
-    // Run the async work in a plain async function so we never block the Zustand setter
-    const run = async () => {
-      const state = get()
-      if (state.isProcessing) return
-      set({ isProcessing: true })
+    // Module-level mutex prevents parallel runs (atomic check-and-set)
+    if (processing) return
+    processing = true
 
-      // Tell Android to keep the app awake during the download
+    const run = async () => {
       let taskId: string | undefined
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
-          // beforeExit returns a taskId string directly (not an object)
-          taskId = await BackgroundTask.beforeExit(async () => {/* keep alive */})
-        } catch {
-          // BackgroundTask not available in this environment — ignore
-        }
-      }
 
       try {
+        // Tell Android to keep the app awake during the download
+        if (Capacitor.isNativePlatform()) {
+          try {
+            const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
+            taskId = await BackgroundTask.beforeExit(async () => {/* keep alive */})
+          } catch {
+            // BackgroundTask not available in this environment — ignore
+          }
+        }
+
         while (true) {
-          const pending = get().queue.filter((q) => !q.done && !q.failed && q.stage === 'Waiting...')
+          const state = get()
+          const pending = state.queue.filter((q) => !q.done && !q.failed && q.stage === 'Waiting...')
           if (pending.length === 0) break
 
           // Process up to 3 at a time
@@ -99,12 +108,30 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
             batch.map(async (item) => {
               try {
                 const result = await downloadTrack(item.track, (stage, pct) => {
-                  get()._updateProgress(item.id, { stage, pct: pct ?? null })
+                  // Stale-closure guard: verify item still exists before updating
+                  if (get().queue.some(q => q.id === item.id)) {
+                    get()._updateProgress(item.id, { stage, pct: pct ?? null })
+                  }
                 })
 
                 let filePath: string | null = null
                 if (result.blob.size > 0) {
                   filePath = await downloadFile(result.blob, result.filename)
+                }
+
+                // Fetch lyrics if the user opted in (defaults to on)
+                let plainLyrics: string | null = null
+                let syncedLyrics: string | null = null
+                if (getDownloadLyrics()) {
+                  get()._updateProgress(item.id, { stage: 'Fetching lyrics...', pct: null })
+                  const lyrics = await fetchLyricsForTrack(
+                    item.track.title,
+                    item.track.artist,
+                    item.track.album,
+                    undefined,
+                  )
+                  plainLyrics = lyrics.plainLyrics
+                  syncedLyrics = lyrics.syncedLyrics
                 }
 
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
@@ -118,6 +145,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                       album: item.track.album,
                       artworkUrl: item.track.artwork_url,
                       filePath,
+                      plainLyrics,
+                      syncedLyrics,
                     } satisfies Omit<HistoryEntry, 'id' | 'timestamp'>,
                   }),
                 )
@@ -132,8 +161,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           )
         }
       } finally {
-        set({ isProcessing: false })
-        if (Capacitor.isNativePlatform() && taskId) {
+        processing = false
+        if (taskId) {
           try {
             const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
             BackgroundTask.finish({ taskId })
@@ -142,7 +171,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       }
     }
 
-    // Run without returning the promise (fire and forget)
-    run().catch(console.error)
+    run().catch(() => { processing = false })
   },
 }))
