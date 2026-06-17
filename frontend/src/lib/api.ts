@@ -162,7 +162,10 @@ export async function downloadTrack(
         onProgress?.(`Downloading... ${Math.round(pct)}%`, pct)
       })
       onProgress?.('Done', 100)
-      return { blob: new Blob([], { type: 'audio/mpeg' }), filename, nativeFilePath: nativeResult.filePath }
+      if (nativeResult.filePath) {
+        return { blob: new Blob([], { type: 'audio/mpeg' }), filename, nativeFilePath: nativeResult.filePath }
+      }
+      console.warn('[api] Native download returned no file path, falling back to client mode')
     } catch (err) {
       console.warn('[api] Native download failed, falling back to server mode:', err)
     }

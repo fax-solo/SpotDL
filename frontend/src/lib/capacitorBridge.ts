@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import { getBlobUrl } from './blobCache'
 
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
@@ -11,15 +12,20 @@ export function isNative(): boolean {
  */
 export async function downloadFile(blob: Blob, filename: string): Promise<string | null> {
   if (isNative()) {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    const base64 = await blobToBase64(blob)
-    const result = await Filesystem.writeFile({
-      path: filename,
-      data: base64,
-      directory: Directory.Documents,
-      recursive: true,
-    })
-    return result.uri
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      const base64 = await blobToBase64(blob)
+      const result = await Filesystem.writeFile({
+        path: filename,
+        data: base64,
+        directory: Directory.Documents,
+        recursive: true,
+      })
+      return result.uri
+    } catch (err) {
+      console.error('[capacitorBridge] Failed to write file to disk:', err)
+      return null
+    }
   }
 
   const url = URL.createObjectURL(blob)
@@ -47,10 +53,13 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 /**
  * Converts a stored file path / URI into a URL the <audio> element can play.
+ * Checks the in-memory blob cache first, then falls back to native filesystem path.
  * On Android: uses Capacitor.convertFileSrc() to rewrite file:// → http://localhost/...
- * On web: returns null (local files can't be played on web).
+ * On web: only works if blob was cached in memory.
  */
 export function getAudioSrc(filePath: string): string | null {
+  const blobUrl = getBlobUrl(filePath)
+  if (blobUrl) return blobUrl
   if (!isNative()) return null
   try {
     return Capacitor.convertFileSrc(filePath)

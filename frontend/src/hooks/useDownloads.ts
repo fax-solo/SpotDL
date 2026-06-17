@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { downloadTrack } from '../lib/api'
 import type { TrackMeta } from '../lib/api'
 import { downloadFile } from '../lib/capacitorBridge'
+import { storeBlob } from '../lib/blobCache'
 import type { HistoryEntry } from './useHistory'
 import { Capacitor } from '@capacitor/core'
 
@@ -108,6 +109,9 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 let filePath: string | null = result.nativeFilePath ?? null
                 if (!filePath && result.blob.size > 0) {
                   filePath = await downloadFile(result.blob, result.filename)
+                  if (!filePath) {
+                    filePath = storeBlob(result.filename, result.blob)
+                  }
                 }
 
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
