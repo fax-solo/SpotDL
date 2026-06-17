@@ -52,7 +52,7 @@ export function DownloadOverlay() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-          className="fixed bottom-20 left-3 right-3 z-[90] mx-auto max-w-xl"
+          className="fixed bottom-28 left-3 right-3 z-[90] mx-auto max-w-xl"
         >
           <div className="rounded-xl bg-white/95 dark:bg-dark-surface/95 backdrop-blur-xl border border-light-border/60 dark:border-dark-border/60 shadow-lg overflow-hidden">
             <div className="px-4 py-3">

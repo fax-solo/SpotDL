@@ -44,6 +44,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   })
 
   const timeRef = useRef<ReturnType<typeof setInterval>>(null)
+  const queueRef = useRef<HistoryEntry[]>([])
+  const queueIndexRef = useRef(-1)
+
+  useEffect(() => {
+    queueRef.current = queue
+  }, [queue])
+
+  useEffect(() => {
+    queueIndexRef.current = queueIndex
+  }, [queueIndex])
 
   useEffect(() => {
     const audio = new Audio()
@@ -55,9 +65,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     })
 
     audio.addEventListener('ended', () => {
-      const idx = queueIndex + 1
-      if (idx < queue.length) {
-        playTrack(queue[idx], queue, idx)
+      const q = queueRef.current
+      const idx = queueIndexRef.current + 1
+      if (idx < q.length) {
+        playTrack(q[idx], q, idx)
       } else {
         setIsPlaying(false)
         setCurrentTime(0)
@@ -109,23 +120,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    if (!audio.src) audio.src = ''
-    if (audio.src) {
-      try {
-        await audio.play()
-        setIsPlaying(true)
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: track.title,
-            artist: track.artist,
-            album: track.album,
-            artwork: track.artworkUrl ? [{ src: track.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : []
-          })
-        }
-      } catch {
-        setIsPlaying(false)
+    if (!audio.src) {
+      setIsPlaying(false)
+      return
+    }
+
+    try {
+      await audio.play()
+      setIsPlaying(true)
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          artwork: track.artworkUrl ? [{ src: track.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : []
+        })
       }
-    } else {
+    } catch {
       setIsPlaying(false)
     }
   }, [])
@@ -133,7 +144,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const play = useCallback((track: HistoryEntry, q?: HistoryEntry[]) => {
     const qFinal = q || [track]
     const idx = qFinal.findIndex(t => t.id === track.id)
-    playTrack(track, qFinal, idx >= 0 ? idx : 0)
+    const queueIdx = idx >= 0 ? idx : 0
+    playTrack(qFinal[queueIdx], qFinal, queueIdx)
   }, [playTrack])
 
   const pause = useCallback(() => {

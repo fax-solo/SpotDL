@@ -1,15 +1,13 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Download, DownloadCloud, Album, AlertCircle, XCircle, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Download, DownloadCloud, Album, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
-import { downloadTrack } from '../lib/api'
-import { saveOrCacheBlob, isNative } from '../lib/capacitorBridge'
-import { mapConcurrent } from '../lib/concurrency'
 import type { CollectionMeta, TrackMeta } from '../lib/spotifyApi'
 import { SkeletonRow } from '../components/SkeletonRow'
 import { useToast } from '../components/Toast'
 import { useHistory, type HistoryEntry } from '../hooks/useHistory'
+import { useDownloads } from '../hooks/useDownloads'
 import { apiUrl } from '../lib/apiConfig'
 
 function norm(s: string): string {
@@ -22,26 +20,6 @@ function isTrackDownloaded(track: TrackMeta, entries: HistoryEntry[]): boolean {
   return entries.some(e =>
     norm(e.title) === trackTitle && norm(e.artist) === trackArtist
   )
-}
-
-interface TrackProgress {
-  stage: string
-  pct: number | null
-  done: boolean
-  failed: boolean
-}
-
-function visualPct(progress: TrackProgress): number {
-  if (progress.done) return 100
-  if (progress.failed) return 0
-  if (progress.stage.includes('Searching')) return 5
-  if (progress.stage.includes('Downloading')) return 10 + (progress.pct ?? 0) * 0.3
-  if (progress.stage.includes('Converting')) return 40 + (progress.pct ?? 0) * 0.6
-  return 0
-}
-
-interface AlbumDetailProps {
-  onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
 }
 
 function TrackArtwork({ track, collectionArtwork, className, loading }: { track: TrackMeta; collectionArtwork: string | null; className: string; loading?: 'lazy' | 'eager' }) {
@@ -57,25 +35,19 @@ const itemVariants = {
   }),
 }
 
-export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
+export function AlbumDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [collection, setCollection] = useState<CollectionMeta | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [status, setStatus] = useState<Status>('idle')
-  const [downloadingAll, setDownloadingAll] = useState(false)
-  const [completedCount, setCompletedCount] = useState(0)
-  const [trackProgress, setTrackProgress] = useState<Record<number, TrackProgress>>({})
-  const abortRef = useRef<AbortController | null>(null)
   const { toast } = useToast()
   const { entries } = useHistory()
-  const fetchAttempted = useRef(false)
+  const { queue, addDownload, addMultipleDownloads } = useDownloads()
 
   const doFetch = useCallback(async (albumId: string) => {
     setLoading(true)
     setError(null)
-    fetchAttempted.current = true
     try {
       const res = await fetch(apiUrl('/api/spotify'), {
         method: 'POST',
@@ -112,102 +84,41 @@ export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
     return d
   }).length
 
-  const goToTrack = (trackUrl: string) => {
-    const match = trackUrl.match(/\/track\/([a-zA-Z0-9]+)/)
-    if (match) navigate(`/track/${match[1]}`)
+  const isDownloading = tracks.some(t =>
+    queue.some(q => !q.done && !q.failed && (q.track.url === t.url || (q.track.title === t.title && q.track.artist === t.artist)))
+  )
+
+  const getTrackProgress = (track: TrackMeta) => {
+    return queue.find(q =>
+      q.track.url === track.url || (q.track.title === track.title && q.track.artist === track.artist)
+    )
   }
 
-  const handleDownload = async (track: TrackMeta) => {
-    try {
-      const { blob, filename } = await downloadTrack(track, undefined, undefined, 1)
-      const filePath = await saveOrCacheBlob(blob, filename)
-      toast(`Downloaded ${track.title}`, 'success')
-      onDownloadComplete({
-        title: track.title,
-        artist: track.artist,
-        album: track.album,
-        artworkUrl: track.artwork_url,
-        filePath,
-      })
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Download failed', 'error')
-    }
+  const getVisualPct = (track: TrackMeta) => {
+    const prog = getTrackProgress(track)
+    if (!prog) return 0
+    if (prog.done) return 100
+    if (prog.failed) return 0
+    if (prog.stage.includes('Searching')) return 5
+    if (prog.stage.includes('Downloading')) return 10 + (prog.pct ?? 0) * 0.3
+    if (prog.stage.includes('Converting')) return 40 + (prog.pct ?? 0) * 0.6
+    return 0
   }
 
-  const handleCancelDownload = useCallback(() => {
-    abortRef.current?.abort()
-  }, [])
+  const handleDownload = (track: TrackMeta) => {
+    addDownload(track)
+    toast(`Queued ${track.title}`, 'success')
+  }
 
-  const handleDownloadAll = useCallback(async () => {
-    const missingIndices = tracks.map((_, i) => i).filter(i => !downloadedSet.has(i))
-    if (missingIndices.length === 0) {
+  const handleDownloadAll = () => {
+    const missing = tracks.filter((_, i) => !downloadedSet.has(i))
+    if (missing.length === 0) {
       toast('All tracks are already in your library', 'success')
       return
     }
-
-    abortRef.current = new AbortController()
-    const signal = abortRef.current.signal
-    setDownloadingAll(true)
-    setCompletedCount(0)
-    setStatus('loading')
-    setTrackProgress({})
-
-    const initProgress: Record<number, TrackProgress> = {}
-    tracks.forEach((_, i) => {
-      if (downloadedSet.has(i)) {
-        initProgress[i] = { stage: 'Done', pct: null, done: true, failed: false }
-      } else {
-        initProgress[i] = { stage: 'Waiting...', pct: null, done: false, failed: false }
-      }
-    })
-    setTrackProgress(initProgress)
-
-    const concurrency = tracks.length > 10 ? 3 : 2
-
-    const downloadItems = missingIndices.map(idx => ({ track: tracks[idx], index: idx }))
-    const results = await mapConcurrent(downloadItems, async ({ track, index: origIndex }) => {
-      signal.throwIfAborted()
-      setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Searching...', pct: null, done: false, failed: false } }))
-      try {
-        const { blob, filename } = await downloadTrack(track, (stage, pct) => {
-          setTrackProgress(prev => ({
-            ...prev,
-            [origIndex]: { stage, pct: pct ?? null, done: false, failed: false },
-          }))
-        }, signal, 1)
-        const filePath = await saveOrCacheBlob(blob, filename)
-        setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Done', pct: null, done: true, failed: false } }))
-        setCompletedCount(c => c + 1)
-        onDownloadComplete({
-          title: track.title,
-          artist: track.artist,
-          album: track.album,
-          artworkUrl: track.artwork_url,
-          filePath,
-        })
-        return true
-      } catch (err) {
-        if ((err as Error)?.name === 'AbortError') {
-          setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Cancelled', pct: null, done: false, failed: true } }))
-          return false
-        }
-        setTrackProgress(prev => ({ ...prev, [origIndex]: { stage: 'Failed', pct: null, done: false, failed: true } }))
-        return false
-      }
-    }, concurrency)
-
-    const success = results.filter(Boolean).length
-    const fail = results.length - success
-
-    setDownloadingAll(false)
-    setStatus('idle')
-    if (success > 0) {
-      const msg = fail > 0 ? `Downloaded ${success}/${missingIndices.length} (${fail} skipped)` : `Downloaded ${missingIndices.length === 1 ? '1 missing track' : `all ${missingIndices.length} missing tracks`}!`
-      toast(msg, 'success')
-    } else {
-      toast(`Download failed for ${missingIndices.length} track${missingIndices.length > 1 ? 's' : ''}.`, 'error')
-    }
-  }, [tracks, onDownloadComplete, toast])
+    addMultipleDownloads(missing)
+    toast(`Queued ${missing.length} tracks for download`, 'success')
+  }
 
   if (loading) {
     return (
@@ -291,26 +202,23 @@ export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
       </div>
 
       <div className="px-6 py-4 space-y-2">
-        {downloadingAll ? (
-          <motion.button
-            onClick={handleCancelDownload}
-            whileTap={{ scale: 0.97 }}
-            className="w-full py-3.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <XCircle className="w-5 h-5" />
-            Cancel — {completedCount}/{tracks.length} done
-          </motion.button>
-        ) : (
-          <motion.button
-            onClick={handleDownloadAll}
-            whileTap={{ scale: 0.97 }}
-            disabled={status === 'loading'}
-            className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+        <motion.button
+          onClick={handleDownloadAll}
+          whileTap={{ scale: 0.97 }}
+          disabled={isDownloading}
+          className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isDownloading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
             <DownloadCloud className="w-5 h-5" />
-            {downloadedCount > 0 ? `Download Missing (${tracks.length - downloadedCount})` : 'Download All'}
-          </motion.button>
-        )}
+          )}
+          {isDownloading
+            ? 'Downloading...'
+            : downloadedCount > 0
+              ? `Download Missing (${tracks.length - downloadedCount})`
+              : 'Download All'}
+        </motion.button>
       </div>
 
       {downloadedCount > 0 && (
@@ -336,9 +244,9 @@ export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
       <div className="px-3">
         <AnimatePresence initial={false}>
           {tracks.map((track, i) => {
-            const prog = trackProgress[i]
+            const prog = getTrackProgress(track)
             const showProgress = prog && !prog.done && !prog.failed
-            const pct = prog ? visualPct(prog) : 0
+            const pct = getVisualPct(track)
 
             return (
               <motion.div
@@ -350,7 +258,10 @@ export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
                 className="flex flex-col"
               >
                 <div
-                  onClick={() => goToTrack(track.url)}
+                  onClick={() => {
+                    const match = track.url.match(/\/track\/([a-zA-Z0-9]+)/)
+                    if (match) navigate(`/track/${match[1]}`)
+                  }}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-light-surface/50 dark:hover:bg-white/5 transition-colors group cursor-pointer"
                 >
                   <span className="text-sm text-light-muted dark:text-zinc-500 w-6 text-right flex-shrink-0 tabular-nums">
@@ -387,11 +298,15 @@ export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
                     <motion.button
                       onClick={(e) => { e.stopPropagation(); handleDownload(track) }}
                       whileTap={{ scale: 0.9 }}
-                      disabled={status === 'loading'}
-                      className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
+                      disabled={!!(prog && !prog.done && !prog.failed)}
+                      className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
                       aria-label={`Download ${track.title}`}
                     >
-                      <Download className="w-4 h-4" aria-hidden="true" />
+                      {prog && !prog.done && !prog.failed ? (
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Download className="w-4 h-4" aria-hidden="true" />
+                      )}
                     </motion.button>
                   )}
                 </div>
@@ -412,14 +327,6 @@ export function AlbumDetail({ onDownloadComplete }: AlbumDetailProps) {
           })}
         </AnimatePresence>
       </div>
-
-      {isNative() && status === 'success' && (
-        <p className="mt-4 text-xs text-light-muted dark:text-zinc-500 text-center">
-          Files saved to Documents folder
-        </p>
-      )}
     </div>
   )
 }
-
-type Status = 'idle' | 'loading' | 'success' | 'error'
