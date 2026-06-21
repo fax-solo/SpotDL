@@ -88,14 +88,6 @@ jobs:
           }
           VERSIONEOF
 
-      - name: Inject version into build.gradle
-        run: |
-          NEW_VERSION="${{ steps.bump.outputs.new }}"
-          VERSION_CODE=$(echo "$NEW_VERSION" | awk -F. '{ print ($1 * 1000000) + ($2 * 1000) + $3 }')
-          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" frontend/android/app/build.gradle
-          sed -i "s/versionName \".*\"/versionName \"$NEW_VERSION\"/" frontend/android/app/build.gradle
-          echo "build.gradle: versionCode=$VERSION_CODE versionName=$NEW_VERSION"
-
       - name: Install dependencies
         run: npm ci
         working-directory: frontend
@@ -104,8 +96,21 @@ jobs:
         run: npm run build
         working-directory: frontend
 
+      - name: Add Android platform
+        run: npx cap add android
+        working-directory: frontend
+
       - name: Sync Capacitor
         run: npx cap sync android
+        working-directory: frontend
+
+      - name: Inject version into build.gradle
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.new }}"
+          VERSION_CODE=$(echo "$NEW_VERSION" | awk -F. '{ print ($1 * 1000000) + ($2 * 1000) + $3 }')
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle
+          sed -i "s/versionName \".*\"/versionName \"$NEW_VERSION\"/" android/app/build.gradle
+          echo "build.gradle: versionCode=$VERSION_CODE versionName=$NEW_VERSION"
         working-directory: frontend
 
       - name: Copy icon resources to Android project
@@ -145,7 +150,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add VERSION frontend/src/lib/version.ts frontend/android/app/build.gradle
+          git add VERSION frontend/src/lib/version.ts
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new }} [skip ci]"
           git tag "v${{ steps.bump.outputs.new }}"
           git push origin HEAD:main --tags
@@ -162,5 +167,5 @@ jobs:
             ${{ github.event.head_commit.message }}
 
             ### Download
-            - [SpotDL-${{ steps.bump.outputs.new }}.apk](SpotDL-${{ steps.bump.outputs.new }}.apk) — Debug APK for Android
+            - [SpotDL-${{ steps.bump.outputs.new }}.apk](SpotDL-${{ steps.bump.outputs.new }}.apk)
           files: frontend/android/app/build/outputs/apk/debug/SpotDL-${{ steps.bump.outputs.new }}.apk
