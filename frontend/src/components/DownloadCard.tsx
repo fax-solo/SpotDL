@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, type FormEvent } from 'react'
+import { useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { Download, DownloadCloud, Disc3, ListMusic, Link2, CheckCircle2, XCircle, Loader2, Music, RefreshCw } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -22,6 +22,7 @@ export interface DownloadCardProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
   presetCollection?: CollectionMeta | null
   initialUrl?: string
+  autoDownload?: boolean
 }
 
 type ViewMode = 'idle' | 'single' | 'list'
@@ -30,7 +31,7 @@ function isCollectionMeta(data: TrackMeta | CollectionMeta): data is CollectionM
   return 'tracks' in data && 'collection_name' in data
 }
 
-export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCollection, initialUrl }: DownloadCardProps) {
+export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCollection, initialUrl, autoDownload }: DownloadCardProps) {
   const [url, setUrl] = useState(initialUrl || '')
   const [mode, setMode] = useState<ViewMode>(presetCollection ? 'list' : 'idle')
   const [singleTrack, setSingleTrack] = useState<TrackMeta | null>(null)
@@ -40,6 +41,14 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
   
   const { queue, addDownload, addMultipleDownloads } = useDownloads()
   const { toast } = useToast()
+  const autoDownloaded = useRef(false)
+
+  // Sync url state when initialUrl changes from share/deep-link
+  useEffect(() => {
+    if (initialUrl) {
+      setUrl(initialUrl)
+    }
+  }, [initialUrl])
 
   const handleMetadata = useCallback(async (targetUrl?: string) => {
     const fetchUrl = targetUrl || url.trim()
@@ -54,9 +63,19 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
       if (isCollectionMeta(data)) {
         setCollection(data)
         setMode('list')
+        if (autoDownload && !autoDownloaded.current) {
+          autoDownloaded.current = true
+          addMultipleDownloads(data.tracks)
+          toast(`Queued ${data.tracks.length} tracks for download`, 'success')
+        }
       } else {
         setSingleTrack(data)
         setMode('single')
+        if (autoDownload && !autoDownloaded.current) {
+          autoDownloaded.current = true
+          addDownload(data)
+          toast(`Queued ${data.title} for download`, 'success')
+        }
       }
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to fetch metadata', 'error')
@@ -64,7 +83,7 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
       setLoading(false)
       setLoadingMsg(null)
     }
-  }, [url, toast])
+  }, [url, toast, autoDownload, addDownload, addMultipleDownloads])
 
   // Effect to automatically start fetching if initialUrl is provided
   useEffect(() => {

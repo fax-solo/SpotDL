@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Music, CheckCircle, AlertTriangle, Key, HelpCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, Shield, ShieldCheck, ShieldOff, Settings as SettingsIcon } from 'lucide-react'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
 import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
+import { getPermissions, requestNotificationPermission, openAppSettings, isNative, type PermissionInfo } from '../lib/permissions'
 
 export function Settings() {
   // Web Player Token
@@ -11,6 +12,14 @@ export function Settings() {
   const [wpTokenError, setWpTokenError] = useState<string | null>(null)
   const [wpTokenSaved, setWpTokenSaved] = useState(!!getWebPlayerToken())
   const [downloadLyrics, setDownloadLyricsState] = useState(getDownloadLyrics())
+  const [permissions, setPermissions] = useState<PermissionInfo[]>([])
+  const [requestingNotif, setRequestingNotif] = useState(false)
+
+  useEffect(() => {
+    if (isNative()) {
+      getPermissions().then(setPermissions)
+    }
+  }, [])
 
   const handleTestToken = async () => {
     if (!wpToken.trim()) return
@@ -173,6 +182,81 @@ export function Settings() {
           </div>
         </div>
       </div>
+
+      {isNative() && (
+        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+          <div className="p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Shield className="w-5 h-5 text-accent" />
+              <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Permissions</h2>
+            </div>
+            <div className="space-y-2">
+              {permissions.map(p => (
+                <div key={p.key} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-light-bg dark:bg-zinc-800/50">
+                  <div className="flex-1 min-w-0 mr-3">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-light-text dark:text-dark-text">{p.label}</p>
+                      {p.status === 'granted' ? (
+                        <ShieldCheck className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                      ) : p.status === 'denied' ? (
+                        <ShieldOff className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                      ) : (
+                        <Shield className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">{p.description}</p>
+                  </div>
+                  {p.key === 'notifications' && p.type === 'dangerous' && (
+                    <button
+                      onClick={async () => {
+                        setRequestingNotif(true)
+                        const granted = await requestNotificationPermission()
+                        setRequestingNotif(false)
+                        if (granted) {
+                          const updated = permissions.map(pp =>
+                            pp.key === 'notifications' ? { ...pp, status: 'granted' as const } : pp
+                          )
+                          setPermissions(updated)
+                        } else {
+                          const updated = permissions.map(pp =>
+                            pp.key === 'notifications' ? { ...pp, status: 'denied' as const } : pp
+                          )
+                          setPermissions(updated)
+                        }
+                      }}
+                      disabled={requestingNotif || p.status === 'granted'}
+                      className={`flex-shrink-0 relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed ${
+                        p.status === 'granted' ? 'bg-accent' : 'bg-zinc-300 dark:bg-zinc-600'
+                      }`}
+                      role="switch"
+                      aria-checked={p.status === 'granted'}
+                    >
+                      {requestingNotif ? (
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </span>
+                      ) : (
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+                            p.status === 'granted' ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      )}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={openAppSettings}
+              className="mt-3 w-full py-2.5 px-4 rounded-xl border border-light-border/50 dark:border-dark-border/50 text-sm text-light-muted dark:text-dark-muted hover:bg-light-bg dark:hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <SettingsIcon className="w-4 h-4" />
+              Open App Settings
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
         <div className="p-5">

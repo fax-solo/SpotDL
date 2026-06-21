@@ -15,7 +15,9 @@ export function useShareTarget() {
       const url = data.url || data.text || ''
       const match = url.match(/https?:\/\/[^\s]+/)
       if (match) {
-        navigate(`/download?url=${encodeURIComponent(match[0])}`)
+        navigate(`/download?url=${encodeURIComponent(match[0])}`, {
+          state: { fromShare: true },
+        })
       }
     }
 

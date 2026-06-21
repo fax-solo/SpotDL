@@ -17,6 +17,7 @@ export function Downloader() {
 
   const listId = searchParams.get('list')
   const initialUrl = searchParams.get('url') || location.state?.url || ''
+  const fromShare = !!location.state?.fromShare
 
   useEffect(() => {
     if (!listId) return
@@ -71,7 +72,7 @@ export function Downloader() {
 
         {!fetchingPlaylist && (
           <div className="space-y-5">
-            <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} initialUrl={initialUrl} />
+            <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} initialUrl={initialUrl} autoDownload={fromShare} />
             <DownloadQueue />
             {!presetCollection && (
               <History

@@ -12,6 +12,7 @@ import { useMaterialYou } from './hooks/useMaterialYou'
 import { useHistory } from './hooks/useHistory'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useShareTarget } from './hooks/useShareTarget'
+import { ensureNotificationPermission } from './lib/notifications'
 import { useBottomBar } from './hooks/useBottomBar'
 import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { Capacitor } from '@capacitor/core'
@@ -70,6 +71,12 @@ function AppContent() {
 
   useMaterialYou()
   useShareTarget()
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      ensureNotificationPermission()
+    }
+  }, [])
 
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'auto' })

@@ -61,6 +61,8 @@ export async function sendDownloadCompleteNotification(params: {
   filePath?: string | null
 }): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
+  const granted = await ensureNotificationPermission()
+  if (!granted) return
   const ln = await getLN()
   if (!ln) return
   try {
@@ -85,6 +87,8 @@ export async function sendDownloadErrorNotification(params: {
   error?: string
 }): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
+  const granted = await ensureNotificationPermission()
+  if (!granted) return
   const ln = await getLN()
   if (!ln) return
   try {
@@ -108,6 +112,8 @@ export async function sendBatchCompleteNotification(params: {
   failed?: number
 }): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
+  const granted = await ensureNotificationPermission()
+  if (!granted) return
   const ln = await getLN()
   if (!ln) return
   try {
@@ -135,6 +141,8 @@ export async function sendBackgroundPlaybackNotification(params: {
   artworkUrl?: string | null
 }): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
+  const granted = await ensureNotificationPermission()
+  if (!granted) return
   const ln = await getLN()
   if (!ln) return
   try {
