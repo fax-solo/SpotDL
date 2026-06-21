@@ -11,6 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN groupadd -r spotdl && useradd -r -g spotdl -d /app -s /sbin/nologin spotdl \
+    && chown -R spotdl:spotdl /app
+
 EXPOSE 8000
+
+USER spotdl
 
 CMD ["uvicorn", "index:app", "--host", "0.0.0.0", "--port", "8000"]

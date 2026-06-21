@@ -4,6 +4,7 @@ import { findAudio } from '../lib/sources'
 import type { HistoryEntry } from './useHistory'
 import { useBackgroundAudio } from './useBackgroundAudio'
 import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotification } from '../lib/notifications'
+import { startMediaForeground, stopMediaForeground } from '../lib/nativePlugin'
 
 export interface PlayerState {
   currentTrack: HistoryEntry | null
@@ -75,6 +76,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       } else {
         setIsPlaying(false)
         setCurrentTime(0)
+        stopMediaForeground()
       }
     })
 
@@ -157,6 +159,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         })
       }
       sendBackgroundPlaybackNotification({ title: track.title, artist: track.artist, artworkUrl: track.artworkUrl })
+      startMediaForeground(track.title, track.artist)
     } catch {
       setIsPlaying(false)
     }
@@ -173,6 +176,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     audioRef.current?.pause()
     setIsPlaying(false)
     cancelBackgroundPlaybackNotification()
+    stopMediaForeground()
   }, [])
 
   const resume = useCallback(() => {

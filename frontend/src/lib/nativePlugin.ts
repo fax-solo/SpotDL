@@ -8,6 +8,12 @@ interface SpotDLPlugin {
     port: number
     url: string
   }>
+  startDownloadForeground(options: { title?: string; count?: number }): Promise<{}>
+  updateDownloadForeground(options: { title?: string; count?: number }): Promise<{}>
+  stopDownloadForeground(): Promise<{}>
+  startMediaForeground(options: { title?: string; artist?: string }): Promise<{}>
+  updateMediaForeground(options: { title?: string; artist?: string }): Promise<{}>
+  stopMediaForeground(): Promise<{}>
 }
 
 const SpotDL = registerPlugin<SpotDLPlugin>('SpotDL')
@@ -30,6 +36,60 @@ export async function initNativePlugin(): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+export async function startDownloadForeground(title: string = 'Downloading...', count: number = 1): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.startDownloadForeground({ title, count })
+  } catch (e) {
+    console.warn('[native] Failed to start download foreground:', e)
+  }
+}
+
+export async function updateDownloadForeground(title: string, count: number): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.updateDownloadForeground({ title, count })
+  } catch (e) {
+    console.warn('[native] Failed to update download foreground:', e)
+  }
+}
+
+export async function stopDownloadForeground(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.stopDownloadForeground()
+  } catch (e) {
+    console.warn('[native] Failed to stop download foreground:', e)
+  }
+}
+
+export async function startMediaForeground(title: string = 'Playing', artist: string = ''): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.startMediaForeground({ title, artist })
+  } catch (e) {
+    console.warn('[native] Failed to start media foreground:', e)
+  }
+}
+
+export async function updateMediaForeground(title: string, artist: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.updateMediaForeground({ title, artist })
+  } catch (e) {
+    console.warn('[native] Failed to update media foreground:', e)
+  }
+}
+
+export async function stopMediaForeground(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.stopMediaForeground()
+  } catch (e) {
+    console.warn('[native] Failed to stop media foreground:', e)
   }
 }
 

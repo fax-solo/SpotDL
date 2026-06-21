@@ -5,6 +5,7 @@ import { downloadFile } from '../lib/capacitorBridge'
 import { storeBlob } from '../lib/blobCache'
 import type { HistoryEntry } from './useHistory'
 import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendBatchCompleteNotification } from '../lib/notifications'
+import { startDownloadForeground, updateDownloadForeground, stopDownloadForeground } from '../lib/nativePlugin'
 import { Capacitor } from '@capacitor/core'
 
 let processing = false
@@ -104,6 +105,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     controllers.forEach(c => c.abort())
     set({ queue: [], abortControllers: new Map(), isProcessing: false })
     processing = false
+    stopDownloadForeground()
   },
 
   cancelDownload: (id: string) => {
@@ -135,6 +137,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
             const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
             taskId = await BackgroundTask.beforeExit(async () => {})
           } catch {}
+          startDownloadForeground()
         }
 
         while (true) {
@@ -161,6 +164,10 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 const result = await downloadTrack(item.track, (stage, pct) => {
                   if (get().queue.some(q => q.id === item.id)) {
                     get()._updateProgress(item.id, { stage, pct: pct ?? null })
+                    updateDownloadForeground(
+                      `${item.track.artist} - ${item.track.title}`,
+                      get().queue.filter(q => !q.done && !q.failed).length,
+                    )
                   }
                 }, controller.signal)
 
@@ -228,6 +235,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
             sendBatchCompleteNotification({ count: totalDone, failed: totalFailed }).catch(() => {})
           }
         }
+
+        stopDownloadForeground()
 
         if (taskId) {
           try {

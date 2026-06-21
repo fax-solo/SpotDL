@@ -74,12 +74,12 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
     { name: 'bandcamp', search: searchBandcamp, info: bandcampInfo },
   ]
 
-  for (const source of sources) {
-    try {
-      const results = await source.search(query)
-      if (results.length === 0) continue
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      const searchResults = await source.search(query)
+      if (searchResults.length === 0) return null
 
-      for (const result of results) {
+      for (const result of searchResults) {
         let info: SourceInfo | null = null
 
         if (result.audioUrl) {
@@ -93,14 +93,18 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
             if (titleMatches(expectedTitle || '', expectedArtist || '', info.title, info.author)) {
               return { info, source: source.name }
             }
-            console.warn(`[sources] ${source.name} result "${info.title}" doesn't match "${expectedArtist} - ${expectedTitle}", trying next...`)
           } else {
             return { info, source: source.name }
           }
         }
       }
-    } catch (err) {
-      console.warn(`[sources] ${source.name} search failed:`, err)
+      return null
+    }),
+  )
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      return result.value
     }
   }
 

@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from starlette.background import BackgroundTask
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from spotify import (
     fetch_metadata,
@@ -41,9 +41,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SpotDL API", version="2.0.0", lifespan=lifespan)
 
+CLIENT_URL = os.environ.get("CLIENT_URL", "")
+_cors_origins = [CLIENT_URL] if CLIENT_URL else ["http://localhost:5173", "http://localhost:3000"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("CLIENT_URL", "*")],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,11 +53,11 @@ app.add_middleware(
 
 
 class DownloadRequest(BaseModel):
-    title: str
-    artist: str
-    album: str = "Unknown Album"
-    artwork_url: str | None = None
-    url: str | None = None
+    title: str = Field(max_length=500)
+    artist: str = Field(max_length=500)
+    album: str = Field(default="Unknown Album", max_length=500)
+    artwork_url: str | None = Field(default=None, max_length=2000)
+    url: str | None = Field(default=None, max_length=2000)
 
 
 # ─── Health ───
@@ -85,14 +87,14 @@ async def config():
     }
 
 
-# ─── Spotify Auth ───
-
-CLIENT_URL = os.environ.get("CLIENT_URL", "http://localhost:5173")
+ALLOWED_REDIRECT_URIS = os.environ.get("SPOTIFY_REDIRECT_URI", "http://localhost:8000/api/auth/spotify/callback").split(",")
 
 
 @app.get("/api/auth/spotify/login")
 async def spotify_login(redirect_uri: str = Query(None, description="Override redirect URI (used by mobile app)")):
     if redirect_uri:
+        if redirect_uri not in ALLOWED_REDIRECT_URIS and not redirect_uri.startswith("http://127.0.0.1") and not redirect_uri.startswith("capacitor://"):
+            raise HTTPException(status_code=400, detail="Invalid redirect_uri")
         return RedirectResponse(url=get_spotify_auth_url(redirect_uri))
     return RedirectResponse(url=get_spotify_auth_url())
 

@@ -9,22 +9,27 @@ const CORS = {
   'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Content-Type',
 }
 
-const ALLOWED_HOSTS = [
-  'rr',           // YouTube CDN (rr*.googlevideo.com)
-  'googlevideo',
-  'lh3.google',
-  'pipedapi',
-  'piped.kavin',
-  'i.ytimg',
-  'is1-ssl.mzstatic', // Apple Music artwork
-  'mosaic.scdn.co',   // Spotify artwork
+const ALLOWED_HOST_SUFFIXES = [
+  '.googlevideo.com',
+  'rr',           // For rr*.googlevideo.com subdomains
+  'lh3.googleusercontent.com',
+  'pipedapi.kavin.rocks',
+  'i.ytimg.com',
+  'is1-ssl.mzstatic.com',
+  'mosaic.scdn.co',
   'i.scdn.co',
+  'image-cdn-ak.spotifycdn.com',
+  'image-cdn-fa.spotifycdn.com',
 ]
 
 function isAllowedUrl(urlStr) {
   try {
     const u = new URL(urlStr)
-    return ALLOWED_HOSTS.some(h => u.hostname.includes(h))
+    const host = u.hostname.toLowerCase()
+    return ALLOWED_HOST_SUFFIXES.some(h => {
+      if (h === 'rr') return /^rr\d*--?[a-z]+\.googlevideo\.com$/.test(host)
+      return host === h || host.endsWith('.' + h)
+    })
   } catch {
     return false
   }

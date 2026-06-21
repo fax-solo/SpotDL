@@ -498,6 +498,7 @@ def fetch_metadata(url: str) -> dict | list[dict]:
         logger.info(f"fetch_metadata: cache HIT for {url}")
         return cached
 
+    parsed = parse_url(url)
     if not parsed:
         try:
             result = _fetch_generic_metadata(url)

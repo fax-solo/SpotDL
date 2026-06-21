@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import hashlib
 import threading
 import logging
 from pathlib import Path
@@ -17,8 +18,8 @@ def _ensure_cache_dir():
 
 
 def _cache_path(key: str) -> Path:
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in key)
-    return CACHE_DIR / f"{safe}.json"
+    digest = hashlib.sha256(key.encode()).hexdigest()
+    return CACHE_DIR / f"{digest}.json"
 
 
 def get_cache(key: str) -> dict | None:

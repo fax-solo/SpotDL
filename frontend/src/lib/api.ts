@@ -11,13 +11,21 @@ export type { TrackMeta, CollectionMeta }
 export type { YouTubeSearchResult, YouTubeInfo } from './youtubeClient'
 
 let _nativeAvailable: boolean | null = null
+let _nativeChecking = false
+let _nativeCheckQueue: Array<(v: boolean) => void> = []
 
 async function nativeAvailable(): Promise<boolean> {
-  if (_nativeAvailable === null) {
+  if (_nativeAvailable !== null) return _nativeAvailable
+  if (_nativeChecking) {
+    return new Promise(r => _nativeCheckQueue.push(r))
+  }
+  _nativeChecking = true
+  try {
     _nativeAvailable = await isNativeSpotDLAvailable()
-    if (!_nativeAvailable) {
-      _nativeAvailable = await isNativeSpotDLAvailable()
-    }
+  } finally {
+    _nativeChecking = false
+    _nativeCheckQueue.forEach(r => r(_nativeAvailable!))
+    _nativeCheckQueue = []
   }
   return _nativeAvailable
 }
@@ -56,6 +64,7 @@ async function fetchSpotifyViaScraper(url: string): Promise<TrackMeta | Collecti
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }))

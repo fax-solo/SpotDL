@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Capacitor } from '@capacitor/core'
 import type { HistoryEntry } from './useHistory'
 import { cancelBackgroundPlaybackNotification } from '../lib/notifications'
+import { stopMediaForeground } from '../lib/nativePlugin'
 
 export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying: boolean) {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
@@ -41,17 +42,7 @@ export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying:
       releaseWakeLock()
     }
 
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        if (playingRef.current) {
-          acquireWakeLock()
-        }
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibility)
-
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility)
       releaseWakeLock()
       cancelBackgroundPlaybackNotification()
     }
@@ -62,6 +53,7 @@ export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying:
 
     const handleBeforeUnload = () => {
       cancelBackgroundPlaybackNotification()
+      stopMediaForeground()
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)

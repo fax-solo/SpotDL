@@ -99,20 +99,28 @@ async function staleWhileRevalidate(request, cacheName) {
   return cached || fetchPromise
 }
 
-// Periodic cleanup: delete old API/image cache entries (runs hourly)
-setInterval(async () => {
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000
-  for (const cacheName of [API_CACHE, IMAGE_CACHE]) {
-    const cache = await caches.open(cacheName)
-    const requests = await cache.keys()
-    for (const req of requests) {
+// Periodic cleanup: keep max 500 entries per cache, delete entries older than 24h
+async function trimCache(cacheName, maxEntries = 500) {
+  const cache = await caches.open(cacheName)
+  const requests = await cache.keys()
+  if (requests.length <= maxEntries) return
+
+  const entries = await Promise.all(
+    requests.map(async (req) => {
       const resp = await cache.match(req)
-      if (resp) {
-        const date = resp.headers.get('date')
-        if (date && new Date(date).getTime() < cutoff) {
-          cache.delete(req)
-        }
-      }
-    }
+      const date = resp ? new Date(resp.headers.get('date') || 0).getTime() : 0
+      return { req, date }
+    })
+  )
+  entries.sort((a, b) => b.date - a.date)
+  for (let i = maxEntries; i < entries.length; i++) {
+    cache.delete(entries[i].req)
   }
-}, 60 * 60 * 1000)
+}
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'trim-caches') {
+    trimCache(API_CACHE).catch(() => {})
+    trimCache(IMAGE_CACHE).catch(() => {})
+  }
+})

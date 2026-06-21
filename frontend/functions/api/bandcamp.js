@@ -62,6 +62,21 @@ async function handleSearch(query) {
 
 async function handleInfo(trackUrl) {
   try {
+    let parsedUrl
+    try {
+      parsedUrl = new URL(trackUrl)
+      if (!parsedUrl.hostname.endsWith('.bandcamp.com') && parsedUrl.hostname !== 'bandcamp.com') {
+        return new Response(JSON.stringify({ error: 'Invalid Bandcamp URL' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid URL' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
     const res = await fetch(trackUrl, { headers: HEADERS })
     const html = await res.text()
 
