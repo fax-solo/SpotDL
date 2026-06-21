@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { getAudioSrc } from '../lib/capacitorBridge'
+import { findAudio } from '../lib/sources'
 import type { HistoryEntry } from './useHistory'
 import { useBackgroundAudio } from './useBackgroundAudio'
 import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotification } from '../lib/notifications'
@@ -119,6 +120,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const src = getAudioSrc(track.filePath)
       if (src) {
         audio.src = src
+      }
+    } else if (track.streamUrl) {
+      audio.src = track.streamUrl
+    }
+
+    if (!audio.src && track.title) {
+      try {
+        const query = `${track.artist || ''} ${track.title}`.trim()
+        if (query) {
+          const { info } = await findAudio(query, track.title, track.artist)
+          if (info?.audioUrl) {
+            audio.src = info.audioUrl
+            track.streamUrl = info.audioUrl
+          }
+        }
+      } catch (err) {
+        console.warn('[player] Failed to resolve audio source:', err)
       }
     }
 

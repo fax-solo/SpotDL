@@ -7,6 +7,7 @@ export interface HistoryEntry {
   album: string
   artworkUrl: string | null
   filePath: string | null
+  streamUrl?: string | null
   plainLyrics?: string | null
   syncedLyrics?: string | null
   timestamp: number

@@ -164,7 +164,7 @@ def _scrape_collection(kind: str, collection_id: str) -> dict:
             
         tid = uri.split(":")[-1]
 
-        per_track_artwork = _extract_track_image(item) or collection_artwork
+        per_track_artwork = _extract_track_image(item)
         per_track_album = _extract_track_album(item)
 
         album = (

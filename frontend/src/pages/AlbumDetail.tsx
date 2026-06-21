@@ -26,8 +26,8 @@ function isTrackDownloaded(track: TrackMeta, entries: HistoryEntry[]): boolean {
   )
 }
 
-function TrackArtwork({ track, collectionArtwork, className, loading }: { track: TrackMeta; collectionArtwork: string | null; className: string; loading?: 'lazy' | 'eager' }) {
-  return <ArtworkImage src={track.artwork_url || collectionArtwork} alt={track.album} className={className} loading={loading} />
+function TrackArtwork({ track, className, loading }: { track: TrackMeta; className: string; loading?: 'lazy' | 'eager' }) {
+  return <ArtworkImage src={track.artwork_url} alt={track.album} className={className} loading={loading} />
 }
 
 const itemVariants = {
@@ -273,7 +273,6 @@ export function AlbumDetail(_props: AlbumDetailProps) {
                   </span>
                   <TrackArtwork
                     track={track}
-                    collectionArtwork={collection.collection_artwork}
                     className="w-11 h-11 rounded object-cover flex-shrink-0"
                     loading="lazy"
                   />

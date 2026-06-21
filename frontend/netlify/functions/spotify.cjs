@@ -162,7 +162,7 @@ async function handleEmbedScrape(url, summary) {
       title: item.title || 'Unknown Track',
       artist: item.subtitle || 'Unknown Artist',
       album: extractTrackAlbum(item) || (isAlbum ? entity.title : 'Unknown Album'),
-      artwork_url: extractTrackImage(item) || collectionArtwork,
+      artwork_url: extractTrackImage(item),
       url: `https://open.spotify.com/track/${item.uri.split(':')[2]}`,
       type: 'track',
     }))

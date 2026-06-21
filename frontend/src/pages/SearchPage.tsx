@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft } from 'lucide-react'
+import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
-import { searchSpotify, searchYouTubeTracks, type SearchResults } from '../lib/spotifyApi'
+import { searchSpotify, searchYouTubeTracks, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
+import { usePlayer } from '../hooks/usePlayer'
+import { useToast } from '../components/Toast'
+import { findAudio } from '../lib/sources'
+import type { HistoryEntry } from '../hooks/useHistory'
 import { Capacitor } from '@capacitor/core'
 
 export function SearchPage() {
@@ -13,9 +17,102 @@ export function SearchPage() {
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null)
   const [youtubeResults, setPlayResults] = useState<any[] | null>(null)
   const [searchingPlay, setSearchingPlay] = useState(false)
+  const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const isNative = Capacitor.isNativePlatform()
+  const { play } = usePlayer()
+  const { toast } = useToast()
+
+  const handlePlayTrack = useCallback(async (item: SearchTrack) => {
+    if (loadingPlayId) return
+    setLoadingPlayId(item.id)
+    try {
+      const query = `${item.artist} ${item.title}`
+      const { info } = await findAudio(query, item.title, item.artist)
+      const entry: HistoryEntry = {
+        id: crypto.randomUUID(),
+        title: item.title,
+        artist: item.artist,
+        album: item.album,
+        artworkUrl: item.artwork_url,
+        filePath: null,
+        streamUrl: info.audioUrl || undefined,
+        timestamp: Date.now(),
+      }
+      play(entry)
+    } catch {
+      toast('Could not find audio source for this track', 'error')
+    } finally {
+      setLoadingPlayId(null)
+    }
+  }, [loadingPlayId, play, toast])
+
+  const handlePlayPlaylist = useCallback(async (item: PlaylistSummary) => {
+    if (loadingPlayId) return
+    setLoadingPlayId(item.id)
+    try {
+      const data = await fetchPlaylist(item.id)
+      if (!data.tracks?.length) {
+        toast('This playlist has no tracks', 'error')
+        return
+      }
+      const entries: HistoryEntry[] = data.tracks.map(t => ({
+        id: crypto.randomUUID(),
+        title: t.title,
+        artist: t.artist,
+        album: t.album || item.name,
+        artworkUrl: t.artwork_url || item.image,
+        filePath: null,
+        streamUrl: undefined,
+        timestamp: Date.now(),
+      }))
+      const firstTrack = data.tracks[0]
+      try {
+        const query = `${firstTrack.artist} ${firstTrack.title}`
+        const { info } = await findAudio(query, firstTrack.title, firstTrack.artist)
+        entries[0].streamUrl = info.audioUrl || undefined
+      } catch {}
+      play(entries[0], entries)
+    } catch {
+      toast('Could not load playlist', 'error')
+    } finally {
+      setLoadingPlayId(null)
+    }
+  }, [loadingPlayId, play, toast])
+
+  const handlePlayAlbum = useCallback(async (item: SearchAlbum) => {
+    if (loadingPlayId) return
+    setLoadingPlayId(item.id)
+    try {
+      const data = await fetchAlbum(item.id)
+      if (!data.tracks?.length) {
+        toast('This album has no tracks', 'error')
+        return
+      }
+      const entries: HistoryEntry[] = data.tracks.map(t => ({
+        id: crypto.randomUUID(),
+        title: t.title,
+        artist: t.artist,
+        album: t.album || item.name,
+        artworkUrl: t.artwork_url || item.image,
+        filePath: null,
+        streamUrl: undefined,
+        timestamp: Date.now(),
+      }))
+      const firstTrack = data.tracks[0]
+      try {
+        const query = `${firstTrack.artist} ${firstTrack.title}`
+        const { info } = await findAudio(query, firstTrack.title, firstTrack.artist)
+        entries[0].streamUrl = info.audioUrl || undefined
+      } catch {}
+      play(entries[0], entries)
+    } catch {
+      toast('Could not load album', 'error')
+    } finally {
+      setLoadingPlayId(null)
+    }
+  }, [loadingPlayId, play, toast])
 
   useEffect(() => {
     setTimeout(() => { searchInputRef.current?.focus() }, 100)
@@ -156,6 +253,23 @@ export function SearchPage() {
                           {type === 'shows' && `${item.publisher} • ${item.total_episodes || 0} episodes`}
                         </p>
                       </div>
+                      {(type === 'tracks' || type === 'playlists' || type === 'albums') && (
+                        <button
+                          onClick={e => { e.stopPropagation(); 
+                            if (type === 'tracks') handlePlayTrack(item)
+                            else if (type === 'playlists') handlePlayPlaylist(item)
+                            else if (type === 'albums') handlePlayAlbum(item)
+                          }}
+                          className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-2 active:scale-90"
+                          style={{ transition: 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                        >
+                          {loadingPlayId === item.id ? (
+                            <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                          ) : (
+                            <Play className="w-3.5 h-3.5 text-white ml-0.5" />
+                          )}
+                        </button>
+                      )}
                     </motion.button>
                   ))}
                 </div>

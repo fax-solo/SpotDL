@@ -311,7 +311,7 @@ function buildEmbedResult(kind, id, entity, summary) {
         title: item.title || 'Unknown Track',
         artist: item.subtitle || 'Unknown Artist',
         album: extractTrackAlbum(item) || (isAlbum ? entity.title : 'Unknown Album'),
-        artwork_url: artwork || collectionArtwork,
+        artwork_url: artwork,
         url: `https://open.spotify.com/track/${item.uri.split(':')[2]}`,
         type: 'track',
       }
@@ -686,7 +686,7 @@ async function handleOfficialCollection(context, kind, id) {
       title: t.name || 'Unknown Track',
       artist: (t.artists || []).map(a => a.name).join(', ') || data.artists?.[0]?.name || 'Unknown Artist',
       album: data.name || 'Unknown Album',
-      artwork_url: data.images?.[0]?.url || null,
+      artwork_url: null,
       url: `https://open.spotify.com/track/${t.id}`,
       type: 'track',
     }))
