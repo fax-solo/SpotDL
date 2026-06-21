@@ -8,8 +8,11 @@ import { ToastProvider, useToast } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
+import { useMaterialYou } from './hooks/useMaterialYou'
 import { useHistory } from './hooks/useHistory'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
+import { useShareTarget } from './hooks/useShareTarget'
+import { useBottomBar } from './hooks/useBottomBar'
 import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -64,6 +67,9 @@ function AppContent() {
   const [mobile, setMobile] = useState(isMobile)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
+
+  useMaterialYou()
+  useShareTarget()
 
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'auto' })
@@ -132,12 +138,13 @@ function AppContent() {
     return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/album/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
   }
 
-  const isDetailPage = isDetailPageRoute(location.pathname)
   usePlayer()
   const isPlayerPage = location.pathname === '/player'
+  const bottomBarHidden = useBottomBar(s => s.hidden)
+  const showBottomBar = mobile && !keyboardOpen && !bottomBarHidden
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col" style={{ WebkitTapHighlightColor: 'transparent', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col safe-area-y" style={{ height: '100dvh', WebkitTapHighlightColor: 'transparent' }}>
       {!isOnline && (
         <div className="sticky top-0 z-[60] bg-red-500/90 dark:bg-red-600/90 backdrop-blur-sm text-white text-xs font-medium text-center py-2 px-4 flex items-center justify-center gap-2" role="alert" aria-live="assertive">
           <WifiOff className="w-3.5 h-3.5 flex-shrink-0" />
@@ -146,51 +153,58 @@ function AppContent() {
       )}
       {!mobile && <Navbar />}
       <ErrorBoundary>
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>}>
+        <Suspense fallback={
+          <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+            <p className="text-sm text-light-muted dark:text-dark-muted">Loading…</p>
+          </div>
+        }>
           <div
             ref={contentRef}
-            className="flex-1 flex flex-col overflow-y-auto"
+            className="flex-1 flex flex-col overflow-y-auto scroll-native"
           >
-            <Routes location={location}>
-              {mobile ? (
-                <>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/search" element={<SearchPage />} />
-                  <Route path="/download" element={<Downloader />} />
-                  <Route path="/history" element={<HistoryPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/callback" element={<CallbackPage />} />
-                  <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
-                  <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
-                  <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
-                  <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
-                  <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
-                  <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
-                  <Route path="/show/:id" element={<ShowDetail />} />
-                  <Route path="/player" element={<PlayerScreen />} />
-                  <Route path="*" element={<NotFound />} />
-                </>
-              ) : (
-                <>
-                  <Route path="/" element={<LandingPage />} />
-                  <Route path="/search" element={<SearchPage />} />
-                  <Route path="/download" element={<Downloader />} />
-                  <Route path="/player" element={<PlayerScreen />} />
-                  <Route path="/callback" element={<CallbackPage />} />
-                  <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
-                  <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
-                  <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
-                  <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
-                  <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
-                  <Route path="/show/:id" element={<ShowDetail />} />
-                  <Route path="*" element={<NotFound />} />
-                </>
-              )}
-            </Routes>
+            <div key={location.pathname}>
+              <Routes location={location}>
+                {mobile ? (
+                  <>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/search" element={<SearchPage />} />
+                    <Route path="/download" element={<Downloader />} />
+                    <Route path="/history" element={<HistoryPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/callback" element={<CallbackPage />} />
+                    <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
+                    <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
+                    <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
+                    <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
+                    <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
+                    <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
+                    <Route path="/show/:id" element={<ShowDetail />} />
+                    <Route path="/player" element={<PlayerScreen />} />
+                    <Route path="*" element={<NotFound />} />
+                  </>
+                ) : (
+                  <>
+                    <Route path="/" element={<LandingPage />} />
+                    <Route path="/search" element={<SearchPage />} />
+                    <Route path="/download" element={<Downloader />} />
+                    <Route path="/player" element={<PlayerScreen />} />
+                    <Route path="/callback" element={<CallbackPage />} />
+                    <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
+                    <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
+                    <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
+                    <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
+                    <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
+                    <Route path="/show/:id" element={<ShowDetail />} />
+                    <Route path="*" element={<NotFound />} />
+                  </>
+                )}
+              </Routes>
+            </div>
           </div>
         </Suspense>
       </ErrorBoundary>
-      {mobile && !isDetailPage && !keyboardOpen && !isPlayerPage && <BottomBar />}
+      {showBottomBar && <BottomBar />}
       {!isPlayerPage && <MiniPlayerBar />}
       <DownloadOverlay />
     </div>

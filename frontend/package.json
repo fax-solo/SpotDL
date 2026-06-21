@@ -19,6 +19,7 @@
     "@capacitor/core": "^8.4.0",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/haptics": "^8.0.2",
+    "@capacitor/local-notifications": "^8.2.0",
     "@capawesome/capacitor-background-task": "^8.0.2",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.1",

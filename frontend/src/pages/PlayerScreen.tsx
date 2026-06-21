@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -14,6 +14,7 @@ import { usePlaylists, type Playlist } from '../hooks/usePlaylists'
 import { useToast } from '../components/Toast'
 import type { TrackMeta } from '../lib/api'
 import { useDownloads } from '../hooks/useDownloads'
+import { useBottomBar } from '../hooks/useBottomBar'
 import { fileExists } from '../lib/capacitorBridge'
 
 function formatTime(sec: number): string {
@@ -37,6 +38,10 @@ export function PlayerScreen() {
   const [showLyrics, setShowLyrics] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false)
+  const { setHidden } = useBottomBar()
+  const isNowPlaying = !!currentTrack && !showLyrics && !showQueue
+  const isLyrics = !!currentTrack && showLyrics
+  useEffect(() => { setHidden(isNowPlaying || isLyrics) }, [setHidden, isNowPlaying, isLyrics])
   const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null)
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState('')
@@ -411,6 +416,7 @@ export function PlayerScreen() {
               currentTime={currentTime}
               storedLyrics={currentTrackLyrics ? { plainLyrics: currentTrackLyrics.plainLyrics ?? null, syncedLyrics: currentTrackLyrics.syncedLyrics ?? null } : null}
               scrollRef={pageRef}
+              onSeek={seek}
             />
           </div>
         ) : showQueue ? (

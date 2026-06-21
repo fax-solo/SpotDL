@@ -17,15 +17,16 @@ export function MiniPlayerBar() {
       initial={{ y: 80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 80, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
       className={`fixed left-2 right-2 z-50 mx-auto max-w-xl ${
-        isPlayerPage ? 'bottom-2' : 'bottom-[60px]'
+        isPlayerPage ? 'bottom-2' : 'bottom-[66px]'
       }`}
     >
       <button
         onClick={() => navigate('/player')}
-        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/95 dark:bg-dark-surface/95 backdrop-blur-xl border border-light-border/60 dark:border-dark-border/60 shadow-lg hover:shadow-md transition-shadow cursor-pointer text-left"
+        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white/95 dark:bg-dark-surface/95 backdrop-mobile border border-light-border/60 dark:border-dark-border/60 elevation-2 hover:shadow-md transition-shadow cursor-pointer text-left press-scale"
       >
-        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden elevation-1">
           {currentTrack.artworkUrl ? <ArtworkImage src={currentTrack.artworkUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
         </div>
         <div className="flex-1 min-w-0">
@@ -34,7 +35,8 @@ export function MiniPlayerBar() {
         </div>
         <button
           onClick={e => { e.stopPropagation(); isPlaying ? pause() : resume() }}
-          className="w-9 h-9 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer"
+          className="w-9 h-9 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer active:scale-90"
+          style={{ transition: 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)' }}
         >
           {isPlaying ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white ml-0.5" />}
         </button>

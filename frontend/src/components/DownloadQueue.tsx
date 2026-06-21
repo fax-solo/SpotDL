@@ -1,4 +1,4 @@
-import { CheckCircle2, Loader2, XCircle, Trash2 } from 'lucide-react'
+import { CheckCircle2, XCircle, Trash2, X } from 'lucide-react'
 import { useDownloads, type DownloadProgress } from '../hooks/useDownloads'
 import { useToast } from './Toast'
 
@@ -12,7 +12,7 @@ function visualPct(progress: DownloadProgress): number {
 }
 
 export function DownloadQueue() {
-  const { queue, removeDownload, clearCompleted } = useDownloads()
+  const { queue, removeDownload, clearCompleted, cancelDownload, cancelAll } = useDownloads()
   const { toast } = useToast()
 
   const active = queue.filter(q => !q.done && !q.failed)
@@ -30,15 +30,25 @@ export function DownloadQueue() {
             ({active.length} active, {failed.length} failed, {done.length} done)
           </span>
         </h2>
-        {(done.length > 0 || failed.length > 0) && (
-          <button
-            onClick={() => { clearCompleted(); toast('Cleared completed downloads', 'success') }}
-            className="text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text flex items-center gap-1 cursor-pointer"
-          >
-            <Trash2 className="w-3 h-3" />
-            Clear completed
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {active.length > 0 && (
+            <button
+              onClick={cancelAll}
+              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 cursor-pointer"
+            >
+              Cancel all
+            </button>
+          )}
+          {(done.length > 0 || failed.length > 0) && (
+            <button
+              onClick={() => { clearCompleted(); toast('Cleared completed downloads', 'success') }}
+              className="text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text flex items-center gap-1 cursor-pointer"
+            >
+              <Trash2 className="w-3 h-3" />
+              Clear completed
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="divide-y divide-light-border/30 dark:divide-dark-border/30 max-h-[400px] overflow-y-auto overscroll-contain">
@@ -74,7 +84,13 @@ export function DownloadQueue() {
                   ) : item.done ? (
                     <CheckCircle2 className="w-5 h-5 text-green-500" />
                   ) : (
-                    <Loader2 className="w-4 h-4 text-accent animate-spin" />
+                    <button
+                      onClick={() => cancelDownload(item.id)}
+                      className="w-7 h-7 rounded-lg bg-zinc-500/10 hover:bg-red-500/20 flex items-center justify-center transition-colors cursor-pointer"
+                      title="Cancel download"
+                    >
+                      <X className="w-4 h-4 text-light-muted dark:text-dark-muted hover:text-red-400" />
+                    </button>
                   )}
                 </div>
               </div>

@@ -16,7 +16,7 @@ export function Downloader() {
   const [fetchingPlaylist, setFetchingPlaylist] = useState(false)
 
   const listId = searchParams.get('list')
-  const initialUrl = location.state?.url || ''
+  const initialUrl = searchParams.get('url') || location.state?.url || ''
 
   useEffect(() => {
     if (!listId) return

@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { useDownloads } from '../hooks/useDownloads'
 
 /**
@@ -32,6 +32,8 @@ export function DownloadOverlay() {
   const activeCount = queue.filter(d => !d.done && !d.failed).length
   const totalCount = queue.length
   const completedCount = queue.filter(d => d.done).length
+
+  const { cancelAll } = useDownloads()
 
   const overallPct = totalCount > 0
     ? Math.round(queue.reduce((sum, d) => {
@@ -65,9 +67,18 @@ export function DownloadOverlay() {
                       : `Downloading ${completedCount + 1}/${totalCount}…`}
                   </span>
                 </div>
-                <span className="text-xs text-light-muted dark:text-dark-muted tabular-nums flex-shrink-0 ml-2">
-                  {overallPct}%
-                </span>
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                  <button
+                    onClick={cancelAll}
+                    className="w-6 h-6 rounded-full bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Cancel all downloads"
+                  >
+                    <X className="w-3.5 h-3.5 text-red-400" />
+                  </button>
+                  <span className="text-xs text-light-muted dark:text-dark-muted tabular-nums">
+                    {overallPct}%
+                  </span>
+                </div>
               </div>
               <div className="h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                 <motion.div

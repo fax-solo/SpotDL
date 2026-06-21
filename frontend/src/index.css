@@ -5,17 +5,20 @@
 @theme {
   --color-dark-bg: #0B0F19;
   --color-dark-surface: #111827;
+  --color-dark-surface-2: #1E293B;
   --color-dark-border: #1E293B;
   --color-dark-text: #F1F5F9;
   --color-dark-muted: #94A3B8;
   --color-light-bg: #F8FAFC;
   --color-light-surface: #FFFFFF;
+  --color-light-surface-2: #F1F5F9;
   --color-light-text: #0F172A;
   --color-light-border: #E2E8F0;
   --color-light-muted: #64748B;
   --color-accent: #10B981;
   --color-accent-hover: #059669;
   --color-accent-subtle: rgba(16, 185, 129, 0.1);
+  --color-accent-surface: rgba(16, 185, 129, 0.08);
   --font-sans: 'Inter', system-ui, sans-serif;
 }
 
@@ -26,6 +29,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  /* Edge-to-edge: render under system bars */
+  background-color: var(--color-dark-bg);
+}
+
+.dark body {
+  background-color: var(--color-dark-bg);
+}
+
+body:not(.dark) {
+  background-color: var(--color-light-bg);
+}
+
+/* Ensure root fills the screen edge-to-edge */
+#root {
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
 }
 
 * {
@@ -36,39 +55,20 @@ input, textarea, select, [contenteditable] {
   font-size: 16px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.08) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
+/* --- Safe area helpers (edge-to-edge) --- */
 .safe-area-top {
   padding-top: env(safe-area-inset-top, 0px);
 }
-
-.safe-area-top-absolute {
-  top: calc(env(safe-area-inset-top, 0px));
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.safe-area-right {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.safe-area-y {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

@@ -31,10 +31,25 @@ def _find_ffmpeg() -> bool:
 
 
 SOURCES = [
-    {"name": "soundcloud", "prefix": "scsearch1"},
     {"name": "youtube", "prefix": "ytsearch1"},
+    {"name": "soundcloud", "prefix": "scsearch1"},
     {"name": "bandcamp", "prefix": "bcsearch1"},
 ]
+
+
+def _title_matches(title: str, artist: str, found_title: str | None, found_uploader: str | None = None) -> bool:
+    if not found_title:
+        return False
+    t = title.lower().strip()
+    a = artist.lower().strip()
+    ft = re.sub(r'\([^)]*\)|\[[^\]]*\]|-\s*\w+\s*topic', '', found_title.lower()).strip()
+    fu = found_uploader.lower().strip() if found_uploader else ""
+
+    if t not in ft:
+        return False
+    if not a:
+        return True
+    return a in ft or a in fu
 
 
 def search_track(query: str, source: str, prefix: str) -> list[str]:
@@ -103,8 +118,23 @@ def download_track(
         track_urls = []
         for src in SOURCES:
             urls = search_track(query, src["name"], src["prefix"])
-            for u in urls:
-                track_urls.append((u, src["name"]))
+            for url in urls:
+                if src["name"] == "direct":
+                    track_urls.append((url, src["name"]))
+                else:
+                    try:
+                        with yt_dlp.YoutubeDL({**_get_base_opts(), "extract_flat": False}) as ydl:
+                            info = ydl.extract_info(url, download=False)
+                            found_title = info.get("title") if info else None
+                            found_uploader = info.get("uploader") or info.get("channel") or info.get("creator") or None
+                            if _title_matches(title, artist, found_title, found_uploader):
+                                track_urls.append((url, src["name"]))
+                                break
+                            logger.info(f"download_track: {src['name']} result '{found_title}' doesn't match '{title}' by {artist}, trying next...")
+                    except Exception as e:
+                        logger.warning(f"download_track: could not verify {url}, will try anyway: {e}")
+                        track_urls.append((url, src["name"]))
+                        break
             if track_urls:
                 break
 
@@ -143,12 +173,14 @@ def download_track(
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([track_url])
 
-            files = os.listdir(tmpdir)
+            files = [f for f in os.listdir(tmpdir) if not f.endswith('.part')]
             if not files:
                 shutil.rmtree(tmpdir, ignore_errors=True)
                 continue
 
-            filepath = os.path.join(tmpdir, files[0])
+            files.sort()
+            expected = f"{safe_name}.mp3"
+            filepath = os.path.join(tmpdir, expected if expected in files else files[0])
             ext = os.path.splitext(filepath)[1].lower()
 
             if ext == ".mp3":

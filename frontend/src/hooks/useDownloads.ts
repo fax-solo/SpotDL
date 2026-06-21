@@ -4,6 +4,7 @@ import type { TrackMeta } from '../lib/api'
 import { downloadFile } from '../lib/capacitorBridge'
 import { storeBlob } from '../lib/blobCache'
 import type { HistoryEntry } from './useHistory'
+import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendBatchCompleteNotification } from '../lib/notifications'
 import { Capacitor } from '@capacitor/core'
 
 let processing = false
@@ -21,10 +22,13 @@ export interface DownloadProgress {
 interface DownloadsState {
   queue: DownloadProgress[]
   isProcessing: boolean
+  abortControllers: Map<string, AbortController>
   addDownload: (track: TrackMeta) => void
   addMultipleDownloads: (tracks: TrackMeta[]) => void
   removeDownload: (id: string) => void
   clearCompleted: () => void
+  cancelAll: () => void
+  cancelDownload: (id: string) => void
   _processQueue: () => void
   _updateProgress: (id: string, updates: Partial<DownloadProgress>) => void
 }
@@ -32,6 +36,7 @@ interface DownloadsState {
 export const useDownloads = create<DownloadsState>((set, get) => ({
   queue: [],
   isProcessing: false,
+  abortControllers: new Map(),
 
   addDownload: (track: TrackMeta) => {
     const exists = get().queue.some(q =>
@@ -68,6 +73,23 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     set((state: DownloadsState) => ({ queue: state.queue.filter((q) => !q.done && !q.failed) }))
   },
 
+  cancelAll: () => {
+    const controllers = get().abortControllers
+    controllers.forEach(c => c.abort())
+    set({ queue: [], abortControllers: new Map(), isProcessing: false })
+    processing = false
+  },
+
+  cancelDownload: (id: string) => {
+    const controllers = get().abortControllers
+    controllers.get(id)?.abort()
+    controllers.delete(id)
+    set((state: DownloadsState) => ({
+      queue: state.queue.map(q => q.id === id ? { ...q, stage: 'Cancelled', failed: true, error: 'Cancelled' } : q),
+      abortControllers: new Map(controllers),
+    }))
+  },
+
   _updateProgress: (id: string, updates: Partial<DownloadProgress>) => {
     set((state: DownloadsState) => ({
       queue: state.queue.map((q) => (q.id === id ? { ...q, ...updates } : q)),
@@ -97,24 +119,37 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           const batch = pending.slice(0, 3)
           batch.forEach((item) => get()._updateProgress(item.id, { stage: 'Starting...' }))
 
-          await Promise.all(
-            batch.map(async (item) => {
-              try {
-                const result = await downloadTrack(item.track, (stage, pct) => {
-                  if (get().queue.some(q => q.id === item.id)) {
-                    get()._updateProgress(item.id, { stage, pct: pct ?? null })
-                  }
-                })
+              const controllers = get().abortControllers
+              await Promise.all(
+                batch.map(async (item) => {
+                  const controller = new AbortController()
+                  controllers.set(item.id, controller)
+                  set({ abortControllers: new Map(controllers) })
 
-                let filePath: string | null = result.nativeFilePath ?? null
-                if (!filePath && result.blob.size > 0) {
-                  filePath = await downloadFile(result.blob, result.filename)
-                  if (!filePath) {
-                    filePath = storeBlob(result.filename, result.blob)
-                  }
-                }
+                  try {
+                    const result = await downloadTrack(item.track, (stage, pct) => {
+                      if (get().queue.some(q => q.id === item.id)) {
+                        get()._updateProgress(item.id, { stage, pct: pct ?? null })
+                      }
+                    }, controller.signal)
 
+                    let filePath: string | null = result.nativeFilePath ?? null
+                    if (!filePath && result.blob.size > 0) {
+                      filePath = await downloadFile(result.blob, result.filename)
+                      if (!filePath) {
+                        filePath = storeBlob(result.filename, result.blob)
+                      }
+                    }
+
+                    controllers.delete(item.id)
+                    set({ abortControllers: new Map(controllers) })
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
+
+                sendDownloadCompleteNotification({
+                  title: item.track.title,
+                  artist: item.track.artist,
+                  filePath,
+                }).catch(() => {})
 
                 window.dispatchEvent(
                   new CustomEvent('trackDownloaded', {
@@ -129,18 +164,37 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 )
               } catch (err) {
                 console.error('[downloads] download failed:', err)
+                controllers.delete(item.id)
+                set({ abortControllers: new Map(controllers) })
                 const message = err instanceof Error ? err.message : 'Unknown error'
                 get()._updateProgress(item.id, {
                   stage: 'Failed',
                   failed: true,
                   error: message,
                 })
+                sendDownloadErrorNotification({
+                  title: item.track.title,
+                  artist: item.track.artist,
+                  error: message,
+                }).catch(() => {})
               }
             }),
           )
         }
       } finally {
         processing = false
+
+        const finalState = get()
+        const completed = finalState.queue.filter(q => q.done)
+        const failed = finalState.queue.filter(q => q.failed)
+        if (completed.length + failed.length >= finalState.queue.filter(q => q.done || q.failed).length) {
+          const totalDone = completed.length
+          const totalFailed = failed.length
+          if (totalDone > 0) {
+            sendBatchCompleteNotification({ count: totalDone, failed: totalFailed }).catch(() => {})
+          }
+        }
+
         if (taskId) {
           try {
             const { BackgroundTask } = await import('@capawesome/capacitor-background-task')

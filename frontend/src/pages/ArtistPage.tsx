@@ -7,6 +7,11 @@ import { fetchArtistDetails, type ArtistDetails, type SearchTrack, type TrackMet
 import { SkeletonRow } from '../components/SkeletonRow'
 import { useToast } from '../components/Toast'
 import { useDownloads } from '../hooks/useDownloads'
+import type { HistoryEntry } from '../hooks/useHistory'
+
+interface ArtistPageProps {
+  onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
+}
 
 function formatFollowers(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -29,7 +34,7 @@ const itemVariants = {
   }),
 }
 
-export function ArtistPage() {
+export function ArtistPage(_props: ArtistPageProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 

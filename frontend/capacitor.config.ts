@@ -15,14 +15,23 @@ const config: CapacitorConfig = {
     SpotDL: {
       appId: 'com.spotdl.app',
     },
+    StatusBar: {
+      overlaysWebView: true,
+      style: 'DARK',
+      backgroundColor: '#0B0F19',
+    },
     SplashScreen: {
-      launchAutoHide: false,
+      launchAutoHide: true,
       backgroundColor: '#0B0F19',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
       splashFullScreen: true,
       splashImmersive: true,
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_icon',
+      iconColor: '#10B981',
     },
   },
 }

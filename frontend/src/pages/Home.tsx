@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Music, LogIn, Headphones, Search, Sparkles, Clock, Disc3 } from 'lucide-react'
+import { Music, Headphones, Search, Sparkles, Clock, Disc3 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
-import { isAuthenticated, getAccessToken } from '../lib/spotifyAuth'
+import { getAccessToken } from '../lib/spotifyAuth'
 import {
   getPlaylistCategories, enrichCategoryWithImages, fetchPlaylistSummary, searchSpotify,
   fetchNewReleases, fetchRecentlyPlayed, fetchRecommendations,
@@ -21,7 +21,6 @@ const itemVariants = {
 
 export function Home() {
   const navigate = useNavigate()
-  const [authed, setAuthed] = useState(false)
   const [categories, setCategories] = useState<PlaylistCategory[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -76,8 +75,6 @@ export function Home() {
   }, [entries])
 
   useEffect(() => {
-    const authed = isAuthenticated()
-    setAuthed(authed)
     loadCategories()
     loadNewReleases()
     loadRecentlyPlayed()
@@ -119,22 +116,6 @@ export function Home() {
             Search tracks, artists, playlists...
           </div>
         </div>
-
-        {!authed ? (
-          <motion.button
-            onClick={() => navigate('/settings')}
-            whileTap={{ scale: 0.98 }}
-            className="w-full mb-5 p-4 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center gap-3 hover:bg-green-500/20 transition-colors cursor-pointer"
-          >
-            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-              <LogIn className="w-5 h-5 text-green-500" />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-green-600 dark:text-green-400">Connect Spotify</p>
-              <p className="text-xs text-light-muted dark:text-dark-muted">View your playlists and library</p>
-            </div>
-          </motion.button>
-        ) : null}
 
         {/* New Releases */}
         {newReleases.length > 0 && (

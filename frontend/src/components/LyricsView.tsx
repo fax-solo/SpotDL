@@ -9,9 +9,10 @@ interface LyricsViewProps {
   currentTime: number
   storedLyrics?: { plainLyrics: string | null; syncedLyrics: string | null } | null
   scrollRef?: React.RefObject<HTMLDivElement | null>
+  onSeek?: (time: number) => void
 }
 
-export function LyricsView({ trackName, artistName, albumName, duration, currentTime, storedLyrics, scrollRef }: LyricsViewProps) {
+export function LyricsView({ trackName, artistName, albumName, duration, currentTime, storedLyrics, scrollRef, onSeek }: LyricsViewProps) {
   const { plainLyrics, syncedLines, synced, currentLine, loading, error } = useLyrics(
     trackName, artistName, albumName, duration, currentTime, storedLyrics,
   )
@@ -66,13 +67,14 @@ export function LyricsView({ trackName, artistName, albumName, duration, current
               <div
                 key={i}
                 ref={isActive ? activeRef : undefined}
+                onClick={onSeek ? () => onSeek(line.time) : undefined}
                 className={`text-center transition-all duration-500 ease-out ${
                   isActive
                     ? 'text-white text-xl font-semibold scale-100 opacity-100 drop-shadow-[0_0_14px_rgba(255,255,255,0.4)]'
                     : isPast
                     ? 'text-white/25 text-sm font-normal scale-90'
                     : 'text-white/45 text-sm font-normal scale-90'
-                }`}
+                } ${onSeek ? 'cursor-pointer' : ''}`}
                 style={isActive ? {
                   background: 'linear-gradient(to right, rgba(255,255,255,0.8) 0%, #fff 40%, #fff 60%, rgba(255,255,255,0.8) 100%)',
                   WebkitBackgroundClip: 'text',

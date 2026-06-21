@@ -10,6 +10,10 @@ import { useHistory, type HistoryEntry } from '../hooks/useHistory'
 import { useDownloads } from '../hooks/useDownloads'
 import { apiUrl } from '../lib/apiConfig'
 
+interface AlbumDetailProps {
+  onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
+}
+
 function norm(s: string): string {
   return s.toLowerCase().replace(/[^\w\s]/g, '').trim()
 }
@@ -35,7 +39,7 @@ const itemVariants = {
   }),
 }
 
-export function AlbumDetail() {
+export function AlbumDetail(_props: AlbumDetailProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [collection, setCollection] = useState<CollectionMeta | null>(null)

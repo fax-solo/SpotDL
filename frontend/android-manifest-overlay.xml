@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Instructions:
+  1. Run: npm run build && npx cap sync android
+  2. Open android/app/src/main/AndroidManifest.xml
+  3. Inside the <application> element, add the following inside the main <activity>:
+
+  <!-- Share target: receive URLs from other apps -->
+  <intent-filter>
+    <action android:name="android.intent.action.SEND" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:mimeType="text/plain" />
+  </intent-filter>
+
+  <!-- Deep link: open spotify.com links directly -->
+  <intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="https" android:host="open.spotify.com" />
+    <data android:scheme="http" android:host="open.spotify.com" />
+    <data android:scheme="spotify" />
+  </intent-filter>
+
+  Also add android:windowSoftInputMode="adjustResize" to the activity
+  if not already present (for keyboard handling).
+
+  4. Open android/app/src/main/java/com/spotdl/app/MainActivity.java
+  5. Replace or add the onCreate method:
+
+  import androidx.activity.EdgeToEdge;
+  ...
+  @Override
+  public void onCreate(Bundle savedInstanceState) {
+      super.onCreate(savedInstanceState);
+      EdgeToEdge.enable(this);
+      // ... existing code
+  }
+
+  6. Build: cd android && ./gradlew assembleDebug
+
+  === FOR BACKGROUND AUDIO ===
+  To enable background audio playback, add this to your AndroidManifest.xml
+  inside the <application> element, before the <activity>:
+
+  <service
+      android:name="com.spotdl.app.MediaPlaybackService"
+      android:exported="false">
+      <intent-filter>
+          <action android:name="android.intent.action.MEDIA_BUTTON" />
+      </intent-filter>
+  </service>
+
+  And request the FOREGROUND_SERVICE permission at the top level of the manifest:
+
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+-->

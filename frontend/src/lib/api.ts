@@ -154,7 +154,7 @@ export async function downloadTrack(
   meta: TrackMeta,
   onProgress?: (stage: string, pct?: number) => void,
   signal?: AbortSignal,
-  retries = 1,
+  retries = 3,
 ): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
   const filename = `${safe(meta.artist)} - ${safe(meta.title)}.mp3`
@@ -221,7 +221,7 @@ export async function downloadTrack(
       onProgress?.(`Searching...`)
       signal?.throwIfAborted()
 
-      const { info, source } = await findAudio(query)
+      const { info, source } = await findAudio(query, meta.title, meta.artist)
 
       if (!info.audioUrl) {
         throw new Error(`No downloadable audio found on ${source}`)

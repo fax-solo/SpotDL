@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { getAudioSrc } from '../lib/capacitorBridge'
 import type { HistoryEntry } from './useHistory'
+import { useBackgroundAudio } from './useBackgroundAudio'
+import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotification } from '../lib/notifications'
 
 export interface PlayerState {
   currentTrack: HistoryEntry | null
@@ -136,6 +138,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           artwork: track.artworkUrl ? [{ src: track.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : []
         })
       }
+      sendBackgroundPlaybackNotification({ title: track.title, artist: track.artist, artworkUrl: track.artworkUrl })
     } catch {
       setIsPlaying(false)
     }
@@ -151,6 +154,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const pause = useCallback(() => {
     audioRef.current?.pause()
     setIsPlaying(false)
+    cancelBackgroundPlaybackNotification()
   }, [])
 
   const resume = useCallback(() => {
@@ -186,6 +190,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const setVolumeFn = useCallback((vol: number) => {
     setVolumeState(Math.max(0, Math.min(1, vol)))
   }, [])
+
+  useBackgroundAudio(currentTrack, isPlaying)
 
   useEffect(() => {
     if ('mediaSession' in navigator) {

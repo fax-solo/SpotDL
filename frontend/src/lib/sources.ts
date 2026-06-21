@@ -1,6 +1,18 @@
 import { searchYouTube, getVideoInfo } from './youtubeClient'
 import { apiUrl } from './apiConfig'
 
+function titleMatches(expectedTitle: string, expectedArtist: string, foundTitle: string, foundAuthor?: string): boolean {
+  const t = expectedTitle.toLowerCase().trim()
+  const a = expectedArtist.toLowerCase().trim()
+  const ft = foundTitle.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, '').trim()
+  const fa = (foundAuthor || '').toLowerCase().trim()
+
+  if (t.length === 0) return true
+  if (!ft.includes(t)) return false
+  if (a.length === 0) return true
+  return ft.includes(a) || fa.includes(a)
+}
+
 interface SourceSearchResult {
   url: string
   title: string
@@ -55,7 +67,7 @@ interface SourceResult {
   source: string
 }
 
-export async function findAudio(query: string): Promise<SourceResult> {
+export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string): Promise<SourceResult> {
   const sources: { name: string; search: (q: string) => Promise<SourceSearchResult[]>; info: (url: string) => Promise<SourceInfo | null> }[] = [
     { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
     { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
@@ -67,17 +79,25 @@ export async function findAudio(query: string): Promise<SourceResult> {
       const results = await source.search(query)
       if (results.length === 0) continue
 
-      const url = results[0].url
-      let info: SourceInfo | null = null
+      for (const result of results) {
+        let info: SourceInfo | null = null
 
-      if (results[0].audioUrl) {
-        info = { title: results[0].title, author: results[0].artist || '', duration: results[0].duration || '0', audioUrl: results[0].audioUrl, thumbnail: results[0].thumbnail || null }
-      } else {
-        info = await source.info(url)
-      }
+        if (result.audioUrl) {
+          info = { title: result.title, author: result.artist || '', duration: result.duration || '0', audioUrl: result.audioUrl, thumbnail: result.thumbnail || null }
+        } else {
+          info = await source.info(result.url)
+        }
 
-      if (info && info.audioUrl) {
-        return { info, source: source.name }
+        if (info && info.audioUrl) {
+          if (expectedTitle || expectedArtist) {
+            if (titleMatches(expectedTitle || '', expectedArtist || '', info.title, info.author)) {
+              return { info, source: source.name }
+            }
+            console.warn(`[sources] ${source.name} result "${info.title}" doesn't match "${expectedArtist} - ${expectedTitle}", trying next...`)
+          } else {
+            return { info, source: source.name }
+          }
+        }
       }
     } catch (err) {
       console.warn(`[sources] ${source.name} search failed:`, err)
