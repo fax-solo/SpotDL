@@ -74,16 +74,20 @@ const EMBED_CACHE_TTL = 300000
 async function wolfxFetch(path) {
   const cached = _cache.get(path)
   if (cached && Date.now() < cached.expires) return cached.data
-  const res = await fetch(`${WOLFX_API}${path}`)
-  if (!res.ok) return null
-  const data = await res.json()
-  const result = data.success ? data : null
-  _cache.set(path, { data: result, expires: Date.now() + CACHE_TTL })
-  if (_cache.size > 200) {
-    const now = Date.now()
-    for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
+  try {
+    const res = await fetch(`${WOLFX_API}${path}`, { signal: abortTimeout(5000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    const result = data.success ? data : null
+    _cache.set(path, { data: result, expires: Date.now() + CACHE_TTL })
+    if (_cache.size > 200) {
+      const now = Date.now()
+      for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
+    }
+    return result
+  } catch {
+    return null
   }
-  return result
 }
 
 function cacheKey(kind, id, summary) {
@@ -129,6 +133,18 @@ function extractTrackImage(item) {
   try { if (item.image) return item.image } catch {}
   try { if (item.images?.[0]?.url) return item.images[0].url } catch {}
   try { if (item.thumbnail) return item.thumbnail } catch {}
+  try { if (item.artwork_url) return item.artwork_url } catch {}
+  try {
+    const album = item.albumOfTrack || item.album
+    if (album?.images?.[0]?.url) return album.images[0].url
+    if (album?.image) return album.image
+  } catch {}
+  try {
+    if (item.albumOfTrack?.coverArt?.sources?.length) {
+      const s = [...item.albumOfTrack.coverArt.sources].sort((a, b) => (b.width || 0) - (a.width || 0))
+      return s[0].url
+    }
+  } catch {}
   return null
 }
 
@@ -178,7 +194,7 @@ async function fillTrackArtwork(tracks, ids, collectionArtwork, context) {
       for (const r of results) {
         if (r.status !== 'fulfilled' || !r.value.data) continue
         const t = r.value.data.track || r.value.data
-        const artwork = t.thumbnail || t.artwork_url || null
+        const artwork = t.thumbnail || t.artwork_url || t.album?.images?.[0]?.url || null
         if (!artwork) continue
         const idx = tracks.findIndex(track => track.url.includes(r.value.id))
         if (idx !== -1) tracks[idx].artwork_url = artwork
@@ -221,6 +237,7 @@ async function handleEmbedScrape(context, url, summary) {
     const ua = UAS[attempt % UAS.length]
     const res = await fetch(embedUrl, {
       headers: { 'User-Agent': ua, 'Accept-Language': 'en-US,en;q=0.9' },
+      signal: abortTimeout(15000),
     })
     if (res.ok) {
       const html = await res.text()
@@ -247,13 +264,11 @@ async function handleEmbeddedEntity(context, kind, id, entity, summary) {
   const result = buildEmbedResult(kind, id, entity, summary)
 
   if (result && typeof result.buildResponse === 'function') {
+    if (result.noArtworkIds.length > 0 && !summary && kind !== 'album') {
+      await fillTrackArtwork(result.tracks, result.noArtworkIds, result.collectionArtwork, context)
+    }
     const resp = result.buildResponse()
     setCachedResponse(kind, id, summary, resp)
-    if (result.noArtworkIds.length > 0 && !summary && kind !== 'album') {
-      fillTrackArtwork(result.tracks, result.noArtworkIds, result.collectionArtwork, context)
-        .then(() => setCachedResponse(kind, id, summary, result.buildResponse()))
-        .catch(() => {})
-    }
     return resp
   }
 
@@ -329,7 +344,7 @@ async function enrichTrackArtwork(tracks) {
   for (const r of results) {
     if (r.status !== 'fulfilled' || !r.value.data) continue
     const t = r.value.data.track || r.value.data
-    const artwork = t.thumbnail || t.artwork_url || t.album?.images?.[0]?.url || null
+    const artwork = t.thumbnail || t.artwork_url || t.image || t.album?.images?.[0]?.url || null
     if (!artwork) continue
     const idx = tracks.findIndex(track => track.id === r.value.id)
     if (idx !== -1) tracks[idx].artwork_url = artwork

@@ -100,6 +100,41 @@ def _extract_track_image(item: dict) -> str | None:
                     return sources[0].get("url")
             except Exception:
                 continue
+    # Try direct image fields on the track item
+    try:
+        if item.get("image"):
+            return item["image"]
+    except Exception:
+        pass
+    try:
+        if item.get("thumbnail"):
+            return item["thumbnail"]
+    except Exception:
+        pass
+    try:
+        if item.get("artwork_url"):
+            return item["artwork_url"]
+    except Exception:
+        pass
+    try:
+        images = item.get("images") or []
+        if images and isinstance(images, list):
+            images.sort(key=lambda i: i.get("width") or i.get("height") or 0, reverse=True)
+            return images[0].get("url")
+    except Exception:
+        pass
+    # Try albumOfTrack or album sub-objects for images/thumbnail
+    try:
+        album = item.get("albumOfTrack") or item.get("album")
+        if isinstance(album, dict):
+            if album.get("images"):
+                imgs = album["images"]
+                if isinstance(imgs, list) and imgs[0].get("url"):
+                    return imgs[0]["url"]
+            if album.get("image"):
+                return album["image"]
+    except Exception:
+        pass
     return None
 
 
