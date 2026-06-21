@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink } from 'lucide-react'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
 import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
 import { ALL_PERMISSIONS, requestPermission, checkPermission, isNative } from '../lib/permissions'
+import { APP_VERSION, GITHUB_REPO } from '../lib/version'
+import { checkForUpdates, type UpdateCheckResult } from '../lib/checkUpdate'
 
 export function Settings() {
   // Web Player Token
@@ -14,6 +16,15 @@ export function Settings() {
   const [downloadLyrics, setDownloadLyricsState] = useState(getDownloadLyrics())
   const [permStatus, setPermStatus] = useState<Record<string, boolean>>({})
   const [requestingPerm, setRequestingPerm] = useState<string | null>(null)
+  const [updateState, setUpdateState] = useState<UpdateCheckResult>({
+    checking: false, available: false, latestVersion: null, downloadUrl: null, error: null, currentVersion: APP_VERSION,
+  })
+
+  const handleCheckUpdate = useCallback(async () => {
+    setUpdateState(prev => ({ ...prev, checking: true, error: null }))
+    const result = await checkForUpdates()
+    setUpdateState(result)
+  }, [])
 
   useEffect(() => {
     if (!isNative()) return
@@ -247,12 +258,63 @@ export function Settings() {
       <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
         <div className="p-5">
           <h2 className="text-lg font-semibold text-light-text dark:text-dark-text mb-2">About</h2>
-          <p className="text-sm text-light-muted dark:text-dark-muted">SpotDL v1.0</p>
+          <p className="text-sm text-light-text dark:text-dark-text">
+            SpotDL <span className="text-light-muted dark:text-dark-muted">v{APP_VERSION}</span>
+          </p>
           <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
             Download music from Spotify, YouTube, SoundCloud, and Bandcamp.
           </p>
+
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={handleCheckUpdate}
+              disabled={updateState.checking}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${updateState.checking ? 'animate-spin' : ''}`} />
+              {updateState.checking ? 'Checking...' : 'Check for Updates'}
+            </button>
+
+            {updateState.available && (
+              <a
+                href={updateState.downloadUrl || `https://github.com/${GITHUB_REPO}/releases/latest`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white hover:bg-accent-hover transition-colors text-sm font-medium"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Download v{updateState.latestVersion}
+              </a>
+            )}
+          </div>
+
+          {updateState.available && (
+            <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-accent/10 border border-accent/20">
+              <CheckCircle className="w-4 h-4 text-accent flex-shrink-0" />
+              <p className="text-xs text-accent font-medium">
+                v{updateState.latestVersion} available
+              </p>
+            </div>
+          )}
+
+          {!updateState.checking && !updateState.available && !updateState.error && updateState.latestVersion !== null && (
+            <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <p className="text-xs text-green-600 dark:text-green-400">
+                Up to date — v{APP_VERSION}
+              </p>
+            </div>
+          )}
+
+          {updateState.error && (
+            <div className="mt-3 flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-light-muted dark:text-dark-muted">{updateState.error}</p>
+            </div>
+          )}
+
           <a
-            href="https://github.com/fax-solo/SpotDL"
+            href={`https://github.com/${GITHUB_REPO}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center mt-4 text-accent hover:text-accent-hover transition-colors"
