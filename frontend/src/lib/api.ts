@@ -5,6 +5,7 @@ import { downloadAudio } from './audioProcessor'
 import { apiUrl } from './apiConfig'
 import { cachedFetch } from './requestCache'
 import { isNativeSpotDLAvailable, nativeFetchMetadata, nativeDownloadTrack } from './nativePlugin'
+import { cacheMetadata, getCachedMetadata } from './dbCache'
 
 export type { TrackMeta, CollectionMeta }
 export type { YouTubeSearchResult, YouTubeInfo } from './youtubeClient'
@@ -14,7 +15,6 @@ let _nativeAvailable: boolean | null = null
 async function nativeAvailable(): Promise<boolean> {
   if (_nativeAvailable === null) {
     _nativeAvailable = await isNativeSpotDLAvailable()
-    // If plugin exists but wasn't initialized, try once more
     if (!_nativeAvailable) {
       _nativeAvailable = await isNativeSpotDLAvailable()
     }
@@ -68,7 +68,6 @@ async function fetchSpotifyViaScraper(url: string): Promise<TrackMeta | Collecti
 export async function fetchMetadata(url: string): Promise<TrackMeta | CollectionMeta> {
   const parsed = parseSpotifyUrl(url)
 
-  // Try native plugin first if available
   if (parsed && await nativeAvailable()) {
     try {
       const tracks = await nativeFetchMetadata(url)
@@ -94,7 +93,7 @@ export async function fetchMetadata(url: string): Promise<TrackMeta | Collection
         }
       }
     } catch {
-      // Fall through to server mode
+      // Fall through
     }
   }
 
@@ -128,6 +127,10 @@ export async function fetchLyricsForTrack(
   albumName?: string,
   duration?: number,
 ): Promise<LyricsResult> {
+  const cacheKey = `lyrics:${trackName}:${artistName}`
+  const cached = await getCachedMetadata<LyricsResult>(cacheKey)
+  if (cached) return cached
+
   try {
     const res = await fetch(apiUrl('/api/lyrics'), {
       method: 'POST',
@@ -137,10 +140,12 @@ export async function fetchLyricsForTrack(
     })
     if (!res.ok) return { plainLyrics: null, syncedLyrics: null }
     const data = await res.json()
-    return {
+    const result = {
       plainLyrics: data.plainLyrics || null,
       syncedLyrics: data.syncedLyrics || null,
     }
+    cacheMetadata(cacheKey, result).catch(() => {})
+    return result
   } catch {
     return { plainLyrics: null, syncedLyrics: null }
   }
@@ -148,6 +153,22 @@ export async function fetchLyricsForTrack(
 
 async function delay(ms: number) {
   return new Promise(r => setTimeout(r, ms))
+}
+
+let _serverAvailable: boolean | null = null
+
+async function isServerAvailable(signal?: AbortSignal): Promise<boolean> {
+  if (_serverAvailable === false) return false
+  try {
+    const pingUrl = apiUrl('/api/ping')
+    if (!pingUrl || pingUrl.startsWith('/')) return false
+    const res = await fetch(pingUrl, { signal: signal || AbortSignal.timeout(2000) })
+    _serverAvailable = res.ok
+    return res.ok
+  } catch {
+    _serverAvailable = false
+    return false
+  }
 }
 
 export async function downloadTrack(
@@ -170,46 +191,40 @@ export async function downloadTrack(
       if (nativeResult.filePath) {
         return { blob: new Blob([], { type: 'audio/mpeg' }), filename, nativeFilePath: nativeResult.filePath }
       }
-      console.warn('[api] Native download returned no file path, falling back to client mode')
-    } catch (err) {
-      console.warn('[api] Native download failed, falling back to server mode:', err)
+    } catch {
+      // Fall through
     }
   }
 
-  // Try server download if backend is available
-  try {
-    const pingUrl = apiUrl('/api/ping')
-    if (pingUrl && !pingUrl.startsWith('/')) {
-      const ping = await fetch(pingUrl, { signal: AbortSignal.timeout(3000) })
-      if (ping.ok) {
-        onProgress?.('Downloading from server...', 0)
-        const res = await fetch(apiUrl('/api/download'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: meta.title,
-            artist: meta.artist,
-            album: meta.album,
-            artwork_url: meta.artwork_url,
-            url: meta.url,
-          }),
-          signal,
-        })
-        if (res.ok) {
-          const blob = await res.blob()
-          if (blob.size > 0) {
-            onProgress?.('Done', 100)
-            return { blob, filename }
-          }
+  // Try server download (fastest — native ffmpeg, async thread pool)
+  if (await isServerAvailable(signal)) {
+    try {
+      onProgress?.('Downloading from server...', 0)
+      const res = await fetch(apiUrl('/api/download'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: meta.title,
+          artist: meta.artist,
+          album: meta.album,
+          artwork_url: meta.artwork_url,
+          url: meta.url,
+        }),
+        signal,
+      })
+      if (res.ok) {
+        const blob = await res.blob()
+        if (blob.size > 0) {
+          onProgress?.('Done', 100)
+          return { blob, filename }
         }
-        // If server responds but no blob, fall through to client mode
-        console.warn('[api] Server returned empty response, falling back to client mode')
       }
+    } catch (err) {
+      console.warn('[api] Server download failed, falling back to client mode:', err)
     }
-  } catch (err) {
-    console.warn('[api] Server not available, falling back to client mode:', err)
   }
 
+  // Client-side fallback (FFmpeg WASM in browser)
   const query = `${meta.artist} ${meta.title}`
   let lastError: Error | null = null
   for (let attempt = 0; attempt <= retries; attempt++) {

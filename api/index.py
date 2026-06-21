@@ -5,6 +5,8 @@ import shutil
 import logging
 import urllib.parse
 import traceback
+import asyncio
+from contextlib import asynccontextmanager
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
@@ -24,7 +26,20 @@ from spotify import (
     is_user_authenticated,
 )
 
-app = FastAPI(title="SpotDL API", version="2.0.0")
+# Global semaphore to limit concurrent downloads
+# yt-dlp is I/O-bound, so 4 concurrent downloads is reasonable
+DOWNLOAD_SEMAPHORE_LIMIT = int(os.environ.get("SPOTDL_CONCURRENT_DOWNLOADS", "4"))
+_download_semaphore = asyncio.Semaphore(DOWNLOAD_SEMAPHORE_LIMIT)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logging.info(f"Starting SpotDL API v2.0.0 — concurrent downloads: {DOWNLOAD_SEMAPHORE_LIMIT}")
+    yield
+    logging.info("Shutting down SpotDL API")
+
+
+app = FastAPI(title="SpotDL API", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,18 +61,27 @@ class DownloadRequest(BaseModel):
 # ─── Health ───
 
 @app.get("/api/ping")
-def ping():
+async def ping():
     return {"ok": True, "version": "2.0.0"}
 
 
 @app.get("/api/status")
-def status():
+async def status():
     has_ffmpeg = shutil.which("ffmpeg") is not None
     return {
         "ok": True,
         "ffmpeg": has_ffmpeg,
         "authenticated": is_user_authenticated(),
         "has_spotify_creds": bool(os.environ.get("SPOTIFY_CLIENT_ID")),
+        "concurrent_downloads": DOWNLOAD_SEMAPHORE_LIMIT,
+    }
+
+
+@app.get("/api/config")
+async def config():
+    return {
+        "concurrent_downloads": DOWNLOAD_SEMAPHORE_LIMIT,
+        "ffmpeg_available": shutil.which("ffmpeg") is not None,
     }
 
 
@@ -67,14 +91,14 @@ CLIENT_URL = os.environ.get("CLIENT_URL", "http://localhost:5173")
 
 
 @app.get("/api/auth/spotify/login")
-def spotify_login(redirect_uri: str = Query(None, description="Override redirect URI (used by mobile app)")):
+async def spotify_login(redirect_uri: str = Query(None, description="Override redirect URI (used by mobile app)")):
     if redirect_uri:
         return RedirectResponse(url=get_spotify_auth_url(redirect_uri))
     return RedirectResponse(url=get_spotify_auth_url())
 
 
 @app.get("/api/auth/spotify/callback")
-def spotify_callback(code: str = Query(...)):
+async def spotify_callback(code: str = Query(...)):
     try:
         handle_spotify_callback(code)
         return RedirectResponse(url=f"{CLIENT_URL}/")
@@ -84,7 +108,7 @@ def spotify_callback(code: str = Query(...)):
 
 
 @app.get("/api/auth/spotify/exchange")
-def spotify_exchange(code: str = Query(...), redirect_uri: str = Query(None)):
+async def spotify_exchange(code: str = Query(...), redirect_uri: str = Query(None)):
     try:
         data = handle_spotify_callback(code, redirect_uri)
         return {"ok": True, "authenticated": True, "expires_in": data.get("expires_in", 3600)}
@@ -94,14 +118,14 @@ def spotify_exchange(code: str = Query(...), redirect_uri: str = Query(None)):
 
 
 @app.get("/api/auth/status")
-def auth_status():
+async def auth_status():
     return {"authenticated": is_user_authenticated()}
 
 
 # ─── Metadata ───
 
 @app.get("/api/metadata")
-def get_metadata(url: str = Query(..., description="Spotify track/album/playlist URL")):
+async def get_metadata(url: str = Query(..., description="Spotify track/album/playlist URL")):
     try:
         data = fetch_metadata(url)
         return {"ok": True, "data": data}
@@ -112,17 +136,20 @@ def get_metadata(url: str = Query(..., description="Spotify track/album/playlist
         raise HTTPException(status_code=502, detail=str(e))
 
 
-# ─── Download (sync, returns file) ───
+# ─── Download (async, runs yt-dlp in thread pool) ───
 
 @app.post("/api/download")
-def download(body: DownloadRequest):
+async def download(body: DownloadRequest):
     from downloader import download_track
 
-    try:
-        filepath, ext = download_track(body.title, body.artist, body.album, body.artwork_url, body.url)
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=502, detail=str(e))
+    async with _download_semaphore:
+        try:
+            filepath, ext = await asyncio.to_thread(
+                download_track, body.title, body.artist, body.album, body.artwork_url, body.url
+            )
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=502, detail=str(e))
 
     def cleanup():
         parent = os.path.dirname(filepath)
@@ -149,12 +176,13 @@ async def download_stream(body: DownloadRequest):
     from downloader import stream_download
 
     async def generate():
-        buffer = b""
-        async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url):
-            if isinstance(chunk, str):
-                yield chunk.encode()
-            else:
-                buffer += chunk
+        async with _download_semaphore:
+            buffer = b""
+            async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url):
+                if isinstance(chunk, str):
+                    yield chunk.encode()
+                else:
+                    buffer += chunk
 
     return StreamingResponse(
         generate(),
@@ -167,7 +195,7 @@ async def download_stream(body: DownloadRequest):
 
 
 @app.get("/api/debug/auth")
-def debug_auth():
+async def debug_auth():
     import requests as req
     token = get_user_token()
     info = {

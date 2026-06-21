@@ -5,7 +5,9 @@ frontend/android/
 api/__pycache__/
 api/venv/
 api/.env
+api/data/cache/
+api/data/token_store.json
 *.pyc
 .DS_Store
-
-INSTRUCTIONS.md
+cookies.txt
+test-*.js

@@ -9,6 +9,32 @@ import { Capacitor } from '@capacitor/core'
 
 let processing = false
 
+const CONCURRENT_DOWNLOADS = Math.min(Math.max(parseInt(import.meta.env.VITE_CONCURRENT_DOWNLOADS || '4', 10), 1), 10)
+
+interface RateLimitState {
+  consecutiveErrors: number
+  backoffUntil: number
+}
+
+const rateLimit: RateLimitState = { consecutiveErrors: 0, backoffUntil: 0 }
+
+function getBackoffDelay(): number {
+  if (Date.now() < rateLimit.backoffUntil) {
+    return rateLimit.backoffUntil - Date.now()
+  }
+  return 0
+}
+
+function recordError() {
+  rateLimit.consecutiveErrors++
+  const delay = Math.min(1000 * Math.pow(2, rateLimit.consecutiveErrors), 30000)
+  rateLimit.backoffUntil = Date.now() + delay
+}
+
+function recordSuccess() {
+  rateLimit.consecutiveErrors = Math.max(0, rateLimit.consecutiveErrors - 1)
+}
+
 export interface DownloadProgress {
   id: string
   track: TrackMeta
@@ -112,37 +138,44 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
         }
 
         while (true) {
+          const backoff = getBackoffDelay()
+          if (backoff > 0) {
+            await new Promise(r => setTimeout(r, backoff))
+          }
+
           const state = get()
           const pending = state.queue.filter((q) => !q.done && !q.failed && q.stage === 'Waiting...')
           if (pending.length === 0) break
 
-          const batch = pending.slice(0, 3)
+          const batch = pending.slice(0, CONCURRENT_DOWNLOADS)
           batch.forEach((item) => get()._updateProgress(item.id, { stage: 'Starting...' }))
 
-              const controllers = get().abortControllers
-              await Promise.all(
-                batch.map(async (item) => {
-                  const controller = new AbortController()
-                  controllers.set(item.id, controller)
-                  set({ abortControllers: new Map(controllers) })
+          const controllers = get().abortControllers
+          await Promise.all(
+            batch.map(async (item) => {
+              const controller = new AbortController()
+              controllers.set(item.id, controller)
+              set({ abortControllers: new Map(controllers) })
 
-                  try {
-                    const result = await downloadTrack(item.track, (stage, pct) => {
-                      if (get().queue.some(q => q.id === item.id)) {
-                        get()._updateProgress(item.id, { stage, pct: pct ?? null })
-                      }
-                    }, controller.signal)
+              try {
+                const result = await downloadTrack(item.track, (stage, pct) => {
+                  if (get().queue.some(q => q.id === item.id)) {
+                    get()._updateProgress(item.id, { stage, pct: pct ?? null })
+                  }
+                }, controller.signal)
 
-                    let filePath: string | null = result.nativeFilePath ?? null
-                    if (!filePath && result.blob.size > 0) {
-                      filePath = await downloadFile(result.blob, result.filename)
-                      if (!filePath) {
-                        filePath = storeBlob(result.filename, result.blob)
-                      }
-                    }
+                recordSuccess()
 
-                    controllers.delete(item.id)
-                    set({ abortControllers: new Map(controllers) })
+                let filePath: string | null = result.nativeFilePath ?? null
+                if (!filePath && result.blob.size > 0) {
+                  filePath = await downloadFile(result.blob, result.filename)
+                  if (!filePath) {
+                    filePath = await storeBlob(result.filename, result.blob)
+                  }
+                }
+
+                controllers.delete(item.id)
+                set({ abortControllers: new Map(controllers) })
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
 
                 sendDownloadCompleteNotification({
@@ -163,6 +196,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   }),
                 )
               } catch (err) {
+                recordError()
                 console.error('[downloads] download failed:', err)
                 controllers.delete(item.id)
                 set({ abortControllers: new Map(controllers) })

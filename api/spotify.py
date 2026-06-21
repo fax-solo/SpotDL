@@ -491,10 +491,18 @@ def _try_official(kind: str, id_: str, token: str) -> dict | None:
         raise
 
 def fetch_metadata(url: str) -> dict | list[dict]:
-    parsed = parse_url(url)
+    from cache import get_cache, set_cache
+
+    cached = get_cache(url)
+    if cached:
+        logger.info(f"fetch_metadata: cache HIT for {url}")
+        return cached
+
     if not parsed:
         try:
-            return _fetch_generic_metadata(url)
+            result = _fetch_generic_metadata(url)
+            set_cache(url, result)
+            return result
         except Exception as e:
             raise ValueError(f"Could not parse URL. Ensure it is a valid Spotify, YouTube, or SoundCloud link. ({e})")
 
@@ -507,6 +515,7 @@ def fetch_metadata(url: str) -> dict | list[dict]:
         result = _try_official(kind, id_, user_token)
         if result:
             logger.info(f"fetch_metadata: user OAuth token SUCCESS, got {len(result.get('tracks', [])) if 'tracks' in result else 'track'} results")
+            set_cache(url, result)
             return result
         logger.warning("fetch_metadata: user OAuth token FAILED (403/404), trying client credentials")
 
@@ -516,6 +525,7 @@ def fetch_metadata(url: str) -> dict | list[dict]:
         result = _try_official(kind, id_, cc_token)
         if result:
             logger.info(f"fetch_metadata: client credentials SUCCESS, got {len(result.get('tracks', [])) if 'tracks' in result else 'track'} results")
+            set_cache(url, result)
             return result
         logger.warning("fetch_metadata: client credentials FAILED (403/404), falling back to scraper")
     else:
@@ -523,8 +533,12 @@ def fetch_metadata(url: str) -> dict | list[dict]:
 
     logger.info(f"fetch_metadata: using embed scraper for {kind}")
     if kind == "track":
-        return _scrape_track(id_)
+        result = _scrape_track(id_)
+        set_cache(url, result)
+        return result
     elif kind in ("album", "playlist"):
-        return _scrape_collection(kind, id_)
+        result = _scrape_collection(kind, id_)
+        set_cache(url, result)
+        return result
 
     raise ValueError(f"Unsupported type: {kind}")

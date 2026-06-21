@@ -12,6 +12,8 @@ import requests
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, error as MutagenError
 from mutagen.mp4 import MP4, MP4Cover
 
+from cache import metadata_cache
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,12 @@ def _get_base_opts() -> dict:
         "source_address": "0.0.0.0",
         "extractor_retries": 3,
         "retries": 5,
-        "throttled_rate": "5M",
+        "throttled_rate": "100K",
+        "concurrent_fragments": 5,
+        "fragment_retries": 10,
+        "file_access_retries": 3,
+        "no_mtime": True,
+        "no_part": True,
     }
 
 
@@ -52,10 +59,14 @@ def _title_matches(title: str, artist: str, found_title: str | None, found_uploa
     return a in ft or a in fu
 
 
-def search_track(query: str, source: str, prefix: str) -> list[str]:
+def search_track(query: str, source: str, prefix: str) -> list[dict]:
+    """
+    Search for a track and return entries with full metadata (title, uploader, url).
+    Uses extract_flat=False to get full info in one call, avoiding a second API round-trip.
+    """
     opts = {
         **_get_base_opts(),
-        "extract_flat": True,
+        "extract_flat": False,
         "default_search": prefix,
     }
     try:
@@ -63,13 +74,18 @@ def search_track(query: str, source: str, prefix: str) -> list[str]:
             info = ydl.extract_info(f"{prefix}:{query}", download=False)
             if not info or "entries" not in info or not info["entries"]:
                 return []
-            urls = []
+            entries = []
             for entry in info["entries"]:
-                url = entry.get("url") or entry.get("webpage_url")
-                if url:
-                    urls.append(url)
-            logger.info(f"search_track: {source} found {len(urls)} result(s) for '{query}'")
-            return urls
+                if entry:
+                    url = entry.get("url") or entry.get("webpage_url")
+                    if url:
+                        entries.append({
+                            "url": url,
+                            "title": entry.get("title"),
+                            "uploader": entry.get("uploader") or entry.get("channel") or entry.get("creator"),
+                        })
+            logger.info(f"search_track: {source} found {len(entries)} result(s) for '{query}'")
+            return entries
     except Exception as e:
         logger.warning(f"search_track: {source} failed for '{query}': {e}")
         return []
@@ -86,12 +102,8 @@ async def stream_download(
     artwork_url: str | None,
     source_url: str | None = None,
 ) -> AsyncGenerator[str, None]:
-    """
-    Async generator that yields NDJSON progress events, then yields the file data
-    prefixed with a metadata header, or yields an error event on failure.
-    """
     try:
-        filepath, ext = download_track(title, artist, album, artwork_url, source_url)
+        filepath, ext = await asyncio.to_thread(download_track, title, artist, album, artwork_url, source_url)
         yield json.dumps({"type": "complete", "filepath": filepath, "ext": ext}) + "\n"
 
         with open(filepath, "rb") as f:
@@ -117,24 +129,11 @@ def download_track(
         query = f"{artist} {title}"
         track_urls = []
         for src in SOURCES:
-            urls = search_track(query, src["name"], src["prefix"])
-            for url in urls:
-                if src["name"] == "direct":
-                    track_urls.append((url, src["name"]))
-                else:
-                    try:
-                        with yt_dlp.YoutubeDL({**_get_base_opts(), "extract_flat": False}) as ydl:
-                            info = ydl.extract_info(url, download=False)
-                            found_title = info.get("title") if info else None
-                            found_uploader = info.get("uploader") or info.get("channel") or info.get("creator") or None
-                            if _title_matches(title, artist, found_title, found_uploader):
-                                track_urls.append((url, src["name"]))
-                                break
-                            logger.info(f"download_track: {src['name']} result '{found_title}' doesn't match '{title}' by {artist}, trying next...")
-                    except Exception as e:
-                        logger.warning(f"download_track: could not verify {url}, will try anyway: {e}")
-                        track_urls.append((url, src["name"]))
-                        break
+            entries = search_track(query, src["name"], src["prefix"])
+            for entry in entries:
+                if _title_matches(title, artist, entry.get("title"), entry.get("uploader")):
+                    track_urls.append((entry["url"], src["name"]))
+                    break
             if track_urls:
                 break
 
@@ -151,12 +150,11 @@ def download_track(
 
         opts = {
             **_get_base_opts(),
-            "format": "bestaudio[ext=mp3]/best[ext=mp3]/bestaudio/best"
-            if not ffmpeg_available
-            else "bestaudio[ext=mp3]/bestaudio/best",
             "outtmpl": outtmpl,
         }
+
         if ffmpeg_available:
+            opts["format"] = "bestaudio/best"
             opts["postprocessors"] = [
                 {
                     "key": "FFmpegExtractAudio",
@@ -164,6 +162,8 @@ def download_track(
                     "preferredquality": "320",
                 }
             ]
+        else:
+            opts["format"] = "bestaudio[ext=m4a]/bestaudio"
 
         if "youtube.com" in track_url or "youtu.be" in track_url:
             opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
@@ -218,18 +218,7 @@ def _tag_mp3(path: str, title: str, artist: str, album: str, artwork_url: str | 
     audio["TPE1"] = TPE1(encoding=3, text=artist)
     audio["TALB"] = TALB(encoding=3, text=album)
     if artwork_url:
-        try:
-            resp = requests.get(artwork_url, timeout=10)
-            if resp.status_code == 200:
-                audio["APIC"] = APIC(
-                    encoding=3,
-                    mime="image/jpeg",
-                    type=3,
-                    desc="Cover",
-                    data=resp.content,
-                )
-        except requests.RequestException:
-            pass
+        _embed_cover(audio, artwork_url, "mp3")
     audio.save(path)
 
 
@@ -240,12 +229,25 @@ def _tag_m4a(path: str, title: str, artist: str, album: str, artwork_url: str | 
         audio["\xa9ART"] = artist
         audio["\xa9alb"] = album
         if artwork_url:
-            try:
-                resp = requests.get(artwork_url, timeout=10)
-                if resp.status_code == 200:
-                    audio["covr"] = [MP4Cover(resp.content, MP4Cover.FORMAT_JPEG)]
-            except requests.RequestException:
-                pass
+            _embed_cover(audio, artwork_url, "m4a")
         audio.save()
     except Exception as e:
         logger.warning(f"Failed to tag m4a: {e}")
+
+
+def _embed_cover(audio, artwork_url: str, fmt: str):
+    try:
+        resp = requests.get(artwork_url, timeout=10)
+        if resp.status_code == 200:
+            if fmt == "mp3":
+                audio["APIC"] = APIC(
+                    encoding=3,
+                    mime="image/jpeg",
+                    type=3,
+                    desc="Cover",
+                    data=resp.content,
+                )
+            elif fmt == "m4a":
+                audio["covr"] = [MP4Cover(resp.content, MP4Cover.FORMAT_JPEG)]
+    except requests.RequestException:
+        pass
