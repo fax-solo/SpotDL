@@ -16,6 +16,7 @@ interface LyricsState {
 }
 
 const cache = new Map<string, { plainLyrics: string | null; syncedLyrics: string | null }>()
+const CACHE_MAX = 100
 
 function parseLRC(lrc: string): SyncedLine[] {
   const lines = lrc.split('\n')
@@ -25,10 +26,10 @@ function parseLRC(lrc: string): SyncedLine[] {
   for (const line of lines) {
     const match = timeRegex.exec(line)
     if (!match) continue
-    const minutes = parseInt(match[1])
-    const seconds = parseInt(match[2])
-    const centiseconds = parseInt(match[3])
-    const time = minutes * 60 + seconds + (match[3].length === 3 ? centiseconds / 1000 : centiseconds / 100)
+    const minutes = parseInt(match[1], 10)
+    const seconds = parseInt(match[2], 10)
+    const frac = parseInt(match[3], 10)
+    const time = minutes * 60 + seconds + frac / (match[3].length === 3 ? 1000 : 100)
     const text = line.replace(timeRegex, '').trim()
     if (text) {
       result.push({ time, text })
@@ -37,6 +38,23 @@ function parseLRC(lrc: string): SyncedLine[] {
 
   result.sort((a, b) => a.time - b.time)
   return result
+}
+
+function findCurrentLine(lines: SyncedLine[], currentTime: number): number {
+  if (lines.length === 0) return -1
+  if (currentTime < lines[0].time) return -1
+
+  let lo = 0
+  let hi = lines.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1
+    if (lines[mid].time <= currentTime) {
+      lo = mid
+    } else {
+      hi = mid - 1
+    }
+  }
+  return lo
 }
 
 export function useLyrics(
@@ -114,6 +132,10 @@ export function useLyrics(
 
         const entry = { plainLyrics: data.plainLyrics || null, syncedLyrics: data.syncedLyrics || null }
         cache.set(cacheKey, entry)
+        if (cache.size > CACHE_MAX) {
+          const first = cache.keys().next().value
+          if (first !== undefined) cache.delete(first)
+        }
 
         const syncedLines = entry.syncedLyrics ? parseLRC(entry.syncedLyrics) : []
         setState({
@@ -138,13 +160,7 @@ export function useLyrics(
   useEffect(() => {
     if (!state.synced || state.syncedLines.length === 0) return
 
-    let idx = state.syncedLines.length - 1
-    for (let i = 0; i < state.syncedLines.length; i++) {
-      if (state.syncedLines[i].time > currentTime) {
-        idx = i - 1
-        break
-      }
-    }
+    const idx = findCurrentLine(state.syncedLines, currentTime)
     if (idx !== state.currentLine) {
       setState(prev => ({ ...prev, currentLine: idx }))
     }

@@ -1,6 +1,4 @@
 const LRCLIB_API = 'https://lrclib.net/api'
-const CACHE_TTL = 86400000
-const _cache = new Map()
 
 function jsonOk(data) {
   return new Response(JSON.stringify(data), {
@@ -16,26 +14,26 @@ function jsonError(msg, status = 500) {
   })
 }
 
-async function fetchWithCache(url) {
-  const cached = _cache.get(url)
-  if (cached && Date.now() < cached.expires) return cached.data
+function normalize(s) {
+  return s.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u0400-\u04FF\u0E00-\u0E7F]/g, '').trim()
+}
+
+function titleMatches(expectedTitle, expectedArtist, result) {
+  const t = normalize(expectedTitle)
+  const a = normalize(expectedArtist)
+  const rt = normalize(result.trackName || '')
+  const ra = normalize(result.artistName || '')
+  if (!t || !rt) return false
+  return (rt.includes(t) || t.includes(rt)) && (!a || !ra || ra.includes(a) || a.includes(ra))
+}
+
+async function fetchLrcLib(url) {
   const res = await fetch(url, {
     headers: { 'User-Agent': 'SpotDL/1.0 (github.com/user/spotdl)', 'Lrclib-Client': 'SpotDL/1.0' },
   })
-  if (!res.ok) {
-    if (res.status === 404) {
-      _cache.set(url, { data: null, expires: Date.now() + CACHE_TTL })
-      return null
-    }
-    throw new Error(`LRCLIB returned ${res.status}`)
-  }
-  const data = await res.json()
-  _cache.set(url, { data, expires: Date.now() + CACHE_TTL })
-  if (_cache.size > 200) {
-    const now = Date.now()
-    for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
-  }
-  return data
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`LRCLIB returned ${res.status}`)
+  return res.json()
 }
 
 export async function onRequest(context) {
@@ -57,17 +55,25 @@ export async function onRequest(context) {
     })
     if (albumName) params.set('album_name', albumName)
 
-    const data = await fetchWithCache(`${LRCLIB_API}/get?${params}`)
+    let data = await fetchLrcLib(`${LRCLIB_API}/get?${params}`)
 
-    if (!data && duration) {
-      const searchRes = await fetchWithCache(
-        `${LRCLIB_API}/search?q=${encodeURIComponent(`${artistName} ${trackName}`)}`
-      )
+    if (!data) {
+      const searchQuery = encodeURIComponent(`${artistName} ${trackName}`)
+      const searchRes = await fetchLrcLib(`${LRCLIB_API}/search?q=${searchQuery}`)
+
       if (searchRes && searchRes.length > 0) {
-        const sorted = searchRes
-          .filter((r) => r.duration && Math.abs(r.duration - duration) < 3000)
-          .sort((a, b) => Math.abs(a.duration - duration) - Math.abs(b.duration - duration))
-        return jsonOk(sorted[0] || searchRes[0])
+        let candidates = searchRes.filter(r => titleMatches(trackName, artistName, r))
+
+        if (duration) {
+          candidates = candidates.filter(r => r.duration && Math.abs(r.duration - duration) < 3000)
+        }
+
+        if (candidates.length > 0) {
+          if (duration) {
+            candidates.sort((a, b) => Math.abs(a.duration - duration) - Math.abs(b.duration - duration))
+          }
+          data = candidates[0]
+        }
       }
     }
 

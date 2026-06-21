@@ -4,7 +4,7 @@ import { FileQuestion, WifiOff } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
 import { MiniPlayerBar } from './components/MiniPlayerBar'
-import { ToastProvider, useToast } from './components/Toast'
+import { ToastProvider } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
@@ -63,7 +63,6 @@ function AppContent() {
   const location = useLocation()
   const navigate = useNavigate()
   const { addEntry, updateEntryLyrics } = useHistory()
-  const { toast } = useToast()
   const isOnline = useOnlineStatus()
   const [mobile, setMobile] = useState(isMobile)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
@@ -106,16 +105,13 @@ function AppContent() {
       if (!detail) return
       addEntry(detail)
 
-      // Fire-and-forget lyrics fetch — never blocks the download flow
-      fetchLyricsForTrack(detail.title, detail.artist, detail.album, undefined)
+      fetchLyricsForTrack(detail.title, detail.artist, detail.album, detail.duration)
         .then(lyrics => {
           if (lyrics.plainLyrics || lyrics.syncedLyrics) {
             updateEntryLyrics(detail.title, detail.artist, lyrics.plainLyrics, lyrics.syncedLyrics)
           }
         })
-        .catch(() => {
-          toast('Failed to fetch lyrics', 'error')
-        })
+        .catch(() => {})
     }
     window.addEventListener('trackDownloaded', handleDownload)
     return () => window.removeEventListener('trackDownloaded', handleDownload)

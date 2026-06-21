@@ -68,6 +68,7 @@ export function LyricsView({ trackName, artistName, albumName, duration, current
                 key={i}
                 ref={isActive ? activeRef : undefined}
                 onClick={onSeek ? () => onSeek(line.time) : undefined}
+                dir="auto"
                 className={`text-center transition-all duration-500 ease-out ${
                   isActive
                     ? 'text-white text-xl font-semibold scale-100 opacity-100 drop-shadow-[0_0_14px_rgba(255,255,255,0.4)]'
@@ -95,7 +96,7 @@ export function LyricsView({ trackName, artistName, albumName, duration, current
     <div className="w-full">
       <div className="flex flex-col items-center gap-3">
         {plainLyrics?.split('\n').filter(l => l.trim()).map((line, i) => (
-          <p key={i} className="text-white/60 text-base text-center leading-relaxed">{line}</p>
+          <p key={i} dir="auto" className="text-white/60 text-base text-center leading-relaxed">{line}</p>
         ))}
       </div>
     </div>

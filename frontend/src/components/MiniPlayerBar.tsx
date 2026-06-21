@@ -2,19 +2,22 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Play, Pause, ChevronUp } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
 import { usePlayer } from '../hooks/usePlayer'
+import { useBottomBar } from '../hooks/useBottomBar'
 
 export function MiniPlayerBar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { currentTrack, isPlaying, pause, resume } = usePlayer()
+  const bottomBarHidden = useBottomBar(s => s.hidden)
   const isPlayerPage = location.pathname === '/player'
+  const showBottomBar = !bottomBarHidden && !isPlayerPage
 
   if (!currentTrack) return null
 
   return (
     <div
       className={`fixed left-2 right-2 z-50 mx-auto max-w-xl ${
-        isPlayerPage ? 'bottom-2' : 'bottom-[66px]'
+        showBottomBar ? 'bottom-[66px]' : 'bottom-2'
       }`}
     >
       <button

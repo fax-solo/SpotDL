@@ -112,14 +112,19 @@ function setCachedResponse(kind, id, summary, data) {
 
 // Race multiple source fetchers — first non-null result wins
 async function raceSources(sources, timeoutMs = 3000) {
-  const timed = sources.map(fn => {
-    return new Promise(resolve => {
-      Promise.resolve(fn()).then(resolve).catch(() => resolve(null))
-      setTimeout(() => resolve(null), timeoutMs)
-    })
+  return new Promise(resolve => {
+    let settled = false
+    for (const fn of sources) {
+      Promise.resolve(fn()).then(val => {
+        if (settled) return
+        if (val !== null && val !== undefined) {
+          settled = true
+          resolve(val)
+        }
+      }).catch(() => {})
+    }
+    setTimeout(() => { if (!settled) { settled = true; resolve(null) } }, timeoutMs)
   })
-  const results = await Promise.all(timed)
-  return results.find(r => r !== null && r !== undefined) || null
 }
 
 function extractImage(entity) {
@@ -645,16 +650,25 @@ async function officialTrack(context, id) {
 
 // Handle track by racing multiple fast sources in parallel
 async function handleTrack(context, id) {
-  // Try fast sources (oEmbed, WolfX, Official API) in parallel — first wins
+  // Try sources with best artwork first (WolfX, Official), race them
   const fastResult = await raceSources([
-    () => oEmbedTrack(context, id),
     () => wolfxTrack(id),
     () => officialTrack(context, id),
   ], 3000)
 
-  if (fastResult) return jsonOk(fastResult)
+  if (fastResult && fastResult.artwork_url) return jsonOk(fastResult)
+  if (fastResult) {
+    // Try oEmbed as backup — it may have artwork even if WolfX/Official didn't
+    const oembed = await oEmbedTrack(context, id)
+    if (oembed && oembed.artwork_url) return jsonOk({ ...fastResult, artwork_url: oembed.artwork_url })
+    return jsonOk(fastResult)
+  }
 
-  // Fallback: full embed scrape (more reliable but slower)
+  // Fallback: oEmbed (fast but may lack artwork)
+  const oembedResult = await oEmbedTrack(context, id)
+  if (oembedResult) return jsonOk(oembedResult)
+
+  // Final fallback: full embed scrape (more reliable but slower)
   const embedResult = await handleEmbedScrape(context, `https://open.spotify.com/track/${id}`, false)
   if (embedResult.status === 200) return embedResult
 

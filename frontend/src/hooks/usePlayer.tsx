@@ -47,9 +47,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return saved ? parseFloat(saved) : 0.8
   })
 
-  const timeRef = useRef<ReturnType<typeof setInterval>>(null)
   const queueRef = useRef<HistoryEntry[]>([])
   const queueIndexRef = useRef(-1)
+  const currentTrackRef = useRef<HistoryEntry | null>(null)
 
   useEffect(() => {
     queueRef.current = queue
@@ -60,15 +60,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [queueIndex])
 
   useEffect(() => {
+    currentTrackRef.current = currentTrack
+  }, [currentTrack])
+
+  useEffect(() => {
     const audio = new Audio()
     audio.preload = 'auto'
     audioRef.current = audio
 
-    audio.addEventListener('loadedmetadata', () => {
+    const onLoadedMetadata = () => {
       setDuration(audio.duration || 0)
-    })
+    }
 
-    audio.addEventListener('ended', () => {
+    const onTimeUpdate = () => {
+      setCurrentTime(audio.currentTime)
+    }
+
+    const onEnded = () => {
       const q = queueRef.current
       const idx = queueIndexRef.current + 1
       if (idx < q.length) {
@@ -78,11 +86,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setCurrentTime(0)
         stopMediaForeground()
       }
-    })
+    }
+
+    const onError = () => {
+      setIsPlaying(false)
+      stopMediaForeground()
+    }
+
+    audio.addEventListener('loadedmetadata', onLoadedMetadata)
+    audio.addEventListener('timeupdate', onTimeUpdate)
+    audio.addEventListener('ended', onEnded)
+    audio.addEventListener('error', onError)
 
     return () => {
       audio.pause()
       audio.src = ''
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+      audio.removeEventListener('timeupdate', onTimeUpdate)
+      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('error', onError)
       audioRef.current = null
     }
   }, [])
@@ -94,26 +116,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('player_volume', String(volume))
   }, [volume])
 
-  useEffect(() => {
-    if (isPlaying) {
-      timeRef.current = setInterval(() => {
-        if (audioRef.current) {
-          setCurrentTime(audioRef.current.currentTime)
-        }
-      }, 250)
-    } else {
-      if (timeRef.current) clearInterval(timeRef.current)
-    }
-    return () => { if (timeRef.current) clearInterval(timeRef.current) }
-  }, [isPlaying])
-
   const playTrack = useCallback(async (track: HistoryEntry, q: HistoryEntry[], idx: number) => {
+    const prev = currentTrackRef.current
+    const audio = audioRef.current
+    if (!audio) return
+
     setCurrentTrack(track)
     setQueue(q)
     setQueueIndex(idx)
 
-    const audio = audioRef.current
-    if (!audio) return
+    const sameTrack = prev && track.id === prev.id
+    if (sameTrack && audio.src) {
+      if (audio.paused) {
+        try {
+          await audio.play()
+          setIsPlaying(true)
+        } catch {
+          setIsPlaying(false)
+        }
+      }
+      return
+    }
 
     audio.pause()
     audio.src = ''
