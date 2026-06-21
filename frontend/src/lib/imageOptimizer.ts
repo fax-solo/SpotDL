@@ -1,6 +1,6 @@
 export function optimizeImageUrl(
   url: string | null,
-  size: number = 320,
+  size: number = 200,
 ): string | null {
   if (!url) return null
 

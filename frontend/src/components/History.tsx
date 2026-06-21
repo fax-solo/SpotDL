@@ -1,6 +1,5 @@
 import { Clock, Trash2, Download, ChevronDown, ChevronUp, Play } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { ArtworkImage } from './ArtworkImage'
 
@@ -13,19 +12,7 @@ interface HistoryProps {
   minimal?: boolean
 }
 
-const itemVariants = {
-  hidden: { opacity: 0, x: -20 },
-  visible: (i: number) => ({
-    opacity: 1,
-    x: 0,
-    transition: { delay: i * 0.03, type: 'spring' as const, stiffness: 350, damping: 30 },
-  }),
-  exit: {
-    opacity: 0,
-    x: 20,
-    transition: { duration: 0.15 } as const,
-  },
-}
+
 
 function formatDate(ts: number): string {
   const now = Date.now()
@@ -38,7 +25,7 @@ function formatDate(ts: number): string {
 
 function SwipeableRow({
   entry,
-  index,
+  index: _index,
   onRemove,
   onRedownload,
   onPlay,
@@ -50,12 +37,14 @@ function SwipeableRow({
   onPlay?: (entry: HistoryEntry) => void
 }) {
   const startX = useRef(0)
+  const dragging = useRef(false)
   const [offsetX, setOffsetX] = useState(0)
   const [showDelete, setShowDelete] = useState(false)
   const threshold = 80
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX
+    dragging.current = true
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -65,6 +54,7 @@ function SwipeableRow({
   }, [])
 
   const handleTouchEnd = useCallback(() => {
+    dragging.current = false
     if (offsetX > threshold) {
       setShowDelete(true)
       setOffsetX(80)
@@ -76,10 +66,9 @@ function SwipeableRow({
 
   return (
     <div className="relative overflow-hidden">
-      <motion.div
-        className="absolute inset-y-0 right-0 flex items-center justify-end bg-red-500/10 dark:bg-red-500/15"
+      <div
+        className={`absolute inset-y-0 right-0 flex items-center justify-end bg-red-500/10 dark:bg-red-500/15 transition-opacity duration-200 ${showDelete ? 'opacity-100' : 'opacity-0'}`}
         style={{ width: 80 }}
-        animate={{ opacity: showDelete ? 1 : 0 }}
       >
         <button
           onClick={() => onRemove(entry.id)}
@@ -88,19 +77,13 @@ function SwipeableRow({
         >
           <Trash2 className="w-5 h-5" />
         </button>
-      </motion.div>
-      <motion.div
-        layout
-        custom={index}
-        variants={itemVariants}
-        initial="hidden"
-        animate={{ x: offsetX }}
-        exit="exit"
+      </div>
+      <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-dark-bg relative z-10 transition-colors select-none"
-        style={{ touchAction: 'pan-x' }}
+        style={{ touchAction: 'pan-x', transform: `translateX(${offsetX}px)`, transition: dragging.current ? 'none' : 'transform 0.2s' }}
       >
         <ArtworkImage
           src={entry.artworkUrl}
@@ -145,7 +128,7 @@ function SwipeableRow({
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }
@@ -166,11 +149,9 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
           <span className="text-xs text-light-muted dark:text-dark-muted">{entries.length} songs</span>
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-light-border/50 dark:divide-dark-border/50 overscroll-contain">
-          <AnimatePresence initial={false} mode="popLayout">
-            {entries.map((entry, i) => (
-              <SwipeableRow key={entry.id} entry={entry} index={i} onRemove={onRemove} onRedownload={onRedownload} onPlay={onPlay} />
-            ))}
-          </AnimatePresence>
+          {entries.map((entry, i) => (
+            <SwipeableRow key={entry.id} entry={entry} index={i} onRemove={onRemove} onRedownload={onRedownload} onPlay={onPlay} />
+          ))}
         </div>
       </div>
     )
@@ -178,10 +159,9 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
 
   return (
     <div className="w-full max-w-xl mx-auto mt-8">
-      <motion.button
+      <button
         onClick={() => setOpen(!open)}
-        whileTap={{ scale: 0.98 }}
-        className="flex items-center justify-between w-full px-4 py-3.5 rounded-xl border border-light-border dark:border-dark-border bg-white dark:bg-dark-surface text-light-text dark:text-dark-text cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/50 focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors"
+        className="flex items-center justify-between w-full px-4 py-3.5 rounded-xl border border-light-border dark:border-dark-border bg-white dark:bg-dark-surface text-light-text dark:text-dark-text cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/50 focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors active:scale-[0.98] transition-transform"
       >
         <div className="flex items-center gap-2.5">
           <Clock className="w-4 h-4 text-light-muted dark:text-dark-muted" />
@@ -201,17 +181,11 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
           </span>
           {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </div>
-      </motion.button>
+      </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="mt-2 rounded-xl border border-light-border dark:border-dark-border bg-white dark:bg-dark-surface divide-y divide-light-border/50 dark:divide-dark-border/50 overflow-hidden"
-          >
+      {open && (
+        <div className="mt-2 rounded-xl border border-light-border dark:border-dark-border bg-white dark:bg-dark-surface divide-y divide-light-border/50 dark:divide-dark-border/50 overflow-hidden animate-fadeIn"
+        >
             <div className="px-4 py-2.5 flex items-center justify-between border-b border-light-border/50 dark:border-dark-border/50">
               <span className="text-xs text-light-muted dark:text-dark-muted">
                 {entries.length} {entries.length === 1 ? 'download' : 'downloads'}
@@ -220,48 +194,42 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
                 {confirmClear ? (
                   <>
                     <span className="text-xs text-red-500 font-medium">Clear all?</span>
-                    <motion.button
-                      onClick={() => { onClear(); setConfirmClear(false) }}
-                      whileTap={{ scale: 0.9 }}
-                      className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors cursor-pointer"
-                    >
-                      Confirm
-                    </motion.button>
-                    <motion.button
-                      onClick={() => setConfirmClear(false)}
-                      whileTap={{ scale: 0.9 }}
-                      className="text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </motion.button>
+      <button
+        onClick={() => { onClear(); setConfirmClear(false) }}
+        className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors cursor-pointer active:scale-90 transition-transform"
+      >
+        Confirm
+      </button>
+      <button
+        onClick={() => setConfirmClear(false)}
+        className="text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer active:scale-90 transition-transform"
+      >
+        Cancel
+      </button>
                   </>
                 ) : (
-                  <motion.button
+                  <button
                     onClick={() => setConfirmClear(true)}
-                    whileTap={{ scale: 0.9 }}
-                    className="text-xs font-medium text-red-500 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-400 rounded transition-colors cursor-pointer flex items-center gap-1"
+                    className="text-xs font-medium text-red-500 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-400 rounded transition-colors cursor-pointer flex items-center gap-1 active:scale-90 transition-transform"
                   >
                     <Trash2 className="w-3 h-3" />
                     Clear All
-                  </motion.button>
+                  </button>
                 )}
               </div>
             </div>
-            <AnimatePresence initial={false} mode="popLayout">
-              {entries.map((entry, i) => (
-                <SwipeableRow
-                  key={entry.id}
-                  entry={entry}
-                  index={i}
-                  onRemove={onRemove}
-                  onRedownload={onRedownload}
-                  onPlay={onPlay}
-                />
-              ))}
-            </AnimatePresence>
-          </motion.div>
+            {entries.map((entry, i) => (
+              <SwipeableRow
+                key={entry.id}
+                entry={entry}
+                index={i}
+                onRemove={onRemove}
+                onRedownload={onRedownload}
+                onPlay={onPlay}
+              />
+            ))}
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }

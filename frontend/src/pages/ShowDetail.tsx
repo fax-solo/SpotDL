@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { ArrowLeft, Headphones, Mic2, Clock, Calendar } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { fetchShow, type Show, type Episode } from '../lib/spotifyApi'
@@ -63,32 +62,21 @@ export function ShowDetail() {
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-24">
-      <motion.button
+      <button
         onClick={() => navigate(-1)}
-        whileTap={{ scale: 0.9 }}
-        className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white"
+        className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white active:scale-90 transition-transform"
         style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
         aria-label="Go back"
       >
         <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-      </motion.button>
+      </button>
 
       <div className="flex flex-col items-center px-6 pt-16">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="w-48 h-48 rounded-full overflow-hidden shadow-2xl mb-6"
-        >
+        <div className="w-48 h-48 rounded-full overflow-hidden shadow-2xl mb-6">
           <ArtworkImage src={show.image} alt={show.name} className="w-full h-full" iconSize={48} loading="eager" fetchPriority="high" />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-center w-full max-w-sm"
-        >
+        <div className="text-center w-full max-w-sm">
           <h1 className="text-2xl font-bold text-light-text dark:text-white leading-tight mb-1">
             {show.name}
           </h1>
@@ -107,25 +95,16 @@ export function ShowDetail() {
               {show.description.replace(/<[^>]+>/g, '')}
             </p>
           )}
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="w-full mt-8"
-        >
+        <div className="w-full mt-8">
           <h2 className="text-lg font-bold text-light-text dark:text-white mb-4">Episodes</h2>
           <div className="space-y-2">
-            {episodes.map((ep, i) => (
-              <motion.button
+            {episodes.map((ep, _i) => (
+              <button
                 key={ep.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.03 }}
                 onClick={() => navigate(`/episode/${ep.id}`)}
-                whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
               >
                 <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
                   {ep.image ? <ArtworkImage src={ep.image} alt="" className="w-full h-full object-cover" /> : <Headphones className="w-5 h-5 text-accent/40 m-auto" />}
@@ -137,10 +116,10 @@ export function ShowDetail() {
                     {ep.release_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{ep.release_date}</span>}
                   </p>
                 </div>
-              </motion.button>
+              </button>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   )

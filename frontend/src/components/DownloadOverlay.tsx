@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+
 import { Loader2, X } from 'lucide-react'
 import { useDownloads } from '../hooks/useDownloads'
 
@@ -47,15 +47,9 @@ export function DownloadOverlay() {
     : 0
 
   return (
-    <AnimatePresence>
+    <>
       {activeCount > 0 && (
-        <motion.div
-          initial={{ y: 80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 80, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-          className="fixed bottom-28 left-3 right-3 z-[90] mx-auto max-w-xl"
-        >
+        <div className="fixed bottom-28 left-3 right-3 z-[90] mx-auto max-w-xl">
           <div className="rounded-xl bg-white/95 dark:bg-dark-surface/95 backdrop-blur-xl border border-light-border/60 dark:border-dark-border/60 shadow-lg overflow-hidden">
             <div className="px-4 py-3">
               <div className="flex items-center justify-between mb-2">
@@ -81,12 +75,7 @@ export function DownloadOverlay() {
                 </div>
               </div>
               <div className="h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-accent rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${overallPct}%` }}
-                  transition={{ duration: 0.3, ease: 'easeOut' }}
-                />
+                <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${overallPct}%` }} />
               </div>
               {activeCount > 1 && (
                 <div className="flex items-center gap-1 mt-1.5">
@@ -109,9 +98,9 @@ export function DownloadOverlay() {
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   )
 }
 

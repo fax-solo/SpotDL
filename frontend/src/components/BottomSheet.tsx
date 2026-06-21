@@ -1,5 +1,5 @@
 import { type ReactNode, useRef, useState, useCallback, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+
 
 interface BottomSheetProps {
   open: boolean
@@ -44,23 +44,15 @@ export function BottomSheet({ open, onClose, children, title }: BottomSheetProps
   }, [open])
 
   return (
-    <AnimatePresence>
+    <>
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+          <div
             className="absolute inset-0 bg-black/50"
             onClick={onClose}
           />
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: sheetY }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 400, damping: 40 }}
-            style={{ y: sheetY }}
+          <div
+            style={{ transform: `translateY(${sheetY}px)` }}
             className="relative w-full max-h-[85vh] bg-white dark:bg-dark-surface rounded-t-2xl overflow-hidden shadow-xl"
           >
             <div
@@ -81,9 +73,9 @@ export function BottomSheet({ open, onClose, children, title }: BottomSheetProps
                 {children}
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
-    </AnimatePresence>
+    </>
   )
 }

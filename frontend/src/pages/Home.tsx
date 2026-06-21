@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+
 import { Music, Headphones, Search, Sparkles, Clock, Disc3 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { getAccessToken } from '../lib/spotifyAuth'
@@ -14,10 +14,6 @@ import { SkeletonCard } from '../components/SkeletonCard'
 import { PullToRefresh } from '../components/PullToRefresh'
 import { useHistory } from '../hooks/useHistory'
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 350, damping: 30 } },
-}
 
 export function Home() {
   const navigate = useNavigate()
@@ -93,10 +89,7 @@ export function Home() {
   return (
     <PullToRefresh onRefresh={async () => { await Promise.all([loadCategories(), loadNewReleases(), loadRecentlyPlayed()]) }}>
       <div className="px-4 pt-6 pb-24">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+        <div
           className="mb-4"
         >
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
@@ -105,7 +98,7 @@ export function Home() {
           <p className="text-sm text-light-muted dark:text-dark-muted mt-1">
             Search or browse music
           </p>
-        </motion.div>
+        </div>
 
         <div className="relative mb-5">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-light-muted dark:text-dark-muted pointer-events-none" />
@@ -125,15 +118,11 @@ export function Home() {
               <h2 className="text-lg font-bold text-light-text dark:text-dark-text">New Releases</h2>
             </div>
             <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              {newReleases.map((album, i) => (
-                <motion.button
+              {newReleases.map((album, _i) => (
+                <button
                   key={album.id}
                   onClick={() => navigate(`/album/${album.id}`)}
-                  whileTap={{ scale: 0.95 }}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.03, type: 'spring', stiffness: 350, damping: 30 }}
-                  className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 hover:shadow-md transition-shadow cursor-pointer group"
+                  className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 hover:shadow-md transition-shadow cursor-pointer group active:scale-95 transition-transform"
                 >
                   <div className="aspect-square bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center relative overflow-hidden">
                     <ArtworkImage src={album.image} alt={album.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} />
@@ -142,7 +131,7 @@ export function Home() {
                     <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate leading-tight">{album.name}</p>
                     <p className="text-xs text-light-muted dark:text-dark-muted truncate mt-0.5">{album.artist}</p>
                   </div>
-                </motion.button>
+                </button>
               ))}
             </div>
           </div>
@@ -167,14 +156,10 @@ export function Home() {
                 </div>
                 <div className="space-y-1">
                   {recentlyPlayed.slice(0, 5).map((t, i) => (
-                    <motion.button
+                    <button
                       key={t.id + i}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.03 }}
                       onClick={() => navigate(`/track/${t.id}`)}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
                     >
                       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
                         {t.artwork_url ? <ArtworkImage src={t.artwork_url} alt="" className="w-full h-full object-cover" /> : <Music className="w-5 h-5 text-accent/40 m-auto" />}
@@ -183,7 +168,7 @@ export function Home() {
                         <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">{t.title}</p>
                         <p className="text-xs text-light-muted dark:text-dark-muted truncate">{t.artist}</p>
                       </div>
-                    </motion.button>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -204,14 +189,10 @@ export function Home() {
                 </div>
                 <div className="space-y-1">
                   {recommendations.slice(0, 5).map((t, i) => (
-                    <motion.button
+                    <button
                       key={t.id + i}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.03 }}
                       onClick={() => navigate(`/track/${t.id}`)}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
                     >
                       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
                         {t.artwork_url ? <ArtworkImage src={t.artwork_url} alt="" className="w-full h-full object-cover" /> : <Music className="w-5 h-5 text-accent/40 m-auto" />}
@@ -220,7 +201,7 @@ export function Home() {
                         <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">{t.title}</p>
                         <p className="text-xs text-light-muted dark:text-dark-muted truncate">{t.artist} • {t.album}</p>
                       </div>
-                    </motion.button>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -238,27 +219,27 @@ export function Home() {
                 ))}
               </div>
             ) : (
-              <motion.div initial="hidden" animate="visible" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.05 } } }}>
+              <div>
                 {categories.map(cat => (
-                  <motion.div key={cat.name} variants={itemVariants} className="mb-6">
+                  <div key={cat.name} className="mb-6">
                     <h2 className="text-lg font-bold text-light-text dark:text-dark-text mb-3">{cat.name}</h2>
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                       {cat.playlists.map((p, i) => (
                         <PlaylistCard key={p.id} playlist={p} onClick={() => openPlaylist(p.id)} index={i} />
                       ))}
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
-              </motion.div>
+              </div>
             )}
 
             {!loading && categories.length === 0 && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              <div
                 className="flex flex-col items-center justify-center py-20 text-center">
                 <Headphones className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
                 <p className="text-light-muted dark:text-dark-muted text-sm">No playlists available</p>
                 <p className="text-xs text-light-muted/60 dark:text-dark-muted/60 mt-1">Try searching for music instead</p>
-              </motion.div>
+              </div>
             )}
           </>
         )}
@@ -267,7 +248,7 @@ export function Home() {
   )
 }
 
-function PlaylistCard({ playlist, onClick, index }: { playlist: PlaylistSummary; onClick?: () => void; index: number }) {
+function PlaylistCard({ playlist, onClick, index: _index }: { playlist: PlaylistSummary; onClick?: () => void; index: number }) {
   const [imgSrc, setImgSrc] = useState(playlist.image)
 
   useEffect(() => { setImgSrc(playlist.image) }, [playlist.image])
@@ -279,13 +260,9 @@ function PlaylistCard({ playlist, onClick, index }: { playlist: PlaylistSummary;
   }, [playlist.id, imgSrc])
 
   return (
-    <motion.button
+    <button
       onClick={onClick}
-      whileTap={{ scale: 0.95 }}
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.03, type: 'spring', stiffness: 350, damping: 30 }}
-      className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 hover:shadow-md transition-shadow cursor-pointer group"
+      className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 hover:shadow-md transition-shadow cursor-pointer group active:scale-95 transition-transform"
     >
       <div className="aspect-square bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center relative overflow-hidden">
         <ArtworkImage src={imgSrc} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} />
@@ -293,6 +270,6 @@ function PlaylistCard({ playlist, onClick, index }: { playlist: PlaylistSummary;
       <div className="p-3">
         <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate leading-tight">{playlist.name}</p>
       </div>
-    </motion.button>
+    </button>
   )
 }

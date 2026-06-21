@@ -61,7 +61,7 @@ async function officialFetch(context, path) {
   if (!token) return null
   const res = await fetch(`https://api.spotify.com/v1${path}`, {
     headers: { 'Authorization': `Bearer ${token}` },
-    signal: abortTimeout(10000),
+    signal: abortTimeout(5000),
   })
   if (!res.ok) return null
   return res.json()
@@ -108,6 +108,18 @@ function setCachedResponse(kind, id, summary, data) {
     const now = Date.now()
     for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
   }
+}
+
+// Race multiple source fetchers — first non-null result wins
+async function raceSources(sources, timeoutMs = 3000) {
+  const timed = sources.map(fn => {
+    return new Promise(resolve => {
+      Promise.resolve(fn()).then(resolve).catch(() => resolve(null))
+      setTimeout(() => resolve(null), timeoutMs)
+    })
+  })
+  const results = await Promise.all(timed)
+  return results.find(r => r !== null && r !== undefined) || null
 }
 
 function extractImage(entity) {
@@ -233,11 +245,11 @@ async function handleEmbedScrape(context, url, summary) {
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/118.0.0.0 Safari/537.36',
   ]
   let lastErr = null
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const ua = UAS[attempt % UAS.length]
     const res = await fetch(embedUrl, {
       headers: { 'User-Agent': ua, 'Accept-Language': 'en-US,en;q=0.9' },
-      signal: abortTimeout(15000),
+      signal: abortTimeout(8000),
     })
     if (res.ok) {
       const html = await res.text()
@@ -449,7 +461,7 @@ async function officialSearch(context, query, type, limit) {
   if (!token) return null
   const res = await fetch(
     `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}&market=EG`,
-    { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(10000) }
+    { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(5000) }
   )
   if (!res.ok) return null
   const data = await res.json()
@@ -584,59 +596,68 @@ async function handleArtist(context, id) {
   })
 }
 
-async function handleTrack(context, id) {
+// Fast oEmbed-based track fetch (public Spotify API, very fast)
+async function oEmbedTrack(context, id) {
+  const res = await fetch(
+    `https://open.spotify.com/oembed?url=${encodeURIComponent('https://open.spotify.com/track/' + id)}`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: abortTimeout(3000) }
+  )
+  if (!res.ok) return null
+  const oembed = await res.json()
+  return {
+    id, title: oembed.title || 'Unknown Track', artist: oembed.author_name || 'Unknown Artist',
+    artist_id: null, album: 'Single', album_id: null, artwork_url: oembed.thumbnail_url || null,
+    url: `https://open.spotify.com/track/${id}`, duration_ms: 0,
+  }
+}
+
+// Fast WolfX-based track fetch
+async function wolfxTrack(id) {
   const data = await wolfxFetch(`/track/${id}`)
-  if (data) {
-    const t = data.track || data
-    const albumName = typeof t.album === 'string' ? t.album : t.album?.name || null
-    const albumId = typeof t.album === 'string' ? null : t.album?.id || null
-    if (t.title && albumName) {
-      return jsonOk({
-        id: t.id, title: t.title || 'Unknown Track',
-        artist: t.artists?.map(a => a.name).join(', ') || t.artist || 'Unknown Artist',
-        artist_id: t.artists?.[0]?.id || null,
-        album: albumName, album_id: albumId,
-        artwork_url: t.thumbnail || t.artwork_url || null,
-        url: `https://open.spotify.com/track/${id}`, duration_ms: t.duration_ms || 0,
-      })
-    }
+  if (!data) return null
+  const t = data.track || data
+  const albumName = typeof t.album === 'string' ? t.album : t.album?.name || null
+  const albumId = typeof t.album === 'string' ? null : t.album?.id || null
+  if (!t.title) return null
+  return {
+    id: t.id, title: t.title || 'Unknown Track',
+    artist: t.artists?.map(a => a.name).join(', ') || t.artist || 'Unknown Artist',
+    artist_id: t.artists?.[0]?.id || null,
+    album: albumName || 'Unknown Album', album_id: albumId,
+    artwork_url: t.thumbnail || t.artwork_url || null,
+    url: `https://open.spotify.com/track/${id}`, duration_ms: t.duration_ms || 0,
   }
+}
 
-  const embedResult = await handleEmbedScrape(context, `https://open.spotify.com/track/${id}`, false)
-  if (embedResult.status === 200) {
-    const cloned = embedResult.clone()
-    const parsed = await cloned.json()
-    if (parsed.title && parsed.title !== 'Unknown Track') return embedResult
-  }
-
+// Official API track fetch
+async function officialTrack(context, id) {
   const official = await officialFetch(context, `/tracks/${id}`)
-  if (official) {
-    return jsonOk({
-      id: official.id, title: official.name || 'Unknown Track',
-      artist: official.artists?.map(a => a.name).join(', ') || 'Unknown Artist',
-      artist_id: official.artists?.[0]?.id || null,
-      album: official.album?.name || 'Unknown Album', album_id: official.album?.id || null,
-      artwork_url: official.album?.images?.[0]?.url || null,
-      url: official.external_urls?.spotify || `https://open.spotify.com/track/${id}`, duration_ms: official.duration_ms || 0,
-    })
+  if (!official) return null
+  return {
+    id: official.id, title: official.name || 'Unknown Track',
+    artist: official.artists?.map(a => a.name).join(', ') || 'Unknown Artist',
+    artist_id: official.artists?.[0]?.id || null,
+    album: official.album?.name || 'Unknown Album', album_id: official.album?.id || null,
+    artwork_url: official.album?.images?.[0]?.url || null,
+    url: official.external_urls?.spotify || `https://open.spotify.com/track/${id}`, duration_ms: official.duration_ms || 0,
   }
+}
 
-  try {
-    const oembedRes = await fetch(
-      `https://open.spotify.com/oembed?url=${encodeURIComponent('https://open.spotify.com/track/' + id)}`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: abortTimeout(5000) }
-    )
-    if (oembedRes.ok) {
-      const oembed = await oembedRes.json()
-      return jsonOk({
-        id, title: oembed.title || 'Unknown Track', artist: oembed.author_name || 'Unknown Artist',
-        artist_id: null, album: 'Single', album_id: null, artwork_url: oembed.thumbnail_url || null,
-        url: `https://open.spotify.com/track/${id}`, duration_ms: 0,
-      })
-    }
-  } catch {}
+// Handle track by racing multiple fast sources in parallel
+async function handleTrack(context, id) {
+  // Try fast sources (oEmbed, WolfX, Official API) in parallel — first wins
+  const fastResult = await raceSources([
+    () => oEmbedTrack(context, id),
+    () => wolfxTrack(id),
+    () => officialTrack(context, id),
+  ], 3000)
 
+  if (fastResult) return jsonOk(fastResult)
+
+  // Fallback: full embed scrape (more reliable but slower)
+  const embedResult = await handleEmbedScrape(context, `https://open.spotify.com/track/${id}`, false)
   if (embedResult.status === 200) return embedResult
+
   return jsonError('Track not found', 404)
 }
 
@@ -647,7 +668,7 @@ async function handleOfficialCollection(context, kind, id) {
   if (kind === 'playlist') {
     const res = await fetch(`https://api.spotify.com/v1/playlists/${id}`, {
       headers: { 'Authorization': `Bearer ${token}` },
-      signal: abortTimeout(10000),
+      signal: abortTimeout(5000),
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -678,7 +699,7 @@ async function handleOfficialCollection(context, kind, id) {
   if (kind === 'album') {
     const res = await fetch(`https://api.spotify.com/v1/albums/${id}`, {
       headers: { 'Authorization': `Bearer ${token}` },
-      signal: abortTimeout(10000),
+      signal: abortTimeout(5000),
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -933,6 +954,7 @@ export async function onRequest(context) {
       if (m) { kind = k; id = m[1]; break }
     }
     if ((kind === 'playlist' || kind === 'album') && !body.summary) {
+      // Race official API + embeds for collections
       const official = await handleOfficialCollection(context, kind, id)
       if (official) return official
     }

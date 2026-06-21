@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+
 import { ArrowLeft, Download, DownloadCloud, Music, Mic2, Users, Verified, Disc3, Sparkles, Loader2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { fetchArtistDetails, type ArtistDetails, type SearchTrack, type TrackMeta } from '../lib/spotifyApi'
@@ -25,14 +25,6 @@ function msToMinutes(ms: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-const itemVariants = {
-  hidden: { opacity: 0, x: -20 },
-  visible: (i: number) => ({
-    opacity: 1,
-    x: 0,
-    transition: { delay: i * 0.025, type: 'spring' as const, stiffness: 350, damping: 30 },
-  }),
-}
 
 export function ArtistPage(_props: ArtistPageProps) {
   const { id } = useParams<{ id: string }>()
@@ -166,15 +158,14 @@ export function ArtistPage(_props: ArtistPageProps) {
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-light-bg/20 dark:via-black/20 to-light-bg dark:to-black" />
         </div>
 
-        <motion.button
+        <button
           onClick={() => navigate(-1)}
-          whileTap={{ scale: 0.9 }}
-          className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white"
+          className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white active:scale-90 transition-transform"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
           aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-        </motion.button>
+        </button>
 
         <div className="absolute bottom-0 left-0 right-0 p-6">
           <div className="flex items-center gap-2 mb-2">
@@ -204,11 +195,10 @@ export function ArtistPage(_props: ArtistPageProps) {
 
       {tracks.length > 0 && (
         <div className="px-6 py-4 space-y-2">
-          <motion.button
+          <button
             onClick={handleDownloadAll}
-            whileTap={{ scale: 0.97 }}
             disabled={isDownloading}
-            className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97] transition-transform"
           >
             {isDownloading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -216,7 +206,7 @@ export function ArtistPage(_props: ArtistPageProps) {
               <DownloadCloud className="w-5 h-5" />
             )}
             {isDownloading ? 'Downloading...' : `Download Top ${tracks.length}`}
-          </motion.button>
+          </button>
         </div>
       )}
 
@@ -226,10 +216,9 @@ export function ArtistPage(_props: ArtistPageProps) {
             <Sparkles className="w-4 h-4 text-accent" />
             <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Latest Release</h2>
           </div>
-          <motion.button
+          <button
             onClick={() => navigate(`/album/${artist.latest_release!.id}`)}
-            whileTap={{ scale: 0.97 }}
-            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-gradient-to-r from-accent/10 to-accent/5 border border-accent/20 hover:bg-accent/15 transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-gradient-to-r from-accent/10 to-accent/5 border border-accent/20 hover:bg-accent/15 transition-colors cursor-pointer text-left active:scale-[0.97] transition-transform"
           >
             <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 shadow-md">
               <ArtworkImage src={artist.latest_release.image} alt={artist.latest_release.name} className="w-full h-full object-cover" iconSize={28} />
@@ -242,7 +231,7 @@ export function ArtistPage(_props: ArtistPageProps) {
               </p>
             </div>
             <Disc3 className="w-5 h-5 text-accent flex-shrink-0" />
-          </motion.button>
+          </button>
         </div>
       )}
 
@@ -252,19 +241,14 @@ export function ArtistPage(_props: ArtistPageProps) {
             <Mic2 className="w-4 h-4 text-accent" />
             <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Popular</h2>
           </div>
-          <AnimatePresence initial={false}>
             {tracks.map((track, i) => {
               const prog = getTrackProgress(track)
               const showProgress = prog && !prog.done && !prog.failed
               const pct = getVisualPct(track)
 
               return (
-                <motion.div
+                <div
                   key={track.id || i}
-                  custom={i}
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
                   className="flex flex-col"
                 >
                   <div
@@ -302,11 +286,10 @@ export function ArtistPage(_props: ArtistPageProps) {
                         {msToMinutes(track.duration_ms)}
                       </span>
                     ) : null}
-                    <motion.button
+                    <button
                       onClick={e => { e.stopPropagation(); handleDownload(track) }}
-                      whileTap={{ scale: 0.9 }}
                       disabled={!!(prog && !prog.done && !prog.failed)}
-                      className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
+                      className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100 active:scale-90 transition-transform"
                       aria-label={`Download ${track.title}`}
                     >
                       {prog && !prog.done && !prog.failed ? (
@@ -314,24 +297,22 @@ export function ArtistPage(_props: ArtistPageProps) {
                       ) : (
                         <Download className="w-4 h-4" />
                       )}
-                    </motion.button>
+                    </button>
                   </div>
                   {showProgress && (
                     <div className="px-3 pb-2">
                       <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
-                        <motion.div
+                        <div
                           className="h-full bg-accent rounded-full"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 0.3, ease: 'easeOut' }}
+                          style={{ width: `${pct}%` }}
                         />
                       </div>
                     </div>
                   )}
-                </motion.div>
+                </div>
               )
             })}
-          </AnimatePresence>
+
         </div>
       )}
 
@@ -342,15 +323,11 @@ export function ArtistPage(_props: ArtistPageProps) {
             <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Featuring</h2>
           </div>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {artist.featuring.slice(0, 10).map((album, i) => (
-              <motion.button
+            {artist.featuring.slice(0, 10).map((album, _i) => (
+              <button
                 key={album.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
-                whileTap={{ scale: 0.95 }}
                 onClick={() => navigate(`/album/${album.id}`)}
-                className="flex-shrink-0 w-[150px] text-left group"
+                className="flex-shrink-0 w-[150px] text-left group active:scale-95 transition-transform"
               >
                 <div className="aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 mb-2 shadow-md">
                   <ArtworkImage src={album.image} alt={album.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={30} />
@@ -359,7 +336,7 @@ export function ArtistPage(_props: ArtistPageProps) {
                 {album.year && (
                   <p className="text-xs text-light-muted dark:text-dark-muted">{album.year}</p>
                 )}
-              </motion.button>
+              </button>
             ))}
           </div>
         </div>
@@ -372,21 +349,17 @@ export function ArtistPage(_props: ArtistPageProps) {
             <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Fans Also Like</h2>
           </div>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {artist.related_artists.slice(0, 10).map((ra, i) => (
-              <motion.button
+            {artist.related_artists.slice(0, 10).map((ra, _i) => (
+              <button
                 key={ra.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
-                whileTap={{ scale: 0.95 }}
                 onClick={() => { doFetch(ra.id); navigate(`/artist/${ra.id}`, { replace: true }) }}
-                className="flex-shrink-0 w-[120px] text-center group"
+                className="flex-shrink-0 w-[120px] text-center group active:scale-95 transition-transform"
               >
                 <div className="w-[120px] h-[120px] rounded-full overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 mb-2 shadow-md mx-auto">
                   <ArtworkImage src={ra.image} alt={ra.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} />
                 </div>
                 <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate leading-tight">{ra.name}</p>
-              </motion.button>
+              </button>
             ))}
           </div>
         </div>

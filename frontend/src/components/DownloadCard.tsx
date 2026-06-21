@@ -1,22 +1,12 @@
 import { useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { Download, DownloadCloud, Disc3, ListMusic, Link2, CheckCircle2, XCircle, Loader2, Music, RefreshCw } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
-import { motion, AnimatePresence } from 'framer-motion'
 import { fetchMetadata } from '../lib/api'
 import type { TrackMeta, CollectionMeta } from '../lib/api'
 import { isNative } from '../lib/capacitorBridge'
 import { useToast } from './Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
-import { useDownloads, type DownloadProgress } from '../hooks/useDownloads'
-
-function visualPct(progress: DownloadProgress): number {
-  if (progress.done) return 100
-  if (progress.failed) return 0
-  if (progress.stage.includes('Searching')) return 8
-  if (progress.stage.includes('Downloading')) return 15 + (progress.pct ?? 0) * 0.45
-  if (progress.stage.includes('Converting')) return 60 + (progress.pct ?? 0) * 0.4
-  return 5
-}
+import { useDownloads } from '../hooks/useDownloads'
 
 export interface DownloadCardProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -97,7 +87,6 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
     : null
   
   const singleDownloading = singleQueueItem && !singleQueueItem.done && !singleQueueItem.failed
-  const singleProgress = singleQueueItem ? visualPct(singleQueueItem) : 0
   const singleStage = singleQueueItem?.stage ?? ''
 
   const handleDownloadSingle = async (track: TrackMeta) => {
@@ -146,11 +135,10 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
               className="w-full pl-10 pr-4 py-3 rounded-xl bg-light-bg dark:bg-dark-bg border border-light-border/60 dark:border-dark-border/60 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
             />
           </div>
-          <motion.button
+          <button
             type="submit"
-            whileTap={{ scale: 0.97 }}
             disabled={!url.trim() || loading}
-            className="w-full py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-transform"
           >
             {loading ? (
               <>
@@ -163,18 +151,13 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                 Fetch Track Info
               </>
             )}
-          </motion.button>
+          </button>
         </form>
       </div>
 
       {/* Single Track Preview */}
-      <AnimatePresence>
-        {mode === 'single' && singleTrack && (
-          <motion.div
-            key="single"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+      {mode === 'single' && singleTrack && (
+          <div
             className="bg-white dark:bg-dark-surface rounded-2xl overflow-hidden shadow-sm border border-light-border/40 dark:border-dark-border/30"
           >
             {/* Artwork hero */}
@@ -202,11 +185,8 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                 className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed relative overflow-hidden"
               >
                 {singleDownloading && (
-                  <motion.div
+                  <div
                     className="absolute left-0 top-0 bottom-0 bg-accent-hover"
-                    initial={{ width: '0%' }}
-                    animate={{ width: `${singleProgress}%` }}
-                    transition={{ duration: 0.3, ease: 'easeOut' }}
                   />
                 )}
                 <span className="relative z-10 flex items-center gap-2">
@@ -229,16 +209,12 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                 </p>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Collection (Playlist/Album) */}
         {mode === 'list' && collection && trackList.length > 0 && (
-          <motion.div
-            key="list"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+          <div
             className="bg-white dark:bg-dark-surface rounded-2xl overflow-hidden shadow-sm border border-light-border/40 dark:border-dark-border/30"
           >
             {/* Collection header */}
@@ -263,11 +239,10 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                   {downloadingAll && ` · Downloading...`}
                 </p>
               </div>
-              <motion.button
+              <button
                 onClick={handleDownloadAll}
-                whileTap={{ scale: 0.93 }}
                 disabled={downloadingAll}
-                className="flex-shrink-0 px-4 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-shrink-0 px-4 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-transform"
               >
                 {downloadingAll ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -275,14 +250,13 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                   <DownloadCloud className="w-4 h-4" />
                 )}
                 {downloadingAll ? `Downloading` : 'All'}
-              </motion.button>
+              </button>
             </div>
 
             {/* Track list */}
             <div className="divide-y divide-light-border/30 dark:divide-dark-border/30 max-h-[420px] overflow-y-auto overscroll-contain">
               {trackList.map((track, i) => {
                 const prog = queue.find(q => q.track.url === track.url || (q.track.title === track.title && q.track.artist === track.artist))
-                const pct = prog ? visualPct(prog) : 0
 
                 return (
                   <div key={i} className="flex flex-col">
@@ -309,26 +283,24 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                         {prog?.done ? (
                           <CheckCircle2 className="w-5 h-5 text-green-500" />
                         ) : prog?.failed ? (
-                          <motion.button
+                          <button
                             onClick={() => { handleDownloadSingle(track); toast(`Retrying ${track.title}...`, 'success') }}
-                            whileTap={{ scale: 0.9 }}
-                            className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center transition-colors cursor-pointer group"
+                            className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center transition-colors cursor-pointer group active:scale-90"
                             aria-label={`Retry ${track.title}`}
                             title="Tap to retry"
                           >
                             <XCircle className="w-5 h-5 text-red-400 group-hover:hidden" />
                             <RefreshCw className="w-4 h-4 text-red-400 hidden group-hover:block" />
-                          </motion.button>
+                          </button>
                         ) : prog && !prog.done ? (
                           <Loader2 className="w-4 h-4 text-accent animate-spin" />
                         ) : (
-                          <motion.button
+                          <button
                             onClick={() => { handleDownloadSingle(track); toast(`Queued ${track.title}`, 'success') }}
-                            whileTap={{ scale: 0.9 }}
-                            className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors cursor-pointer"
+                            className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors cursor-pointer active:scale-90"
                           >
                             <Download className="w-3.5 h-3.5 text-accent" />
-                          </motion.button>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -336,11 +308,8 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                     {prog && !prog.done && !prog.failed && (
                       <div className="px-4 pb-2">
                         <div className="h-0.5 bg-light-border dark:bg-dark-border rounded-full overflow-hidden">
-                          <motion.div
+                          <div
                             className="h-full bg-accent rounded-full"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.4, ease: 'easeOut' }}
                           />
                         </div>
                       </div>
@@ -349,9 +318,8 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                 )
               })}
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }

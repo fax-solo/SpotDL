@@ -1,6 +1,5 @@
 import { useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { Home, Download, Clock, Disc3, Settings } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 
@@ -45,9 +44,7 @@ export function BottomBar() {
               className="relative flex flex-col items-center justify-center gap-0.5 min-w-0 flex-1 h-full transition-colors cursor-pointer"
             >
               {active && (
-                <motion.div
-                  layoutId="bottomBarActive"
-                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                <div
                   className="absolute inset-x-4 top-0 h-0.5 bg-accent rounded-full"
                 />
               )}

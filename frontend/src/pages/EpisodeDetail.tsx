@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+
 import { ArrowLeft, Download, Headphones, Mic2, Clock, Calendar } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
@@ -102,30 +102,23 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-24">
-      <motion.button
+      <button
         onClick={() => navigate(-1)}
-        whileTap={{ scale: 0.9 }}
-        className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white"
+        className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white active:scale-90 transition-transform"
         style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
         aria-label="Go back"
       >
         <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-      </motion.button>
+      </button>
 
       <div className="flex flex-col items-center px-6 pt-16">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+        <div
           className="w-64 h-64 rounded-2xl overflow-hidden shadow-2xl mb-8"
         >
           <ArtworkImage src={episode.image} alt={episode.title} className="w-full h-full" iconSize={48} loading="eager" fetchPriority="high" />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="text-center w-full max-w-sm"
         >
           <h1 className="text-2xl font-bold text-light-text dark:text-white leading-tight mb-1 line-clamp-2">
@@ -168,12 +161,9 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
               {episode.description.replace(/<[^>]+>/g, '')}
             </p>
           )}
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="w-full max-w-sm mt-8"
         >
           <button
@@ -184,18 +174,15 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
             <Download className="w-5 h-5" />
             {downloading ? 'Downloading...' : 'Download Episode'}
           </button>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="flex items-center gap-4 mt-8 text-xs text-light-muted dark:text-zinc-600"
         >
           <button onClick={() => navigate('/')} className="hover:text-accent transition-colors cursor-pointer">Home</button>
           <span>•</span>
           <button onClick={() => navigate('/download')} className="hover:text-accent transition-colors cursor-pointer">Download</button>
-        </motion.div>
+        </div>
       </div>
 
       {isNative() && (

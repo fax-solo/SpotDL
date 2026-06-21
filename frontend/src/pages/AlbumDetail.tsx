@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+
 import { ArrowLeft, Download, DownloadCloud, Album, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import type { CollectionMeta, TrackMeta } from '../lib/spotifyApi'
@@ -30,14 +30,6 @@ function TrackArtwork({ track, className, loading }: { track: TrackMeta; classNa
   return <ArtworkImage src={track.artwork_url} alt={track.album} className={className} loading={loading} />
 }
 
-const itemVariants = {
-  hidden: { opacity: 0, x: -20 } as const,
-  visible: (i: number) => ({
-    opacity: 1,
-    x: 0,
-    transition: { delay: i * 0.025, type: 'spring' as const, stiffness: 350, damping: 30 },
-  }),
-}
 
 export function AlbumDetail(_props: AlbumDetailProps) {
   const { id } = useParams<{ id: string }>()
@@ -179,15 +171,14 @@ export function AlbumDetail(_props: AlbumDetailProps) {
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-light-bg/30 dark:via-black/30 to-light-bg dark:to-black" />
         </div>
 
-        <motion.button
+        <button
           onClick={() => navigate('/')}
-          whileTap={{ scale: 0.9 }}
-          className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white"
+          className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white active:scale-90 transition-transform"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
           aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-        </motion.button>
+        </button>
 
         <div className="absolute bottom-0 left-0 right-0 p-6">
           <div className="flex items-center gap-2 mb-2">
@@ -206,11 +197,10 @@ export function AlbumDetail(_props: AlbumDetailProps) {
       </div>
 
       <div className="px-6 py-4 space-y-2">
-        <motion.button
+        <button
           onClick={handleDownloadAll}
-          whileTap={{ scale: 0.97 }}
           disabled={isDownloading}
-          className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97] transition-transform"
         >
           {isDownloading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -222,7 +212,7 @@ export function AlbumDetail(_props: AlbumDetailProps) {
             : downloadedCount > 0
               ? `Download Missing (${tracks.length - downloadedCount})`
               : 'Download All'}
-        </motion.button>
+        </button>
       </div>
 
       {downloadedCount > 0 && (
@@ -246,19 +236,14 @@ export function AlbumDetail(_props: AlbumDetailProps) {
       )}
 
       <div className="px-3">
-        <AnimatePresence initial={false}>
-          {tracks.map((track, i) => {
+        {tracks.map((track, i) => {
             const prog = getTrackProgress(track)
             const showProgress = prog && !prog.done && !prog.failed
             const pct = getVisualPct(track)
 
             return (
-              <motion.div
+              <div
                 key={i}
-                custom={i}
-                variants={itemVariants}
-                initial="hidden"
-                animate="visible"
                 className="flex flex-col"
               >
                 <div
@@ -298,11 +283,10 @@ export function AlbumDetail(_props: AlbumDetailProps) {
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
                     </div>
                   ) : (
-                    <motion.button
+                    <button
                       onClick={(e) => { e.stopPropagation(); handleDownload(track) }}
-                      whileTap={{ scale: 0.9 }}
                       disabled={!!(prog && !prog.done && !prog.failed)}
-                      className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100"
+                      className="p-2.5 rounded-lg bg-accent/10 dark:bg-white/10 hover:bg-accent text-accent dark:text-white/70 hover:text-white transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 md:opacity-0 md:group-hover:opacity-100 active:scale-90 transition-transform"
                       aria-label={`Download ${track.title}`}
                     >
                       {prog && !prog.done && !prog.failed ? (
@@ -310,25 +294,23 @@ export function AlbumDetail(_props: AlbumDetailProps) {
                       ) : (
                         <Download className="w-4 h-4" aria-hidden="true" />
                       )}
-                    </motion.button>
+                    </button>
                   )}
                 </div>
                 {showProgress && (
                   <div className="px-3 pb-2">
                     <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
-                      <motion.div
+                      <div
                         className="h-full bg-accent rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        style={{ width: `${pct}%` }}
                       />
                     </div>
                   </div>
                 )}
-              </motion.div>
+              </div>
             )
           })}
-        </AnimatePresence>
+
       </div>
     </div>
   )

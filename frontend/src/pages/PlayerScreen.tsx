@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+
 import {
   ArrowDown, Play, Pause, SkipBack, SkipForward, Music, Mic2, ListMusic,
   Plus, Trash2, Play as PlayIcon, Music2, FolderOpen, Check,
@@ -156,12 +156,8 @@ export function PlayerScreen() {
             )}
 
             {/* Create playlist input */}
-            <AnimatePresence>
-              {showCreatePlaylist && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
+            {showCreatePlaylist && (
+                <div
                   className="overflow-hidden mb-2"
                 >
                   <div className="flex items-center gap-2 p-3 bg-white dark:bg-dark-surface rounded-xl border border-light-border/40 dark:border-dark-border/30">
@@ -181,16 +177,14 @@ export function PlayerScreen() {
                       Create
                     </button>
                   </div>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
 
             {/* Playlist cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {playlists.map(pl => (
-                <motion.button
+                <button
                   key={pl.id}
-                  layout
                   onClick={() => setActivePlaylist(pl)}
                   className="bg-white dark:bg-dark-surface rounded-xl p-4 border border-light-border/40 dark:border-dark-border/30 text-left cursor-pointer hover:shadow-sm transition-shadow"
                 >
@@ -201,7 +195,7 @@ export function PlayerScreen() {
                   <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
                     {pl.trackIds.length} {pl.trackIds.length === 1 ? 'track' : 'tracks'}
                   </p>
-                </motion.button>
+                </button>
               ))}
             </div>
           </section>
@@ -246,20 +240,12 @@ export function PlayerScreen() {
         </div>
 
         {/* ─── Playlist detail overlay ─── */}
-        <AnimatePresence>
           {activePlaylist && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div
               className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center"
               onClick={() => setActivePlaylist(null)}
             >
-              <motion.div
-                initial={{ y: 200, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 200, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+              <div
                 className="w-full max-w-lg bg-light-bg dark:bg-dark-bg rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col overflow-hidden"
                 onClick={e => e.stopPropagation()}
               >
@@ -358,10 +344,9 @@ export function PlayerScreen() {
                     </div>
                   )}
                 </div>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
-        </AnimatePresence>
       </div>
     )
   }
@@ -420,10 +405,7 @@ export function PlayerScreen() {
             />
           </div>
         ) : showQueue ? (
-          <motion.div
-            key="queue"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+          <div
             className="w-full flex-1 min-h-0 mb-4 rounded-2xl overflow-hidden bg-white/50 dark:bg-dark-surface/50 border border-light-border/40 dark:border-dark-border/30"
           >
             <History
@@ -434,12 +416,9 @@ export function PlayerScreen() {
               onPlay={handlePlay}
               minimal
             />
-          </motion.div>
+          </div>
         ) : (
-          <motion.div
-            key="artwork"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+          <div
             className="w-full max-w-[320px] aspect-square rounded-2xl overflow-hidden shadow-2xl mb-8"
           >
             {currentTrack.artworkUrl ? (
@@ -449,13 +428,11 @@ export function PlayerScreen() {
                 <Music className="w-20 h-20 text-accent/40" />
               </div>
             )}
-          </motion.div>
+          </div>
         )}
 
         {/* Track info + Add to Playlist */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="w-full max-w-sm text-center mb-6"
         >
           <div className="flex items-center justify-center gap-2">
@@ -473,7 +450,7 @@ export function PlayerScreen() {
           <p className="text-sm text-light-muted dark:text-zinc-400">
             {currentTrack.artist}
           </p>
-        </motion.div>
+        </div>
 
         {/* Progress bar */}
         <div className="w-full max-w-sm mb-4">
@@ -482,7 +459,7 @@ export function PlayerScreen() {
             onClick={handleProgressClick}
             className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full cursor-pointer group relative"
           >
-            <motion.div
+            <div
               className="h-full bg-accent rounded-full relative"
               style={{ width: `${progress}%` }}
             />
@@ -535,20 +512,12 @@ export function PlayerScreen() {
       </div>
 
       {/* ─── Add to Playlist modal ─── */}
-      <AnimatePresence>
         {showAddToPlaylist && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center"
             onClick={() => setShowAddToPlaylist(false)}
           >
-            <motion.div
-              initial={{ y: 200, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 200, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            <div
               className="w-full max-w-sm bg-light-bg dark:bg-dark-bg rounded-t-2xl sm:rounded-2xl p-5"
               onClick={e => e.stopPropagation()}
             >
@@ -582,10 +551,9 @@ export function PlayerScreen() {
                   ))}
                 </div>
               )}
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }

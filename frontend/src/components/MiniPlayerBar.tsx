@@ -1,5 +1,4 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { Play, Pause, ChevronUp } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
 import { usePlayer } from '../hooks/usePlayer'
@@ -13,11 +12,7 @@ export function MiniPlayerBar() {
   if (!currentTrack) return null
 
   return (
-    <motion.div
-      initial={{ y: 80, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 80, opacity: 0 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+    <div
       className={`fixed left-2 right-2 z-50 mx-auto max-w-xl ${
         isPlayerPage ? 'bottom-2' : 'bottom-[66px]'
       }`}
@@ -42,6 +37,6 @@ export function MiniPlayerBar() {
         </button>
         <ChevronUp className="w-4 h-4 text-light-muted dark:text-dark-muted flex-shrink-0" />
       </button>
-    </motion.div>
+    </div>
   )
 }

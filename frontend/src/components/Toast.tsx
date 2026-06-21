@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle, AlertCircle, X, Loader2 } from 'lucide-react'
 
 type ToastType = 'success' | 'error' | 'loading' | 'info'
@@ -55,23 +54,13 @@ function SwipeableToast({ toast: t, onDismiss }: { toast: ToastItem; onDismiss: 
   }, [t.id, onDismiss])
 
   return (
-    <motion.div
+    <div
       ref={toastRef}
-      layout
-      initial={{ opacity: 0, y: 50, scale: 0.95 }}
-      animate={{
-        opacity: dragging ? 0.8 : 1,
-        y: 0,
-        scale: 1,
-        x: dragging ? offsetX : 0,
-      }}
-      exit={{ opacity: 0, y: 20, scale: 0.95, x: offsetX }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      style={{ touchAction: 'pan-y' }}
-      className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur-xl cursor-pointer select-none ${
+      style={{ touchAction: 'pan-y', transform: dragging ? `translateX(${offsetX}px)` : 'none' }}
+      className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur-xl cursor-pointer select-none transition-all duration-300 ${
         t.type === 'success' ? 'bg-green-500/10 dark:bg-green-500/15 border-green-500/30 text-green-700 dark:text-green-400' :
         t.type === 'error' ? 'bg-red-500/10 dark:bg-red-500/15 border-red-500/30 text-red-700 dark:text-red-400' :
         t.type === 'loading' ? 'bg-accent-subtle border-accent/30 text-accent' :
@@ -90,7 +79,7 @@ function SwipeableToast({ toast: t, onDismiss }: { toast: ToastItem; onDismiss: 
           <X className="w-4 h-4" />
         </button>
       )}
-    </motion.div>
+    </div>
   )
 }
 
@@ -113,11 +102,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ toast, dismiss }}>
       {children}
       <div className="fixed bottom-24 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[100] flex flex-col gap-2 pointer-events-none">
-        <AnimatePresence mode="popLayout">
-          {toasts.map(t => (
-            <SwipeableToast key={t.id} toast={t} onDismiss={dismiss} />
-          ))}
-        </AnimatePresence>
+        {toasts.map(t => (
+          <SwipeableToast key={t.id} toast={t} onDismiss={dismiss} />
+        ))}
       </div>
     </ToastContext.Provider>
   )

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Headphones, Zap, Tags, Smartphone, ArrowRight, Download, Music } from 'lucide-react'
-import { motion } from 'framer-motion'
+
 
 export function LandingPage() {
   return (
@@ -14,125 +14,75 @@ export function LandingPage() {
       {/* Hero Section */}
       <section className="flex-1 flex flex-col items-center justify-center px-4 py-24 text-center relative">
         
-        <motion.div 
-          initial="hidden"
-          animate="visible"
-          variants={{
-            hidden: { opacity: 0 },
-            visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
-          }}
-          className="max-w-4xl mx-auto z-10"
-        >
-          <motion.div 
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-light-surface/80 dark:bg-dark-surface/80 backdrop-blur-md border border-accent/20 text-accent font-medium text-sm mb-8 shadow-sm"
-          >
+        <div className="max-w-4xl mx-auto z-10">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-light-surface/80 dark:bg-dark-surface/80 backdrop-blur-md border border-accent/20 text-accent font-medium text-sm mb-8 shadow-sm">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent"></span>
             </span>
             SpotDL v2 is Live
-          </motion.div>
+          </div>
           
-          <motion.h1 
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-            }}
-            className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight text-light-text dark:text-dark-text mb-6"
-          >
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight text-light-text dark:text-dark-text mb-6">
             Premium Spotify <br className="hidden md:block" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-green-400 to-emerald-300">
               Audio Downloader
             </span>
-          </motion.h1>
+          </h1>
           
-          <motion.p 
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-            }}
-            className="text-lg md:text-xl text-light-muted dark:text-dark-muted max-w-2xl mx-auto mb-12 leading-relaxed"
-          >
+          <p className="text-lg md:text-xl text-light-muted dark:text-dark-muted max-w-2xl mx-auto mb-12 leading-relaxed">
             Download your favorite tracks, albums, and playlists in high-quality 320kbps MP3 format. Complete with album art and ID3 tags. No premium required.
-          </motion.p>
+          </p>
           
-          <motion.div 
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-            }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-5"
-          >
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
             <Link to="/download" className="w-full sm:w-auto">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-accent text-white font-semibold rounded-2xl overflow-hidden shadow-[0_0_40px_-10px_rgba(16,185,129,0.5)] hover:shadow-[0_0_60px_-15px_rgba(16,185,129,0.7)] transition-shadow"
-              >
+              <button className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-accent text-white font-semibold rounded-2xl overflow-hidden shadow-[0_0_40px_-10px_rgba(16,185,129,0.5)] hover:shadow-[0_0_60px_-15px_rgba(16,185,129,0.7)] transition-shadow hover:scale-[1.02] active:scale-[0.98] transition-transform">
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
                 <span className="relative z-10 flex items-center gap-2">
                   <Music className="w-5 h-5" />
                   Start Downloading
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </span>
-              </motion.button>
+              </button>
             </Link>
             
             <a href="#how-it-works" className="w-full sm:w-auto">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-light-surface/50 dark:bg-dark-surface/50 backdrop-blur-sm border border-light-border dark:border-dark-border text-light-text dark:text-dark-text font-semibold rounded-2xl hover:bg-light-surface dark:hover:bg-dark-surface transition-colors"
-              >
+              <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-light-surface/50 dark:bg-dark-surface/50 backdrop-blur-sm border border-light-border dark:border-dark-border text-light-text dark:text-dark-text font-semibold rounded-2xl hover:bg-light-surface dark:hover:bg-dark-surface transition-colors hover:scale-[1.02] active:scale-[0.98] transition-transform">
                 Learn More
-              </motion.button>
+              </button>
             </a>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </section>
 
       {/* Features Grid */}
       <section className="px-4 py-32 bg-gradient-to-b from-transparent to-light-surface/50 dark:to-dark-surface/30 relative border-t border-light-border/50 dark:border-dark-border/50">
         <div className="max-w-6xl mx-auto">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-20"
-          >
+          <div className="text-center mb-20">
             <h2 className="text-4xl md:text-5xl font-bold text-light-text dark:text-dark-text mb-6">Why choose SpotDL?</h2>
             <p className="text-lg text-light-muted dark:text-dark-muted max-w-2xl mx-auto">We've built the most reliable, feature-rich downloading pipeline to give you the ultimate audio experience.</p>
-          </motion.div>
+          </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <FeatureCard 
               icon={<Headphones className="w-7 h-7 text-accent" />}
               title="High Quality Audio"
               description="Downloads are processed at up to 320kbps MP3 for crystal clear, lossless-feeling sound."
-              delay={0}
             />
             <FeatureCard 
               icon={<Tags className="w-7 h-7 text-blue-500" />}
               title="Metadata Tagging"
               description="Automatically embeds correct titles, artists, albums, and high-res cover art."
-              delay={0.1}
             />
             <FeatureCard 
               icon={<Zap className="w-7 h-7 text-yellow-500" />}
               title="Lightning Fast"
               description="Optimized yt-dlp backend pipeline ensures your downloads finish in mere seconds."
-              delay={0.2}
             />
             <FeatureCard 
               icon={<Smartphone className="w-7 h-7 text-purple-500" />}
               title="Cross Platform"
               description="Use SpotDL beautifully on the web or install the native Android APK for on-the-go access."
-              delay={0.3}
             />
           </div>
         </div>
@@ -141,25 +91,14 @@ export function LandingPage() {
       {/* How it Works */}
       <section id="how-it-works" className="px-4 py-32 scroll-mt-20">
         <div className="max-w-5xl mx-auto text-center">
-          <motion.div
-             initial={{ opacity: 0, y: 20 }}
-             whileInView={{ opacity: 1, y: 0 }}
-             viewport={{ once: true, margin: "-100px" }}
-             transition={{ duration: 0.6 }}
-          >
+          <div>
             <h2 className="text-4xl md:text-5xl font-bold text-light-text dark:text-dark-text mb-20">How it works</h2>
-          </motion.div>
+          </div>
           
           <div className="grid md:grid-cols-3 gap-12 md:gap-8 relative">
             {/* Connecting line for desktop */}
             <div className="hidden md:block absolute top-[44px] left-[16%] right-[16%] h-[2px] -z-10 overflow-hidden">
-              <motion.div 
-                initial={{ x: "-100%" }}
-                whileInView={{ x: "100%" }}
-                viewport={{ once: true }}
-                transition={{ duration: 1.5, ease: "easeInOut", delay: 0.5 }}
-                className="w-full h-full bg-gradient-to-r from-transparent via-accent to-transparent"
-              />
+              <div className="w-full h-full bg-gradient-to-r from-transparent via-accent to-transparent" />
               <div className="absolute inset-0 bg-light-border dark:bg-dark-border opacity-50" />
             </div>
             
@@ -167,40 +106,27 @@ export function LandingPage() {
               number="1" 
               title="Copy Link" 
               description="Find a track, album, or playlist on Spotify and copy its share link." 
-              delay={0}
             />
             <StepCard 
               number="2" 
               title="Paste & Fetch" 
               description="Paste the link into SpotDL. We'll instantly fetch the metadata and artwork." 
-              delay={0.3}
             />
             <StepCard 
               number="3" 
               title="Download" 
               description="Click download. We'll find the highest quality audio and tag it for you." 
-              delay={0.6}
             />
           </div>
           
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.8 }}
-            className="mt-24"
-          >
+          <div className="mt-24">
              <Link to="/download">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="inline-flex items-center gap-2 px-8 py-4 bg-light-surface dark:bg-dark-surface border border-accent/30 text-accent font-semibold rounded-2xl hover:bg-accent hover:text-white hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] transition-all"
-              >
+              <button className="inline-flex items-center gap-2 px-8 py-4 bg-light-surface dark:bg-dark-surface border border-accent/30 text-accent font-semibold rounded-2xl hover:bg-accent hover:text-white hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] transition-all hover:scale-[1.05] active:scale-[0.95] transition-transform">
                 <Download className="w-5 h-5" />
                 Try it Now
-              </motion.button>
+              </button>
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 
@@ -213,16 +139,9 @@ export function LandingPage() {
   )
 }
 
-function FeatureCard({ icon, title, description, delay }: { icon: React.ReactNode, title: string, description: string, delay: number }) {
+function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5, delay }}
-      whileHover={{ y: -5, transition: { duration: 0.2 } }}
-      className="p-8 rounded-3xl bg-white/50 dark:bg-dark-surface/50 backdrop-blur-md border border-light-border/50 dark:border-dark-border/50 shadow-sm hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-accent/5 transition-shadow relative overflow-hidden group"
-    >
+    <div className="p-8 rounded-3xl bg-white/50 dark:bg-dark-surface/50 backdrop-blur-md border border-light-border/50 dark:border-dark-border/50 shadow-sm hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-accent/5 transition-shadow relative overflow-hidden group hover:-translate-y-1 transition-transform">
       <div className="absolute top-0 right-0 p-8 opacity-5 transform translate-x-1/4 -translate-y-1/4 group-hover:scale-150 transition-transform duration-500 pointer-events-none">
         {icon}
       </div>
@@ -231,28 +150,19 @@ function FeatureCard({ icon, title, description, delay }: { icon: React.ReactNod
       </div>
       <h3 className="text-xl font-bold text-light-text dark:text-dark-text mb-3">{title}</h3>
       <p className="text-light-muted dark:text-dark-muted leading-relaxed">{description}</p>
-    </motion.div>
+    </div>
   )
 }
 
-function StepCard({ number, title, description, delay }: { number: string, title: string, description: string, delay: number }) {
+function StepCard({ number, title, description }: { number: string, title: string, description: string }) {
   return (
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.9 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5, delay }}
-      className="relative flex flex-col items-center group"
-    >
-      <motion.div 
-        whileHover={{ scale: 1.1, rotate: 5 }}
-        className="w-20 h-20 rounded-2xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-2xl font-bold text-accent shadow-xl mb-8 z-10 relative overflow-hidden"
-      >
+    <div className="relative flex flex-col items-center group">
+      <div className="w-20 h-20 rounded-2xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-2xl font-bold text-accent shadow-xl mb-8 z-10 relative overflow-hidden group-hover:scale-110 transition-transform">
         <div className="absolute inset-0 bg-accent/5 group-hover:bg-accent/10 transition-colors" />
         {number}
-      </motion.div>
+      </div>
       <h3 className="text-2xl font-bold text-light-text dark:text-dark-text mb-4">{title}</h3>
       <p className="text-light-muted dark:text-dark-muted leading-relaxed max-w-xs">{description}</p>
-    </motion.div>
+    </div>
   )
 }

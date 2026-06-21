@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { searchSpotify, searchYouTubeTracks, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
@@ -217,11 +216,8 @@ export function SearchPage() {
                     <h2 className="text-sm font-semibold text-light-text dark:text-dark-text capitalize">{type}</h2>
                   </div>
                   {items.map((item: any, i: number) => (
-                    <motion.button
+                    <button
                       key={item.id || i}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.03 }}
                       onClick={() => navigate(
                         type === 'artists' ? `/artist/${item.id}`
                         : type === 'tracks' ? `/track/${item.id}`
@@ -229,8 +225,7 @@ export function SearchPage() {
                         : type === 'playlists' ? `/playlist/${item.id}`
                         : `/show/${item.id}`
                       )}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
                     >
                       <div className={`w-10 h-10 flex-shrink-0 overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 ${
                         type === 'artists' || type === 'shows' ? 'rounded-full' : 'rounded-lg'
@@ -270,7 +265,7 @@ export function SearchPage() {
                           )}
                         </button>
                       )}
-                    </motion.button>
+                    </button>
                   ))}
                 </div>
               )
@@ -288,15 +283,11 @@ export function SearchPage() {
               <Play className="w-4 h-4 text-red-500" />
               <h2 className="text-sm font-semibold text-light-text dark:text-dark-text">YouTube Results</h2>
             </div>
-            {youtubeResults.map((r, i) => (
-              <motion.button
+            {youtubeResults.map((r, _i) => (
+              <button
                 key={r.videoId}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.03 }}
                 onClick={() => navigate(`/yt-track/${r.videoId}`, { state: { title: r.title, thumbnail: r.thumbnail, url: r.url, author: r.author } })}
-                whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
               >
                 <div className="w-10 h-10 rounded-lg bg-red-500/10 flex-shrink-0 overflow-hidden">
                   {r.thumbnail ? <ArtworkImage src={r.thumbnail} alt="" className="w-full h-full object-cover" /> : <Play className="w-5 h-5 text-red-400/40 m-auto" />}
@@ -311,7 +302,7 @@ export function SearchPage() {
                 >
                   Download
                 </button>
-              </motion.button>
+              </button>
             ))}
           </div>
         )}
