@@ -1,5 +1,4 @@
 frontend/node_modules/
-frontend/netlify/functions/node_modules/
 frontend/dist/
 frontend/android/
 api/__pycache__/

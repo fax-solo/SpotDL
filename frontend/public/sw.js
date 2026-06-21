@@ -41,7 +41,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
 
   // API functions: stale-while-revalidate
-  if (url.pathname.includes('/.netlify/functions/') || url.pathname.includes('/api/')) {
+  if (url.pathname.includes('/api/')) {
     event.respondWith(staleWhileRevalidate(request, API_CACHE))
     return
   }
