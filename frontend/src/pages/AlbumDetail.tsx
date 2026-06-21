@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
-import { ArrowLeft, Download, DownloadCloud, Album, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Play, Download, DownloadCloud, Album, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import type { CollectionMeta, TrackMeta } from '../lib/spotifyApi'
 import { SkeletonRow } from '../components/SkeletonRow'
+import { usePlayer } from '../hooks/usePlayer'
+import { findAudio } from '../lib/sources'
 import { useToast } from '../components/Toast'
 import { useHistory, type HistoryEntry } from '../hooks/useHistory'
 import { useDownloads } from '../hooks/useDownloads'
@@ -37,9 +39,11 @@ export function AlbumDetail(_props: AlbumDetailProps) {
   const [collection, setCollection] = useState<CollectionMeta | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [playingId, setPlayingId] = useState<string | null>(null)
   const { toast } = useToast()
   const { entries } = useHistory()
   const { queue, addDownload, addMultipleDownloads } = useDownloads()
+  const { play } = usePlayer()
 
   const doFetch = useCallback(async (albumId: string) => {
     setLoading(true)
@@ -114,6 +118,29 @@ export function AlbumDetail(_props: AlbumDetailProps) {
     }
     addMultipleDownloads(missing)
     toast(`Queued ${missing.length} tracks for download`, 'success')
+  }
+
+  const handlePlay = async (track: TrackMeta, index: number) => {
+    if (playingId) return
+    setPlayingId(`${index}`)
+    try {
+      const query = `${track.artist} ${track.title}`
+      const { info } = await findAudio(query, track.title, track.artist)
+      play({
+        id: crypto.randomUUID(),
+        title: track.title,
+        artist: track.artist,
+        album: track.album || collection?.collection_name || 'Unknown',
+        artworkUrl: track.artwork_url || collection?.collection_artwork || null,
+        filePath: null,
+        streamUrl: info.audioUrl || undefined,
+        timestamp: Date.now(),
+      })
+    } catch {
+      toast('Could not find audio source', 'error')
+    } finally {
+      setPlayingId(null)
+    }
   }
 
   if (loading) {
@@ -278,6 +305,18 @@ export function AlbumDetail(_props: AlbumDetailProps) {
                       <p className="text-[10px] text-green-400 mt-0.5">Downloaded</p>
                     )}
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handlePlay(track, i) }}
+                    disabled={playingId === `${i}`}
+                    className="p-2.5 rounded-lg bg-green-600/10 dark:bg-green-600/20 hover:bg-green-600 text-green-600 dark:text-green-400 hover:text-white transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 active:scale-90 transition-transform"
+                    aria-label={`Play ${track.title}`}
+                  >
+                    {playingId === `${i}` ? (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Play className="w-4 h-4 fill-current" aria-hidden="true" />
+                    )}
+                  </button>
                   {downloadedSet.has(i) ? (
                     <div className="p-2 flex-shrink-0" title="In your library">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />

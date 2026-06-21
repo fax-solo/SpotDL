@@ -1,5 +1,9 @@
 import { Link } from 'react-router-dom'
-import { Headphones, Zap, Tags, Smartphone, ArrowRight, Download, Music } from 'lucide-react'
+import { Headphones, Zap, Tags, Smartphone, ArrowRight, Download, Music, Loader2, ExternalLink, Github, SmartphoneNfc } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+const GITHUB_REPO = 'fax-solo/SpotDL'
+const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
 
 
 export function LandingPage() {

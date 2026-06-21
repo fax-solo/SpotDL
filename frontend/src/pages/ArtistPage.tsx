@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
-import { ArrowLeft, Download, DownloadCloud, Music, Mic2, Users, Verified, Disc3, Sparkles, Loader2 } from 'lucide-react'
+import { ArrowLeft, Play, Download, DownloadCloud, Music, Mic2, Users, Verified, Disc3, Sparkles, Loader2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { fetchArtistDetails, type ArtistDetails, type SearchTrack, type TrackMeta } from '../lib/spotifyApi'
 import { SkeletonRow } from '../components/SkeletonRow'
+import { usePlayer } from '../hooks/usePlayer'
+import { findAudio } from '../lib/sources'
 import { useToast } from '../components/Toast'
 import { useDownloads } from '../hooks/useDownloads'
 import type { HistoryEntry } from '../hooks/useHistory'
@@ -36,8 +38,10 @@ export function ArtistPage(_props: ArtistPageProps) {
   const [artist, setArtist] = useState<ArtistDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [playingId, setPlayingId] = useState<string | null>(null)
   const { toast } = useToast()
   const { queue, addDownload, addMultipleDownloads } = useDownloads()
+  const { play } = usePlayer()
 
   const doFetch = useCallback(async (artistId: string) => {
     setLoading(true)
@@ -100,6 +104,29 @@ export function ArtistPage(_props: ArtistPageProps) {
   const handleDownloadAll = () => {
     addMultipleDownloads(tracks.map(toTrackMeta))
     toast(`Queued ${tracks.length} tracks for download`, 'success')
+  }
+
+  const handlePlay = async (track: SearchTrack) => {
+    if (playingId) return
+    setPlayingId(track.id)
+    try {
+      const query = `${track.artist} ${track.title}`
+      const { info } = await findAudio(query, track.title, track.artist)
+      play({
+        id: crypto.randomUUID(),
+        title: track.title,
+        artist: track.artist,
+        album: track.album || 'Unknown',
+        artworkUrl: track.artwork_url || null,
+        filePath: null,
+        streamUrl: info.audioUrl || undefined,
+        timestamp: Date.now(),
+      })
+    } catch {
+      toast('Could not find audio source', 'error')
+    } finally {
+      setPlayingId(null)
+    }
   }
 
   if (loading) {
@@ -286,6 +313,18 @@ export function ArtistPage(_props: ArtistPageProps) {
                         {msToMinutes(track.duration_ms)}
                       </span>
                     ) : null}
+                    <button
+                      onClick={e => { e.stopPropagation(); handlePlay(track) }}
+                      disabled={playingId === track.id}
+                      className="p-2.5 rounded-lg bg-green-600/10 dark:bg-green-600/20 hover:bg-green-600 text-green-600 dark:text-green-400 hover:text-white transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 active:scale-90 transition-transform"
+                      aria-label={`Play ${track.title}`}
+                    >
+                      {playingId === track.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4 fill-current" />
+                      )}
+                    </button>
                     <button
                       onClick={e => { e.stopPropagation(); handleDownload(track) }}
                       disabled={!!(prog && !prog.done && !prog.failed)}

@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Download, Music, Mic2, Disc3, Clock } from 'lucide-react'
+import { ArrowLeft, Play, Download, Music, Mic2, Disc3, Clock, Loader2 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { downloadTrack } from '../lib/api'
 import { saveOrCacheBlob, isNative } from '../lib/capacitorBridge'
 import { fetchTrackDetails, type SearchTrack } from '../lib/spotifyApi'
+import { usePlayer } from '../hooks/usePlayer'
+import { findAudio } from '../lib/sources'
 import { useToast } from '../components/Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
 
@@ -25,7 +27,9 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [playing, setPlaying] = useState(false)
   const { toast } = useToast()
+  const { play } = usePlayer()
 
   const doFetch = useCallback(async (trackId: string) => {
     setLoading(true)
@@ -66,6 +70,29 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
       toast(err instanceof Error ? err.message : 'Download failed', 'error')
     }
     setDownloading(false)
+  }
+
+  const handlePlay = async () => {
+    if (!track || playing) return
+    setPlaying(true)
+    try {
+      const query = `${track.artist} ${track.title}`
+      const { info } = await findAudio(query, track.title, track.artist)
+      play({
+        id: crypto.randomUUID(),
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        artworkUrl: track.artwork_url,
+        filePath: null,
+        streamUrl: info.audioUrl || undefined,
+        timestamp: Date.now(),
+      })
+    } catch {
+      toast('Could not find audio source', 'error')
+    } finally {
+      setPlaying(false)
+    }
   }
 
   if (loading) {
@@ -151,11 +178,23 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
           ) : null}
         </div>
 
-        <div className="w-full max-w-sm mt-8">
+        <div className="w-full max-w-sm mt-8 flex gap-3">
+          <button
+            onClick={handlePlay}
+            disabled={playing}
+            className="flex-1 py-3.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97] transition-transform"
+          >
+            {playing ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Play className="w-5 h-5 fill-current" />
+            )}
+            {playing ? 'Loading...' : 'Play Online'}
+          </button>
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="w-full py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-3.5 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97] transition-transform"
           >
             <Download className="w-5 h-5" />
             {downloading ? 'Downloading...' : 'Download'}

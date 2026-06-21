@@ -37,10 +37,8 @@ const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default:
 
 const PAGE_ORDER = ['/', '/download', '/history', '/settings', '/player']
 
-function isMobile() {
+function isNativeApp() {
   return Capacitor.isNativePlatform()
-    || /Mobi|Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-    || window.innerWidth < 768
 }
 
 function NotFound() {
@@ -64,7 +62,7 @@ function AppContent() {
   const navigate = useNavigate()
   const { addEntry, updateEntryLyrics } = useHistory()
   const isOnline = useOnlineStatus()
-  const [mobile, setMobile] = useState(isMobile)
+  const [isNative, setIsNative] = useState(isNativeApp)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -82,13 +80,13 @@ function AppContent() {
   }, [location.pathname])
 
   useEffect(() => {
-    const onResize = () => setMobile(isMobile())
+    const onResize = () => setIsNative(isNativeApp())
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
   useEffect(() => {
-    if (!mobile) return
+    if (!isNative) return
     const onVisualViewport = () => {
       if (window.visualViewport) {
         const isKeyboard = window.visualViewport.height < window.innerHeight * 0.75
@@ -97,7 +95,7 @@ function AppContent() {
     }
     window.visualViewport?.addEventListener('resize', onVisualViewport)
     return () => window.visualViewport?.removeEventListener('resize', onVisualViewport)
-  }, [mobile])
+  }, [isNative])
 
   useEffect(() => {
     const handleDownload = (e: Event) => {
@@ -118,7 +116,7 @@ function AppContent() {
   }, [addEntry, updateEntryLyrics])
 
   useEffect(() => {
-    if (!mobile || !Capacitor.isNativePlatform()) return
+    if (!isNative) return
     let unlisten: (() => void) | null = null
     CapacitorApp.addListener('backButton', () => {
       const detail = isDetailPageRoute(location.pathname) || location.pathname === '/callback'
@@ -135,7 +133,7 @@ function AppContent() {
       }
     }).then(h => { unlisten = h.remove })
     return () => { unlisten?.() }
-  }, [mobile, location.pathname, navigate])
+  }, [isNative, location.pathname, navigate])
 
   function isDetailPageRoute(path: string) {
     return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/album/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
@@ -144,7 +142,7 @@ function AppContent() {
   usePlayer()
   const isPlayerPage = location.pathname === '/player'
   const bottomBarHidden = useBottomBar(s => s.hidden)
-  const showBottomBar = mobile && !keyboardOpen && !bottomBarHidden
+  const showBottomBar = isNative && !keyboardOpen && !bottomBarHidden
 
   return (
     <div className="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col safe-area-y" style={{ height: '100dvh', WebkitTapHighlightColor: 'transparent' }}>
@@ -154,7 +152,7 @@ function AppContent() {
           <span>You are offline. Some features may be unavailable.</span>
         </div>
       )}
-      {!mobile && <Navbar />}
+      {!isNative && <Navbar />}
       <ErrorBoundary>
         <Suspense fallback={
           <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">
@@ -168,7 +166,7 @@ function AppContent() {
           >
             <div key={location.pathname}>
               <Routes location={location}>
-                {mobile ? (
+                {isNative ? (
                   <>
                     <Route path="/" element={<Home />} />
                     <Route path="/search" element={<SearchPage />} />
@@ -191,8 +189,11 @@ function AppContent() {
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/search" element={<SearchPage />} />
                     <Route path="/download" element={<Downloader />} />
+                    <Route path="/history" element={<HistoryPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/player" element={<PlayerScreen />} />
                     <Route path="/callback" element={<CallbackPage />} />
+                    <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
                     <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
                     <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
                     <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
