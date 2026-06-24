@@ -4,3 +4,4 @@ yt-dlp
 mutagen
 requests
 pycryptodome
+scrapling[fetchers]
