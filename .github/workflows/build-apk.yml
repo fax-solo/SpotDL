@@ -128,15 +128,28 @@ jobs:
       - name: Copy icons to Android project
         run: |
           ANDROID_RES="android/app/src/main/res"
+
+          # Remove Capacitor default icon files that conflict with custom ones
+          rm -rf "$ANDROID_RES/drawable-v24"
+          echo "  Removed default drawable-v24 (Capacitor default icon)"
+
           for dir in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
             mkdir -p "$ANDROID_RES/$dir"
             cp "public/$dir/ic_launcher.png" "$ANDROID_RES/$dir/"
             cp "public/$dir/ic_launcher_round.png" "$ANDROID_RES/$dir/"
+            # Remove stale Capacitor foreground pngs that are no longer referenced
+            rm -f "$ANDROID_RES/$dir/ic_launcher_foreground.png"
             echo "  Copied $dir icons"
           done
           mkdir -p "$ANDROID_RES/drawable"
           cp public/drawable/ic_launcher_foreground.png "$ANDROID_RES/drawable/"
           echo "  Copied adaptive icon foreground"
+          # Also copy to drawable-v24 if generated (overrides Capacitor default vector)
+          if [ -d "public/drawable-v24" ]; then
+            mkdir -p "$ANDROID_RES/drawable-v24"
+            cp public/drawable-v24/ic_launcher_foreground.png "$ANDROID_RES/drawable-v24/"
+            echo "  Copied adaptive icon foreground (drawable-v24)"
+          fi
           mkdir -p "$ANDROID_RES/values"
           cp public/values/ic_launcher_background.xml "$ANDROID_RES/values/"
           echo "  Copied icon background color"

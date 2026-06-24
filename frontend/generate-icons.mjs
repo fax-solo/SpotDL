@@ -56,12 +56,15 @@ async function main() {
   }
 
   // Generate adaptive icon foreground (108x108)
-  const drawableDir = resolve(PUBLIC, 'drawable')
-  mkdirSync(drawableDir, { recursive: true })
-  const foreground = resolve(drawableDir, 'ic_launcher_foreground.png')
-  execSync(`${convertCmd} "${SOURCE_ICON}" -resize 108x108 "${foreground}"`, { stdio: 'pipe' })
-  const fgKb = (existsSync(foreground) ? readFileSync(foreground).length / 1024 : 0).toFixed(1)
-  console.log(`  drawable/ic_launcher_foreground.png  → 108x108  (${fgKb}KB)`)
+  // Write to both drawable/ and drawable-v24/ to override Capacitor's default vector on API 24+
+  for (const fgDir of ['drawable', 'drawable-v24']) {
+    const outDir = resolve(PUBLIC, fgDir)
+    mkdirSync(outDir, { recursive: true })
+    const foreground = resolve(outDir, 'ic_launcher_foreground.png')
+    execSync(`${convertCmd} "${SOURCE_ICON}" -resize 108x108 "${foreground}"`, { stdio: 'pipe' })
+    const fgKb = (existsSync(foreground) ? readFileSync(foreground).length / 1024 : 0).toFixed(1)
+    console.log(`  ${fgDir}/ic_launcher_foreground.png  → 108x108  (${fgKb}KB)`)
+  }
 
   // Ensure adaptive icon XML descriptors exist
   const anydpiDir = resolve(PUBLIC, 'mipmap-anydpi-v26')
