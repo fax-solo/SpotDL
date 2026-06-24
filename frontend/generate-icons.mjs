@@ -116,10 +116,15 @@ async function main() {
     copyFileSync(resolve(PUBLIC, 'drawable/ic_launcher_foreground.png'), resolve(drawableDst, 'ic_launcher_foreground.png'))
     console.log('  Copied adaptive icon foreground')
 
-    // drawable-v24
-    if (existsSync(resolve(PUBLIC, 'drawable-v24'))) {
-      const v24Dst = resolve(ANDROID_RES, 'drawable-v24')
-      mkdirSync(v24Dst, { recursive: true })
+    // drawable-v24 — copy PNG and remove stale Capacitor default vector
+    const v24Dst = resolve(ANDROID_RES, 'drawable-v24')
+    mkdirSync(v24Dst, { recursive: true })
+    const v24Xml = resolve(v24Dst, 'ic_launcher_foreground.xml')
+    if (existsSync(v24Xml)) {
+      unlinkSync(v24Xml)
+      console.log('  Removed stale Capacitor default vector (drawable-v24)')
+    }
+    if (existsSync(resolve(PUBLIC, 'drawable-v24/ic_launcher_foreground.png'))) {
       copyFileSync(resolve(PUBLIC, 'drawable-v24/ic_launcher_foreground.png'), resolve(v24Dst, 'ic_launcher_foreground.png'))
       console.log('  Copied adaptive icon foreground (drawable-v24)')
     }
