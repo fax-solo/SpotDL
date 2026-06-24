@@ -170,6 +170,7 @@ let _serverAvailable: boolean | null = null
 
 async function isServerAvailable(signal?: AbortSignal): Promise<boolean> {
   if (_serverAvailable === false) return false
+  if (_serverAvailable === true) return true
   try {
     const pingUrl = apiUrl('/api/ping')
     if (!pingUrl || pingUrl.startsWith('/')) return false
@@ -181,6 +182,8 @@ async function isServerAvailable(signal?: AbortSignal): Promise<boolean> {
     return false
   }
 }
+
+
 
 const MIN_BLOB_SIZE = 10240 // 10 KB — reject anything below as invalid
 
@@ -242,8 +245,10 @@ export async function downloadTrack(
         const ext = quality === 'FLAC' ? '.flac' : '.mp3'
         return { blob, filename: filename.replace('.mp3', ext) }
       }
+      const deezerErr = await deezerRes.json().catch(() => ({ detail: deezerRes.statusText }))
+      console.warn(`[api] Deezer download returned ${deezerRes.status}:`, deezerErr.detail)
     } catch (err) {
-      console.warn('[api] Deezer download failed, falling back to server:', err)
+      console.warn('[api] Deezer download failed, falling back to server:', err instanceof Error ? err.message : err)
     }
   }
 
@@ -269,14 +274,17 @@ export async function downloadTrack(
         onProgress?.('Done', 100)
         return { blob, filename }
       }
+      const serverErr = await res.json().catch(() => ({ detail: res.statusText }))
+      console.warn(`[api] Server download returned ${res.status}:`, serverErr.detail)
     } catch (err) {
-      console.warn('[api] Server download failed, falling back to client mode:', err)
+      console.warn('[api] Server download failed, falling back to client mode:', err instanceof Error ? err.message : err)
     }
   }
 
   // Client-side fallback (FFmpeg WASM in browser)
   const query = `${meta.artist} ${meta.title}`
   let lastError: Error | null = null
+  let lastSource = 'unknown'
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) {
       onProgress?.(`Retrying (${attempt}/${retries})...`, 0)
@@ -287,6 +295,7 @@ export async function downloadTrack(
       signal?.throwIfAborted()
 
       const { info, source } = await findAudio(query, meta.title, meta.artist, meta.duration_ms, meta.isrc)
+      lastSource = source
 
       if (!info.audioUrl) {
         throw new Error(`No downloadable audio found on ${source}`)
@@ -312,9 +321,9 @@ export async function downloadTrack(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
       if (attempt < retries) {
-        console.warn(`[api] Client download attempt ${attempt + 1} failed, retrying:`, lastError.message)
+        console.warn(`[api] Client download attempt ${attempt + 1} failed (source: ${lastSource}):`, lastError.message)
       }
     }
   }
-  throw lastError || new Error('Download failed after retries')
+  throw lastError || new Error(`Download failed after retries. Last source: ${lastSource}. Try a different search query or a direct URL.`)
 }

@@ -44,19 +44,64 @@ SOURCES = [
 ]
 
 
+def _normalize(s: str) -> str:
+    return re.sub(r'\([^)]*\)|\[[^\]]*\]|-\s*\w+\s*topic', '', s.lower()).strip()
+
+def _tokenize(s: str) -> set:
+    return set(re.sub(r'[^\w\s]', ' ', s).split())
+
+def _strip_feat(s: str) -> str:
+    return re.sub(r'\b(feat|ft|featuring)\b.*', '', s, flags=re.IGNORECASE).strip()
+
+def _word_overlap(expected: set, found: set) -> float:
+    if not expected or not found:
+        return 0
+    common = len(expected & found)
+    union = len(expected | found)
+    return common / union if union > 0 else 0
+
 def _title_matches(title: str, artist: str, found_title: str | None, found_uploader: str | None = None) -> bool:
     if not found_title:
         return False
-    t = title.lower().strip()
-    a = artist.lower().strip()
-    ft = re.sub(r'\([^)]*\)|\[[^\]]*\]|-\s*\w+\s*topic', '', found_title.lower()).strip()
-    fu = found_uploader.lower().strip() if found_uploader else ""
+    t = _normalize(title)
+    a = _normalize(artist)
+    ft = _normalize(found_title)
+    fu = _normalize(found_uploader) if found_uploader else ""
 
-    if t not in ft:
+    t_clean = _strip_feat(t)
+    a_clean = _strip_feat(a)
+    ft_clean = _strip_feat(ft)
+    fu_clean = _strip_feat(fu)
+
+    t_tokens = _tokenize(t_clean)
+    a_tokens = _tokenize(a_clean)
+    ft_tokens = _tokenize(ft_clean)
+
+    # Token overlap check for title (more robust than substring)
+    title_overlap = _word_overlap(t_tokens, ft_tokens)
+    if title_overlap < 0.4 and t not in ft:
         return False
+
     if not a:
         return True
-    return a in ft or a in fu
+
+    # Artist in found title
+    if a in ft:
+        return True
+    # Artist tokens in uploader
+    if fu:
+        fu_tokens = _tokenize(fu_clean)
+        artist_overlap = _word_overlap(a_tokens, fu_tokens)
+        if artist_overlap >= 0.5:
+            return True
+        # Substring fallback
+        if a in fu:
+            return True
+    # Artist tokens in found title
+    if _word_overlap(a_tokens, ft_tokens) >= 0.4:
+        return True
+
+    return False
 
 
 def search_track(query: str, source: str, prefix: str) -> list[dict]:

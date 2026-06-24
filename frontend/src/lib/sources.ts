@@ -19,6 +19,29 @@ function normalize(s: string): string {
   return s.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, '').replace(/[^\w\s]/g, '').trim()
 }
 
+function tokenize(s: string): Set<string> {
+  return new Set(s.split(/\s+/).filter(w => w.length > 1))
+}
+
+function stripNoise(s: string): string {
+  return s
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\b(feat|ft|featuring)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function wordIntersection(a: Set<string>, b: Set<string>): number {
+  let common = 0
+  for (const w of a) {
+    if (b.has(w)) common++
+  }
+  return common
+}
+
 function matchScore(options: MatchOptions): number {
   const { expectedTitle: et, expectedArtist: ea, foundTitle: ft, foundAuthor: fa, foundDuration: fd, expectedDuration: ed, expectedIsrc, foundIsrc } = options
   const t = normalize(et)
@@ -31,35 +54,71 @@ function matchScore(options: MatchOptions): number {
   let score = 0
   let total = 0
 
-  // Title match (weight: 4)
+  // Title match (weight: 4) — token-aware
   total += 4
-  if (t === ftNorm) score += 4
-  else if (ftNorm.includes(t) && t.length >= 3) score += 3
-  else if (t.includes(ftNorm) && ftNorm.length >= 3) score += 2
-  else if (ftNorm.includes(t)) score += 2
-
-  // Artist match (weight: 3)
-  if (a.length > 0) {
-    total += 3
-    const inTitle = ftNorm.includes(a)
-    const inAuthor = faNorm.length > 0 && (faNorm.includes(a) || a.includes(faNorm) || faNorm === a)
-    if (a === ftNorm || a === faNorm || faNorm === a) score += 3
-    else if (a === ftNorm) score += 3
-    else if (inTitle || inAuthor) score += 2
-    else score -= 1
+  if (t === ftNorm) {
+    score += 4
+  } else {
+    const tTokens = tokenize(stripNoise(et))
+    const ftTokens = tokenize(stripNoise(ft))
+    if (tTokens.size > 0 && ftTokens.size > 0) {
+      const common = wordIntersection(tTokens, ftTokens)
+      const union = tTokens.size + ftTokens.size - common
+      const jaccard = union > 0 ? common / union : 0
+      if (jaccard >= 0.8) score += 4
+      else if (jaccard >= 0.6) score += 3
+      else if (jaccard >= 0.4) score += 2
+      else if (jaccard >= 0.2) score += 1
+    }
+    // Substring fallback for short titles
+    if (t.length <= 5 && ftNorm.includes(t)) score = Math.max(score, 3)
   }
 
-  // Duration match (weight: 3)
+  // Artist match (weight: 3) — token-aware with multi-artist support
+  if (a.length > 0) {
+    total += 3
+    const aTokens = tokenize(stripNoise(ea))
+    const faTokens = tokenize(stripNoise(fa || ''))
+    const ftTokens = tokenize(stripNoise(ft))
+
+    // Check artist in found author
+    let authorScore = 0
+    if (faTokens.size > 0 && aTokens.size > 0) {
+      const common = wordIntersection(aTokens, faTokens)
+      const union = aTokens.size + faTokens.size - common
+      const jaccard = union > 0 ? common / union : 0
+      if (jaccard >= 0.8) authorScore = 3
+      else if (jaccard >= 0.5) authorScore = 2
+      else if (jaccard > 0) authorScore = 1
+    }
+
+    // Check artist in found title (e.g., "Artist - Title")
+    let titleAuthorScore = 0
+    if (ftTokens.size > 0 && aTokens.size > 0) {
+      const common = wordIntersection(aTokens, ftTokens)
+      if (common === aTokens.size) titleAuthorScore = 2
+      else if (common > 0) titleAuthorScore = 1
+    }
+
+    // Artist as substring
+    if (faNorm === a) authorScore = 3
+    else if (faNorm.includes(a) && a.length >= 3) authorScore = Math.max(authorScore, 2.5)
+
+    score += Math.max(authorScore, titleAuthorScore)
+    if (authorScore === 0 && titleAuthorScore === 0) score -= 1
+  }
+
+  // Duration match (weight: 3) — graduated tolerance
   if (ed != null && fd != null) {
     total += 3
     const expSec = typeof ed === 'number' ? ed : parseFloat(String(ed))
     const foundSec = typeof fd === 'number' ? fd : parseFloat(String(fd))
     if (expSec > 0 && foundSec > 0) {
       const ratio = Math.min(expSec, foundSec) / Math.max(expSec, foundSec)
-      if (ratio >= 0.9) score += 3
-      else if (ratio >= 0.8) score += 1.5
-      else if (ratio >= 0.7) score += 0.5
-      else score -= 2
+      if (ratio >= 0.95) score += 3
+      else if (ratio >= 0.85) score += 2
+      else if (ratio >= 0.7) score += 1
+      else score -= 1
     }
   }
 
@@ -143,6 +202,11 @@ interface SourceResult {
   source: string
 }
 
+const SEARCH_QUERIES = [
+  (artist: string, title: string) => `${artist} ${title}`,
+  (_artist: string, title: string) => title,
+]
+
 export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string, expectedDuration?: string | number | null, expectedIsrc?: string | null): Promise<SourceResult> {
   const sources: { name: string; search: (q: string) => Promise<SourceSearchResult[]>; info: (url: string) => Promise<SourceInfo | null> }[] = [
     { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
@@ -151,41 +215,46 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
   ]
 
   const candidates: { info: SourceInfo; source: string; score: number }[] = []
+  const queries = SEARCH_QUERIES.map(fn => fn(expectedArtist || '', expectedTitle || query).trim()).filter(Boolean)
+  const uniqueQueries = [...new Set(queries)]
 
   await Promise.allSettled(
     sources.map(async (source) => {
-      const searchResults = await source.search(query)
-      if (searchResults.length === 0) return
+      for (const q of uniqueQueries) {
+        const searchResults = await source.search(q)
+        if (searchResults.length === 0) continue
 
-      for (const result of searchResults) {
-        let info: SourceInfo | null = null
+        for (const result of searchResults) {
+          let info: SourceInfo | null = null
 
-        if (result.audioUrl) {
-          info = { title: result.title, author: result.artist || '', duration: result.duration || '0', audioUrl: result.audioUrl, thumbnail: result.thumbnail || null }
-        } else {
-          info = await source.info(result.url)
-        }
+          if (result.audioUrl) {
+            info = { title: result.title, author: result.artist || '', duration: result.duration || '0', audioUrl: result.audioUrl, thumbnail: result.thumbnail || null }
+          } else {
+            info = await source.info(result.url)
+          }
 
-        if (info && info.audioUrl) {
-          const score = matchScore({
-            expectedTitle: expectedTitle || query,
-            expectedArtist: expectedArtist || '',
-            foundTitle: info.title,
-            foundAuthor: info.author,
-            foundDuration: info.duration,
-            expectedDuration,
-            expectedIsrc,
-            foundIsrc: info.isrc || result.isrc || null,
-          })
-          if (score >= MIN_CONFIDENCE) {
-            candidates.push({ info, source: source.name, score })
+          if (info && info.audioUrl) {
+            const score = matchScore({
+              expectedTitle: expectedTitle || query,
+              expectedArtist: expectedArtist || '',
+              foundTitle: info.title,
+              foundAuthor: info.author,
+              foundDuration: info.duration,
+              expectedDuration,
+              expectedIsrc,
+              foundIsrc: info.isrc || result.isrc || null,
+            })
+            if (score >= MIN_CONFIDENCE) {
+              candidates.push({ info, source: source.name, score })
+            }
           }
         }
+        // If we found good candidates on this query, skip remaining queries for this source
+        if (candidates.some(c => c.source === source.name && c.score >= 0.6)) break
       }
     }),
   )
 
-  // Pick best match by score
   if (candidates.length > 0) {
     candidates.sort((a, b) => b.score - a.score)
     const best = candidates[0]
@@ -196,28 +265,24 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
 }
 
 export async function findAudioFromUrl(url: string): Promise<SourceResult> {
-  // Direct YouTube URL
   if (url.includes('youtube.com') || url.includes('youtu.be')) {
     const info = await getVideoInfo(url)
     if (info.audioUrl) return { info, source: 'youtube' }
     throw new Error('No audio found for this YouTube video')
   }
 
-  // Direct SoundCloud URL
   if (url.includes('soundcloud.com')) {
     const info = await soundcloudInfo(url)
     if (info?.audioUrl) return { info, source: 'soundcloud' }
     throw new Error('No audio found or track not downloadable on SoundCloud')
   }
 
-  // Direct Bandcamp URL
   if (url.includes('bandcamp.com')) {
     const info = await bandcampInfo(url)
     if (info?.audioUrl) return { info, source: 'bandcamp' }
     throw new Error('No audio found for this Bandcamp page')
   }
 
-  // Direct Deezer URL
   if (url.includes('deezer.com')) {
     const info = await deezerInfo(url)
     if (info) return { info, source: 'deezer' }
