@@ -20,31 +20,28 @@ fi
 echo "[3/7] Syncing web assets..."
 npx cap sync android
 
-# 4. Copy icon resources to native project
-echo "[4/7] Copying icon resources..."
-ICON_SRC="public"
+# 4. Generate and copy icon resources
+echo "[4/7] Generating app icons from App icon.png..."
+node generate-icons.mjs
+echo "  Icons generated"
+
+echo "[4/7] Copying icons to native project..."
 ANDROID_RES="android/app/src/main/res"
+ICON_SRC="public"
 
 for dir in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-  if [ -f "$ICON_SRC/$dir/ic_launcher.png" ]; then
-    cp "$ICON_SRC/$dir/ic_launcher.png" "$ANDROID_RES/$dir/"
-    cp "$ICON_SRC/$dir/ic_launcher_round.png" "$ANDROID_RES/$dir/"
-    echo "  Copied $dir icons"
-  fi
+  cp "$ICON_SRC/$dir/ic_launcher.png" "$ANDROID_RES/$dir/"
+  cp "$ICON_SRC/$dir/ic_launcher_round.png" "$ANDROID_RES/$dir/"
+  echo "  Copied $dir icons"
 done
 
-# Copy adaptive icon resources
-if [ -f "$ICON_SRC/drawable/ic_launcher_foreground.png" ]; then
-  mkdir -p "$ANDROID_RES/drawable"
-  cp "$ICON_SRC/drawable/ic_launcher_foreground.png" "$ANDROID_RES/drawable/"
-  echo "  Copied adaptive icon foreground"
-fi
+mkdir -p "$ANDROID_RES/drawable"
+cp "$ICON_SRC/drawable/ic_launcher_foreground.png" "$ANDROID_RES/drawable/"
+echo "  Copied adaptive icon foreground"
 
-if [ -f "$ICON_SRC/values/ic_launcher_background.xml" ]; then
-  mkdir -p "$ANDROID_RES/values"
-  cp "$ICON_SRC/values/ic_launcher_background.xml" "$ANDROID_RES/values/"
-  echo "  Copied icon background color"
-fi
+mkdir -p "$ANDROID_RES/values"
+cp "$ICON_SRC/values/ic_launcher_background.xml" "$ANDROID_RES/values/"
+echo "  Copied icon background color"
 
 mkdir -p "$ANDROID_RES/mipmap-anydpi-v26"
 cp "$ICON_SRC/mipmap-anydpi-v26/ic_launcher.xml" "$ANDROID_RES/mipmap-anydpi-v26/"

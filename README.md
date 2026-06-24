@@ -122,11 +122,10 @@ Create custom playlists from your downloaded tracks:
 |-------|-----------|
 | Frontend | React 19 + TypeScript + Vite 8 + Tailwind CSS 4 |
 | State | Zustand (downloads), React Context (player/toast), localStorage (history/playlists) |
-| Animations | Framer Motion |
 | Mobile | Capacitor 8 (Android) |
 | Audio Processing | FFmpeg WASM (client-side) + browser-id3-writer |
 | Server Backend | FastAPI (Python 3.12+) |
-| Serverless Functions | Cloudflare Pages Functions + Netlify Functions |
+| Serverless Functions | Cloudflare Pages Functions |
 | Native Android | Capacitor Plugin → ProcessBuilder → Python 3.8 + SpotDL + FFmpeg |
 
 ### Metadata Pipeline
@@ -157,7 +156,7 @@ Web App (Server Mode):
   Result: Heavy lifting done server-side
 
 Web App (Client Mode):
-  Frontend → Cloudflare/Netlify Functions (metadata) + FFmpeg WASM (conversion)
+  Frontend → Cloudflare Functions (metadata) + FFmpeg WASM (conversion)
   Result: Fully serverless, no backend needed
 ```
 
@@ -168,7 +167,7 @@ Web App (Client Mode):
 │   ├── src/
 │   │   ├── pages/          # 15 page components (Home, Downloader, SearchPage, PlayerScreen, etc.)
 │   │   ├── components/     # 16 reusable components (Navbar, BottomBar, MiniPlayerBar, etc.)
-│   │   ├── hooks/          # 8 custom hooks (usePlayer, useHistory, useDownloads, etc.)
+│   │   ├── hooks/          # 13 custom hooks (usePlayer, useHistory, useDownloads, useLyrics, useTheme, useMaterialYou, useOnlineStatus, useShareTarget, useBottomBar, useBackgroundAudio, useEdgeToEdge, useHaptics, usePlaylists)
 │   │   └── lib/            # 14 library modules (api.ts, sources.ts, audioProcessor.ts, etc.)
 │   └── functions/api/      # 10 Cloudflare Pages Functions
 │       ├── spotify.js      # Metadata scraping (900+ lines, supports tracks/albums/playlists/shows/artists)
@@ -206,7 +205,7 @@ All 10 functions are at `frontend/functions/api/`:
 | `proxy.js` | CORS proxy for audio streams in Capacitor WebView |
 | `spotify-auth.js` | OAuth login, code exchange, and token refresh |
 
-Netlify equivalents are at `frontend/netlify/functions/` as CommonJS (`.cjs`) files.
+
 
 ### Deployment
 
@@ -274,7 +273,6 @@ VITE_API_URL=http://localhost:8000 npm run dev
 @ffmpeg/util            # FFmpeg WASM utilities
 browser-id3-writer      # ID3 tag writing in the browser
 zustand                 # State management for download queue
-framer-motion           # Animations
 @capacitor/*            # Mobile native platform bridge
 lucide-react            # Icons
 react-router-dom        # Routing

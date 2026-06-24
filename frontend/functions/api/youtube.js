@@ -20,7 +20,6 @@ const CLIENTS = [
 const FAST_CLIENTS = CLIENTS.filter(c => ['ANDROID_v1', 'ANDROID_v2', 'WEB_REMIX'].includes(c.name))
 const ALL_CLIENTS = CLIENTS
 
-const KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'
 const COOKIES = 'CONSENT=YES+; SOCS=CAISHAgCEhJqOHNfVUJfMl9xMHpKNHBpM1cYAiIBBiA='
 
 const TIMEOUT = 5000
@@ -49,8 +48,8 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
-async function tryClientSearch(client, query) {
-  const res = await fetch(`https://www.youtube.com/youtubei/v1/search?key=${KEY}`, {
+async function tryClientSearch(client, query, key) {
+  const res = await fetch(`https://www.youtube.com/youtubei/v1/search?key=${key}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
     body: JSON.stringify({ context: client.context, query }),
@@ -74,7 +73,7 @@ async function tryClientSearch(client, query) {
   return results
 }
 
-async function handleSearch(query) {
+async function handleSearch(query, key) {
   const cached = getCache(_searchCache, query)
   if (cached) {
     return new Response(JSON.stringify({ results: cached }), {
@@ -85,11 +84,11 @@ async function handleSearch(query) {
 
   // Try all clients in parallel — first success wins
   const results = await Promise.any(
-    FAST_CLIENTS.map(c => tryClientSearch(c, query))
+    FAST_CLIENTS.map(c => tryClientSearch(c, query, key))
   ).catch(async () => {
     // Fallback: try remaining clients
     const remaining = ALL_CLIENTS.filter(c => !FAST_CLIENTS.includes(c))
-    return Promise.any(remaining.map(c => tryClientSearch(c, query)))
+    return Promise.any(remaining.map(c => tryClientSearch(c, query, key)))
       .catch(() => null)
   })
 
@@ -107,8 +106,8 @@ async function handleSearch(query) {
   })
 }
 
-async function tryClientMusicSearch(client, query) {
-  const res = await fetch(`https://music.youtube.com/youtubei/v1/search?key=${KEY}`, {
+async function tryClientMusicSearch(client, query, key) {
+  const res = await fetch(`https://music.youtube.com/youtubei/v1/search?key=${key}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
     body: JSON.stringify({ context: client.context, query }),
@@ -149,7 +148,7 @@ async function tryClientMusicSearch(client, query) {
   return results
 }
 
-async function handleMusicSearch(query) {
+async function handleMusicSearch(query, key) {
   const cached = getCache(_searchCache, 'music:' + query)
   if (cached) {
     return new Response(JSON.stringify({ results: cached }), {
@@ -160,10 +159,10 @@ async function handleMusicSearch(query) {
 
   // Try music search with fastest clients in parallel
   const results = await Promise.any(
-    FAST_CLIENTS.map(c => tryClientMusicSearch(c, query))
+    FAST_CLIENTS.map(c => tryClientMusicSearch(c, query, key))
   ).catch(async () => {
     // Fallback to regular search
-    return handleSearch(query).then(r => r.json()).then(d => d.results || [])
+    return handleSearch(query, key).then(r => r.json()).then(d => d.results || [])
   })
 
   if (results && results.length > 0) {
@@ -180,8 +179,8 @@ async function handleMusicSearch(query) {
   })
 }
 
-async function tryClientInfo(client, videoId) {
-  const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${KEY}`, {
+async function tryClientInfo(client, videoId, key) {
+  const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${key}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
     body: JSON.stringify({ context: client.context, videoId }),
@@ -196,7 +195,7 @@ async function tryClientInfo(client, videoId) {
   return result
 }
 
-async function handleInfo(videoUrl) {
+async function handleInfo(videoUrl, key) {
   const videoId = extractVideoId(videoUrl)
   if (!videoId) {
     return new Response(JSON.stringify({ error: 'Invalid YouTube URL' }), {
@@ -214,9 +213,9 @@ async function handleInfo(videoUrl) {
   }
 
   const result = await Promise.any(
-    FAST_CLIENTS.map(c => tryClientInfo(c, videoId))
+    FAST_CLIENTS.map(c => tryClientInfo(c, videoId, key))
   ).catch(async () => {
-    return Promise.any(ALL_CLIENTS.map(c => tryClientInfo(c, videoId)))
+    return Promise.any(ALL_CLIENTS.map(c => tryClientInfo(c, videoId, key)))
       .catch(() => null)
   })
 
@@ -257,11 +256,18 @@ export async function onRequest(context) {
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405, headers: CORS })
   }
+  const key = context.env?.YOUTUBE_API_KEY || ''
+  if (!key) {
+    return new Response(JSON.stringify({ error: 'YouTube API key not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...CORS },
+    })
+  }
   try {
     const { action, query, url } = await context.request.json()
-    if (action === 'search') return await handleSearch(query)
-    if (action === 'music-search') return await handleMusicSearch(query)
-    if (action === 'info') return await handleInfo(url)
+    if (action === 'search') return await handleSearch(query, key)
+    if (action === 'music-search') return await handleMusicSearch(query, key)
+    if (action === 'info') return await handleInfo(url, key)
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json', ...CORS },

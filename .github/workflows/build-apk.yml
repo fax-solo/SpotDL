@@ -118,26 +118,30 @@ jobs:
           echo "build.gradle: versionCode=$VERSION_CODE versionName=$NEW_VERSION"
         working-directory: frontend
 
-      - name: Copy icon resources to Android project
+      - name: Generate app icon resources from App icon.png
+        run: node generate-icons.mjs
+        working-directory: frontend
+
+      - name: Copy icons to Android project
         run: |
-          ICON_SRC="public"
           ANDROID_RES="android/app/src/main/res"
           for dir in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            if [ -f "$ICON_SRC/$dir/ic_launcher.png" ]; then
-              cp "$ICON_SRC/$dir/ic_launcher.png" "$ANDROID_RES/$dir/"
-              cp "$ICON_SRC/$dir/ic_launcher_round.png" "$ANDROID_RES/$dir/"
-            fi
+            mkdir -p "$ANDROID_RES/$dir"
+            cp "public/$dir/ic_launcher.png" "$ANDROID_RES/$dir/"
+            cp "public/$dir/ic_launcher_round.png" "$ANDROID_RES/$dir/"
+            echo "  Copied $dir icons"
           done
-          if [ -f "$ICON_SRC/drawable/ic_launcher_foreground.png" ]; then
-            cp "$ICON_SRC/drawable/ic_launcher_foreground.png" "$ANDROID_RES/drawable/"
-          fi
-          if [ -f "$ICON_SRC/values/ic_launcher_background.xml" ]; then
-            cp "$ICON_SRC/values/ic_launcher_background.xml" "$ANDROID_RES/values/"
-          fi
+          mkdir -p "$ANDROID_RES/drawable"
+          cp public/drawable/ic_launcher_foreground.png "$ANDROID_RES/drawable/"
+          echo "  Copied adaptive icon foreground"
+          mkdir -p "$ANDROID_RES/values"
+          cp public/values/ic_launcher_background.xml "$ANDROID_RES/values/"
+          echo "  Copied icon background color"
           mkdir -p "$ANDROID_RES/mipmap-anydpi-v26"
-          cp "$ICON_SRC/mipmap-anydpi-v26/ic_launcher.xml" "$ANDROID_RES/mipmap-anydpi-v26/"
-          cp "$ICON_SRC/mipmap-anydpi-v26/ic_launcher_round.xml" "$ANDROID_RES/mipmap-anydpi-v26/"
-          echo "Icons copied"
+          cp public/mipmap-anydpi-v26/ic_launcher.xml "$ANDROID_RES/mipmap-anydpi-v26/"
+          cp public/mipmap-anydpi-v26/ic_launcher_round.xml "$ANDROID_RES/mipmap-anydpi-v26/"
+          echo "  Copied adaptive icon XML descriptors"
+          echo "All icons copied to Android project"
         working-directory: frontend
 
       - name: Build APK

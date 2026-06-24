@@ -137,7 +137,7 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="py-12 text-center text-sm text-light-muted dark:text-dark-muted border-t border-light-border/30 dark:border-dark-border/30 backdrop-blur-md">
-        <p>Built with ❤️ using React, Tailwind CSS, Framer Motion, and FastAPI.</p>
+        <p>Built with ❤️ using React, Tailwind CSS, and FastAPI.</p>
         <p className="mt-2 text-xs opacity-70">Sinc is not affiliated with Spotify AB.</p>
       </footer>
     </div>

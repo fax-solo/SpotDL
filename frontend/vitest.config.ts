@@ -7,5 +7,11 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/lib/**/*.ts', 'src/hooks/**/*.ts', 'src/hooks/**/*.tsx'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    },
   },
 })

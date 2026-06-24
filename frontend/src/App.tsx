@@ -70,14 +70,15 @@ function AppContent() {
   useMaterialYou()
   useShareTarget()
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      import('./pages/SearchPage')
-      import('./pages/Downloader')
-      import('./pages/HistoryPage')
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [])
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        import('./pages/SearchPage')
+        import('./pages/Downloader')
+        import('./pages/HistoryPage')
+        import('./pages/PlayerScreen')
+      }, 1000)
+      return () => clearTimeout(timer)
+    }, [])
 
 
   useEffect(() => {
