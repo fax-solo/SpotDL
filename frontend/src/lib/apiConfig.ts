@@ -3,6 +3,9 @@ import { Capacitor } from '@capacitor/core'
 export function getApiBase(): string {
   const envUrl = import.meta.env.VITE_API_URL
   if (envUrl) return envUrl
+
+  const cloudflareUrl = import.meta.env.VITE_CLOUDFLARE_URL
+  if (cloudflareUrl) return cloudflareUrl
   
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
     return 'https://spotify-downloader-5v5.pages.dev'

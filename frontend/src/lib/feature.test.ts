@@ -7,17 +7,23 @@ describe('apiConfig', () => {
   beforeEach(() => {
     vi.resetModules()
     delete (process.env as Record<string, string>)['VITE_API_URL']
-  })
-
-  it('returns env URL when set', async () => {
-    const origEnv = import.meta.env.VITE_API_URL
-    // We can't easily mock import.meta.env in vitest, so test via the module
-    const { getApiBase } = await import('./apiConfig')
-    // With no env set and no window, should be ''
-    expect(getApiBase()).toBe('')
+    delete (process.env as Record<string, string>)['VITE_CLOUDFLARE_URL']
   })
 
   it('returns empty string for web by default', async () => {
+    const { getApiBase } = await import('./apiConfig')
+    expect(getApiBase()).toBe('')
+  })
+
+  it('returns cloudflare URL when env var is set', async () => {
+    import.meta.env.VITE_CLOUDFLARE_URL = 'https://custom.pages.dev'
+    vi.resetModules()
+    const { getApiBase } = await import('./apiConfig')
+    expect(getApiBase()).toBe('https://custom.pages.dev')
+    delete import.meta.env.VITE_CLOUDFLARE_URL
+  })
+
+  it('returns empty string for web by default via apiUrl', async () => {
     const { apiUrl } = await import('./apiConfig')
     const url = apiUrl('/api/test')
     expect(url).toBe('/api/test')

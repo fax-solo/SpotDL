@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core'
 import { cacheBlob, getCachedBlob } from './dbCache'
 
 const memoryCache = new Map<string, { blob: Blob; url: string; ts: number }>()
@@ -58,13 +57,4 @@ export async function getBlobFromCache(filePath: string): Promise<Blob | null> {
   return getCachedBlob(id)
 }
 
-export function getAudioSrcFromFileOrCache(filePath: string): string | null {
-  const blobUrl = getBlobUrl(filePath)
-  if (blobUrl) return blobUrl
-  if (!Capacitor.isNativePlatform()) return null
-  try {
-    return Capacitor.convertFileSrc(filePath)
-  } catch {
-    return null
-  }
-}
+

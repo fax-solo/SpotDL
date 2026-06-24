@@ -12,7 +12,6 @@ import { useMaterialYou } from './hooks/useMaterialYou'
 import { useHistory } from './hooks/useHistory'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useShareTarget } from './hooks/useShareTarget'
-import { ensureNotificationPermission } from './lib/notifications'
 import { useBottomBar } from './hooks/useBottomBar'
 import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { Capacitor } from '@capacitor/core'
@@ -65,15 +64,13 @@ function AppContent() {
   const [isNative, setIsNative] = useState(isNativeApp)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
+  const locationRef = useRef(location)
+  locationRef.current = location
 
   useMaterialYou()
   useShareTarget()
 
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      ensureNotificationPermission()
-    }
-  }, [])
+
 
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'auto' })
@@ -117,23 +114,34 @@ function AppContent() {
 
   useEffect(() => {
     if (!isNative) return
+    let cancelled = false
     let unlisten: (() => void) | null = null
     CapacitorApp.addListener('backButton', () => {
-      const detail = isDetailPageRoute(location.pathname) || location.pathname === '/callback'
-      if (detail || (PAGE_ORDER.includes(location.pathname) && location.pathname !== '/')) {
+      const path = locationRef.current.pathname
+      const detail = isDetailPageRoute(path) || path === '/callback'
+      if (detail || (PAGE_ORDER.includes(path) && path !== '/')) {
         if (window.history.length > 1) {
           navigate(-1)
         } else {
           navigate('/')
         }
-      } else if (location.pathname === '/') {
+      } else if (path === '/') {
         CapacitorApp.exitApp()
       } else {
         navigate('/')
       }
-    }).then(h => { unlisten = h.remove })
-    return () => { unlisten?.() }
-  }, [isNative, location.pathname, navigate])
+    }).then(h => {
+      if (cancelled) {
+        h.remove()
+      } else {
+        unlisten = h.remove
+      }
+    })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [isNative, navigate])
 
   function isDetailPageRoute(path: string) {
     return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/album/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
