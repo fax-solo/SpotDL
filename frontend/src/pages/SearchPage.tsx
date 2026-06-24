@@ -165,7 +165,7 @@ export function SearchPage() {
   }, [])
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-24 pt-4 px-4">
+    <div className="flex-1 flex flex-col min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 pt-6 px-4">
       <div className="flex items-center gap-3 mb-6 relative z-10">
         <button
           onClick={() => navigate(-1)}
@@ -190,8 +190,8 @@ export function SearchPage() {
             className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
           />
           {searchQuery && (
-            <button onClick={clearSearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-light-bg dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-              <X className="w-3.5 h-3.5 text-light-muted dark:text-dark-muted" />
+            <button onClick={clearSearch} className="absolute right-1.5 top-1/2 -translate-y-1/2 min-touch rounded-xl hover:bg-light-bg dark:hover:bg-zinc-700 transition-colors cursor-pointer flex items-center justify-center">
+              <X className="w-4 h-4 text-light-muted dark:text-dark-muted" />
             </button>
           )}
         </div>
@@ -255,13 +255,13 @@ export function SearchPage() {
                             else if (type === 'playlists') handlePlayPlaylist(item)
                             else if (type === 'albums') handlePlayAlbum(item)
                           }}
-                          className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-2 active:scale-90"
+                          className="w-11 h-11 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-2 active:scale-90"
                           style={{ transition: 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)' }}
                         >
                           {loadingPlayId === item.id ? (
-                            <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                            <Loader2 className="w-4 h-4 text-white animate-spin" />
                           ) : (
-                            <Play className="w-3.5 h-3.5 text-white ml-0.5" />
+                            <Play className="w-4 h-4 text-white ml-0.5" />
                           )}
                         </button>
                       )}

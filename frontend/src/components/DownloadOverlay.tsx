@@ -49,7 +49,7 @@ export function DownloadOverlay() {
   return (
     <>
       {activeCount > 0 && (
-        <div className="fixed bottom-28 left-3 right-3 z-[90] mx-auto max-w-xl">
+        <div className="fixed bottom-32 left-3 right-3 z-[90] mx-auto max-w-xl pb-[env(safe-area-inset-bottom,0px)]">
           <div className="rounded-xl bg-white/95 dark:bg-dark-surface/95 backdrop-blur-xl border border-light-border/60 dark:border-dark-border/60 shadow-lg overflow-hidden">
             <div className="px-4 py-3">
               <div className="flex items-center justify-between mb-2">

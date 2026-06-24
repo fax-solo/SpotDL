@@ -71,7 +71,7 @@ export function Settings() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-24">
+    <div className="px-4 pt-6 pb-32">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Settings</h1>
       </div>

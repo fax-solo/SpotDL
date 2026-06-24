@@ -88,7 +88,7 @@ export function Home() {
 
   return (
     <PullToRefresh onRefresh={async () => { await Promise.all([loadCategories(), loadNewReleases(), loadRecentlyPlayed()]) }}>
-      <div className="px-4 pt-6 pb-24">
+      <div className="px-4 pt-6 pb-32">
         <div
           className="mb-4"
         >

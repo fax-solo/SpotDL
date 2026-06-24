@@ -131,7 +131,7 @@ export function ArtistPage(_props: ArtistPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-24">
+      <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-32">
         <div className="relative w-full aspect-square max-h-[50vh] bg-gray-200 dark:bg-zinc-800 animate-pulse" />
         <div className="px-6 py-4">
           <div className="h-8 bg-gray-200 dark:bg-zinc-800 rounded-xl animate-pulse w-1/2 mb-2" />
@@ -171,7 +171,7 @@ export function ArtistPage(_props: ArtistPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-24">
+    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32">
       <div className="relative">
         <div className="relative w-full aspect-[3/4] sm:aspect-square max-h-[55vh] overflow-hidden">
           <ArtworkImage
@@ -210,7 +210,7 @@ export function ArtistPage(_props: ArtistPageProps) {
             {artist.genres && artist.genres.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {artist.genres.slice(0, 3).map(g => (
-                  <span key={g} className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 dark:bg-white/10 text-light-muted dark:text-zinc-400 font-medium">
+                  <span key={g} className="text-[11px] px-2 py-0.5 rounded-full bg-white/10 dark:bg-white/10 text-light-muted dark:text-zinc-400 font-medium">
                     {g}
                   </span>
                 ))}
@@ -299,13 +299,13 @@ export function ArtistPage(_props: ArtistPageProps) {
                         {track.album}
                       </p>
                       {prog && !prog.done && (
-                        <p className="text-[10px] text-accent mt-0.5 truncate">{prog.stage}{prog.pct !== null ? ` ${prog.pct}%` : ''}</p>
+                        <p className="text-[11px] text-accent mt-0.5 truncate">{prog.stage}{prog.pct !== null ? ` ${prog.pct}%` : ''}</p>
                       )}
                       {prog?.failed && (
-                        <p className="text-[10px] text-red-400 mt-0.5">Failed</p>
+                        <p className="text-[11px] text-red-400 mt-0.5">Failed</p>
                       )}
                       {prog?.done && (
-                        <p className="text-[10px] text-green-400 mt-0.5">Downloaded</p>
+                        <p className="text-[11px] text-green-400 mt-0.5">Downloaded</p>
                       )}
                     </div>
                     {track.duration_ms ? (

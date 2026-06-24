@@ -95,7 +95,7 @@ function SwipeableRow({
             <p className="text-sm font-medium text-light-text dark:text-dark-text truncate flex-1">
               {entry.title}
             </p>
-            <span className="text-[10px] text-light-muted dark:text-dark-muted flex-shrink-0 tabular-nums">
+            <span className="text-[11px] text-light-muted dark:text-dark-muted flex-shrink-0 tabular-nums">
               {formatDate(entry.timestamp)}
             </span>
           </div>
@@ -107,7 +107,7 @@ function SwipeableRow({
           {onPlay && (
             <button
               onClick={() => onPlay(entry)}
-              className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 focus-visible:ring-2 focus-visible:ring-green-400/40 transition-colors cursor-pointer"
+              className="p-3 rounded-xl text-green-500 hover:bg-green-500/10 focus-visible:ring-2 focus-visible:ring-green-400/40 transition-colors cursor-pointer"
               aria-label={`Play ${entry.title}`}
             >
               <Play className="w-4 h-4" />
@@ -115,14 +115,14 @@ function SwipeableRow({
           )}
           <button
             onClick={() => onRedownload(entry)}
-            className="p-2 rounded-lg text-accent hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors cursor-pointer"
+            className="p-3 rounded-xl text-accent hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors cursor-pointer"
             aria-label={`Re-download ${entry.title}`}
           >
             <Download className="w-4 h-4" />
           </button>
           <button
             onClick={() => onRemove(entry.id)}
-            className="p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-red-400 transition-colors cursor-pointer"
+            className="p-3 rounded-xl text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-red-400 transition-colors cursor-pointer"
             aria-label="Remove entry"
           >
             <Trash2 className="w-4 h-4" />
@@ -170,7 +170,7 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
             {entries.length}
           </span>
           {recentCount > 0 && (
-            <span className="text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+            <span className="text-[11px] text-accent bg-accent/10 px-2 py-0.5 rounded-full">
               {recentCount} today
             </span>
           )}

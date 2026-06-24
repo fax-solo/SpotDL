@@ -145,7 +145,7 @@ export function SyncPage() {
   const canSync = !url.trim() || url.includes('spotify.com/playlist/')
 
   return (
-    <div className="px-4 pt-6 pb-24">
+    <div className="px-4 pt-6 pb-32">
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Playlist Sync</h1>

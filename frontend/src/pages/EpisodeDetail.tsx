@@ -106,7 +106,7 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-24 flex flex-col items-center justify-center px-6">
+      <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-32 flex flex-col items-center justify-center px-6">
         <div className="w-64 h-64 rounded-2xl bg-zinc-800 animate-pulse mb-8" />
         <div className="h-8 bg-zinc-800 rounded-lg animate-pulse w-48 mb-3" />
         <div className="h-4 bg-zinc-800 rounded-lg animate-pulse w-32 mb-2" />
@@ -129,7 +129,7 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
   }
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-24">
+    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32">
       <button
         onClick={() => navigate(-1)}
         className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white active:scale-90 transition-transform"
@@ -180,7 +180,7 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
               </span>
             )}
             {episode.explicit && (
-              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-zinc-200 dark:bg-zinc-700 rounded uppercase">E</span>
+              <span className="px-1.5 py-0.5 text-[11px] font-bold bg-zinc-200 dark:bg-zinc-700 rounded uppercase">E</span>
             )}
           </div>
 

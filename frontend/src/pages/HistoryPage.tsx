@@ -50,7 +50,7 @@ export function HistoryPage() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="px-4 pt-6 pb-24">
+      <div className="px-4 pt-6 pb-32">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">History</h1>
           <p className="text-sm text-light-muted dark:text-dark-muted mt-1">Your downloaded tracks</p>

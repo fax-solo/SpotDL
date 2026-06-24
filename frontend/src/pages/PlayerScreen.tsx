@@ -149,7 +149,7 @@ export function PlayerScreen() {
           <h1 className="text-2xl font-bold">Your Library</h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 pb-32 space-y-6">
           {/* ─── Playlists ─── */}
           <section>
             <div className="flex items-center justify-between mb-3">

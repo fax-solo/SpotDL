@@ -57,7 +57,7 @@ export function BottomBar() {
                 aria-hidden="true"
               />
               <span
-                className={`text-[10px] font-medium leading-none transition-colors ${
+                className={`text-[11px] font-medium leading-none transition-colors ${
                   active
                     ? 'text-accent'
                     : 'text-light-muted dark:text-dark-muted'

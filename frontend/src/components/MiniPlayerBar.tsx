@@ -27,7 +27,7 @@ export function MiniPlayerBar() {
 
   return (
     <div
-      className={`fixed left-2 right-2 z-50 mx-auto max-w-xl ${
+      className={`fixed left-2 right-2 z-50 mx-auto max-w-xl pb-[env(safe-area-inset-bottom,0px)] ${
         showBottomBar ? 'bottom-[66px]' : 'bottom-2'
       }`}
     >

@@ -147,7 +147,7 @@ export function PlaylistDetail(_props: PlaylistDetailProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-24">
+      <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-32">
         <div className="relative w-full aspect-[3/4] sm:aspect-square max-h-[60vh] bg-gray-200 dark:bg-zinc-800 animate-pulse" />
         <div className="px-6 py-4">
           <div className="h-12 bg-gray-200 dark:bg-zinc-800 rounded-xl animate-pulse" />
@@ -186,7 +186,7 @@ export function PlaylistDetail(_props: PlaylistDetailProps) {
   }
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-24">
+    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32">
       <div className="relative">
         <div className="relative w-full aspect-[3/4] sm:aspect-square max-h-[60vh] overflow-hidden">
           <ArtworkImage
@@ -252,7 +252,7 @@ export function PlaylistDetail(_props: PlaylistDetailProps) {
               <span className="text-xs font-medium text-light-text dark:text-dark-text">{downloadedCount}/{tracks.length} in your library</span>
             </div>
             {downloadedCount < tracks.length && (
-              <span className="text-[10px] text-light-muted dark:text-dark-muted">{tracks.length - downloadedCount} to download</span>
+              <span className="text-[11px] text-light-muted dark:text-dark-muted">{tracks.length - downloadedCount} to download</span>
             )}
           </div>
           <div className="h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
@@ -298,13 +298,13 @@ export function PlaylistDetail(_props: PlaylistDetailProps) {
                       {track.artist}
                     </p>
                     {prog && !prog.done && (
-                      <p className="text-[10px] text-accent mt-0.5 truncate">{prog.stage}{prog.pct !== null ? ` ${prog.pct}%` : ''}</p>
+                      <p className="text-[11px] text-accent mt-0.5 truncate">{prog.stage}{prog.pct !== null ? ` ${prog.pct}%` : ''}</p>
                     )}
                     {prog?.failed && (
-                      <p className="text-[10px] text-red-400 mt-0.5">Failed</p>
+                      <p className="text-[11px] text-red-400 mt-0.5">Failed</p>
                     )}
                     {prog?.done && (
-                      <p className="text-[10px] text-green-400 mt-0.5">Downloaded</p>
+                      <p className="text-[11px] text-green-400 mt-0.5">Downloaded</p>
                     )}
                   </div>
                   <button

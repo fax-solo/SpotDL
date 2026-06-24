@@ -278,7 +278,7 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                         <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">{track.title}</p>
                         <p className="text-xs text-light-muted dark:text-dark-muted truncate">{track.artist}</p>
                         {prog && !prog.done && !prog.failed && (
-                          <p className="text-[10px] text-accent mt-0.5 truncate">{prog.stage}{prog.pct !== null ? ` ${prog.pct}%` : ''}</p>
+                          <p className="text-[11px] text-accent mt-0.5 truncate">{prog.stage}{prog.pct !== null ? ` ${prog.pct}%` : ''}</p>
                         )}
                       </div>
                       {/* Status indicator or download button */}

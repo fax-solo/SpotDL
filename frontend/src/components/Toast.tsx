@@ -101,7 +101,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast, dismiss }}>
       {children}
-      <div className="fixed bottom-24 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[100] flex flex-col gap-2 pointer-events-none">
+      <div className="fixed bottom-28 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[100] flex flex-col gap-2 pointer-events-none pb-[env(safe-area-inset-bottom,0px)]">
         {toasts.map(t => (
           <SwipeableToast key={t.id} toast={t} onDismiss={dismiss} />
         ))}
