@@ -20,6 +20,12 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
   { key: 'boot_completed', label: 'Boot Completed', description: 'Restore notifications after device restart', androidName: 'android.permission.RECEIVE_BOOT_COMPLETED', dangerous: false },
 ]
 
+const RUNTIME_KEYS = new Set(['notifications'])
+const AUTO_GRANTED_KEYS = new Set([
+  'internet', 'storage', 'foreground_service', 'media_playback',
+  'wake_lock', 'vibrate', 'exact_alarm', 'boot_completed',
+])
+
 export async function requestPermission(key: string): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
 
@@ -33,7 +39,10 @@ export async function requestPermission(key: string): Promise<boolean> {
     }
   }
 
-  // Normal permissions are auto-granted, but try opening system settings
+  if (AUTO_GRANTED_KEYS.has(key)) {
+    return true
+  }
+
   return false
 }
 
@@ -50,10 +59,23 @@ export async function checkPermission(key: string): Promise<boolean> {
     }
   }
 
-  // Normal permissions are always granted on Android
-  return true
+  if (AUTO_GRANTED_KEYS.has(key)) {
+    return true
+  }
+
+  return false
 }
 
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
+}
+
+export function requiresRuntimePermission(key: string): boolean {
+  return RUNTIME_KEYS.has(key)
+}
+
+export async function ensureNotificationPermission(): Promise<boolean> {
+  const granted = await checkPermission('notifications')
+  if (granted) return true
+  return requestPermission('notifications')
 }

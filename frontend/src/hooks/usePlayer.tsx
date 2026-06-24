@@ -3,7 +3,7 @@ import { getAudioSrc } from '../lib/capacitorBridge'
 import { findAudio } from '../lib/sources'
 import type { HistoryEntry } from './useHistory'
 import { useBackgroundAudio } from './useBackgroundAudio'
-import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotification } from '../lib/notifications'
+import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotification, ensureNotificationPermission } from '../lib/notifications'
 import { startMediaForeground, stopMediaForeground } from '../lib/nativePlugin'
 
 export interface PlayerState {
@@ -182,6 +182,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         })
       }
       sendBackgroundPlaybackNotification({ title: track.title, artist: track.artist, artworkUrl: track.artworkUrl })
+      await ensureNotificationPermission()
       startMediaForeground(track.title, track.artist)
     } catch {
       setIsPlaying(false)

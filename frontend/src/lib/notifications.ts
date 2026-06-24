@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import { ensureNotificationPermission as ensurePerm } from './permissions'
 
 type LocalNotificationsModule = {
   schedule: (options: {
@@ -32,27 +33,9 @@ async function getLN(): Promise<LocalNotificationsModule | null> {
   }
 }
 
-let _permissionRequested = false
-
 export async function ensureNotificationPermission(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
-  const ln = await getLN()
-  if (!ln) return false
-  try {
-    const perm = await ln.requestPermissions()
-    return perm.display === 'granted'
-  } catch {
-    if (!_permissionRequested) {
-      _permissionRequested = true
-      try {
-        const perm = await ln.requestPermissions()
-        return perm.display === 'granted'
-      } catch {
-        return false
-      }
-    }
-    return false
-  }
+  return ensurePerm()
 }
 
 export async function sendDownloadCompleteNotification(params: {

@@ -4,7 +4,7 @@ import type { TrackMeta } from '../lib/api'
 import { downloadFile } from '../lib/capacitorBridge'
 import { storeBlob } from '../lib/blobCache'
 import type { HistoryEntry } from './useHistory'
-import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendBatchCompleteNotification } from '../lib/notifications'
+import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendBatchCompleteNotification, ensureNotificationPermission } from '../lib/notifications'
 import { startDownloadForeground, updateDownloadForeground, stopDownloadForeground } from '../lib/nativePlugin'
 import { Capacitor } from '@capacitor/core'
 
@@ -137,6 +137,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
             const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
             taskId = await BackgroundTask.beforeExit(async () => {})
           } catch {}
+          await ensureNotificationPermission()
           startDownloadForeground()
         }
 
