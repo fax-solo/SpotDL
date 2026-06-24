@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.spotdl.app',
-  appName: 'SpotDL',
+  appName: 'Sinc',
   webDir: 'dist',
   android: {
     allowMixedContent: true,

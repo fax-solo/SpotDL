@@ -1,6 +1,6 @@
 {
-  "name": "SpotDL",
-  "short_name": "SpotDL",
+  "name": "Sinc",
+  "short_name": "Sinc",
   "description": "Download music from Spotify, YouTube, SoundCloud, and Bandcamp",
   "start_url": "/",
   "display": "standalone",

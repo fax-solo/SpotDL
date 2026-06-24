@@ -34,12 +34,12 @@ _download_semaphore = asyncio.Semaphore(DOWNLOAD_SEMAPHORE_LIMIT)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.info(f"Starting SpotDL API v2.0.0 — concurrent downloads: {DOWNLOAD_SEMAPHORE_LIMIT}")
+    logging.info(f"Starting Sinc API v2.0.0 — concurrent downloads: {DOWNLOAD_SEMAPHORE_LIMIT}")
     yield
-    logging.info("Shutting down SpotDL API")
+    logging.info("Shutting down Sinc API")
 
 
-app = FastAPI(title="SpotDL API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Sinc API", version="2.0.0", lifespan=lifespan)
 
 CLIENT_URL = os.environ.get("CLIENT_URL", "")
 _cors_origins = [CLIENT_URL] if CLIENT_URL else ["http://localhost:5173", "http://localhost:3000"]

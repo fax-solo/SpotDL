@@ -11,7 +11,7 @@ export function Navbar() {
       <div className="flex items-center gap-6">
         <Link to="/" className="flex items-center gap-2 text-light-text dark:text-dark-text hover:opacity-80 transition-opacity">
           <Music className="w-6 h-6 text-accent" />
-          <span className="text-xl font-semibold">SpotDL</span>
+          <span className="text-xl font-semibold">Sinc</span>
         </Link>
         <Link
           to="/player"

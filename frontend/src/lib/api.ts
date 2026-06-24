@@ -192,7 +192,7 @@ export async function downloadTrack(
   // Try native plugin first (Android only)
   if (await nativeAvailable() && meta.url) {
     try {
-      onProgress?.('Downloading via native SpotDL...', 0)
+      onProgress?.('Downloading via native Sinc...', 0)
       const nativeResult = await nativeDownloadTrack(meta.url, (pct) => {
         onProgress?.(`Downloading... ${Math.round(pct)}%`, pct)
       })

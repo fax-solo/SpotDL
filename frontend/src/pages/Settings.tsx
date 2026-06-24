@@ -259,7 +259,7 @@ export function Settings() {
         <div className="p-5">
           <h2 className="text-lg font-semibold text-light-text dark:text-dark-text mb-2">About</h2>
           <p className="text-sm text-light-text dark:text-dark-text">
-            SpotDL <span className="text-light-muted dark:text-dark-muted">v{APP_VERSION}</span>
+            Sinc <span className="text-light-muted dark:text-dark-muted">v{APP_VERSION}</span>
           </p>
           <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
             Download music from Spotify, YouTube, SoundCloud, and Bandcamp.

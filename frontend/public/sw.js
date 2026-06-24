@@ -1,9 +1,10 @@
-const VERSION = 'spotdl-v2'
+const VERSION = 'spotdl-v3'
 const CACHE = VERSION
-const API_CACHE = 'spotdl-api-v2'
-const IMAGE_CACHE = 'spotdl-images-v2'
+const API_CACHE = 'spotdl-api-v3'
+const IMAGE_CACHE = 'spotdl-images-v3'
+const FONT_CACHE = 'spotdl-fonts-v3'
 
-const STATIC = ['/']
+const STATIC = ['/', '/manifest.json', '/favicon.svg', '/favicon.png']
 
 const IMAGE_HOSTS = new Set([
   'i.scdn.co',
@@ -15,6 +16,13 @@ const IMAGE_HOSTS = new Set([
   'thisis-images.scdn.co',
   'dailymix-images.scdn.co',
   'newjams-images.scdn.co',
+  't.scdn.co',
+  'wrapped-images.spotifycdn.com',
+  'charts-images.scdn.co',
+  'dailyplaylists-images.scdn.co',
+  'concerts-images.scdn.co',
+  'lineup-images.scdn.co',
+  'video-files.scdn.co',
 ])
 
 self.addEventListener('install', (event) => {
@@ -28,7 +36,7 @@ self.addEventListener('activate', (event) => {
       clients.claim(),
       // Clean old caches
       caches.keys().then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE && k !== API_CACHE && k !== IMAGE_CACHE).map((k) => caches.delete(k)))
+        Promise.all(keys.filter((k) => k !== CACHE && k !== API_CACHE && k !== IMAGE_CACHE && k !== FONT_CACHE).map((k) => caches.delete(k)))
       ),
     ])
   )
@@ -52,15 +60,15 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Same-origin: network-first with cache fallback
-  if (url.origin === self.location.origin) {
-    event.respondWith(networkFirst(request, CACHE))
+  // Fonts: cache-first
+  if (url.pathname.startsWith('/fonts/')) {
+    event.respondWith(cacheFirst(request, FONT_CACHE))
     return
   }
 
-  // Fonts: cache-first
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    event.respondWith(cacheFirst(request, CACHE))
+  // Same-origin: network-first with cache fallback
+  if (url.origin === self.location.origin) {
+    event.respondWith(networkFirst(request, CACHE))
     return
   }
 })

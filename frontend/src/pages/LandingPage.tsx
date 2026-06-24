@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
-import { Headphones, Zap, Tags, Smartphone, ArrowRight, Download, Music, Loader2, ExternalLink, Github, SmartphoneNfc } from 'lucide-react'
-import { useEffect, useState } from 'react'
-
-const GITHUB_REPO = 'fax-solo/SpotDL'
-const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
+import { Headphones, Zap, Tags, Smartphone, ArrowRight, Download, Music } from 'lucide-react'
+import { useEffect } from 'react'
 
 
 export function LandingPage() {
+  useEffect(() => {
+    import('./Downloader')
+  }, [])
+
   return (
     <div className="min-h-[calc(100vh-73px)] flex flex-col relative overflow-hidden">
       {/* Background Gradients */}
@@ -24,7 +25,7 @@ export function LandingPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent"></span>
             </span>
-            SpotDL v2 is Live
+            Sinc v2 is Live
           </div>
           
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight text-light-text dark:text-dark-text mb-6">
@@ -63,7 +64,7 @@ export function LandingPage() {
       <section className="px-4 py-32 bg-gradient-to-b from-transparent to-light-surface/50 dark:to-dark-surface/30 relative border-t border-light-border/50 dark:border-dark-border/50">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-bold text-light-text dark:text-dark-text mb-6">Why choose SpotDL?</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-light-text dark:text-dark-text mb-6">Why choose Sinc?</h2>
             <p className="text-lg text-light-muted dark:text-dark-muted max-w-2xl mx-auto">We've built the most reliable, feature-rich downloading pipeline to give you the ultimate audio experience.</p>
           </div>
           
@@ -86,7 +87,7 @@ export function LandingPage() {
             <FeatureCard 
               icon={<Smartphone className="w-7 h-7 text-purple-500" />}
               title="Cross Platform"
-              description="Use SpotDL beautifully on the web or install the native Android APK for on-the-go access."
+              description="Use Sinc beautifully on the web or install the native Android APK for on-the-go access."
             />
           </div>
         </div>
@@ -114,7 +115,7 @@ export function LandingPage() {
             <StepCard 
               number="2" 
               title="Paste & Fetch" 
-              description="Paste the link into SpotDL. We'll instantly fetch the metadata and artwork." 
+              description="Paste the link into Sinc. We'll instantly fetch the metadata and artwork." 
             />
             <StepCard 
               number="3" 
@@ -137,7 +138,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="py-12 text-center text-sm text-light-muted dark:text-dark-muted border-t border-light-border/30 dark:border-dark-border/30 backdrop-blur-md">
         <p>Built with ❤️ using React, Tailwind CSS, Framer Motion, and FastAPI.</p>
-        <p className="mt-2 text-xs opacity-70">SpotDL is not affiliated with Spotify AB.</p>
+        <p className="mt-2 text-xs opacity-70">Sinc is not affiliated with Spotify AB.</p>
       </footer>
     </div>
   )

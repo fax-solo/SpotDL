@@ -93,7 +93,7 @@ export function Home() {
           className="mb-4"
         >
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
-            SpotDL
+            Sinc
           </h1>
           <p className="text-sm text-light-muted dark:text-dark-muted mt-1">
             Search or browse music
@@ -118,14 +118,14 @@ export function Home() {
               <h2 className="text-lg font-bold text-light-text dark:text-dark-text">New Releases</h2>
             </div>
             <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              {newReleases.map((album, _i) => (
+              {newReleases.map((album, i) => (
                 <button
                   key={album.id}
                   onClick={() => navigate(`/album/${album.id}`)}
                   className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 hover:shadow-md transition-shadow cursor-pointer group active:scale-95 transition-transform"
                 >
                   <div className="aspect-square bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center relative overflow-hidden">
-                    <ArtworkImage src={album.image} alt={album.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} />
+                    <ArtworkImage src={album.image} alt={album.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} />
                   </div>
                   <div className="p-3">
                     <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate leading-tight">{album.name}</p>

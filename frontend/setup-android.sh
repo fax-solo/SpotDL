@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "=== SpotDL: Android Native Project Setup ==="
+echo "=== Sinc: Android Native Project Setup ==="
 echo ""
 
 # 1. Build web assets

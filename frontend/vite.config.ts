@@ -18,17 +18,22 @@ export default defineConfig({
     },
   },
   build: {
-    target: 'es2020',
+    target: 'esnext',
     cssMinify: 'lightningcss',
     minify: 'esbuild',
+    cssCodeSplit: false,
     rollupOptions: {
       output: {
+        hoistTransitiveImports: false,
         manualChunks(id: string) {
           if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router')) {
             return 'vendor'
           }
-          if (id.includes('node_modules/framer-motion')) {
-            return 'motion'
+          if (id.includes('node_modules/zustand')) {
+            return 'zustand'
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'icons'
           }
           if (id.includes('node_modules/@ffmpeg')) {
             return 'ffmpeg'
@@ -36,10 +41,16 @@ export default defineConfig({
           if (id.includes('node_modules/browser-id3-writer')) {
             return 'id3'
           }
+          if (id.includes('node_modules/@capacitor')) {
+            return 'capacitor'
+          }
         },
       },
     },
     reportCompressedSize: false,
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 400,
+  },
+  esbuild: {
+    target: 'esnext',
   },
 })

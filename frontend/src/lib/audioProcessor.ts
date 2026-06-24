@@ -77,8 +77,8 @@ export async function writeId3Tags(
   writer.setFrame('TPE1', [metadata.artist])
   writer.setFrame('TALB', metadata.album)
   writer.setFrame('COMM', {
-    description: 'Downloaded by SpotDL',
-    text: 'spotdl.app',
+    description: 'Downloaded by Sinc',
+    text: 'sinc.app',
   })
 
   if (metadata.artworkUrl) {
