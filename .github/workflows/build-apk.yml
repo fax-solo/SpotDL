@@ -118,6 +118,9 @@ jobs:
           echo "build.gradle: versionCode=$VERSION_CODE versionName=$NEW_VERSION"
         working-directory: frontend
 
+      - name: Install ImageMagick
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+
       - name: Generate app icon resources from App icon.png
         run: node generate-icons.mjs
         working-directory: frontend
