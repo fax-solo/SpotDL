@@ -1,5 +1,5 @@
 import { searchYouTube, getVideoInfo } from './youtubeClient'
-import { searchDeezer, getDeezerTrack, searchDeezerByIsrc } from './deezer'
+import { getDeezerTrack } from './deezer'
 import { apiUrl } from './apiConfig'
 
 interface MatchOptions {
@@ -123,20 +123,6 @@ async function bandcampInfo(url: string): Promise<SourceInfo | null> {
   return null
 }
 
-async function searchDeezerSource(query: string): Promise<SourceSearchResult[]> {
-  const results = await searchDeezer(query)
-  return results.map(r => ({
-    url: `https://www.deezer.com/track/${r.id}`,
-    title: r.title,
-    artist: r.artist,
-    duration: r.duration,
-    audioUrl: r.preview || null,
-    thumbnail: r.thumbnail,
-    source: 'deezer',
-    isrc: r.isrc,
-  }))
-}
-
 async function deezerInfo(url: string): Promise<SourceInfo | null> {
   const match = url.match(/deezer\.com\/track\/(\d+)/)
   if (!match) return null
@@ -159,34 +145,10 @@ interface SourceResult {
 
 export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string, expectedDuration?: string | number | null, expectedIsrc?: string | null): Promise<SourceResult> {
   const sources: { name: string; search: (q: string) => Promise<SourceSearchResult[]>; info: (url: string) => Promise<SourceInfo | null> }[] = [
-    { name: 'deezer', search: searchDeezerSource, info: deezerInfo },
     { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
     { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
     { name: 'bandcamp', search: searchBandcamp, info: bandcampInfo },
   ]
-
-  // Try ISRC-based Deezer lookup first (definitive match)
-  if (expectedIsrc) {
-    try {
-      const deezerTrack = await searchDeezerByIsrc(expectedIsrc)
-      if (deezerTrack?.preview) {
-        return {
-          info: {
-            title: deezerTrack.title,
-            author: deezerTrack.artist,
-            duration: deezerTrack.duration,
-            audioUrl: deezerTrack.preview,
-            thumbnail: deezerTrack.thumbnail,
-            isrc: deezerTrack.isrc,
-          },
-          source: 'deezer',
-        }
-      }
-      // If no preview URL, fall through to normal search (don't block with a useless result)
-    } catch {
-      // Fall through
-    }
-  }
 
   const candidates: { info: SourceInfo; source: string; score: number }[] = []
 
