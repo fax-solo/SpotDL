@@ -7,6 +7,7 @@ import { isNative } from '../lib/capacitorBridge'
 import { useToast } from './Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { useDownloads } from '../hooks/useDownloads'
+import { getDeezerArl, getDeezerQuality } from '../lib/deezer'
 
 export interface DownloadCardProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -88,6 +89,8 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
   
   const singleDownloading = singleQueueItem && !singleQueueItem.done && !singleQueueItem.failed
   const singleStage = singleQueueItem?.stage ?? ''
+  const deezerConnected = !!getDeezerArl()
+  const downloadLabel = deezerConnected && getDeezerQuality() === 'FLAC' ? 'Download FLAC' : deezerConnected ? 'Download MP3' : 'Download MP3'
 
   const handleDownloadSingle = async (track: TrackMeta) => {
     addDownload(track)
@@ -131,7 +134,7 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                 setSingleTrack(null)
                 setCollection(null)
               }}
-              placeholder="spotify.com/track/... or youtube.com/..."
+              placeholder="spotify.com/track/..., youtube.com/..., deezer.com/track/..."
               className="w-full pl-10 pr-4 py-3 rounded-xl bg-light-bg dark:bg-dark-bg border border-light-border/60 dark:border-dark-border/60 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
             />
           </div>
@@ -198,7 +201,7 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                   ) : (
                     <>
                       <Download className="w-4 h-4" />
-                      Download MP3
+                      {downloadLabel}
                     </>
                   )}
                 </span>

@@ -1,12 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon } from 'lucide-react'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
 import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
 import { ALL_PERMISSIONS, requestPermission, checkPermission, isNative } from '../lib/permissions'
 import { APP_VERSION, GITHUB_REPO } from '../lib/version'
 import { checkForUpdates, type UpdateCheckResult } from '../lib/checkUpdate'
+import { getDeezerArl, setDeezerArl, clearDeezerArl, getDeezerQuality, setDeezerQuality, type DeezerQuality } from '../lib/deezer'
 
 export function Settings() {
+  const navigate = useNavigate()
+
+  // Deezer ARL
+  const [dzArl, setDzArl] = useState(getDeezerArl() || '')
+  const [dzArlSaved, setDzArlSaved] = useState(!!getDeezerArl())
+  const [dzQuality, setDzQuality] = useState<DeezerQuality>(getDeezerQuality())
+
   // Web Player Token
   const [wpToken, setWpToken] = useState(getWebPlayerToken() || '')
   const [wpTokenTesting, setWpTokenTesting] = useState(false)
@@ -165,6 +174,101 @@ export function Settings() {
       <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
         <div className="p-5">
           <div className="flex items-center gap-3 mb-4">
+            <Radio className="w-5 h-5 text-accent" />
+            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Deezer</h2>
+            {dzArlSaved && (
+              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">
+                Connected
+              </span>
+            )}
+          </div>
+
+          <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+            Add your Deezer ARL token to download FLAC quality audio. A free Deezer account is required.
+          </p>
+
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={dzArl}
+              onChange={e => { setDzArl(e.target.value); setDzArlSaved(false) }}
+              placeholder="Paste your Deezer ARL token..."
+              aria-label="Deezer ARL Token"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+            />
+
+            <div className="flex gap-2">
+              {dzArlSaved ? (
+                <button
+                  onClick={() => { clearDeezerArl(); setDzArl(''); setDzArlSaved(false) }}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setDeezerArl(dzArl.trim()); setDzArlSaved(true) }}
+                  disabled={!dzArl.trim()}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Save Token
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-light-text dark:text-dark-text">Download quality</p>
+                <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+                  {dzQuality === 'FLAC' ? 'Lossless FLAC (requires Deezer HiFi)' : '320kbps MP3'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setDzQuality('MP3'); setDeezerQuality('MP3') }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                    dzQuality === 'MP3'
+                      ? 'bg-accent text-white'
+                      : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+                  }`}
+                >
+                  MP3
+                </button>
+                <button
+                  onClick={() => { setDzQuality('FLAC'); setDeezerQuality('FLAC') }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                    dzQuality === 'FLAC'
+                      ? 'bg-accent text-white'
+                      : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+                  }`}
+                >
+                  FLAC
+                </button>
+              </div>
+            </div>
+
+            <details className="group">
+              <summary className="flex items-center gap-2 text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text cursor-pointer">
+                <HelpCircle className="w-3 h-3" />
+                How to get your Deezer ARL
+              </summary>
+              <div className="mt-2 p-3 rounded-xl bg-light-bg dark:bg-zinc-800/50 text-xs text-light-muted dark:text-dark-muted space-y-2">
+                <p>1. Open <a href="https://www.deezer.com" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">deezer.com</a> and log in with your free account</p>
+                <p>2. Open Developer Tools (F12) → Application → Cookies → deezer.com</p>
+                <p>3. Find the cookie named <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10">arl</code></p>
+                <p>4. Copy its value and paste it above</p>
+                <p className="text-amber-500">Note: The ARL token is permanent. FLAC requires a Deezer HiFi subscription.</p>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+        <div className="p-5">
+          <div className="flex items-center gap-3 mb-4">
             <Music className="w-5 h-5 text-accent" />
             <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Downloads</h2>
           </div>
@@ -255,9 +359,25 @@ export function Settings() {
         </div>
       )}
 
-      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-        <div className="p-5">
-          <h2 className="text-lg font-semibold text-light-text dark:text-dark-text mb-2">About</h2>
+        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+          <button
+            onClick={() => navigate('/sync')}
+            className="w-full p-5 flex items-center gap-3 hover:bg-light-bg dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left"
+          >
+            <SyncIcon className="w-5 h-5 text-accent" />
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Playlist Sync</h2>
+              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+                Auto-download new tracks from followed playlists
+              </p>
+            </div>
+            <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+
+        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+          <div className="p-5">
+            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text mb-2">About</h2>
           <p className="text-sm text-light-text dark:text-dark-text">
             Sinc <span className="text-light-muted dark:text-dark-muted">v{APP_VERSION}</span>
           </p>

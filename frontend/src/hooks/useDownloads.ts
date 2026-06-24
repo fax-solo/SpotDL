@@ -60,8 +60,33 @@ interface DownloadsState {
   _updateProgress: (id: string, updates: Partial<DownloadProgress>) => void
 }
 
+const QUEUE_STORAGE_KEY = 'sinc-download-queue'
+
+function loadQueue(): DownloadProgress[] {
+  try {
+    const raw = localStorage.getItem(QUEUE_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as DownloadProgress[]
+    return parsed.map(q => ({
+      ...q,
+      done: false,
+      failed: true,
+      stage: 'Restored — tap retry',
+      error: 'Session restored, tap to retry',
+    }))
+  } catch {
+    return []
+  }
+}
+
+function saveQueue(queue: DownloadProgress[]) {
+  try {
+    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue))
+  } catch { /* quota exceeded — silently ignore */ }
+}
+
 export const useDownloads = create<DownloadsState>((set, get) => ({
-  queue: [],
+  queue: loadQueue(),
   isProcessing: false,
   abortControllers: new Map(),
 
@@ -72,9 +97,11 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     if (exists) return
 
     const id = `dl-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-    set((state: DownloadsState) => ({
-      queue: [...state.queue, { id, track, stage: 'Waiting...', pct: null, done: false, failed: false }],
-    }))
+    set((state: DownloadsState) => {
+      const queue = [...state.queue, { id, track, stage: 'Waiting...', pct: null, done: false, failed: false }]
+      saveQueue(queue)
+      return { queue }
+    })
     get()._processQueue()
   },
 
@@ -88,22 +115,35 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       done: false,
       failed: false,
     }))
-    set((state: DownloadsState) => ({ queue: [...state.queue, ...newItems] }))
+    set((state: DownloadsState) => {
+      const queue = [...state.queue, ...newItems]
+      saveQueue(queue)
+      return { queue }
+    })
     get()._processQueue()
   },
 
   removeDownload: (id: string) => {
-    set((state: DownloadsState) => ({ queue: state.queue.filter((q) => q.id !== id) }))
+    set((state: DownloadsState) => {
+      const queue = state.queue.filter((q) => q.id !== id)
+      saveQueue(queue)
+      return { queue }
+    })
   },
 
   clearCompleted: () => {
-    set((state: DownloadsState) => ({ queue: state.queue.filter((q) => !q.done && !q.failed) }))
+    set((state: DownloadsState) => {
+      const queue = state.queue.filter((q) => !q.done && !q.failed)
+      saveQueue(queue)
+      return { queue }
+    })
   },
 
   cancelAll: () => {
     const controllers = get().abortControllers
     controllers.forEach(c => c.abort())
     set({ queue: [], abortControllers: new Map(), isProcessing: false })
+    saveQueue([])
     processing = false
     stopDownloadForeground()
   },
@@ -119,9 +159,11 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
   },
 
   _updateProgress: (id: string, updates: Partial<DownloadProgress>) => {
-    set((state: DownloadsState) => ({
-      queue: state.queue.map((q) => (q.id === id ? { ...q, ...updates } : q)),
-    }))
+    set((state: DownloadsState) => {
+      const queue = state.queue.map((q) => (q.id === id ? { ...q, ...updates } : q))
+      saveQueue(queue)
+      return { queue }
+    })
   },
 
   _processQueue: () => {

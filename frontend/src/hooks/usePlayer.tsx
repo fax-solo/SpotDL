@@ -6,6 +6,23 @@ import { useBackgroundAudio } from './useBackgroundAudio'
 import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotification, ensureNotificationPermission } from '../lib/notifications'
 import { startMediaForeground, stopMediaForeground } from '../lib/nativePlugin'
 
+type RepeatMode = 'none' | 'one' | 'all'
+
+const SHUFFLE_KEY = 'player_shuffle'
+const REPEAT_KEY = 'player_repeat'
+
+function loadShuffle(): boolean {
+  try { return localStorage.getItem(SHUFFLE_KEY) === 'true' } catch { return false }
+}
+
+function loadRepeat(): RepeatMode {
+  try {
+    const v = localStorage.getItem(REPEAT_KEY)
+    if (v === 'one' || v === 'all') return v
+  } catch {}
+  return 'none'
+}
+
 export interface PlayerState {
   currentTrack: HistoryEntry | null
   queue: HistoryEntry[]
@@ -14,6 +31,8 @@ export interface PlayerState {
   currentTime: number
   duration: number
   volume: number
+  shuffle: boolean
+  repeatMode: RepeatMode
 }
 
 interface PlayerContextValue extends PlayerState {
@@ -24,6 +43,11 @@ interface PlayerContextValue extends PlayerState {
   prev: () => void
   seek: (time: number) => void
   setVolume: (vol: number) => void
+  toggleShuffle: () => void
+  cycleRepeat: () => void
+  addToQueue: (track: HistoryEntry) => void
+  removeFromQueue: (index: number) => void
+  playNext: (track: HistoryEntry) => void
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
@@ -32,6 +56,15 @@ export function usePlayer() {
   const ctx = useContext(PlayerContext)
   if (!ctx) throw new Error('usePlayer must be used within PlayerProvider')
   return ctx
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const copy = [...arr]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
 }
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
@@ -46,22 +79,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('player_volume')
     return saved ? parseFloat(saved) : 0.8
   })
+  const [shuffle, setShuffle] = useState(loadShuffle)
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>(loadRepeat)
+  const [shuffleOrder, setShuffleOrder] = useState<number[]>([])
 
   const queueRef = useRef<HistoryEntry[]>([])
   const queueIndexRef = useRef(-1)
   const currentTrackRef = useRef<HistoryEntry | null>(null)
+  const shuffleRef = useRef(shuffle)
+  const repeatRef = useRef(repeatMode)
+  const shuffleOrderRef = useRef<number[]>([])
 
-  useEffect(() => {
-    queueRef.current = queue
-  }, [queue])
-
-  useEffect(() => {
-    queueIndexRef.current = queueIndex
-  }, [queueIndex])
-
-  useEffect(() => {
-    currentTrackRef.current = currentTrack
-  }, [currentTrack])
+  useEffect(() => { queueRef.current = queue }, [queue])
+  useEffect(() => { queueIndexRef.current = queueIndex }, [queueIndex])
+  useEffect(() => { currentTrackRef.current = currentTrack }, [currentTrack])
+  useEffect(() => { shuffleRef.current = shuffle }, [shuffle])
+  useEffect(() => { repeatRef.current = repeatMode }, [repeatMode])
+  useEffect(() => { shuffleOrderRef.current = shuffleOrder }, [shuffleOrder])
 
   useEffect(() => {
     const audio = new Audio()
@@ -77,20 +111,59 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
 
     const onEnded = () => {
+      const rpt = repeatRef.current
+      const shf = shuffleRef.current
       const q = queueRef.current
-      const idx = queueIndexRef.current + 1
-      if (idx < q.length) {
+      const idx = queueIndexRef.current
+      const sOrder = shuffleOrderRef.current
+
+      if (rpt === 'one') {
         playTrack(q[idx], q, idx)
-      } else {
-        setIsPlaying(false)
-        setCurrentTime(0)
-        stopMediaForeground()
+        return
       }
+
+      let nextIdx: number
+      if (shf && sOrder.length > 1) {
+        const currentPos = sOrder.indexOf(idx)
+        const nextPos = currentPos + 1
+        if (nextPos < sOrder.length) {
+          nextIdx = sOrder[nextPos]
+        } else if (rpt === 'all') {
+          nextIdx = sOrder[0]
+        } else {
+          setIsPlaying(false)
+          setCurrentTime(0)
+          stopMediaForeground()
+          return
+        }
+      } else {
+        nextIdx = idx + 1
+        if (nextIdx >= q.length) {
+          if (rpt === 'all') {
+            nextIdx = 0
+          } else {
+            setIsPlaying(false)
+            setCurrentTime(0)
+            stopMediaForeground()
+            return
+          }
+        }
+      }
+
+      playTrack(q[nextIdx], q, nextIdx)
     }
 
     const onError = () => {
-      setIsPlaying(false)
-      stopMediaForeground()
+      const q = queueRef.current
+      const idx = queueIndexRef.current
+      const nextIdx = idx + 1
+      // Auto-skip to next on error
+      if (nextIdx < q.length) {
+        playTrack(q[nextIdx], q, nextIdx)
+      } else {
+        setIsPlaying(false)
+        stopMediaForeground()
+      }
     }
 
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
@@ -115,6 +188,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
     localStorage.setItem('player_volume', String(volume))
   }, [volume])
+
+  useEffect(() => {
+    localStorage.setItem(SHUFFLE_KEY, String(shuffle))
+  }, [shuffle])
+
+  useEffect(() => {
+    localStorage.setItem(REPEAT_KEY, repeatMode)
+  }, [repeatMode])
 
   const playTrack = useCallback(async (track: HistoryEntry, q: HistoryEntry[], idx: number) => {
     const prev = currentTrackRef.current
@@ -189,12 +270,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const buildShuffleOrder = useCallback((q: HistoryEntry[], currentIdx: number): number[] => {
+    const indices = q.map((_, i) => i).filter(i => i !== currentIdx)
+    const shuffled = shuffleArray(indices)
+    return [currentIdx, ...shuffled]
+  }, [])
+
   const play = useCallback((track: HistoryEntry, q?: HistoryEntry[]) => {
     const qFinal = q || [track]
     const idx = qFinal.findIndex(t => t.id === track.id)
     const queueIdx = idx >= 0 ? idx : 0
+
+    if (shuffleRef.current && qFinal.length > 1) {
+      const order = buildShuffleOrder(qFinal, queueIdx)
+      setShuffleOrder(order)
+    } else {
+      setShuffleOrder([])
+    }
+
     playTrack(qFinal[queueIdx], qFinal, queueIdx)
-  }, [playTrack])
+  }, [playTrack, buildShuffleOrder])
 
   const pause = useCallback(() => {
     audioRef.current?.pause()
@@ -208,11 +303,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const next = useCallback(() => {
-    const idx = queueIndex + 1
-    if (idx < queue.length) {
-      playTrack(queue[idx], queue, idx)
+    const shf = shuffleRef.current
+    const q = queueRef.current
+    const idx = queueIndexRef.current
+    const sOrder = shuffleOrderRef.current
+
+    let nextIdx: number
+    if (shf && sOrder.length > 1) {
+      const currentPos = sOrder.indexOf(idx)
+      if (currentPos < sOrder.length - 1) {
+        nextIdx = sOrder[currentPos + 1]
+      } else {
+        return // end of shuffle order
+      }
+    } else {
+      nextIdx = idx + 1
+      if (nextIdx >= q.length) return
     }
-  }, [queue, queueIndex, playTrack])
+
+    playTrack(q[nextIdx], q, nextIdx)
+  }, [playTrack])
 
   const prev = useCallback(() => {
     const audio = audioRef.current
@@ -220,11 +330,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       audio.currentTime = 0
       return
     }
-    const idx = queueIndex - 1
-    if (idx >= 0) {
-      playTrack(queue[idx], queue, idx)
+
+    const shf = shuffleRef.current
+    const q = queueRef.current
+    const idx = queueIndexRef.current
+    const sOrder = shuffleOrderRef.current
+
+    let prevIdx: number
+    if (shf && sOrder.length > 1) {
+      const currentPos = sOrder.indexOf(idx)
+      if (currentPos > 0) {
+        prevIdx = sOrder[currentPos - 1]
+      } else {
+        return
+      }
+    } else {
+      prevIdx = idx - 1
+      if (prevIdx < 0) return
     }
-  }, [queue, queueIndex, playTrack])
+
+    playTrack(q[prevIdx], q, prevIdx)
+  }, [playTrack])
 
   const seek = useCallback((time: number) => {
     if (audioRef.current) {
@@ -236,6 +362,68 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const setVolumeFn = useCallback((vol: number) => {
     setVolumeState(Math.max(0, Math.min(1, vol)))
   }, [])
+
+  const toggleShuffle = useCallback(() => {
+    setShuffle(prev => {
+      const next = !prev
+      if (next && queueRef.current.length > 1) {
+        const order = buildShuffleOrder(queueRef.current, queueIndexRef.current)
+        setShuffleOrder(order)
+      } else {
+        setShuffleOrder([])
+      }
+      return next
+    })
+  }, [buildShuffleOrder])
+
+  const cycleRepeat = useCallback(() => {
+    setRepeatMode(prev => {
+      if (prev === 'none') return 'all'
+      if (prev === 'all') return 'one'
+      return 'none'
+    })
+  }, [])
+
+  const addToQueue = useCallback((track: HistoryEntry) => {
+    setQueue(prev => {
+      const exists = prev.some(t => t.id === track.id)
+      if (exists) return prev
+      const next = [...prev, track]
+      if (shuffleRef.current) {
+        const order = buildShuffleOrder(next, queueIndexRef.current)
+        setShuffleOrder(order)
+      }
+      return next
+    })
+  }, [buildShuffleOrder])
+
+  const removeFromQueue = useCallback((index: number) => {
+    setQueue(prev => {
+      if (index === queueIndexRef.current) return prev
+      const next = prev.filter((_, i) => i !== index)
+      const adjustedIdx = index < queueIndexRef.current ? queueIndexRef.current - 1 : queueIndexRef.current
+      if (shuffleRef.current) {
+        const order = buildShuffleOrder(next, adjustedIdx)
+        setShuffleOrder(order)
+      }
+      queueIndexRef.current = adjustedIdx
+      setQueueIndex(adjustedIdx)
+      return next
+    })
+  }, [buildShuffleOrder])
+
+  const playNext = useCallback((track: HistoryEntry) => {
+    setQueue(prev => {
+      const next = [...prev]
+      const insertAt = queueIndexRef.current + 1
+      next.splice(insertAt, 0, track)
+      if (shuffleRef.current) {
+        const order = buildShuffleOrder(next, queueIndexRef.current)
+        setShuffleOrder(order)
+      }
+      return next
+    })
+  }, [buildShuffleOrder])
 
   useBackgroundAudio(currentTrack, isPlaying)
 
@@ -251,7 +439,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   return (
     <PlayerContext.Provider value={{
       currentTrack, queue, queueIndex, isPlaying, currentTime, duration, volume,
+      shuffle, repeatMode,
       play, pause, resume, next, prev, seek, setVolume: setVolumeFn,
+      toggleShuffle, cycleRepeat, addToQueue, removeFromQueue, playNext,
     }}>
       {children}
     </PlayerContext.Provider>

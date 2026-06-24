@@ -4,7 +4,19 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowDown, Play, Pause, SkipBack, SkipForward, Music, Mic2, ListMusic,
   Plus, Trash2, Play as PlayIcon, Music2, FolderOpen, Check,
+  Shuffle, Repeat,
 } from 'lucide-react'
+
+const RepeatOneIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="17 1 21 5 17 9" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <polyline points="7 23 3 19 7 15" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    <line x1="11" y1="12" x2="12.5" y2="10" />
+    <line x1="12.5" y1="14" x2="11" y2="12" />
+  </svg>
+)
 import { ArtworkImage } from '../components/ArtworkImage'
 import { LyricsView } from '../components/LyricsView'
 import { History } from '../components/History'
@@ -29,6 +41,7 @@ export function PlayerScreen() {
   const {
     currentTrack, isPlaying, currentTime, duration, volume,
     pause, resume, next, prev, seek, setVolume, play,
+    shuffle, repeatMode, toggleShuffle, cycleRepeat,
   } = usePlayer()
   const { entries, removeEntry, clearHistory } = useHistory()
   const { playlists, createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist, renamePlaylist } = usePlaylists()
@@ -477,6 +490,17 @@ export function PlayerScreen() {
         {/* Controls */}
         <div className="flex items-center justify-center gap-6 w-full max-w-sm">
           <button
+            onClick={toggleShuffle}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              shuffle
+                ? 'bg-accent text-white shadow-md'
+                : 'hover:bg-white/10 dark:hover:bg-zinc-800/50 text-light-muted dark:text-dark-muted'
+            }`}
+            title={shuffle ? 'Shuffle on' : 'Shuffle off'}
+          >
+            <Shuffle className="w-4 h-4" />
+          </button>
+          <button
             onClick={prev}
             className="w-12 h-12 rounded-full hover:bg-white/10 dark:hover:bg-zinc-800/50 flex items-center justify-center transition-colors cursor-pointer"
           >
@@ -493,6 +517,17 @@ export function PlayerScreen() {
             className="w-12 h-12 rounded-full hover:bg-white/10 dark:hover:bg-zinc-800/50 flex items-center justify-center transition-colors cursor-pointer"
           >
             <SkipForward className="w-6 h-6 text-light-text dark:text-white" />
+          </button>
+          <button
+            onClick={cycleRepeat}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              repeatMode === 'none'
+                ? 'hover:bg-white/10 dark:hover:bg-zinc-800/50 text-light-muted dark:text-dark-muted'
+                : 'bg-accent text-white shadow-md'
+            }`}
+            title={repeatMode === 'all' ? 'Repeat all' : repeatMode === 'one' ? 'Repeat one' : 'Repeat off'}
+          >
+            {repeatMode === 'one' ? <RepeatOneIcon className="w-4 h-4" /> : <Repeat className="w-4 h-4" />}
           </button>
         </div>
 

@@ -475,6 +475,7 @@ async function officialSearch(context, query, type, limit) {
     artist_id: t.artists?.[0]?.id || null, album: t.album?.name || 'Unknown',
     album_id: t.album?.id || null, thumbnail: t.album?.images?.[0]?.url || null,
     url: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`, duration_ms: t.duration_ms || 0,
+    isrc: t.external_ids?.isrc || null,
   }))
   if (type === 'artist') return (data.artists?.items || []).map(a => ({
     id: a.id, name: a.name, thumbnail: a.images?.[0]?.url || null, genres: a.genres || [], followers: a.followers?.total || 0,
@@ -534,6 +535,7 @@ async function handleArtist(context, id) {
             artist: t.artists?.map(a => a.name).join(', ') || official.name,
             artist_id: t.artists?.[0]?.id || null, album_id: t.album?.id || null,
             artwork_url: t.album?.images?.[0]?.url || null, url: `https://open.spotify.com/track/${t.id}`, duration_ms: t.duration_ms || 0,
+            isrc: t.external_ids?.isrc || null,
           })),
           albums: albumList,
           latest_release: albumList[0] || null,
@@ -631,6 +633,7 @@ async function wolfxTrack(id) {
     album: albumName || 'Unknown Album', album_id: albumId,
     artwork_url: t.thumbnail || t.artwork_url || null,
     url: `https://open.spotify.com/track/${id}`, duration_ms: t.duration_ms || 0,
+    isrc: t.isrc || t.external_ids?.isrc || null,
   }
 }
 
@@ -645,6 +648,7 @@ async function officialTrack(context, id) {
     album: official.album?.name || 'Unknown Album', album_id: official.album?.id || null,
     artwork_url: official.album?.images?.[0]?.url || null,
     url: official.external_urls?.spotify || `https://open.spotify.com/track/${id}`, duration_ms: official.duration_ms || 0,
+    isrc: official.external_ids?.isrc || null,
   }
 }
 
@@ -807,6 +811,7 @@ async function handleRecentlyPlayed(context, limit = 20) {
       artwork_url: t.album?.images?.[0]?.url || null,
       url: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
       duration_ms: t.duration_ms || 0, played_at: item.played_at || null,
+      isrc: t.external_ids?.isrc || null,
     }
   }).filter(Boolean)
   return jsonOk({ tracks })
@@ -865,6 +870,7 @@ async function handleRecommendations(context, seedArtists, seedTracks, seedGenre
     artwork_url: t.album?.images?.[0]?.url || null,
     url: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
     duration_ms: t.duration_ms || 0,
+    isrc: t.external_ids?.isrc || null,
   }))
   return jsonOk({ tracks })
 }

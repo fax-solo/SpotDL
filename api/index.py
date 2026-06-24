@@ -60,6 +60,15 @@ class DownloadRequest(BaseModel):
     url: str | None = Field(default=None, max_length=2000)
 
 
+class DeezerDownloadRequest(BaseModel):
+    arl: str = Field(min_length=1, max_length=200)
+    title: str = Field(max_length=500)
+    artist: str = Field(max_length=500)
+    album: str = Field(default="Unknown Album", max_length=500)
+    artwork_url: str | None = Field(default=None, max_length=2000)
+    quality: str = Field(default="FLAC", pattern="^(FLAC|MP3)$", max_length=4)
+
+
 # ─── Health ───
 
 @app.get("/api/ping")
@@ -194,6 +203,115 @@ async def download_stream(body: DownloadRequest):
             "Cache-Control": "no-cache",
         },
     )
+
+
+# ─── Playlist Sync (subscriptions + auto-download) ───
+
+class SubscribeRequest(BaseModel):
+    url: str = Field(max_length=2000)
+    interval: str = Field(default="daily", pattern="^(manual|hourly|daily|weekly)$")
+
+
+@app.post("/api/sync/subscribe")
+async def sync_subscribe(body: SubscribeRequest):
+    from sync import add_subscription
+    try:
+        sub = add_subscription(body.url, body.interval)
+        return {"ok": True, "subscription": sub}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/sync/subscriptions")
+async def sync_list():
+    from sync import list_subscriptions
+    return {"ok": True, "subscriptions": list_subscriptions()}
+
+
+@app.delete("/api/sync/subscribe/{sub_id}")
+async def sync_unsubscribe(sub_id: str):
+    from sync import remove_subscription
+    try:
+        remove_subscription(sub_id)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/sync/run/{sub_id}")
+async def sync_run(sub_id: str):
+    from sync import run_sync
+    try:
+        result = await asyncio.to_thread(run_sync, sub_id)
+        return {"ok": True, "result": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/sync/run-all")
+async def sync_run_all():
+    from sync import run_all_syncs
+    try:
+        results = await asyncio.to_thread(run_all_syncs)
+        return {"ok": True, "results": results}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ─── Deezer Download (ARL-based, Blowfish decryption) ───
+
+@app.post("/api/download/deezer")
+async def deezer_download(body: DeezerDownloadRequest):
+    from deezer import DeezerClient, DeezerError
+
+    try:
+        client = DeezerClient(body.arl)
+    except DeezerError as e:
+        raise HTTPException(status_code=401, detail=f"Deezer auth failed: {e}")
+
+    async with _download_semaphore:
+        try:
+            filepath, ext = await asyncio.to_thread(
+                client.search_and_download,
+                title=body.title,
+                artist=body.artist,
+                album=body.album,
+                artwork_url=body.artwork_url,
+                quality=body.quality,
+            )
+
+            def cleanup():
+                import shutil
+                parent = os.path.dirname(filepath)
+                if os.path.isdir(parent):
+                    shutil.rmtree(parent, ignore_errors=True)
+
+            safe_artist = body.artist.replace("/", "_").replace("\\", "_")
+            safe_title = body.title.replace("/", "_").replace("\\", "_")
+            filename = f"{safe_artist} - {safe_title}{ext}"
+            media_type = "audio/flac" if ext == ".flac" else "audio/mpeg"
+
+            return FileResponse(
+                path=filepath,
+                media_type=media_type,
+                filename=filename,
+                background=BackgroundTask(cleanup),
+            )
+
+        except DeezerError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=502, detail=f"Deezer download failed: {e}")
+        finally:
+            client.close()
 
 
 @app.get("/api/debug/auth")

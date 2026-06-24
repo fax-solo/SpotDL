@@ -6,6 +6,7 @@ import { apiUrl } from './apiConfig'
 import { cachedFetch } from './requestCache'
 import { isNativeSpotDLAvailable, nativeFetchMetadata, nativeDownloadTrack } from './nativePlugin'
 import { cacheMetadata, getCachedMetadata } from './dbCache'
+import { getDeezerArl, getDeezerQuality } from './deezer'
 
 export type { TrackMeta, CollectionMeta }
 export type { YouTubeSearchResult, YouTubeInfo } from './youtubeClient'
@@ -48,6 +49,7 @@ const DIRECT_URL_PATTERNS = [
   /youtube\.com|youtu\.be/i,
   /soundcloud\.com/i,
   /bandcamp\.com/i,
+  /deezer\.com/i,
 ]
 
 export function isDirectUrl(url: string): boolean {
@@ -180,11 +182,19 @@ async function isServerAvailable(signal?: AbortSignal): Promise<boolean> {
   }
 }
 
+const MIN_BLOB_SIZE = 10240 // 10 KB — reject anything below as invalid
+
+function validateBlob(blob: Blob): void {
+  if (blob.size < MIN_BLOB_SIZE) {
+    throw new Error(`Downloaded file too small (${blob.size} bytes), likely invalid`)
+  }
+}
+
 export async function downloadTrack(
   meta: TrackMeta,
   onProgress?: (stage: string, pct?: number) => void,
   signal?: AbortSignal,
-  retries = 3,
+  retries = 2,
 ): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
   const filename = `${safe(meta.artist)} - ${safe(meta.title)}.mp3`
@@ -202,6 +212,37 @@ export async function downloadTrack(
       }
     } catch {
       // Fall through
+    }
+  }
+
+  // Try Deezer download (highest quality — FLAC/320kbps via server)
+  const deezerArl = getDeezerArl()
+  if (deezerArl && await isServerAvailable(signal)) {
+    try {
+      onProgress?.('Searching Deezer...', 0)
+      const quality = getDeezerQuality()
+      const deezerRes = await fetch(apiUrl('/api/download/deezer'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          arl: deezerArl,
+          title: meta.title,
+          artist: meta.artist,
+          album: meta.album,
+          artwork_url: meta.artwork_url,
+          quality,
+        }),
+        signal,
+      })
+      if (deezerRes.ok) {
+        const blob = await deezerRes.blob()
+        validateBlob(blob)
+        onProgress?.('Done', 100)
+        const ext = quality === 'FLAC' ? '.flac' : '.mp3'
+        return { blob, filename: filename.replace('.mp3', ext) }
+      }
+    } catch (err) {
+      console.warn('[api] Deezer download failed, falling back to server:', err)
     }
   }
 
@@ -223,10 +264,9 @@ export async function downloadTrack(
       })
       if (res.ok) {
         const blob = await res.blob()
-        if (blob.size > 0) {
-          onProgress?.('Done', 100)
-          return { blob, filename }
-        }
+        validateBlob(blob)
+        onProgress?.('Done', 100)
+        return { blob, filename }
       }
     } catch (err) {
       console.warn('[api] Server download failed, falling back to client mode:', err)
@@ -238,14 +278,14 @@ export async function downloadTrack(
   let lastError: Error | null = null
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) {
-      onProgress?.(`Retrying (${attempt}/${retries})...`)
-      await delay(1000 * attempt)
+      onProgress?.(`Retrying (${attempt}/${retries})...`, 0)
+      await delay(Math.min(1000 * attempt, 4000))
     }
     try {
-      onProgress?.(`Searching...`)
+      onProgress?.(`Searching (attempt ${attempt + 1})...`)
       signal?.throwIfAborted()
 
-      const { info, source } = await findAudio(query, meta.title, meta.artist)
+      const { info, source } = await findAudio(query, meta.title, meta.artist, meta.duration_ms, meta.isrc)
 
       if (!info.audioUrl) {
         throw new Error(`No downloadable audio found on ${source}`)
@@ -266,6 +306,7 @@ export async function downloadTrack(
         signal,
       )
 
+      validateBlob(blob)
       return { blob, filename }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))

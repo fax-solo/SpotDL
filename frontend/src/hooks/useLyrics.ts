@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { apiUrl } from '../lib/apiConfig'
+import { fetchLyricsFallback } from '../lib/lyricsFallback'
 
 interface SyncedLine {
   time: number
@@ -125,12 +126,31 @@ export function useLyrics(
       body: JSON.stringify({ trackName, artistName, albumName: albumName || undefined, duration: duration || undefined }),
       signal: controller.signal,
     })
-      .then(res => res.json())
-      .then(data => {
+      .then(async res => {
         clearTimeout(timeoutId)
+        if (cancelled || id !== fetchIdRef.current) return null
+        if (!res.ok) return { plainLyrics: null, syncedLyrics: null }
+        const data = await res.json()
+        return { plainLyrics: data.plainLyrics || null, syncedLyrics: data.syncedLyrics || null }
+      })
+      .then(async entry => {
         if (cancelled || id !== fetchIdRef.current) return
 
-        const entry = { plainLyrics: data.plainLyrics || null, syncedLyrics: data.syncedLyrics || null }
+        // If server returned nothing, try client-side fallback
+        if (!entry || (!entry.plainLyrics && !entry.syncedLyrics)) {
+          try {
+            const fallback = await fetchLyricsFallback(artistName, trackName)
+            if (fallback && (fallback.plainLyrics || fallback.syncedLyrics)) {
+              entry = fallback
+            }
+          } catch {}
+        }
+
+        if (!entry || (!entry.plainLyrics && !entry.syncedLyrics)) {
+          setState(prev => ({ ...prev, loading: false, error: null }))
+          return
+        }
+
         cache.set(cacheKey, entry)
         if (cache.size > CACHE_MAX) {
           const first = cache.keys().next().value
@@ -151,7 +171,25 @@ export function useLyrics(
         clearTimeout(timeoutId)
         if (cancelled || id !== fetchIdRef.current) return
         if (err.name === 'AbortError') return
-        setState(prev => ({ ...prev, loading: false, error: 'Failed to load lyrics' }))
+        // Try client-side fallback on network error
+        fetchLyricsFallback(artistName, trackName).then(fallback => {
+          if (cancelled || id !== fetchIdRef.current) return
+          if (fallback && (fallback.plainLyrics || fallback.syncedLyrics)) {
+            const syncedLines = fallback.syncedLyrics ? parseLRC(fallback.syncedLyrics) : []
+            setState({
+              plainLyrics: fallback.plainLyrics,
+              syncedLines,
+              synced: syncedLines.length > 0,
+              currentLine: -1,
+              loading: false,
+              error: null,
+            })
+          } else {
+            setState(prev => ({ ...prev, loading: false, error: null }))
+          }
+        }).catch(() => {
+          setState(prev => ({ ...prev, loading: false, error: null }))
+        })
       })
 
     return () => { cancelled = true; clearTimeout(timeoutId); controller.abort() }

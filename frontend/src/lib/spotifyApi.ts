@@ -9,6 +9,8 @@ export interface TrackMeta {
   artwork_url: string | null
   url: string
   type: string
+  duration_ms?: number
+  isrc?: string | null
 }
 
 export interface CollectionMeta {

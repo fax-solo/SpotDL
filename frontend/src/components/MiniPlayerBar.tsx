@@ -1,13 +1,24 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Play, Pause, ChevronUp } from 'lucide-react'
+import { Play, Pause, ChevronUp, Shuffle, Repeat } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
 import { usePlayer } from '../hooks/usePlayer'
 import { useBottomBar } from '../hooks/useBottomBar'
 
+const RepeatOneIconMini = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="17 1 21 5 17 9" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <polyline points="7 23 3 19 7 15" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    <line x1="11" y1="12" x2="12.5" y2="10" />
+    <line x1="12.5" y1="14" x2="11" y2="12" />
+  </svg>
+)
+
 export function MiniPlayerBar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentTrack, isPlaying, pause, resume } = usePlayer()
+  const { currentTrack, isPlaying, pause, resume, shuffle, repeatMode } = usePlayer()
   const bottomBarHidden = useBottomBar(s => s.hidden)
   const isPlayerPage = location.pathname === '/player'
   const showBottomBar = !bottomBarHidden && !isPlayerPage
@@ -38,6 +49,13 @@ export function MiniPlayerBar() {
         >
           {isPlaying ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white ml-0.5" />}
         </button>
+        {(shuffle || repeatMode !== 'none') && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {shuffle && <Shuffle className="w-3 h-3 text-accent" />}
+            {repeatMode === 'one' && <RepeatOneIconMini className="w-3 h-3 text-accent" />}
+            {repeatMode === 'all' && <Repeat className="w-3 h-3 text-accent" />}
+          </div>
+        )}
         <ChevronUp className="w-4 h-4 text-light-muted dark:text-dark-muted flex-shrink-0" />
       </button>
     </div>

@@ -1,16 +1,79 @@
 import { searchYouTube, getVideoInfo } from './youtubeClient'
+import { searchDeezer, getDeezerTrack, searchDeezerByIsrc } from './deezer'
 import { apiUrl } from './apiConfig'
 
-function titleMatches(expectedTitle: string, expectedArtist: string, foundTitle: string, foundAuthor?: string): boolean {
-  const t = expectedTitle.toLowerCase().trim()
-  const a = expectedArtist.toLowerCase().trim()
-  const ft = foundTitle.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, '').trim()
-  const fa = (foundAuthor || '').toLowerCase().trim()
+interface MatchOptions {
+  expectedTitle: string
+  expectedArtist: string
+  foundTitle: string
+  foundAuthor?: string
+  foundDuration?: string | number | null
+  expectedDuration?: string | number | null
+  expectedIsrc?: string | null
+  foundIsrc?: string | null
+}
 
-  if (t.length === 0) return true
-  if (!ft.includes(t)) return false
-  if (a.length === 0) return true
-  return ft.includes(a) || fa.includes(a)
+const MIN_CONFIDENCE = 0.3
+
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, '').replace(/[^\w\s]/g, '').trim()
+}
+
+function titleMatches(options: MatchOptions): boolean {
+  return matchScore(options) >= MIN_CONFIDENCE
+}
+
+function matchScore(options: MatchOptions): number {
+  const { expectedTitle: et, expectedArtist: ea, foundTitle: ft, foundAuthor: fa, foundDuration: fd, expectedDuration: ed, expectedIsrc, foundIsrc } = options
+  const t = normalize(et)
+  const a = normalize(ea)
+  const ftNorm = normalize(ft)
+  const faNorm = normalize(fa || '')
+
+  if (t.length === 0) return 0
+
+  let score = 0
+  let total = 0
+
+  // Title match (weight: 4)
+  total += 4
+  if (t === ftNorm) score += 4
+  else if (ftNorm.includes(t) && t.length >= 3) score += 3
+  else if (t.includes(ftNorm) && ftNorm.length >= 3) score += 2
+  else if (ftNorm.includes(t)) score += 2
+
+  // Artist match (weight: 3)
+  if (a.length > 0) {
+    total += 3
+    const inTitle = ftNorm.includes(a)
+    const inAuthor = faNorm.length > 0 && (faNorm.includes(a) || a.includes(faNorm) || faNorm === a)
+    if (a === ftNorm || a === faNorm || faNorm === a) score += 3
+    else if (a === ftNorm) score += 3
+    else if (inTitle || inAuthor) score += 2
+    else score -= 1
+  }
+
+  // Duration match (weight: 3)
+  if (ed != null && fd != null) {
+    total += 3
+    const expSec = typeof ed === 'number' ? ed : parseFloat(String(ed))
+    const foundSec = typeof fd === 'number' ? fd : parseFloat(String(fd))
+    if (expSec > 0 && foundSec > 0) {
+      const ratio = Math.min(expSec, foundSec) / Math.max(expSec, foundSec)
+      if (ratio >= 0.9) score += 3
+      else if (ratio >= 0.8) score += 1.5
+      else if (ratio >= 0.7) score += 0.5
+      else score -= 2
+    }
+  }
+
+  // ISRC match (weight: 10 — definitive)
+  if (expectedIsrc && foundIsrc && expectedIsrc.toUpperCase() === foundIsrc.toUpperCase()) {
+    score += 10
+    total += 10
+  }
+
+  return total > 0 ? score / total : 0
 }
 
 interface SourceSearchResult {
@@ -21,6 +84,7 @@ interface SourceSearchResult {
   audioUrl?: string | null
   thumbnail?: string | null
   source: string
+  isrc?: string | null
 }
 
 interface SourceInfo {
@@ -29,6 +93,7 @@ interface SourceInfo {
   duration: string
   audioUrl: string | null
   thumbnail: string | null
+  isrc?: string | null
 }
 
 async function callFunction(name: string, body: Record<string, unknown>) {
@@ -62,22 +127,74 @@ async function bandcampInfo(url: string): Promise<SourceInfo | null> {
   return null
 }
 
+async function searchDeezerSource(query: string): Promise<SourceSearchResult[]> {
+  const results = await searchDeezer(query)
+  return results.map(r => ({
+    url: `https://www.deezer.com/track/${r.id}`,
+    title: r.title,
+    artist: r.artist,
+    duration: r.duration,
+    audioUrl: r.preview || null,
+    thumbnail: r.thumbnail,
+    source: 'deezer',
+  }))
+}
+
+async function deezerInfo(url: string): Promise<SourceInfo | null> {
+  const match = url.match(/deezer\.com\/track\/(\d+)/)
+  if (!match) return null
+  const track = await getDeezerTrack(parseInt(match[1]))
+  if (!track) return null
+  return {
+    title: track.title,
+    author: track.artist,
+    duration: track.duration,
+    audioUrl: null,
+    thumbnail: track.thumbnail,
+  }
+}
+
 interface SourceResult {
   info: SourceInfo
   source: string
 }
 
-export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string): Promise<SourceResult> {
+export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string, expectedDuration?: string | number | null, expectedIsrc?: string | null): Promise<SourceResult> {
   const sources: { name: string; search: (q: string) => Promise<SourceSearchResult[]>; info: (url: string) => Promise<SourceInfo | null> }[] = [
+    { name: 'deezer', search: searchDeezerSource, info: deezerInfo },
     { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
     { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
     { name: 'bandcamp', search: searchBandcamp, info: bandcampInfo },
   ]
 
+  // Try ISRC-based Deezer lookup first (definitive match)
+  if (expectedIsrc) {
+    try {
+      const deezerTrack = await searchDeezerByIsrc(expectedIsrc)
+      if (deezerTrack) {
+        return {
+          info: {
+            title: deezerTrack.title,
+            author: deezerTrack.artist,
+            duration: deezerTrack.duration,
+            audioUrl: deezerTrack.preview || null,
+            thumbnail: deezerTrack.thumbnail,
+            isrc: deezerTrack.isrc,
+          },
+          source: 'deezer',
+        }
+      }
+    } catch {
+      // Fall through to normal search
+    }
+  }
+
+  const candidates: { info: SourceInfo; source: string; score: number }[] = []
+
   const results = await Promise.allSettled(
     sources.map(async (source) => {
       const searchResults = await source.search(query)
-      if (searchResults.length === 0) return null
+      if (searchResults.length === 0) return
 
       for (const result of searchResults) {
         let info: SourceInfo | null = null
@@ -89,23 +206,29 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
         }
 
         if (info && info.audioUrl) {
-          if (expectedTitle || expectedArtist) {
-            if (titleMatches(expectedTitle || '', expectedArtist || '', info.title, info.author)) {
-              return { info, source: source.name }
-            }
-          } else {
-            return { info, source: source.name }
+          const score = matchScore({
+            expectedTitle: expectedTitle || query,
+            expectedArtist: expectedArtist || '',
+            foundTitle: info.title,
+            foundAuthor: info.author,
+            foundDuration: info.duration,
+            expectedDuration,
+            expectedIsrc,
+            foundIsrc: info.isrc || result.isrc || null,
+          })
+          if (score >= MIN_CONFIDENCE) {
+            candidates.push({ info, source: source.name, score })
           }
         }
       }
-      return null
     }),
   )
 
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value) {
-      return result.value
-    }
+  // Pick best match by score
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => b.score - a.score)
+    const best = candidates[0]
+    return { info: best.info, source: best.source }
   }
 
   throw new Error('No audio found on any source. Try a direct YouTube or SoundCloud URL.')
@@ -131,6 +254,13 @@ export async function findAudioFromUrl(url: string): Promise<SourceResult> {
     const info = await bandcampInfo(url)
     if (info?.audioUrl) return { info, source: 'bandcamp' }
     throw new Error('No audio found for this Bandcamp page')
+  }
+
+  // Direct Deezer URL
+  if (url.includes('deezer.com')) {
+    const info = await deezerInfo(url)
+    if (info) return { info, source: 'deezer' }
+    throw new Error('No audio found for this Deezer track')
   }
 
   throw new Error('Unsupported URL')

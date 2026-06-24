@@ -33,6 +33,7 @@ const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default:
 const CallbackPage = lazy(() => import('./pages/CallbackPage').then(m => ({ default: m.CallbackPage })))
 const YtTrackDetail = lazy(() => import('./pages/YtTrackDetail').then(m => ({ default: m.YtTrackDetail })))
 const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default: m.SearchPage })))
+const SyncPage = lazy(() => import('./pages/SyncPage').then(m => ({ default: m.SyncPage })))
 
 const PAGE_ORDER = ['/', '/download', '/history', '/settings', '/player']
 
@@ -183,43 +184,45 @@ function AppContent() {
           >
             <div key={location.pathname}>
               <Routes location={location}>
-                {isNative ? (
-                  <>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/search" element={<SearchPage />} />
-                    <Route path="/download" element={<Downloader />} />
-                    <Route path="/history" element={<HistoryPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                    <Route path="/callback" element={<CallbackPage />} />
-                    <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
-                    <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
-                    <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
-                    <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
-                    <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
-                    <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
-                    <Route path="/show/:id" element={<ShowDetail />} />
-                    <Route path="/player" element={<PlayerScreen />} />
-                    <Route path="*" element={<NotFound />} />
-                  </>
-                ) : (
-                  <>
-                    <Route path="/" element={<LandingPage />} />
-                    <Route path="/search" element={<SearchPage />} />
-                    <Route path="/download" element={<Downloader />} />
-                    <Route path="/history" element={<HistoryPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                    <Route path="/player" element={<PlayerScreen />} />
-                    <Route path="/callback" element={<CallbackPage />} />
-                    <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
-                    <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
-                    <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
-                    <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
-                    <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
-                    <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
-                    <Route path="/show/:id" element={<ShowDetail />} />
-                    <Route path="*" element={<NotFound />} />
-                  </>
-                )}
+                    {isNative ? (
+                      <>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/search" element={<SearchPage />} />
+                        <Route path="/download" element={<Downloader />} />
+                        <Route path="/history" element={<HistoryPage />} />
+                        <Route path="/sync" element={<SyncPage />} />
+                        <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/callback" element={<CallbackPage />} />
+                        <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
+                        <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
+                        <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
+                        <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
+                        <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
+                        <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
+                        <Route path="/show/:id" element={<ShowDetail />} />
+                        <Route path="/player" element={<PlayerScreen />} />
+                        <Route path="*" element={<NotFound />} />
+                      </>
+                    ) : (
+                      <>
+                        <Route path="/" element={<LandingPage />} />
+                        <Route path="/search" element={<SearchPage />} />
+                        <Route path="/download" element={<Downloader />} />
+                        <Route path="/history" element={<HistoryPage />} />
+                        <Route path="/sync" element={<SyncPage />} />
+                        <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/player" element={<PlayerScreen />} />
+                        <Route path="/callback" element={<CallbackPage />} />
+                        <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
+                        <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
+                        <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
+                        <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
+                        <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
+                        <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
+                        <Route path="/show/:id" element={<ShowDetail />} />
+                        <Route path="*" element={<NotFound />} />
+                      </>
+                    )}
               </Routes>
             </div>
           </div>
