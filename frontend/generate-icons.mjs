@@ -1,9 +1,10 @@
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync } from 'fs'
-import { resolve, dirname } from 'path'
+import { existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, unlinkSync } from 'fs'
+import { resolve } from 'path'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const PUBLIC = resolve(import.meta.dirname, 'public')
+const ANDROID_RES = resolve(import.meta.dirname, 'android/app/src/main/res')
 const SOURCE_ICON = resolve(ROOT, 'App icon.png')
 
 const MIPMAP_SIZES = {
@@ -93,6 +94,52 @@ async function main() {
 </resources>
 `)
     console.log('  Created icon background color XML')
+  }
+
+  // Copy to Android project
+  if (existsSync(ANDROID_RES)) {
+    console.log('\nCopying to Android project...')
+    for (const [dir] of Object.entries(MIPMAP_SIZES)) {
+      const srcDir = resolve(PUBLIC, dir)
+      const dstDir = resolve(ANDROID_RES, dir)
+      mkdirSync(dstDir, { recursive: true })
+      copyFileSync(resolve(srcDir, 'ic_launcher.png'), resolve(dstDir, 'ic_launcher.png'))
+      copyFileSync(resolve(srcDir, 'ic_launcher_round.png'), resolve(dstDir, 'ic_launcher_round.png'))
+      const rmPath = resolve(dstDir, 'ic_launcher_foreground.png')
+      if (existsSync(rmPath)) unlinkSync(rmPath)
+      console.log(`  Copied ${dir} icons`)
+    }
+
+    // Foreground drawable
+    const drawableDst = resolve(ANDROID_RES, 'drawable')
+    mkdirSync(drawableDst, { recursive: true })
+    copyFileSync(resolve(PUBLIC, 'drawable/ic_launcher_foreground.png'), resolve(drawableDst, 'ic_launcher_foreground.png'))
+    console.log('  Copied adaptive icon foreground')
+
+    // drawable-v24
+    if (existsSync(resolve(PUBLIC, 'drawable-v24'))) {
+      const v24Dst = resolve(ANDROID_RES, 'drawable-v24')
+      mkdirSync(v24Dst, { recursive: true })
+      copyFileSync(resolve(PUBLIC, 'drawable-v24/ic_launcher_foreground.png'), resolve(v24Dst, 'ic_launcher_foreground.png'))
+      console.log('  Copied adaptive icon foreground (drawable-v24)')
+    }
+
+    // Background color
+    const valuesDst = resolve(ANDROID_RES, 'values')
+    mkdirSync(valuesDst, { recursive: true })
+    const bgFile = resolve(PUBLIC, 'values/ic_launcher_background.xml')
+    if (existsSync(bgFile)) copyFileSync(bgFile, resolve(valuesDst, 'ic_launcher_background.xml'))
+
+    // Adaptive icon XML
+    const anydpiDst = resolve(ANDROID_RES, 'mipmap-anydpi-v26')
+    mkdirSync(anydpiDst, { recursive: true })
+    copyFileSync(resolve(PUBLIC, 'mipmap-anydpi-v26/ic_launcher.xml'), resolve(anydpiDst, 'ic_launcher.xml'))
+    copyFileSync(resolve(PUBLIC, 'mipmap-anydpi-v26/ic_launcher_round.xml'), resolve(anydpiDst, 'ic_launcher_round.xml'))
+
+    console.log('  Copied adaptive icon XML descriptors')
+    console.log('\nAndroid project icons updated!')
+  } else {
+    console.warn('\nAndroid project not found at', ANDROID_RES, '— skipping copy')
   }
 
   console.log('\nDone! All Android icons generated.')

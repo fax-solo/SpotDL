@@ -13,6 +13,13 @@ dist-ssr
 *.local
 .env
 
+# Generated icon assets (regenerated from App icon.png by generate-icons.mjs)
+public/mipmap-*/
+public/drawable/ic_launcher_foreground.png
+public/drawable-v24/
+public/values/ic_launcher_background.xml
+public/mipmap-anydpi-v26/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
