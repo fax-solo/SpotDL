@@ -4,7 +4,7 @@ import { FileQuestion, WifiOff } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
 import { MiniPlayerBar } from './components/MiniPlayerBar'
-import { ToastProvider } from './components/Toast'
+import { ToastProvider, useToast } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
@@ -34,6 +34,7 @@ const CallbackPage = lazy(() => import('./pages/CallbackPage').then(m => ({ defa
 const YtTrackDetail = lazy(() => import('./pages/YtTrackDetail').then(m => ({ default: m.YtTrackDetail })))
 const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default: m.SearchPage })))
 const SyncPage = lazy(() => import('./pages/SyncPage').then(m => ({ default: m.SyncPage })))
+const LocalMusicPage = lazy(() => import('./pages/LocalMusicPage').then(m => ({ default: m.LocalMusicPage })))
 
 const PAGE_ORDER = ['/', '/download', '/history', '/settings', '/player']
 
@@ -62,6 +63,7 @@ function AppContent() {
   const navigate = useNavigate()
   const { addEntry, updateEntryLyrics } = useHistory()
   const isOnline = useOnlineStatus()
+  const { toast } = useToast()
   const [isNative, setIsNative] = useState(isNativeApp)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -77,6 +79,7 @@ function AppContent() {
         import('./pages/Downloader')
         import('./pages/HistoryPage')
         import('./pages/PlayerScreen')
+        import('./pages/LocalMusicPage')
       }, 1000)
       return () => clearTimeout(timer)
     }, [])
@@ -121,6 +124,20 @@ function AppContent() {
     window.addEventListener('trackDownloaded', handleDownload)
     return () => window.removeEventListener('trackDownloaded', handleDownload)
   }, [addEntry, updateEntryLyrics])
+
+  useEffect(() => {
+    const handleComplete = (e: Event) => {
+      const { done, failed } = (e as CustomEvent).detail || {}
+      if (done == null) return
+      if (failed > 0) {
+        toast(`Done: ${done} downloaded, ${failed} failed`, 'error')
+      } else {
+        toast(`${done} tracks downloaded successfully`, 'success')
+      }
+    }
+    window.addEventListener('downloadsComplete', handleComplete)
+    return () => window.removeEventListener('downloadsComplete', handleComplete)
+  }, [toast])
 
   useEffect(() => {
     if (!isNative) return
@@ -191,6 +208,7 @@ function AppContent() {
                         <Route path="/download" element={<Downloader />} />
                         <Route path="/history" element={<HistoryPage />} />
                         <Route path="/sync" element={<SyncPage />} />
+                        <Route path="/local-music" element={<LocalMusicPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/callback" element={<CallbackPage />} />
                         <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
@@ -210,6 +228,7 @@ function AppContent() {
                         <Route path="/download" element={<Downloader />} />
                         <Route path="/history" element={<HistoryPage />} />
                         <Route path="/sync" element={<SyncPage />} />
+                        <Route path="/local-music" element={<LocalMusicPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/player" element={<PlayerScreen />} />
                         <Route path="/callback" element={<CallbackPage />} />

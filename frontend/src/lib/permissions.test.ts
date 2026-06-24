@@ -44,10 +44,11 @@ describe('ALL_PERMISSIONS', () => {
     expect(keys).toContain('boot_completed')
   })
 
-  it('marks only notifications as dangerous', () => {
+  it('marks runtime permissions as dangerous', () => {
     const dangerous = ALL_PERMISSIONS.filter(p => p.dangerous)
-    expect(dangerous).toHaveLength(1)
-    expect(dangerous[0].key).toBe('notifications')
+    expect(dangerous.length).toBeGreaterThanOrEqual(2)
+    expect(dangerous.map(p => p.key)).toContain('notifications')
+    expect(dangerous.map(p => p.key)).toContain('media_audio')
   })
 
   it('all permissions have valid androidName', () => {

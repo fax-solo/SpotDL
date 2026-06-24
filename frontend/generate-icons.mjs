@@ -56,15 +56,15 @@ async function main() {
     console.log(`  ${dir}/ic_launcher.png  → ${size}x${size}  (${kb}KB)`)
   }
 
-  // Generate adaptive icon foreground (108x108)
-  // Write to both drawable/ and drawable-v24/ to override Capacitor's default vector on API 24+
+  // Generate adaptive icon foreground, centered at 80dp within 108dp viewport
+  // This gives ~14dp padding on each side so the icon doesn't fill the entire circle
   for (const fgDir of ['drawable', 'drawable-v24']) {
     const outDir = resolve(PUBLIC, fgDir)
     mkdirSync(outDir, { recursive: true })
     const foreground = resolve(outDir, 'ic_launcher_foreground.png')
-    execSync(`${convertCmd} "${SOURCE_ICON}" -resize 108x108 "${foreground}"`, { stdio: 'pipe' })
+    execSync(`${convertCmd} "${SOURCE_ICON}" -resize 80x80 -background none -gravity center -extent 108x108 "${foreground}"`, { stdio: 'pipe' })
     const fgKb = (existsSync(foreground) ? readFileSync(foreground).length / 1024 : 0).toFixed(1)
-    console.log(`  ${fgDir}/ic_launcher_foreground.png  → 108x108  (${fgKb}KB)`)
+    console.log(`  ${fgDir}/ic_launcher_foreground.png  → 80dp centered in 108dp  (${fgKb}KB)`)
   }
 
   // Ensure adaptive icon XML descriptors exist

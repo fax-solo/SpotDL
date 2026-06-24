@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import * as historyDb from '../lib/historyDb'
 
 export interface HistoryEntry {
   id: string
@@ -16,7 +17,7 @@ export interface HistoryEntry {
 const MAX_ENTRIES = 200
 const STORAGE_KEY = 'downloadHistory'
 
-function load(): HistoryEntry[] {
+function loadFromLocal(): HistoryEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
@@ -25,12 +26,11 @@ function load(): HistoryEntry[] {
   }
 }
 
-function save(entries: HistoryEntry[]) {
+function saveToLocal(entries: HistoryEntry[]) {
   try {
     const trimmed = entries.slice(0, MAX_ENTRIES)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
   } catch {
-    // localStorage full — clear oldest entries and retry
     try {
       localStorage.removeItem(STORAGE_KEY)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, 50)))
@@ -39,34 +39,75 @@ function save(entries: HistoryEntry[]) {
 }
 
 export function useHistory() {
-  const [entries, setEntries] = useState<HistoryEntry[]>(load)
+  const [entries, setEntries] = useState<HistoryEntry[]>([])
+  const ready = useRef(false)
+  const loaded = useRef(false)
+
+  useEffect(() => {
+    if (loaded.current) return
+    loaded.current = true
+
+    historyDb.loadAll().then(dbEntries => {
+      if (dbEntries.length > 0) {
+        setEntries(dbEntries)
+        saveToLocal(dbEntries)
+      } else {
+        const local = loadFromLocal()
+        if (local.length > 0) {
+          setEntries(local)
+          local.forEach(e => historyDb.addEntry(e).catch(() => {}))
+        }
+      }
+      ready.current = true
+    }).catch(() => {
+      const local = loadFromLocal()
+      setEntries(local)
+      ready.current = true
+    })
+  }, [])
 
   const addEntry = useCallback((entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => {
     setEntries(prev => {
-      const next = [
-        { ...entry, id: crypto.randomUUID(), filePath: entry.filePath || null, timestamp: Date.now() },
-        ...prev,
-      ]
-      save(next)
-      return next.length > MAX_ENTRIES ? next.slice(0, MAX_ENTRIES) : next
+      const newEntry: HistoryEntry = {
+        ...entry,
+        id: crypto.randomUUID(),
+        filePath: entry.filePath || null,
+        timestamp: Date.now(),
+      }
+      const next = [newEntry, ...prev].slice(0, MAX_ENTRIES)
+      saveToLocal(next)
+      historyDb.addEntry(newEntry).catch(() => {})
+      return next
     })
   }, [])
 
   const clearHistory = useCallback(() => {
     setEntries([])
-    save([])
+    saveToLocal([])
+    historyDb.clearAll().catch(() => {})
   }, [])
 
   const removeEntry = useCallback((id: string) => {
     setEntries(prev => {
       const next = prev.filter(e => e.id !== id)
-      save(next)
+      saveToLocal(next)
+      historyDb.removeEntry(id).catch(() => {})
       return next
     })
   }, [])
 
   const reload = useCallback(() => {
-    setEntries(load())
+    historyDb.loadAll().then(dbEntries => {
+      if (dbEntries.length > 0) {
+        setEntries(dbEntries)
+        saveToLocal(dbEntries)
+      } else {
+        const local = loadFromLocal()
+        setEntries(local)
+      }
+    }).catch(() => {
+      setEntries(loadFromLocal())
+    })
   }, [])
 
   const updateEntryLyrics = useCallback((title: string, artist: string, plainLyrics: string | null, syncedLyrics: string | null) => {
@@ -75,7 +116,8 @@ export function useHistory() {
       if (idx === -1) return prev
       const next = [...prev]
       next[idx] = { ...next[idx], plainLyrics, syncedLyrics }
-      save(next)
+      saveToLocal(next)
+      historyDb.updateEntry(next[idx].id, { plainLyrics, syncedLyrics }).catch(() => {})
       return next
     })
   }, [])

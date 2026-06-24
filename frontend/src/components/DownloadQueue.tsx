@@ -51,7 +51,7 @@ export function DownloadQueue() {
         </div>
       </div>
 
-      <div className="divide-y divide-light-border/30 dark:divide-dark-border/30 max-h-[400px] overflow-y-auto overscroll-contain">
+      <div className="divide-y divide-light-border/30 dark:divide-dark-border/30">
         {queue.map(item => {
           const pct = visualPct(item)
 

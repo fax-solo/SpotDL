@@ -10,14 +10,14 @@ export interface SpotifyUserProfile {
 
 function getStored(): { access_token?: string; refresh_token?: string; expires_at?: number } {
   try {
-    return JSON.parse(sessionStorage.getItem('spotifyAuth') || '{}')
+    return JSON.parse(localStorage.getItem('spotifyAuth') || '{}')
   } catch {
     return {}
   }
 }
 
 function store(data: { access_token: string; refresh_token?: string; expires_in: number }) {
-  sessionStorage.setItem('spotifyAuth', JSON.stringify({
+  localStorage.setItem('spotifyAuth', JSON.stringify({
     access_token: data.access_token,
     refresh_token: data.refresh_token || '',
     expires_at: Date.now() + data.expires_in * 1000,
@@ -25,7 +25,7 @@ function store(data: { access_token: string; refresh_token?: string; expires_in:
 }
 
 function clearStored() {
-  sessionStorage.removeItem('spotifyAuth')
+  localStorage.removeItem('spotifyAuth')
 }
 
 function getStoredProfile(): SpotifyUserProfile | null {

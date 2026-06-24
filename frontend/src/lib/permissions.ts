@@ -18,6 +18,7 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
   { key: 'vibrate', label: 'Vibrate', description: 'Haptic feedback when interacting', androidName: 'android.permission.VIBRATE', dangerous: false },
   { key: 'exact_alarm', label: 'Exact Alarm', description: 'Schedule timed notifications precisely', androidName: 'android.permission.USE_EXACT_ALARM', dangerous: false },
   { key: 'boot_completed', label: 'Boot Completed', description: 'Restore notifications after device restart', androidName: 'android.permission.RECEIVE_BOOT_COMPLETED', dangerous: false },
+  { key: 'media_audio', label: 'Music Library', description: 'Read audio files from your device', androidName: 'android.permission.READ_MEDIA_AUDIO', dangerous: true },
 ]
 
 const RUNTIME_KEYS = new Set(['notifications'])

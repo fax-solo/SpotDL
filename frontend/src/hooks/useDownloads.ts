@@ -285,6 +285,11 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           if (totalDone > 0) {
             sendBatchCompleteNotification({ count: totalDone, failed: totalFailed }).catch(() => {})
           }
+          window.dispatchEvent(
+            new CustomEvent('downloadsComplete', {
+              detail: { done: totalDone, failed: totalFailed, total: totalDone + totalFailed },
+            }),
+          )
         }
 
         stopDownloadForeground()

@@ -1,13 +1,13 @@
 import { useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Download, Clock, Disc3, Settings } from 'lucide-react'
+import { Home, Download, Clock, Settings, Library } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 
 const TABS = [
   { path: '/', icon: Home, label: 'Home' },
   { path: '/download', icon: Download, label: 'Download' },
+  { path: '/local-music', icon: Library, label: 'Local' },
   { path: '/history', icon: Clock, label: 'History' },
-  { path: '/player', icon: Disc3, label: 'Player' },
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
