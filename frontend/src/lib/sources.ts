@@ -19,10 +19,6 @@ function normalize(s: string): string {
   return s.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, '').replace(/[^\w\s]/g, '').trim()
 }
 
-function titleMatches(options: MatchOptions): boolean {
-  return matchScore(options) >= MIN_CONFIDENCE
-}
-
 function matchScore(options: MatchOptions): number {
   const { expectedTitle: et, expectedArtist: ea, foundTitle: ft, foundAuthor: fa, foundDuration: fd, expectedDuration: ed, expectedIsrc, foundIsrc } = options
   const t = normalize(et)
@@ -194,7 +190,7 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
 
   const candidates: { info: SourceInfo; source: string; score: number }[] = []
 
-  const results = await Promise.allSettled(
+  await Promise.allSettled(
     sources.map(async (source) => {
       const searchResults = await source.search(query)
       if (searchResults.length === 0) return
