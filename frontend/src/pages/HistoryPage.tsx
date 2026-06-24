@@ -22,18 +22,16 @@ export function HistoryPage() {
     reload()
   }, [reload])
 
-  const handlePlay = useCallback(async (entry: import('../hooks/useHistory').HistoryEntry) => {
+  const handlePlay = useCallback((entry: import('../hooks/useHistory').HistoryEntry) => {
     if (!entry.filePath) {
       toast('No local file available. Re-download first.', 'error')
       return
     }
-    const exists = await fileExists(entry.filePath)
-    if (!exists) {
-      toast('File not found. Re-download it.', 'error')
-      return
-    }
-    play(entry, entries)
     navigate('/player')
+    play(entry, entries)
+    fileExists(entry.filePath).then(exists => {
+      if (!exists) toast('File not found. Re-download it.', 'error')
+    })
   }, [play, entries, navigate, toast])
 
   const handleRedownload = useCallback(async (entry: import('../hooks/useHistory').HistoryEntry) => {

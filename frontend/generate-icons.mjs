@@ -16,9 +16,9 @@ const MIPMAP_SIZES = {
 
 async function main() {
   if (!existsSync(SOURCE_ICON)) {
-    console.error('ERROR: App icon.png not found at', SOURCE_ICON)
-    console.error('Place your 1024x1024 PNG logo at the project root as "App icon.png"')
-    process.exit(1)
+    console.warn('WARNING: App icon.png not found at', SOURCE_ICON)
+    console.warn('Using pre-committed icons from public/. To customize, place a 1024x1024 PNG as "App icon.png" at the project root.')
+    return
   }
 
   // Check that ImageMagick is available

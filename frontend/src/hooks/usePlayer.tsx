@@ -36,7 +36,7 @@ export interface PlayerState {
 }
 
 interface PlayerContextValue extends PlayerState {
-  play: (track: HistoryEntry, queue?: HistoryEntry[]) => void
+  play: (track: HistoryEntry, queue?: HistoryEntry[]) => Promise<void>
   pause: () => void
   resume: () => void
   next: () => void
@@ -156,8 +156,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const onError = () => {
       const q = queueRef.current
       const idx = queueIndexRef.current
+      if (idx < 0 || idx >= q.length) return
       const nextIdx = idx + 1
-      // Auto-skip to next on error
       if (nextIdx < q.length) {
         playTrack(q[nextIdx], q, nextIdx)
       } else {
@@ -202,6 +202,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current
     if (!audio) return
 
+    currentTrackRef.current = track
+    queueRef.current = q
+    queueIndexRef.current = idx
     setCurrentTrack(track)
     setQueue(q)
     setQueueIndex(idx)
@@ -288,7 +291,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setShuffleOrder([])
     }
 
-    playTrack(qFinal[queueIdx], qFinal, queueIdx)
+    return playTrack(qFinal[queueIdx], qFinal, queueIdx)
   }, [playTrack, buildShuffleOrder])
 
   const pause = useCallback(() => {
