@@ -231,6 +231,7 @@ export async function downloadTrack(
           album: meta.album,
           artwork_url: meta.artwork_url,
           quality,
+          isrc: meta.isrc || undefined,
         }),
         signal,
       })

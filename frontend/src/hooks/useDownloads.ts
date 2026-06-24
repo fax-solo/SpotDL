@@ -91,10 +91,18 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
   abortControllers: new Map(),
 
   addDownload: (track: TrackMeta) => {
-    const exists = get().queue.some(q =>
-      !q.done && !q.failed && (q.track.url === track.url || (q.track.title === track.title && q.track.artist === track.artist))
+    // Deduplicate against ALL items (including restored/failed)
+    const existing = get().queue.find(q =>
+      !q.done && (q.track.url === track.url || (q.track.title === track.title && q.track.artist === track.artist))
     )
-    if (exists) return
+    if (existing) {
+      if (existing.failed) {
+        // Replace restored/failed entry with fresh download
+        get().removeDownload(existing.id)
+      } else {
+        return
+      }
+    }
 
     const id = `dl-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
     set((state: DownloadsState) => {

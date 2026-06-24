@@ -137,6 +137,7 @@ async function searchDeezerSource(query: string): Promise<SourceSearchResult[]> 
     audioUrl: r.preview || null,
     thumbnail: r.thumbnail,
     source: 'deezer',
+    isrc: r.isrc,
   }))
 }
 
@@ -151,6 +152,7 @@ async function deezerInfo(url: string): Promise<SourceInfo | null> {
     duration: track.duration,
     audioUrl: null,
     thumbnail: track.thumbnail,
+    isrc: track.isrc,
   }
 }
 
@@ -171,21 +173,22 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
   if (expectedIsrc) {
     try {
       const deezerTrack = await searchDeezerByIsrc(expectedIsrc)
-      if (deezerTrack) {
+      if (deezerTrack?.preview) {
         return {
           info: {
             title: deezerTrack.title,
             author: deezerTrack.artist,
             duration: deezerTrack.duration,
-            audioUrl: deezerTrack.preview || null,
+            audioUrl: deezerTrack.preview,
             thumbnail: deezerTrack.thumbnail,
             isrc: deezerTrack.isrc,
           },
           source: 'deezer',
         }
       }
+      // If no preview URL, fall through to normal search (don't block with a useless result)
     } catch {
-      // Fall through to normal search
+      // Fall through
     }
   }
 

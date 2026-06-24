@@ -67,6 +67,7 @@ class DeezerDownloadRequest(BaseModel):
     album: str = Field(default="Unknown Album", max_length=500)
     artwork_url: str | None = Field(default=None, max_length=2000)
     quality: str = Field(default="FLAC", pattern="^(FLAC|MP3)$", max_length=4)
+    isrc: str | None = Field(default=None, max_length=50)
 
 
 # ─── Health ───
@@ -285,6 +286,7 @@ async def deezer_download(body: DeezerDownloadRequest):
                 album=body.album,
                 artwork_url=body.artwork_url,
                 quality=body.quality,
+                isrc=body.isrc,
             )
 
             def cleanup():
