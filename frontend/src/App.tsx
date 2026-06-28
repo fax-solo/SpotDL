@@ -201,7 +201,7 @@ function AppContent() {
           <span>You are offline. Some features may be unavailable.</span>
         </div>
       )}
-      {!isNative && <Navbar />}
+      {!isNative && !['/login', '/signup'].includes(location.pathname) && <Navbar />}
       <ErrorBoundary>
         <Suspense fallback={
           <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">

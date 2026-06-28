@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: sinc-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO
+    branch: main
+    healthCheckPath: /api/auth/me
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: mohamed baalash
+      - key: ADMIN_PASSWORD
+        value: '50112010***Solo'
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: CLIENT_URL
+        value: https://spotify-downloader-5v5.pages.dev
+      - key: SPOTIFY_REDIRECT_URI
+        value: https://sinc-api.onrender.com/api/auth/spotify/callback

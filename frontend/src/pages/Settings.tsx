@@ -686,23 +686,21 @@ export function Settings() {
         </div>
       </div>
 
-      {!isGuest && (
-        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-          <button
-            onClick={() => { logout(); navigate('/login') }}
-            className="w-full p-5 flex items-center gap-3 hover:bg-red-500/5 transition-colors cursor-pointer text-left"
-          >
-            <LogOut className="w-5 h-5 text-red-500" />
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-red-500">Sign Out</h2>
-              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
-                Sign out of your account
-              </p>
-            </div>
-            <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-          </button>
-        </div>
-      )}
+      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+        <button
+          onClick={() => { logout(); navigate('/login') }}
+          className="w-full p-5 flex items-center gap-3 hover:bg-red-500/5 transition-colors cursor-pointer text-left"
+        >
+          <LogOut className="w-5 h-5 text-red-500" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold text-red-500">Sign Out</h2>
+            <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+              Sign out of your account
+            </p>
+          </div>
+          <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </button>
+      </div>
     </div>
   )
 }
