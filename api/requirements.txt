@@ -7,3 +7,6 @@ pycryptodome
 scrapling[fetchers]
 slowapi
 cryptography
+sqlalchemy
+python-multipart
+pydantic[email]

@@ -1,10 +1,12 @@
-import { Sun, Moon, Music } from 'lucide-react'
+import { Sun, Moon, Music, User, LogIn, UserPlus } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '../hooks/useTheme'
+import { useAuth } from '../hooks/useAuth'
 
 export function Navbar() {
   const { isDark, toggle } = useTheme()
   const location = useLocation()
+  const { user } = useAuth()
 
   return (
     <nav className="flex items-center justify-between px-6 py-4 border-b border-light-border dark:border-dark-border">
@@ -24,13 +26,47 @@ export function Navbar() {
           Player
         </Link>
       </div>
-      <button
-        onClick={toggle}
-        className="p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-        aria-label="Toggle theme"
-      >
-        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-      </button>
+      <div className="flex items-center gap-3">
+        {user ? (
+          <Link
+            to="/settings"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-light-text dark:text-dark-text hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center overflow-hidden">
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-3.5 h-3.5 text-accent" />
+              )}
+            </div>
+            <span className="hidden sm:inline">{user.display_name || 'Account'}</span>
+          </Link>
+        ) : (
+          <>
+            <Link
+              to="/login"
+              className="text-sm font-medium text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text flex items-center gap-1.5 transition-colors"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline">Sign In</span>
+            </Link>
+            <Link
+              to="/signup"
+              className="px-3 py-1.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors flex items-center gap-1.5"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Sign Up</span>
+            </Link>
+          </>
+        )}
+        <button
+          onClick={toggle}
+          className="p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+          aria-label="Toggle theme"
+        >
+          {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </button>
+      </div>
     </nav>
   )
 }

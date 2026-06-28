@@ -1,15 +1,47 @@
 import { Link } from 'react-router-dom'
-import { Headphones, Zap, Tags, Smartphone, ArrowRight, Download, Music } from 'lucide-react'
+import { Headphones, Zap, Tags, Smartphone, ArrowRight, Download, Music, LogIn, UserPlus } from 'lucide-react'
 import { useEffect } from 'react'
+import { useAuth } from '../hooks/useAuth'
 
 
 export function LandingPage() {
+  const { user } = useAuth()
+
   useEffect(() => {
     import('./Downloader')
   }, [])
 
   return (
     <div className="min-h-[calc(100vh-73px)] flex flex-col relative overflow-hidden">
+      {/* Auth Header */}
+      <div className="absolute top-0 left-0 right-0 z-50 px-6 py-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-end gap-3">
+          {user ? (
+            <Link to="/settings" className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/50 dark:bg-dark-surface/50 backdrop-blur-md border border-light-border/50 dark:border-dark-border/50 text-sm font-medium text-light-text dark:text-dark-text hover:bg-white dark:hover:bg-dark-surface transition-colors">
+              <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-bold text-accent">{(user.display_name || 'U')[0]}</span>
+                )}
+              </div>
+              {user.display_name || 'Account'}
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" className="px-4 py-2 rounded-xl text-sm font-medium text-light-text dark:text-dark-text hover:bg-white/50 dark:hover:bg-dark-surface/50 transition-colors flex items-center gap-2">
+                <LogIn className="w-4 h-4" />
+                Sign In
+              </Link>
+              <Link to="/signup" className="px-4 py-2 rounded-xl bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                Sign Up
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Background Gradients */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute -top-[20%] -left-[10%] w-[800px] h-[800px] bg-accent/20 dark:bg-accent/10 blur-[120px] rounded-full" />

@@ -7,17 +7,20 @@ import urllib.parse
 import traceback
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from fastapi import FastAPI, HTTPException, Query, Request, Depends
+from fastapi import FastAPI, HTTPException, Query, Request, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -30,6 +33,11 @@ from spotify import (
     handle_spotify_callback,
     is_user_authenticated,
 )
+
+from database import init_db, get_db
+from models import DownloadLog, User
+from auth import router as auth_router, get_current_user, get_optional_user
+from admin import router as admin_router
 
 DOWNLOAD_SEMAPHORE_LIMIT = int(os.environ.get("SPOTDL_CONCURRENT_DOWNLOADS", "4"))
 _download_semaphore = asyncio.Semaphore(DOWNLOAD_SEMAPHORE_LIMIT)
@@ -52,11 +60,20 @@ def verify_api_key(request: Request):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting Sinc API v2.0.0 — concurrent downloads: {DOWNLOAD_SEMAPHORE_LIMIT}")
+    init_db()
+    logger.info("Database initialized")
     yield
     logger.info("Shutting down Sinc API")
 
 
 app = FastAPI(title="Sinc API", version="2.0.0", lifespan=lifespan)
+
+AVATAR_DIR = os.path.join(os.path.dirname(__file__), "data", "avatars")
+os.makedirs(AVATAR_DIR, exist_ok=True)
+
+app.mount("/api/avatars", StaticFiles(directory=AVATAR_DIR), name="avatars")
+app.include_router(auth_router)
+app.include_router(admin_router)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -91,6 +108,34 @@ class DeezerDownloadRequest(BaseModel):
     artwork_url: str | None = Field(default=None, max_length=2000)
     quality: str = Field(default="FLAC", pattern="^(FLAC|MP3)$", max_length=4)
     isrc: str | None = Field(default=None, max_length=50)
+
+
+class LogDownloadRequest(BaseModel):
+    track_title: str = Field(max_length=500)
+    track_artist: str = Field(max_length=500)
+    quality: str | None = Field(default=None, max_length=10)
+    source: str | None = Field(default=None, max_length=50)
+
+
+@app.post("/api/download/log")
+@limiter.limit("60/minute")
+async def log_download(
+    request: Request,
+    body: LogDownloadRequest,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
+    log = DownloadLog(
+        user_id=user.id if user else None,
+        track_title=body.track_title,
+        track_artist=body.track_artist,
+        quality=body.quality,
+        source=body.source,
+        is_guest=user.is_guest if user else True,
+    )
+    db.add(log)
+    db.commit()
+    return {"ok": True}
 
 
 # ─── Health ───

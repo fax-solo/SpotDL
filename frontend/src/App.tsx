@@ -15,6 +15,7 @@ import { useShareTarget } from './hooks/useShareTarget'
 import { useBottomBar } from './hooks/useBottomBar'
 import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useAuth } from './hooks/useAuth'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 import { fetchLyricsWithFallback } from './lib/fetchLyricsWithFallback'
@@ -36,6 +37,9 @@ const YtTrackDetail = lazy(() => import('./pages/YtTrackDetail').then(m => ({ de
 const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default: m.SearchPage })))
 const SyncPage = lazy(() => import('./pages/SyncPage').then(m => ({ default: m.SyncPage })))
 const LocalMusicPage = lazy(() => import('./pages/LocalMusicPage').then(m => ({ default: m.LocalMusicPage })))
+const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })))
+const SignUpPage = lazy(() => import('./pages/SignUpPage').then(m => ({ default: m.SignUpPage })))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
 
 const PAGE_ORDER = ['/', '/download', '/history', '/settings', '/player']
 
@@ -70,9 +74,14 @@ function AppContent() {
   const contentRef = useRef<HTMLDivElement>(null)
   const locationRef = useRef(location)
   locationRef.current = location
+  const auth = useAuth()
 
   useMaterialYou()
   useShareTarget()
+
+  useEffect(() => {
+    auth.initialize()
+  }, [])
 
     useEffect(() => {
       const timer = setTimeout(() => {
@@ -208,7 +217,11 @@ function AppContent() {
               <Routes location={location}>
                     {isNative ? (
                       <>
-                        <Route path="/" element={<Home />} />
+                        <Route path="/" element={!auth.initialized ? (
+                          <div className="flex-1 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                          </div>
+                        ) : auth.user ? <Home /> : <LoginPage />} />
                         <Route path="/search" element={<SearchPage />} />
                         <Route path="/download" element={<Downloader />} />
                         <Route path="/history" element={<HistoryPage />} />
@@ -216,6 +229,9 @@ function AppContent() {
                         <Route path="/local-music" element={<LocalMusicPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/callback" element={<CallbackPage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/signup" element={<SignUpPage />} />
+                        <Route path="/admin" element={<AdminDashboard />} />
                         <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
                         <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
                         <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
@@ -237,6 +253,9 @@ function AppContent() {
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/player" element={<PlayerScreen />} />
                         <Route path="/callback" element={<CallbackPage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/signup" element={<SignUpPage />} />
+                        <Route path="/admin" element={<AdminDashboard />} />
                         <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
                         <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
                         <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
