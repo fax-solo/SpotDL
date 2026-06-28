@@ -14,6 +14,7 @@ import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useShareTarget } from './hooks/useShareTarget'
 import { useBottomBar } from './hooks/useBottomBar'
 import { PlayerProvider, usePlayer } from './hooks/usePlayer'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 import { fetchLyricsForTrack } from './lib/api'
@@ -175,6 +176,7 @@ function AppContent() {
   }
 
   usePlayer()
+  useKeyboardShortcuts()
   const isPlayerPage = location.pathname === '/player'
   const bottomBarHidden = useBottomBar(s => s.hidden)
   const showBottomBar = isNative && !keyboardOpen && !bottomBarHidden

@@ -4,8 +4,7 @@ frontend/android/
 api/__pycache__/
 api/venv/
 api/.env
-api/data/cache/
-api/data/token_store.json
+api/data/
 *.pyc
 .DS_Store
 cookies.txt

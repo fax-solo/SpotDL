@@ -7,6 +7,7 @@ import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotificatio
 import { startMediaForeground, stopMediaForeground } from '../lib/nativePlugin'
 
 type RepeatMode = 'none' | 'one' | 'all'
+export type SleepTimerMode = 'off' | 'countdown' | 'endOfTrack' | 'endOfQueue'
 
 const SHUFFLE_KEY = 'player_shuffle'
 const REPEAT_KEY = 'player_repeat'
@@ -33,6 +34,7 @@ export interface PlayerState {
   volume: number
   shuffle: boolean
   repeatMode: RepeatMode
+  sleepTimer: { mode: SleepTimerMode; endTime: number; remaining: number }
 }
 
 interface PlayerContextValue extends PlayerState {
@@ -48,6 +50,7 @@ interface PlayerContextValue extends PlayerState {
   addToQueue: (track: HistoryEntry) => void
   removeFromQueue: (index: number) => void
   playNext: (track: HistoryEntry) => void
+  setSleepTimer: (mode: SleepTimerMode, minutes?: number) => void
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
@@ -82,6 +85,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [shuffle, setShuffle] = useState(loadShuffle)
   const [repeatMode, setRepeatMode] = useState<RepeatMode>(loadRepeat)
   const [shuffleOrder, setShuffleOrder] = useState<number[]>([])
+  const [sleepTimer, setSleepTimerState] = useState<{ mode: SleepTimerMode; endTime: number; remaining: number }>(() => {
+    try {
+      const saved = localStorage.getItem('sleep_timer')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return { mode: 'off' as SleepTimerMode, endTime: 0, remaining: 0 }
+  })
 
   const queueRef = useRef<HistoryEntry[]>([])
   const queueIndexRef = useRef(-1)
@@ -89,6 +99,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const shuffleRef = useRef(shuffle)
   const repeatRef = useRef(repeatMode)
   const shuffleOrderRef = useRef<number[]>([])
+  const sleepTimerRef = useRef(sleepTimer)
 
   useEffect(() => { queueRef.current = queue }, [queue])
   useEffect(() => { queueIndexRef.current = queueIndex }, [queueIndex])
@@ -96,6 +107,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => { shuffleRef.current = shuffle }, [shuffle])
   useEffect(() => { repeatRef.current = repeatMode }, [repeatMode])
   useEffect(() => { shuffleOrderRef.current = shuffleOrder }, [shuffleOrder])
+  useEffect(() => { sleepTimerRef.current = sleepTimer }, [sleepTimer])
 
   useEffect(() => {
     const audio = new Audio()
@@ -110,12 +122,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setCurrentTime(audio.currentTime)
     }
 
+    const resetSleepTimer = () => {
+      setSleepTimerState({ mode: 'off', endTime: 0, remaining: 0 })
+      localStorage.setItem('sleep_timer', JSON.stringify({ mode: 'off', endTime: 0, remaining: 0 }))
+    }
+
     const onEnded = () => {
+      const st = sleepTimerRef.current
       const rpt = repeatRef.current
       const shf = shuffleRef.current
       const q = queueRef.current
       const idx = queueIndexRef.current
       const sOrder = shuffleOrderRef.current
+
+      // endOfTrack: pause after this track ends
+      if (st.mode === 'endOfTrack') {
+        resetSleepTimer()
+        setIsPlaying(false)
+        setCurrentTime(0)
+        stopMediaForeground()
+        return
+      }
 
       if (rpt === 'one') {
         playTrack(q[idx], q, idx)
@@ -129,8 +156,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (nextPos < sOrder.length) {
           nextIdx = sOrder[nextPos]
         } else if (rpt === 'all') {
+          if (st.mode === 'endOfQueue') {
+            resetSleepTimer()
+            setIsPlaying(false)
+            setCurrentTime(0)
+            stopMediaForeground()
+            return
+          }
           nextIdx = sOrder[0]
         } else {
+          if (st.mode === 'endOfQueue') resetSleepTimer()
           setIsPlaying(false)
           setCurrentTime(0)
           stopMediaForeground()
@@ -140,8 +175,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         nextIdx = idx + 1
         if (nextIdx >= q.length) {
           if (rpt === 'all') {
+            if (st.mode === 'endOfQueue') {
+              resetSleepTimer()
+              setIsPlaying(false)
+              setCurrentTime(0)
+              stopMediaForeground()
+              return
+            }
             nextIdx = 0
           } else {
+            if (st.mode === 'endOfQueue') resetSleepTimer()
             setIsPlaying(false)
             setCurrentTime(0)
             stopMediaForeground()
@@ -428,6 +471,37 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     })
   }, [buildShuffleOrder])
 
+  const setSleepTimer = useCallback((mode: SleepTimerMode, minutes?: number) => {
+    if (mode === 'off') {
+      setSleepTimerState({ mode: 'off', endTime: 0, remaining: 0 })
+      localStorage.setItem('sleep_timer', JSON.stringify({ mode: 'off', endTime: 0, remaining: 0 }))
+    } else if (mode === 'countdown' && minutes && minutes > 0) {
+      const endTime = Date.now() + minutes * 60 * 1000
+      setSleepTimerState({ mode, endTime, remaining: minutes * 60 })
+      localStorage.setItem('sleep_timer', JSON.stringify({ mode, endTime, remaining: minutes * 60 }))
+    } else if (mode === 'endOfTrack' || mode === 'endOfQueue') {
+      setSleepTimerState({ mode, endTime: 0, remaining: 0 })
+      localStorage.setItem('sleep_timer', JSON.stringify({ mode, endTime: 0, remaining: 0 }))
+    }
+  }, [])
+
+  // Sleep timer countdown
+  useEffect(() => {
+    if (sleepTimer.mode !== 'countdown') return
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((sleepTimerRef.current.endTime - Date.now()) / 1000))
+      if (remaining <= 0) {
+        clearInterval(interval)
+        setSleepTimerState({ mode: 'off', endTime: 0, remaining: 0 })
+        localStorage.setItem('sleep_timer', JSON.stringify({ mode: 'off', endTime: 0, remaining: 0 }))
+        pause()
+      } else {
+        setSleepTimerState(prev => ({ ...prev, remaining }))
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [sleepTimer.mode, pause])
+
   useBackgroundAudio(currentTrack, isPlaying)
 
   useEffect(() => {
@@ -442,9 +516,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   return (
     <PlayerContext.Provider value={{
       currentTrack, queue, queueIndex, isPlaying, currentTime, duration, volume,
-      shuffle, repeatMode,
+      shuffle, repeatMode, sleepTimer,
       play, pause, resume, next, prev, seek, setVolume: setVolumeFn,
-      toggleShuffle, cycleRepeat, addToQueue, removeFromQueue, playNext,
+      toggleShuffle, cycleRepeat, addToQueue, removeFromQueue, playNext, setSleepTimer,
     }}>
       {children}
     </PlayerContext.Provider>

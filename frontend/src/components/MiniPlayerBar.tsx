@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Play, Pause, ChevronUp, Shuffle, Repeat } from 'lucide-react'
+import { Play, Pause, ChevronUp, Shuffle, Repeat, Clock } from 'lucide-react'
 import { ArtworkImage } from './ArtworkImage'
 import { usePlayer } from '../hooks/usePlayer'
 import { useBottomBar } from '../hooks/useBottomBar'
@@ -18,7 +18,7 @@ const RepeatOneIconMini = ({ className }: { className?: string }) => (
 export function MiniPlayerBar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentTrack, isPlaying, pause, resume, shuffle, repeatMode } = usePlayer()
+  const { currentTrack, isPlaying, pause, resume, shuffle, repeatMode, sleepTimer } = usePlayer()
   const bottomBarHidden = useBottomBar(s => s.hidden)
   const isPlayerPage = location.pathname === '/player'
   const showBottomBar = !bottomBarHidden && !isPlayerPage
@@ -54,6 +54,11 @@ export function MiniPlayerBar() {
             {shuffle && <Shuffle className="w-3 h-3 text-accent" />}
             {repeatMode === 'one' && <RepeatOneIconMini className="w-3 h-3 text-accent" />}
             {repeatMode === 'all' && <Repeat className="w-3 h-3 text-accent" />}
+          </div>
+        )}
+        {sleepTimer.mode !== 'off' && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Clock className="w-3 h-3 text-accent" />
           </div>
         )}
         <ChevronUp className="w-4 h-4 text-light-muted dark:text-dark-muted flex-shrink-0" />

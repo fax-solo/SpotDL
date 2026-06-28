@@ -9,7 +9,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Load .env manually (no python-dotenv dependency needed)
 _env_path = Path(__file__).parent / ".env"
 if _env_path.exists():
     for _line in _env_path.read_text().splitlines():
@@ -20,6 +19,7 @@ if _env_path.exists():
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from cryptography.fernet import Fernet
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
 
@@ -59,7 +59,6 @@ def _extract_image_url(entity: dict) -> str | None:
     try:
         sources = entity.get("coverArt", {}).get("sources", [])
         if sources:
-            # Get the highest resolution image
             sources.sort(key=lambda s: s.get("width") or 0, reverse=True)
             return sources[0].get("url")
     except Exception:
@@ -69,18 +68,15 @@ def _extract_image_url(entity: dict) -> str | None:
 
 def _scrape_track(track_id: str) -> dict:
     entity = _fetch_embed_data("track", track_id)
-    
+
     title = entity.get("title", "Unknown Track")
     artist = entity.get("subtitle", "Unknown Artist")
     artwork = _extract_image_url(entity)
 
-    # Note: Embed API for tracks doesn't explicitly separate Album name,
-    # it provides it as part of context if available.
-    
     return {
         "title": title,
         "artist": artist,
-        "album": "Single", # Default fallback
+        "album": "Single",
         "artwork_url": artwork,
         "url": f"https://open.spotify.com/track/{track_id}",
         "type": "track",
@@ -100,7 +96,6 @@ def _extract_track_image(item: dict) -> str | None:
                     return sources[0].get("url")
             except Exception:
                 continue
-    # Try direct image fields on the track item
     try:
         if item.get("image"):
             return item["image"]
@@ -123,7 +118,6 @@ def _extract_track_image(item: dict) -> str | None:
             return images[0].get("url")
     except Exception:
         pass
-    # Try albumOfTrack or album sub-objects for images/thumbnail
     try:
         album = item.get("albumOfTrack") or item.get("album")
         if isinstance(album, dict):
@@ -150,18 +144,18 @@ def _extract_track_album(item: dict) -> str | None:
 
 def _scrape_collection(kind: str, collection_id: str) -> dict:
     entity = _fetch_embed_data(kind, collection_id)
-    
+
     collection_name = entity.get("title", "Unknown Album/Playlist")
     collection_artwork = _extract_image_url(entity)
-    
+
     track_list = entity.get("trackList", [])
-    
+
     tracks = []
     for item in track_list:
         uri = item.get("uri", "")
         if not uri.startswith("spotify:track:"):
             continue
-            
+
         tid = uri.split(":")[-1]
 
         per_track_artwork = _extract_track_image(item)
@@ -190,25 +184,61 @@ def _scrape_collection(kind: str, collection_id: str) -> dict:
     }
 
 
-# ─── User OAuth token store (persisted to disk) ───
+# ─── Encrypted token store ───
+
 _user_auth: dict = {
     "access_token": None,
     "refresh_token": None,
     "expires_at": 0,
 }
 
-TOKEN_STORE_PATH = Path(__file__).parent / "data" / "token_store.json"
+TOKEN_STORE_PATH = Path(__file__).parent / "data" / "token_store.enc"
+_OLD_TOKEN_STORE_PATH = Path(__file__).parent / "data" / "token_store.json"
+
+def _migrate_old_token_store():
+    if _OLD_TOKEN_STORE_PATH.exists() and not TOKEN_STORE_PATH.exists():
+        try:
+            data = json.loads(_OLD_TOKEN_STORE_PATH.read_text())
+            _user_auth["access_token"] = data.get("access_token")
+            _user_auth["refresh_token"] = data.get("refresh_token")
+            _user_auth["expires_at"] = data.get("expires_at", 0)
+            _save_token_store()
+            _OLD_TOKEN_STORE_PATH.unlink(missing_ok=True)
+            logger.info("Migrated token_store.json to encrypted format")
+        except Exception:
+            logger.warning("Failed to migrate old token store")
+
+def _get_fernet() -> Fernet | None:
+    key = os.environ.get("SPOTDL_TOKEN_ENCRYPTION_KEY")
+    if key:
+        try:
+            return Fernet(key.encode())
+        except Exception:
+            logger.warning("Invalid SPOTDL_TOKEN_ENCRYPTION_KEY, storing tokens in plaintext")
+    return None
 
 
 def _save_token_store() -> None:
     TOKEN_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    TOKEN_STORE_PATH.write_text(json.dumps(_user_auth, indent=2))
+    data = json.dumps(_user_auth)
+    fernet = _get_fernet()
+    if fernet:
+        data = fernet.encrypt(data.encode()).decode()
+    TOKEN_STORE_PATH.write_text(data)
 
 
 def _load_token_store() -> None:
     if TOKEN_STORE_PATH.exists():
         try:
-            d = json.loads(TOKEN_STORE_PATH.read_text())
+            raw = TOKEN_STORE_PATH.read_text()
+            fernet = _get_fernet()
+            if fernet:
+                try:
+                    raw = fernet.decrypt(raw.encode()).decode()
+                except Exception:
+                    logger.warning("token_store decryption failed, ignoring")
+                    return
+            d = json.loads(raw)
             _user_auth["access_token"] = d.get("access_token")
             _user_auth["refresh_token"] = d.get("refresh_token")
             _user_auth["expires_at"] = d.get("expires_at", 0)
@@ -217,6 +247,7 @@ def _load_token_store() -> None:
             TOKEN_STORE_PATH.unlink(missing_ok=True)
 
 
+_migrate_old_token_store()
 _load_token_store()
 
 
@@ -314,8 +345,6 @@ def _refresh_user_token() -> None:
 def is_user_authenticated() -> bool:
     if not _user_auth["access_token"]:
         return False
-    # treat as authenticated as long as we have a token;
-    # get_user_token will auto-refresh if expired
     return True
 
 
@@ -332,12 +361,13 @@ def _get_spotify_token() -> str | None:
         "Content-Type": "application/x-www-form-urlencoded"
     }
     data = {"grant_type": "client_credentials"}
-    
+
     resp = requests.post("https://accounts.spotify.com/api/token", headers=headers, data=data, timeout=10)
     if resp.status_code == 200:
         return resp.json().get("access_token")
     else:
-        raise RuntimeError(f"Spotify API Key Error: Please check your SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET. Spotify says: {resp.text}")
+        logger.error("Spotify client credentials failed")
+        return None
 
 
 def _fetch_official_track(track_id: str, token: str) -> dict:
@@ -345,11 +375,11 @@ def _fetch_official_track(track_id: str, token: str) -> dict:
     resp = requests.get(f"https://api.spotify.com/v1/tracks/{track_id}", headers=headers, timeout=10)
     resp.raise_for_status()
     data = resp.json()
-    
+
     artwork = None
     if data.get("album", {}).get("images"):
         artwork = data["album"]["images"][0]["url"]
-        
+
     return {
         "title": data.get("name", "Unknown Track"),
         "artist": ", ".join(a["name"] for a in data.get("artists", [])),
@@ -368,6 +398,7 @@ def _extract_track_artwork(track: dict) -> str | None:
             images.sort(key=lambda i: i.get("width") or 0, reverse=True)
             return images[0]["url"]
     return None
+
 
 def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
@@ -433,7 +464,7 @@ def _fetch_generic_metadata(url: str) -> dict:
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
-        
+
         if not info:
             raise ValueError("Could not extract metadata from this URL")
 
@@ -443,14 +474,14 @@ def _fetch_generic_metadata(url: str) -> dict:
             collection_artwork = None
             if info.get("thumbnails"):
                 collection_artwork = info["thumbnails"][-1].get("url")
-            
+
             for entry in info["entries"]:
                 if not entry:
                     continue
                 artwork = None
                 if entry.get("thumbnails"):
                     artwork = entry["thumbnails"][-1].get("url")
-                
+
                 tracks.append({
                     "title": entry.get("title", "Unknown Track"),
                     "artist": entry.get("uploader", entry.get("channel", "Unknown Artist")),
@@ -469,7 +500,7 @@ def _fetch_generic_metadata(url: str) -> dict:
             artwork = None
             if info.get("thumbnails"):
                 artwork = info["thumbnails"][-1].get("url")
-                
+
             return {
                 "title": info.get("title", "Unknown Track"),
                 "artist": info.get("uploader", info.get("channel", "Unknown Artist")),

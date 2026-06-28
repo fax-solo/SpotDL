@@ -9,14 +9,19 @@ import asyncio
 from contextlib import asynccontextmanager
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from spotify import (
     fetch_metadata,
@@ -26,20 +31,36 @@ from spotify import (
     is_user_authenticated,
 )
 
-# Global semaphore to limit concurrent downloads
-# yt-dlp is I/O-bound, so 4 concurrent downloads is reasonable
 DOWNLOAD_SEMAPHORE_LIMIT = int(os.environ.get("SPOTDL_CONCURRENT_DOWNLOADS", "4"))
 _download_semaphore = asyncio.Semaphore(DOWNLOAD_SEMAPHORE_LIMIT)
+
+API_KEY = os.environ.get("SPOTDL_API_KEY", "")
+DEBUG_MODE = os.environ.get("SPOTDL_DEBUG", "").lower() in ("1", "true", "yes")
+
+
+def verify_api_key(request: Request):
+    if not API_KEY:
+        return True
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer ") and auth[7:] == API_KEY:
+        return True
+    if request.query_params.get("api_key") == API_KEY:
+        return True
+    raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.info(f"Starting Sinc API v2.0.0 — concurrent downloads: {DOWNLOAD_SEMAPHORE_LIMIT}")
+    logger.info(f"Starting Sinc API v2.0.0 — concurrent downloads: {DOWNLOAD_SEMAPHORE_LIMIT}")
     yield
-    logging.info("Shutting down Sinc API")
+    logger.info("Shutting down Sinc API")
 
 
 app = FastAPI(title="Sinc API", version="2.0.0", lifespan=lifespan)
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 CLIENT_URL = os.environ.get("CLIENT_URL", "")
 _cors_origins = [CLIENT_URL] if CLIENT_URL else ["http://localhost:5173", "http://localhost:3000"]
@@ -58,6 +79,8 @@ class DownloadRequest(BaseModel):
     album: str = Field(default="Unknown Album", max_length=500)
     artwork_url: str | None = Field(default=None, max_length=2000)
     url: str | None = Field(default=None, max_length=2000)
+    quality: str | None = Field(default=None, pattern="^(128|192|256|320)$", max_length=3)
+    format: str | None = Field(default=None, pattern="^(mp3|m4a)$", max_length=3)
 
 
 class DeezerDownloadRequest(BaseModel):
@@ -73,12 +96,14 @@ class DeezerDownloadRequest(BaseModel):
 # ─── Health ───
 
 @app.get("/api/ping")
-async def ping():
+@limiter.limit("30/minute")
+async def ping(request: Request):
     return {"ok": True, "version": "2.0.0"}
 
 
 @app.get("/api/status")
-async def status():
+@limiter.limit("30/minute")
+async def status(request: Request):
     has_ffmpeg = shutil.which("ffmpeg") is not None
     return {
         "ok": True,
@@ -90,7 +115,8 @@ async def status():
 
 
 @app.get("/api/config")
-async def config():
+@limiter.limit("30/minute")
+async def config(request: Request):
     return {
         "concurrent_downloads": DOWNLOAD_SEMAPHORE_LIMIT,
         "ffmpeg_available": shutil.which("ffmpeg") is not None,
@@ -101,7 +127,8 @@ ALLOWED_REDIRECT_URIS = os.environ.get("SPOTIFY_REDIRECT_URI", "http://localhost
 
 
 @app.get("/api/auth/spotify/login")
-async def spotify_login(redirect_uri: str = Query(None, description="Override redirect URI (used by mobile app)")):
+@limiter.limit("20/minute")
+async def spotify_login(request: Request, redirect_uri: str = Query(None)):
     if redirect_uri:
         if redirect_uri not in ALLOWED_REDIRECT_URIS and not redirect_uri.startswith("http://127.0.0.1") and not redirect_uri.startswith("capacitor://"):
             raise HTTPException(status_code=400, detail="Invalid redirect_uri")
@@ -110,58 +137,64 @@ async def spotify_login(redirect_uri: str = Query(None, description="Override re
 
 
 @app.get("/api/auth/spotify/callback")
-async def spotify_callback(code: str = Query(...)):
+@limiter.limit("20/minute")
+async def spotify_callback(request: Request, code: str = Query(...)):
     try:
         handle_spotify_callback(code)
         return RedirectResponse(url=f"{CLIENT_URL}/")
-    except Exception as e:
-        traceback.print_exc()
-        return RedirectResponse(url=f"{CLIENT_URL}/?auth_error={urllib.parse.quote(str(e))}")
+    except Exception:
+        logger.exception("Spotify callback failed")
+        return RedirectResponse(url=f"{CLIENT_URL}/?auth_error=authentication+failed")
 
 
 @app.get("/api/auth/spotify/exchange")
-async def spotify_exchange(code: str = Query(...), redirect_uri: str = Query(None)):
+@limiter.limit("20/minute")
+async def spotify_exchange(request: Request, code: str = Query(...), redirect_uri: str = Query(None)):
     try:
         data = handle_spotify_callback(code, redirect_uri)
         return {"ok": True, "authenticated": True, "expires_in": data.get("expires_in", 3600)}
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        logger.exception("Spotify token exchange failed")
+        raise HTTPException(status_code=502, detail="Token exchange failed")
 
 
 @app.get("/api/auth/status")
-async def auth_status():
+@limiter.limit("30/minute")
+async def auth_status(request: Request):
     return {"authenticated": is_user_authenticated()}
 
 
 # ─── Metadata ───
 
 @app.get("/api/metadata")
-async def get_metadata(url: str = Query(..., description="Spotify track/album/playlist URL")):
+@limiter.limit("60/minute")
+async def get_metadata(request: Request, url: str = Query(..., description="Spotify track/album/playlist URL")):
     try:
         data = fetch_metadata(url)
         return {"ok": True, "data": data}
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        logger.exception("Metadata fetch failed")
+        raise HTTPException(status_code=502, detail="Metadata fetch failed")
 
 
 # ─── Download (async, runs yt-dlp in thread pool) ───
 
 @app.post("/api/download")
-async def download(body: DownloadRequest):
+@limiter.limit("10/minute")
+async def download(request: Request, body: DownloadRequest, _auth=Depends(verify_api_key)):
     from downloader import download_track
 
     async with _download_semaphore:
         try:
             filepath, ext = await asyncio.to_thread(
-                download_track, body.title, body.artist, body.album, body.artwork_url, body.url
+                download_track, body.title, body.artist, body.album, body.artwork_url, body.url,
+                body.quality or "320", body.format or "mp3",
             )
-        except Exception as e:
-            traceback.print_exc()
-            raise HTTPException(status_code=502, detail=str(e))
+        except Exception:
+            logger.exception("Download failed")
+            raise HTTPException(status_code=502, detail="Download failed")
 
     def cleanup():
         parent = os.path.dirname(filepath)
@@ -184,13 +217,14 @@ async def download(body: DownloadRequest):
 # ─── Download (streaming, with progress) ───
 
 @app.post("/api/download/stream")
-async def download_stream(body: DownloadRequest):
+@limiter.limit("10/minute")
+async def download_stream(request: Request, body: DownloadRequest, _auth=Depends(verify_api_key)):
     from downloader import stream_download
 
     async def generate():
         async with _download_semaphore:
             buffer = b""
-            async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url):
+            async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url, body.quality or "320", body.format or "mp3"):
                 if isinstance(chunk, str):
                     yield chunk.encode()
                 else:
@@ -214,26 +248,29 @@ class SubscribeRequest(BaseModel):
 
 
 @app.post("/api/sync/subscribe")
-async def sync_subscribe(body: SubscribeRequest):
+@limiter.limit("20/minute")
+async def sync_subscribe(request: Request, body: SubscribeRequest, _auth=Depends(verify_api_key)):
     from sync import add_subscription
     try:
         sub = add_subscription(body.url, body.interval)
         return {"ok": True, "subscription": sub}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        logger.exception("Sync subscribe failed")
+        raise HTTPException(status_code=502, detail="Subscribe failed")
 
 
 @app.get("/api/sync/subscriptions")
-async def sync_list():
+@limiter.limit("30/minute")
+async def sync_list(request: Request, _auth=Depends(verify_api_key)):
     from sync import list_subscriptions
     return {"ok": True, "subscriptions": list_subscriptions()}
 
 
 @app.delete("/api/sync/subscribe/{sub_id}")
-async def sync_unsubscribe(sub_id: str):
+@limiter.limit("20/minute")
+async def sync_unsubscribe(request: Request, sub_id: str, _auth=Depends(verify_api_key)):
     from sync import remove_subscription
     try:
         remove_subscription(sub_id)
@@ -243,39 +280,42 @@ async def sync_unsubscribe(sub_id: str):
 
 
 @app.post("/api/sync/run/{sub_id}")
-async def sync_run(sub_id: str):
+@limiter.limit("10/minute")
+async def sync_run(request: Request, sub_id: str, _auth=Depends(verify_api_key)):
     from sync import run_sync
     try:
         result = await asyncio.to_thread(run_sync, sub_id)
         return {"ok": True, "result": result}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        logger.exception("Sync run failed")
+        raise HTTPException(status_code=502, detail="Sync failed")
 
 
 @app.post("/api/sync/run-all")
-async def sync_run_all():
+@limiter.limit("5/minute")
+async def sync_run_all(request: Request, _auth=Depends(verify_api_key)):
     from sync import run_all_syncs
     try:
         results = await asyncio.to_thread(run_all_syncs)
         return {"ok": True, "results": results}
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        logger.exception("Sync run-all failed")
+        raise HTTPException(status_code=502, detail="Sync failed")
 
 
 # ─── Deezer Download (ARL-based, Blowfish decryption) ───
 
 @app.post("/api/download/deezer")
-async def deezer_download(body: DeezerDownloadRequest):
+@limiter.limit("10/minute")
+async def deezer_download(request: Request, body: DeezerDownloadRequest, _auth=Depends(verify_api_key)):
     from deezer import DeezerClient, DeezerError
 
     try:
         client = DeezerClient(body.arl)
     except DeezerError as e:
-        raise HTTPException(status_code=401, detail=f"Deezer auth failed: {e}")
+        raise HTTPException(status_code=401, detail="Deezer authentication failed")
 
     async with _download_semaphore:
         try:
@@ -309,9 +349,9 @@ async def deezer_download(body: DeezerDownloadRequest):
 
         except DeezerError as e:
             raise HTTPException(status_code=502, detail=str(e))
-        except Exception as e:
-            traceback.print_exc()
-            raise HTTPException(status_code=502, detail=f"Deezer download failed: {e}")
+        except Exception:
+            logger.exception("Deezer download failed")
+            raise HTTPException(status_code=502, detail="Deezer download failed")
         finally:
             client.close()
 
@@ -326,7 +366,8 @@ class ScraplingLyricsRequest(BaseModel):
 
 
 @app.post("/api/lyrics")
-async def scrapling_lyrics(body: ScraplingLyricsRequest):
+@limiter.limit("30/minute")
+async def scrapling_lyrics(request: Request, body: ScraplingLyricsRequest):
     from scrapling_scraper import fetch_lyrics, is_available
 
     if not is_available():
@@ -345,7 +386,8 @@ class ScraplingBandcampRequest(BaseModel):
 
 
 @app.post("/api/bandcamp")
-async def scrapling_bandcamp(body: ScraplingBandcampRequest):
+@limiter.limit("30/minute")
+async def scrapling_bandcamp(request: Request, body: ScraplingBandcampRequest):
     from scrapling_scraper import search_bandcamp, bandcamp_info, is_available
 
     if not is_available():
@@ -364,8 +406,9 @@ async def scrapling_bandcamp(body: ScraplingBandcampRequest):
             raise HTTPException(status_code=400, detail="Invalid action or missing parameters")
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        logger.exception("Bandcamp request failed")
+        raise HTTPException(status_code=502, detail="Bandcamp request failed")
 
 
 class ScraplingSoundcloudRequest(BaseModel):
@@ -375,7 +418,8 @@ class ScraplingSoundcloudRequest(BaseModel):
 
 
 @app.post("/api/soundcloud")
-async def scrapling_soundcloud(body: ScraplingSoundcloudRequest):
+@limiter.limit("30/minute")
+async def scrapling_soundcloud(request: Request, body: ScraplingSoundcloudRequest):
     from scrapling_scraper import search_soundcloud, soundcloud_info, is_available
 
     if not is_available():
@@ -394,18 +438,22 @@ async def scrapling_soundcloud(body: ScraplingSoundcloudRequest):
             raise HTTPException(status_code=400, detail="Invalid action or missing parameters")
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        logger.exception("SoundCloud request failed")
+        raise HTTPException(status_code=502, detail="SoundCloud request failed")
 
 
 @app.get("/api/debug/auth")
-async def debug_auth():
+@limiter.limit("5/minute")
+async def debug_auth(request: Request):
+    if not DEBUG_MODE:
+        raise HTTPException(status_code=404, detail="Not found")
     import requests as req
     token = get_user_token()
     info = {
         "authenticated": is_user_authenticated(),
         "has_token": token is not None,
-        "token_prefix": token[:10] + "..." if token else None,
+        "token_prefix": (token[:10] + "...") if token else None,
     }
     if token:
         try:
@@ -413,14 +461,6 @@ async def debug_auth():
             info["me_status"] = r.status_code
             if r.ok:
                 info["me"] = r.json().get("id")
-            else:
-                info["me_error"] = r.text[:200]
-        except Exception as e:
-            info["me_error"] = str(e)
-    try:
-        r = req.get("https://api.spotify.com/v1/playlists/37i9dQZF1DWXRqgorJj26U", headers={"Authorization": f"Bearer {token or ''}"}, timeout=10)
-        info["playlist_status"] = r.status_code
-        info["playlist_tracks_url"] = r.json().get("tracks", {}).get("href") if r.ok else None
-    except Exception as e:
-        info["playlist_error"] = str(e)
+        except Exception:
+            info["me_error"] = "request failed"
     return info

@@ -31,9 +31,11 @@ vi.mock('@ffmpeg/util', () => ({
 
 vi.mock('browser-id3-writer', () => mockID3WriterModule)
 
-import { convertToMp3, writeId3Tags, downloadAudio } from './audioProcessor'
+import { convertAudio, writeId3Tags, downloadAudio } from './audioProcessor'
 
-describe('convertToMp3', () => {
+const defaultQuality = { bitrate: '320' as const, format: 'mp3' as const }
+
+describe('convertAudio', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -43,14 +45,14 @@ describe('convertToMp3', () => {
   })
 
   it('creates ffmpeg instance and converts audio', async () => {
-    const result = await convertToMp3('https://example.com/audio.mp3')
+    const result = await convertAudio('https://example.com/audio.mp3', defaultQuality)
     expect(result).toBeInstanceOf(ArrayBuffer)
     expect(new Uint8Array(result)).toEqual(new Uint8Array([0x42, 0x41, 0x52]))
   })
 
   it('reports progress when callback provided', async () => {
     const progressCb = vi.fn()
-    await convertToMp3('https://example.com/audio.mp3', progressCb)
+    await convertAudio('https://example.com/audio.mp3', defaultQuality, undefined, progressCb)
     expect(typeof progressCb).toBe('function')
   })
 
@@ -58,7 +60,7 @@ describe('convertToMp3', () => {
     const controller = new AbortController()
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
-    await convertToMp3('https://example.com/audio.mp3', undefined, controller.signal)
+    await convertAudio('https://example.com/audio.mp3', defaultQuality, undefined, undefined, controller.signal)
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://example.com/audio.mp3',
       expect.objectContaining({ signal: controller.signal }),

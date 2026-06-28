@@ -7,6 +7,7 @@ import { ALL_PERMISSIONS, requestPermission, checkPermission, isNative } from '.
 import { APP_VERSION, GITHUB_REPO } from '../lib/version'
 import { checkForUpdates, type UpdateCheckResult } from '../lib/checkUpdate'
 import { getDeezerArl, setDeezerArl, clearDeezerArl, getDeezerQuality, setDeezerQuality, type DeezerQuality } from '../lib/deezer'
+import { getQualitySettings, setQualitySettings, type Bitrate, type OutputFormat } from '../lib/qualitySettings'
 
 export function Settings() {
   const navigate = useNavigate()
@@ -23,6 +24,7 @@ export function Settings() {
   const [wpTokenError, setWpTokenError] = useState<string | null>(null)
   const [wpTokenSaved, setWpTokenSaved] = useState(!!getWebPlayerToken())
   const [downloadLyrics, setDownloadLyricsState] = useState(getDownloadLyrics())
+  const [dlQuality, setDlQuality] = useState(getQualitySettings())
   const [permStatus, setPermStatus] = useState<Record<string, boolean>>({})
   const [requestingPerm, setRequestingPerm] = useState<string | null>(null)
   const [updateState, setUpdateState] = useState<UpdateCheckResult>({
@@ -297,6 +299,55 @@ export function Settings() {
                 }`}
               />
             </button>
+          </div>
+
+          <hr className="my-4 border-light-border/50 dark:border-dark-border/50" />
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-2">Bitrate</p>
+              <div className="flex gap-2">
+                {(['128', '192', '256', '320'] as Bitrate[]).map(b => (
+                  <button
+                    key={b}
+                    onClick={() => {
+                      const next = { ...dlQuality, bitrate: b }
+                      setDlQuality(next)
+                      setQualitySettings(next)
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      dlQuality.bitrate === b
+                        ? 'bg-accent text-white'
+                        : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+                    }`}
+                  >
+                    {b}kbps
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-2">Format</p>
+              <div className="flex gap-2">
+                {([['mp3', 'MP3'], ['m4a', 'M4A (AAC)']] as [OutputFormat, string][]).map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => {
+                      const next = { ...dlQuality, format: val }
+                      setDlQuality(next)
+                      setQualitySettings(next)
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      dlQuality.format === val
+                        ? 'bg-accent text-white'
+                        : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>

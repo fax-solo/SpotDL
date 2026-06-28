@@ -7,6 +7,7 @@ import { cachedFetch } from './requestCache'
 import { isNativeSpotDLAvailable, nativeFetchMetadata, nativeDownloadTrack } from './nativePlugin'
 import { cacheMetadata, getCachedMetadata } from './dbCache'
 import { getDeezerArl, getDeezerQuality } from './deezer'
+import { getQualitySettings } from './qualitySettings'
 
 export type { TrackMeta, CollectionMeta }
 export type { YouTubeSearchResult, YouTubeInfo } from './youtubeClient'
@@ -200,7 +201,9 @@ export async function downloadTrack(
   retries = 2,
 ): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
-  const filename = `${safe(meta.artist)} - ${safe(meta.title)}.mp3`
+  const quality = getQualitySettings()
+  const ext = quality.format === 'm4a' ? '.m4a' : '.mp3'
+  const filename = `${safe(meta.artist)} - ${safe(meta.title)}${ext}`
 
   // Try native plugin first (Android only)
   if (await nativeAvailable() && meta.url) {
@@ -223,7 +226,7 @@ export async function downloadTrack(
   if (deezerArl && await isServerAvailable(signal)) {
     try {
       onProgress?.('Searching Deezer...', 0)
-      const quality = getDeezerQuality()
+      const dzQuality = getDeezerQuality()
       const deezerRes = await fetch(apiUrl('/api/download/deezer'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -233,7 +236,7 @@ export async function downloadTrack(
           artist: meta.artist,
           album: meta.album,
           artwork_url: meta.artwork_url,
-          quality,
+          quality: dzQuality,
           isrc: meta.isrc || undefined,
         }),
         signal,
@@ -242,8 +245,8 @@ export async function downloadTrack(
         const blob = await deezerRes.blob()
         validateBlob(blob)
         onProgress?.('Done', 100)
-        const ext = quality === 'FLAC' ? '.flac' : '.mp3'
-        return { blob, filename: filename.replace('.mp3', ext) }
+        const dzExt = dzQuality === 'FLAC' ? '.flac' : ext
+        return { blob, filename: filename.replace(ext, dzExt) }
       }
       const deezerErr = await deezerRes.json().catch(() => ({ detail: deezerRes.statusText }))
       console.warn(`[api] Deezer download returned ${deezerRes.status}:`, deezerErr.detail)
@@ -265,6 +268,8 @@ export async function downloadTrack(
           album: meta.album,
           artwork_url: meta.artwork_url,
           url: meta.url,
+          quality: quality.bitrate,
+          format: quality.format,
         }),
         signal,
       })
@@ -314,6 +319,7 @@ export async function downloadTrack(
         },
         (pct) => onProgress?.(`Converting...`, pct),
         signal,
+        quality,
       )
 
       validateBlob(blob)

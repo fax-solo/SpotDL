@@ -9,3 +9,9 @@ services:
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
       - SPOTIFY_REDIRECT_URI=${SPOTIFY_REDIRECT_URI:-http://localhost:8000/api/auth/spotify/callback}
       - CLIENT_URL=${CLIENT_URL:-http://localhost:5173}
+      - SPOTDL_API_KEY=${SPOTDL_API_KEY:-}
+      - SPOTDL_TOKEN_ENCRYPTION_KEY=${SPOTDL_TOKEN_ENCRYPTION_KEY:-}
+      - SPOTDL_DEBUG=${SPOTDL_DEBUG:-false}
+      - SPOTDL_CONCURRENT_DOWNLOADS=${SPOTDL_CONCURRENT_DOWNLOADS:-4}
+    volumes:
+      - ./api/data:/app/data

@@ -1,7 +1,9 @@
 fastapi
-uvicorn
+uvicorn[standard]
 yt-dlp
 mutagen
 requests
 pycryptodome
 scrapling[fetchers]
+slowapi
+cryptography

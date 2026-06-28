@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowDown, Play, Pause, SkipBack, SkipForward, Music, Mic2, ListMusic,
   Plus, Trash2, Play as PlayIcon, Music2, FolderOpen, Check,
-  Shuffle, Repeat,
+  Shuffle, Repeat, Clock,
 } from 'lucide-react'
 
 const RepeatOneIcon = ({ className }: { className?: string }) => (
@@ -27,6 +27,7 @@ import { useToast } from '../components/Toast'
 import type { TrackMeta } from '../lib/api'
 import { useDownloads } from '../hooks/useDownloads'
 import { useBottomBar } from '../hooks/useBottomBar'
+import { BottomSheet } from '../components/BottomSheet'
 import { fileExists } from '../lib/capacitorBridge'
 
 function formatTime(sec: number): string {
@@ -42,6 +43,7 @@ export function PlayerScreen() {
     currentTrack, isPlaying, currentTime, duration, volume,
     pause, resume, next, prev, seek, setVolume, play,
     shuffle, repeatMode, toggleShuffle, cycleRepeat,
+    sleepTimer, setSleepTimer,
   } = usePlayer()
   const { entries, removeEntry, clearHistory } = useHistory()
   const { playlists, createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist, renamePlaylist } = usePlaylists()
@@ -51,6 +53,7 @@ export function PlayerScreen() {
   const [showLyrics, setShowLyrics] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false)
+  const [showSleepTimer, setShowSleepTimer] = useState(false)
   const { setHidden } = useBottomBar()
   const isNowPlaying = !!currentTrack && !showLyrics && !showQueue
   const isLyrics = !!currentTrack && showLyrics
@@ -381,6 +384,25 @@ export function PlayerScreen() {
         <span className="text-xs font-medium text-light-muted dark:text-dark-muted uppercase tracking-wider">Now Playing</span>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => { setShowSleepTimer(true); setShowLyrics(false); setShowQueue(false) }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              sleepTimer.mode !== 'off'
+                ? 'bg-accent text-white'
+                : 'hover:bg-white/10 dark:hover:bg-zinc-800/50 text-light-muted dark:text-dark-muted'
+            }`}
+            title={sleepTimer.mode !== 'off' ? 'Sleep timer active' : 'Sleep timer'}
+          >
+            <Clock className="w-4 h-4" />
+          </button>
+          {sleepTimer.mode === 'countdown' && sleepTimer.remaining > 0 && (
+            <span className="text-xs font-medium text-accent tabular-nums">
+              {formatTime(sleepTimer.remaining)}
+            </span>
+          )}
+          {(sleepTimer.mode === 'endOfTrack' || sleepTimer.mode === 'endOfQueue') && (
+            <span className="text-xs font-medium text-accent">1 track</span>
+          )}
+          <button
             onClick={() => { setShowQueue(false); setShowLyrics(v => !v) }}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               showLyrics
@@ -589,6 +611,85 @@ export function PlayerScreen() {
             </div>
           </div>
         )}
+
+      {/* ─── Sleep Timer bottom sheet ─── */}
+      <BottomSheet open={showSleepTimer} onClose={() => setShowSleepTimer(false)} title="Sleep Timer">
+        <div className="space-y-1">
+          <button
+            onClick={() => { setSleepTimer('off'); setShowSleepTimer(false) }}
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left cursor-pointer transition-colors ${
+              sleepTimer.mode === 'off'
+                ? 'bg-accent/10 text-accent'
+                : 'hover:bg-white/50 dark:hover:bg-zinc-800/50 text-light-text dark:text-dark-text'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sleepTimer.mode === 'off' ? 'bg-accent text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-light-muted dark:text-dark-muted'}`}>
+              <Clock className="w-4 h-4" />
+            </div>
+            <span className="text-sm font-medium">Off</span>
+            {sleepTimer.mode === 'off' && (
+              <Check className="w-4 h-4 ml-auto text-accent" />
+            )}
+          </button>
+          {[15, 30, 45, 60].map(minutes => (
+            <button
+              key={minutes}
+              onClick={() => { setSleepTimer('countdown', minutes); setShowSleepTimer(false) }}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left cursor-pointer transition-colors ${
+                sleepTimer.mode === 'countdown' && sleepTimer.remaining === minutes * 60
+                  ? 'bg-accent/10 text-accent'
+                  : 'hover:bg-white/50 dark:hover:bg-zinc-800/50 text-light-text dark:text-dark-text'
+              }`}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sleepTimer.mode === 'countdown' && sleepTimer.remaining === minutes * 60 ? 'bg-accent text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-light-muted dark:text-dark-muted'}`}>
+                <Clock className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-medium">{minutes} minutes</span>
+              {sleepTimer.mode === 'countdown' && sleepTimer.remaining === minutes * 60 && (
+                <Check className="w-4 h-4 ml-auto text-accent" />
+              )}
+            </button>
+          ))}
+          <button
+            onClick={() => { setSleepTimer('endOfTrack'); setShowSleepTimer(false) }}
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left cursor-pointer transition-colors ${
+              sleepTimer.mode === 'endOfTrack'
+                ? 'bg-accent/10 text-accent'
+                : 'hover:bg-white/50 dark:hover:bg-zinc-800/50 text-light-text dark:text-dark-text'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sleepTimer.mode === 'endOfTrack' ? 'bg-accent text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-light-muted dark:text-dark-muted'}`}>
+              <Clock className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium block">End of track</span>
+              <span className="text-xs text-light-muted dark:text-dark-muted">Pause when this track ends</span>
+            </div>
+            {sleepTimer.mode === 'endOfTrack' && (
+              <Check className="w-4 h-4 ml-auto text-accent" />
+            )}
+          </button>
+          <button
+            onClick={() => { setSleepTimer('endOfQueue'); setShowSleepTimer(false) }}
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left cursor-pointer transition-colors ${
+              sleepTimer.mode === 'endOfQueue'
+                ? 'bg-accent/10 text-accent'
+                : 'hover:bg-white/50 dark:hover:bg-zinc-800/50 text-light-text dark:text-dark-text'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sleepTimer.mode === 'endOfQueue' ? 'bg-accent text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-light-muted dark:text-dark-muted'}`}>
+              <ListMusic className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium block">End of queue</span>
+              <span className="text-xs text-light-muted dark:text-dark-muted">Pause when the queue finishes</span>
+            </div>
+            {sleepTimer.mode === 'endOfQueue' && (
+              <Check className="w-4 h-4 ml-auto text-accent" />
+            )}
+          </button>
+        </div>
+      </BottomSheet>
     </div>
   )
 }

@@ -146,9 +146,11 @@ async def stream_download(
     album: str,
     artwork_url: str | None,
     source_url: str | None = None,
+    quality: str = "320",
+    output_format: str = "mp3",
 ) -> AsyncGenerator[str, None]:
     try:
-        filepath, ext = await asyncio.to_thread(download_track, title, artist, album, artwork_url, source_url)
+        filepath, ext = await asyncio.to_thread(download_track, title, artist, album, artwork_url, source_url, quality, output_format)
         yield json.dumps({"type": "complete", "filepath": filepath, "ext": ext}) + "\n"
 
         with open(filepath, "rb") as f:
@@ -167,6 +169,8 @@ def download_track(
     album: str,
     artwork_url: str | None,
     source_url: str | None = None,
+    quality: str = "320",
+    output_format: str = "mp3",
 ) -> tuple[str, str]:
     if source_url and not source_url.startswith("https://open.spotify.com"):
         track_urls = [(source_url, "direct")]
@@ -203,8 +207,8 @@ def download_track(
             opts["postprocessors"] = [
                 {
                     "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "320",
+                    "preferredcodec": output_format if output_format in ("mp3", "m4a") else "mp3",
+                    "preferredquality": quality,
                 }
             ]
         else:
@@ -224,7 +228,8 @@ def download_track(
                 continue
 
             files.sort()
-            expected = f"{safe_name}.mp3"
+            ext_expected = output_format if output_format in ("mp3", "m4a") else "mp3"
+            expected = f"{safe_name}.{ext_expected}"
             filepath = os.path.join(tmpdir, expected if expected in files else files[0])
             ext = os.path.splitext(filepath)[1].lower()
 
