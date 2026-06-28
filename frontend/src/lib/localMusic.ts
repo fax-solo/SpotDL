@@ -2,6 +2,20 @@ import { Capacitor } from '@capacitor/core'
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma', '.opus'])
 
+const COMMON_AUDIO_DIRS = [
+  'Music/',
+  'Download/',
+  'Podcasts/',
+  'Ringtones/',
+  'Notifications/',
+  'Alarms/',
+  'Audiobooks/',
+  'Recordings/',
+  'Sound/',
+  'audio/',
+  'Voice/',
+]
+
 export interface LocalTrack {
   name: string
   path: string
@@ -10,74 +24,72 @@ export interface LocalTrack {
   mtime: number
 }
 
-export async function scanDeviceMusic(): Promise<LocalTrack[]> {
-  if (!Capacitor.isNativePlatform()) return []
-
-  try {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    const musicDir = await Filesystem.readdir({
-      path: 'Music/',
-      directory: Directory.ExternalStorage,
-    }).catch(() => null)
-
-    if (!musicDir) return []
-
-    const tracks: LocalTrack[] = []
-
-    for (const file of musicDir.files) {
-      if (file.type === 'file' && isAudioFile(file.name)) {
-        const uri = Capacitor.convertFileSrc(file.uri || '')
-        tracks.push({
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          path: file.uri || file.name,
-          uri,
-          size: file.size || 0,
-          mtime: file.mtime || 0,
-        })
-      }
+async function readDir(path: string, depth: number): Promise<string[]> {
+  if (depth > 3) return []
+  const { Filesystem, Directory } = await import('@capacitor/filesystem')
+  const result = await Filesystem.readdir({
+    path,
+    directory: Directory.ExternalStorage,
+  })
+  const files: string[] = []
+  for (const entry of result.files) {
+    const fullPath = path ? `${path}/${entry.name}` : entry.name
+    if (entry.type === 'file' && isAudioFile(entry.name)) {
+      files.push(fullPath)
+    } else if (entry.type === 'directory') {
+      const sub = await readDir(fullPath, depth + 1).catch(() => [])
+      files.push(...sub)
     }
+  }
+  return files
+}
 
-    tracks.sort((a, b) => a.name.localeCompare(b.name))
-    return tracks
-  } catch {
-    return []
+function trackFromPath(path: string): LocalTrack {
+  const name = path.split('/').pop() || path
+  return {
+    name: name.replace(/\.[^/.]+$/, ''),
+    path,
+    uri: Capacitor.convertFileSrc(path),
+    size: 0,
+    mtime: 0,
   }
 }
 
-export async function scanDirectory(path: string): Promise<LocalTrack[]> {
+export async function scanDeviceMusic(): Promise<LocalTrack[]> {
   if (!Capacitor.isNativePlatform()) return []
 
-  try {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    const result = await Filesystem.readdir({
-      path,
-      directory: Directory.ExternalStorage,
-    })
+  const seen = new Set<string>()
+  const all: LocalTrack[] = []
 
-    const tracks: LocalTrack[] = []
-
-    for (const file of result.files) {
-      if (file.type === 'file' && isAudioFile(file.name)) {
-        const fullPath = path ? `${path}/${file.name}` : file.name
-        const uri = Capacitor.convertFileSrc(file.uri || '')
-        tracks.push({
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          path: fullPath,
-          uri,
-          size: file.size || 0,
-          mtime: file.mtime || 0,
-        })
-      } else if (file.type === 'directory') {
-        const subPath = path ? `${path}/${file.name}` : file.name
-        const sub = await scanDirectory(subPath).catch(() => [])
-        tracks.push(...sub)
-      }
+  const addTrack = (t: LocalTrack) => {
+    if (!seen.has(t.path)) {
+      seen.add(t.path)
+      all.push(t)
     }
-
-    return tracks
-  } catch {
-    return []
   }
+
+  // Scan common directories
+  for (const dir of COMMON_AUDIO_DIRS) {
+    try {
+      const files = await readDir(dir, 0)
+      for (const f of files) addTrack(trackFromPath(f))
+    } catch {
+      // skip inaccessible directories
+    }
+  }
+
+  // Also scan from root (depth 1 only — immediate files, no deep recursion)
+  try {
+    const rootFiles = await readDir('', 0)
+    for (const f of rootFiles) {
+      if (f.split('/').length <= 2) addTrack(trackFromPath(f))
+    }
+  } catch {
+    // root may not be accessible
+  }
+
+  all.sort((a, b) => a.name.localeCompare(b.name))
+  return all
 }
 
 export function isAudioFile(name: string): boolean {

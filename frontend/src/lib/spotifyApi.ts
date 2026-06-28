@@ -30,16 +30,23 @@ export interface PlaylistSummary {
 }
 
 async function callSpotify(body: Record<string, unknown>): Promise<any> {
-  const res = await fetch(apiUrl('/api/spotify'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Request failed' }))
-    throw new Error(err.error || `Spotify function error: ${res.status}`)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12000)
+  try {
+    const res = await fetch(apiUrl('/api/spotify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Request failed' }))
+      throw new Error(err.error || `Spotify function error: ${res.status}`)
+    }
+    return res.json()
+  } finally {
+    clearTimeout(timeout)
   }
-  return res.json()
 }
 
 export async function fetchTrack(id: string): Promise<TrackMeta> {

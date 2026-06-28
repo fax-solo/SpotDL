@@ -17,6 +17,7 @@ export function SearchPage() {
   const [youtubeResults, setPlayResults] = useState<any[] | null>(null)
   const [searchingPlay, setSearchingPlay] = useState(false)
   const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const isNative = Capacitor.isNativePlatform()
@@ -125,6 +126,7 @@ export function SearchPage() {
     setSearchingPlay(true)
     setSearchResults(null)
     setPlayResults(null)
+    setSearchError(null)
 
     const hasArabic = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(trimmed)
 
@@ -141,7 +143,13 @@ export function SearchPage() {
       const r = spotifyResult.value
       const hasAny = (r.tracks?.length ?? 0) > 0 || (r.artists?.length ?? 0) > 0 ||
                      (r.albums?.length ?? 0) > 0 || (r.playlists?.length ?? 0) > 0 || (r.shows?.length ?? 0) > 0
-      if (hasAny) setSearchResults(r)
+      if (hasAny) {
+        setSearchResults(r)
+      } else {
+        setSearchError('No Spotify results found')
+      }
+    } else if (spotifyResult.status === 'rejected' && spotifyResult.reason !== 'arabic-skip') {
+      setSearchError('Spotify search unavailable')
     }
 
     if (youtubeResult.status === 'fulfilled' && youtubeResult.value.length > 0) {
@@ -187,7 +195,7 @@ export function SearchPage() {
               }
             }}
             placeholder="Search tracks, artists, playlists..."
-            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+            className="w-full pl-10 pr-14 py-2.5 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
           />
           {searchQuery && (
             <button onClick={clearSearch} className="absolute right-1.5 top-1/2 -translate-y-1/2 min-touch rounded-xl hover:bg-light-bg dark:hover:bg-zinc-700 transition-colors cursor-pointer flex items-center justify-center">
@@ -331,7 +339,9 @@ export function SearchPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Music className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
             <p className="text-light-muted dark:text-dark-muted text-sm font-medium">No results found</p>
-            <p className="text-light-muted dark:text-dark-muted text-xs mt-1">Try a different search term</p>
+            <p className="text-light-muted dark:text-dark-muted text-xs mt-1">
+              {searchError || 'Try a different search term'}
+            </p>
           </div>
         )}
       </div>
