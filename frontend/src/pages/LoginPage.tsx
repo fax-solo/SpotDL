@@ -25,7 +25,13 @@ export function LoginPage() {
       await login(loginField, password)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      const msg = err instanceof Error ? err.message : 'Login failed'
+      console.error('Login error:', err)
+      if (msg.includes('abort') || msg.includes('Failed to fetch')) {
+        setError('Cannot reach the server. Make sure the API is running (npm run dev:api in another terminal).')
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }
@@ -38,7 +44,13 @@ export function LoginPage() {
       await guestLogin()
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Guest login failed')
+      const msg = err instanceof Error ? err.message : 'Guest login failed'
+      console.error('Guest login error:', err)
+      if (msg.includes('abort') || msg.includes('AbortError') || msg.includes('Failed to fetch')) {
+        setError('Cannot reach the server. Make sure the API is running (npm run dev:api in another terminal).')
+      } else {
+        setError(msg)
+      }
     } finally {
       setGuestLoading(false)
     }

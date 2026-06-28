@@ -143,6 +143,10 @@ def _extract_track_album(item: dict) -> str | None:
 
 
 def _scrape_collection(kind: str, collection_id: str) -> dict:
+    logger.warning(
+        "Falling back to Spotify embed scraper — limited to first ~100 tracks. "
+        "Set up valid SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET or use OAuth login for full playlist access."
+    )
     entity = _fetch_embed_data(kind, collection_id)
 
     collection_name = entity.get("title", "Unknown Album/Playlist")
@@ -366,7 +370,11 @@ def _get_spotify_token() -> str | None:
     if resp.status_code == 200:
         return resp.json().get("access_token")
     else:
-        logger.error("Spotify client credentials failed")
+        try:
+            detail = resp.json().get("error_description", resp.json().get("error", "unknown"))
+        except Exception:
+            detail = resp.text[:200]
+        logger.error("Spotify client credentials failed: %s", detail)
         return None
 
 

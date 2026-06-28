@@ -15,16 +15,21 @@ export function CallbackPage() {
     const code = searchParams.get('code')
     const error = searchParams.get('error')
 
-    // Handle Google OAuth callback (id_token in URL fragment or query param)
-    const idToken = searchParams.get('id_token') || new URLSearchParams(window.location.hash.slice(1)).get('id_token')
+    // Handle Google OAuth callback (id_token in URL fragment)
+    const hash = window.location.hash.slice(1)
+    const idToken = searchParams.get('id_token') || (hash ? new URLSearchParams(hash).get('id_token') : null)
 
     if (idToken) {
+      if (hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      }
       googleAuth(idToken)
         .then(() => {
           setStatus('success')
           setTimeout(() => navigate('/', { replace: true }), 1000)
         })
         .catch(err => {
+          console.error('Google auth error:', err)
           setStatus('error')
           setErrorMsg(err.message || 'Google authentication failed')
         })

@@ -222,15 +222,6 @@ export function Settings() {
             </button>
           )}
 
-          {!isGuest && (
-            <button
-              onClick={() => { logout(); navigate('/login') }}
-              className="w-full mt-2 py-2.5 px-4 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign Out
-            </button>
-          )}
         </div>
       </div>
 
@@ -694,6 +685,24 @@ export function Settings() {
           </a>
         </div>
       </div>
+
+      {!isGuest && (
+        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+          <button
+            onClick={() => { logout(); navigate('/login') }}
+            className="w-full p-5 flex items-center gap-3 hover:bg-red-500/5 transition-colors cursor-pointer text-left"
+          >
+            <LogOut className="w-5 h-5 text-red-500" />
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-red-500">Sign Out</h2>
+              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+                Sign out of your account
+              </p>
+            </div>
+            <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

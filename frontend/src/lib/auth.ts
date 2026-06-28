@@ -1,5 +1,19 @@
 import { apiUrl } from './apiConfig'
 
+const TIMEOUT_MS = 8000
+
+async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
+  const { timeout = TIMEOUT_MS, ...fetchOptions } = options
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeout)
+  try {
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal })
+    return res
+  } finally {
+    clearTimeout(id)
+  }
+}
+
 export interface UserProfile {
   id: string
   username?: string | null
@@ -36,13 +50,13 @@ function authHeaders(): HeadersInit {
 }
 
 export async function signup(email: string, password: string, displayName?: string): Promise<AuthResponse> {
-  const res = await fetch(apiUrl('/api/auth/signup'), {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/signup'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, display_name: displayName }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Signup failed' }))
+    const err = await res.json().catch(() => ({ detail: `Signup failed (${res.status})` }))
     throw new Error(err.detail || 'Signup failed')
   }
   const data = await res.json()
@@ -51,13 +65,13 @@ export async function signup(email: string, password: string, displayName?: stri
 }
 
 export async function login(login: string, password: string): Promise<AuthResponse> {
-  const res = await fetch(apiUrl('/api/auth/login'), {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ login, password }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Login failed' }))
+    const err = await res.json().catch(() => ({ detail: `Login failed (${res.status})` }))
     throw new Error(err.detail || 'Login failed')
   }
   const data = await res.json()
@@ -66,13 +80,13 @@ export async function login(login: string, password: string): Promise<AuthRespon
 }
 
 export async function googleAuth(idToken: string, displayName?: string): Promise<AuthResponse> {
-  const res = await fetch(apiUrl('/api/auth/google'), {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/google'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id_token: idToken, display_name: displayName }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Google auth failed' }))
+    const err = await res.json().catch(() => ({ detail: `Google auth failed (${res.status})` }))
     throw new Error(err.detail || 'Google auth failed')
   }
   const data = await res.json()
@@ -81,13 +95,13 @@ export async function googleAuth(idToken: string, displayName?: string): Promise
 }
 
 export async function guestLogin(deviceId: string): Promise<AuthResponse> {
-  const res = await fetch(apiUrl('/api/auth/guest'), {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/guest'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ device_id: deviceId }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Guest login failed' }))
+    const err = await res.json().catch(() => ({ detail: `Guest login failed (${res.status})` }))
     throw new Error(err.detail || 'Guest login failed')
   }
   const data = await res.json()
@@ -99,7 +113,7 @@ export async function getMe(): Promise<UserProfile | null> {
   try {
     const token = getToken()
     if (!token) return null
-    const res = await fetch(apiUrl('/api/auth/me'), {
+    const res = await fetchWithTimeout(apiUrl('/api/auth/me'), {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) {
@@ -107,13 +121,14 @@ export async function getMe(): Promise<UserProfile | null> {
       return null
     }
     return res.json()
-  } catch {
+  } catch (err) {
+    console.error('getMe error:', err)
     return null
   }
 }
 
 export async function updateProfile(displayName: string): Promise<UserProfile> {
-  const res = await fetch(apiUrl('/api/auth/profile'), {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/profile'), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ display_name: displayName }),
@@ -125,10 +140,11 @@ export async function updateProfile(displayName: string): Promise<UserProfile> {
 export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(apiUrl('/api/auth/avatar'), {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/avatar'), {
     method: 'POST',
     headers: authHeaders(),
     body: form,
+    timeout: 15000,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Upload failed' }))
@@ -138,7 +154,7 @@ export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> 
 }
 
 export async function getHistory(limit = 100, offset = 0) {
-  const res = await fetch(apiUrl(`/api/auth/history?limit=${limit}&offset=${offset}`), {
+  const res = await fetchWithTimeout(apiUrl(`/api/auth/history?limit=${limit}&offset=${offset}`), {
     headers: authHeaders(),
   })
   if (!res.ok) throw new Error('Failed to fetch history')
@@ -153,7 +169,7 @@ export async function addHistory(entry: {
   duration_ms?: number | null
   isrc?: string | null
 }) {
-  const res = await fetch(apiUrl('/api/auth/history'), {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/history'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(entry),
@@ -163,7 +179,7 @@ export async function addHistory(entry: {
 }
 
 export async function deleteHistory(id: string) {
-  const res = await fetch(apiUrl(`/api/auth/history/${id}`), {
+  const res = await fetchWithTimeout(apiUrl(`/api/auth/history/${id}`), {
     method: 'DELETE',
     headers: authHeaders(),
   })
@@ -172,7 +188,7 @@ export async function deleteHistory(id: string) {
 }
 
 export async function clearAllHistory() {
-  const res = await fetch(apiUrl('/api/auth/history'), {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/history'), {
     method: 'DELETE',
     headers: authHeaders(),
   })
@@ -182,7 +198,7 @@ export async function clearAllHistory() {
 
 export async function logDownload(trackTitle: string, trackArtist: string, quality?: string, source?: string) {
   try {
-    await fetch(apiUrl('/api/download/log'), {
+    await fetchWithTimeout(apiUrl('/api/download/log'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ track_title: trackTitle, track_artist: trackArtist, quality: quality || null, source: source || null }),

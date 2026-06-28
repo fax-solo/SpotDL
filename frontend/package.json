@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n vite,func -c cyan,yellow 'vite --host' 'node dev-server.mjs'",
+    "dev": "concurrently -n api,vite,func -c green,cyan,yellow '../api/venv/bin/uvicorn index:app --app-dir ../api --host 0.0.0.0 --port 8000 --reload' 'vite --host' 'node dev-server.mjs'",
+    "dev:api": "../api/venv/bin/uvicorn index:app --app-dir ../api --host 0.0.0.0 --port 8000 --reload",
     "dev:server": "node dev-server.mjs",
     "dev:vite": "vite",
     "build": "tsc -b && vite build",
