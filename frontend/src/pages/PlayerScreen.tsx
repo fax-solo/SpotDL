@@ -432,6 +432,7 @@ export function PlayerScreen() {
               trackName={currentTrack.title}
               artistName={currentTrack.artist}
               albumName={currentTrack.album}
+              artworkUrl={currentTrack.artworkUrl}
               duration={duration}
               currentTime={currentTime}
               storedLyrics={currentTrackLyrics ? { plainLyrics: currentTrackLyrics.plainLyrics ?? null, syncedLyrics: currentTrackLyrics.syncedLyrics ?? null } : null}

@@ -8,6 +8,7 @@ import { APP_VERSION, GITHUB_REPO } from '../lib/version'
 import { checkForUpdates, type UpdateCheckResult } from '../lib/checkUpdate'
 import { getDeezerArl, setDeezerArl, clearDeezerArl, getDeezerQuality, setDeezerQuality, type DeezerQuality } from '../lib/deezer'
 import { getQualitySettings, setQualitySettings, type Bitrate, type OutputFormat } from '../lib/qualitySettings'
+import { getCrossfadeDuration, setCrossfadeDuration } from '../lib/crossfadeSettings'
 
 export function Settings() {
   const navigate = useNavigate()
@@ -25,6 +26,7 @@ export function Settings() {
   const [wpTokenSaved, setWpTokenSaved] = useState(!!getWebPlayerToken())
   const [downloadLyrics, setDownloadLyricsState] = useState(getDownloadLyrics())
   const [dlQuality, setDlQuality] = useState(getQualitySettings())
+  const [crossfade, setCrossfadeState] = useState(getCrossfadeDuration())
   const [permStatus, setPermStatus] = useState<Record<string, boolean>>({})
   const [requestingPerm, setRequestingPerm] = useState<string | null>(null)
   const [updateState, setUpdateState] = useState<UpdateCheckResult>({
@@ -348,6 +350,49 @@ export function Settings() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+        <div className="p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <Music className="w-5 h-5 text-accent" />
+            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Crossfade</h2>
+            {crossfade > 0 && (
+              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/20">
+                {crossfade}s
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-light-muted dark:text-dark-muted mb-3">
+            Smoothly fade between tracks when skipping or at the end of a track.
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            {[
+              [0, 'Off'],
+              [1, '1s'],
+              [2, '2s'],
+              [3, '3s'],
+              [5, '5s'],
+              [8, '8s'],
+              [12, '12s'],
+            ].map(([val, label]) => (
+              <button
+                key={val as number}
+                onClick={() => {
+                  setCrossfadeState(val as number)
+                  setCrossfadeDuration(val as number)
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  crossfade === val
+                    ? 'bg-accent text-white'
+                    : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+                }`}
+              >
+                {label as string}
+              </button>
+            ))}
           </div>
         </div>
       </div>

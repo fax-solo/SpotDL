@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { getAudioSrc } from '../lib/capacitorBridge'
 import { findAudio } from '../lib/sources'
+import { getCrossfadeDuration } from '../lib/crossfadeSettings'
 import type { HistoryEntry } from './useHistory'
 import { useBackgroundAudio } from './useBackgroundAudio'
 import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotification, ensureNotificationPermission } from '../lib/notifications'
@@ -59,6 +60,31 @@ export function usePlayer() {
   const ctx = useContext(PlayerContext)
   if (!ctx) throw new Error('usePlayer must be used within PlayerProvider')
   return ctx
+}
+
+function fadeVolume(audio: HTMLAudioElement, from: number, to: number, duration: number): Promise<void> {
+  if (duration <= 0 || from === to) return Promise.resolve()
+  return new Promise(resolve => {
+    const steps = Math.max(1, Math.round(duration * 60))
+    const stepDur = (duration * 1000) / steps
+    const diff = to - from
+    let step = 0
+    const tick = () => {
+      step++
+      const progress = step / steps
+      const eased = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2
+      if (audio && audio.volume !== undefined) {
+        audio.volume = Math.max(0, Math.min(1, from + diff * eased))
+      }
+      if (step < steps) {
+        setTimeout(tick, stepDur)
+      } else {
+        if (audio && audio.volume !== undefined) audio.volume = to
+        resolve()
+      }
+    }
+    setTimeout(tick, stepDur)
+  })
 }
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -265,6 +291,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    const crossfadeMs = getCrossfadeDuration()
+
+    if (crossfadeMs > 0 && prev && audio.src && !audio.paused) {
+      await fadeVolume(audio, audio.volume, 0, crossfadeMs / 2)
+    }
+
     audio.pause()
     audio.src = ''
 
@@ -298,8 +330,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      if (crossfadeMs > 0) {
+        audio.volume = 0
+      }
       await audio.play()
       setIsPlaying(true)
+      if (crossfadeMs > 0) {
+        await fadeVolume(audio, 0, volume, crossfadeMs / 2)
+      }
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: track.title,
@@ -312,6 +350,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       await ensureNotificationPermission()
       startMediaForeground(track.title, track.artist)
     } catch {
+      audio.volume = volume
       setIsPlaying(false)
     }
   }, [])

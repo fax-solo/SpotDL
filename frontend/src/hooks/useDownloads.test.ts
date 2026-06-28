@@ -31,6 +31,14 @@ vi.mock('@capacitor/core', () => ({
   },
 }))
 
+vi.mock('../lib/fetchLyricsWithFallback', () => ({
+  fetchLyricsWithFallback: vi.fn().mockResolvedValue({ plainLyrics: null, syncedLyrics: null }),
+}))
+
+vi.mock('../lib/lyricsSettings', () => ({
+  getDownloadLyrics: vi.fn(() => false),
+}))
+
 import { useDownloads } from './useDownloads'
 import { downloadTrack } from '../lib/api'
 import { downloadFile } from '../lib/capacitorBridge'

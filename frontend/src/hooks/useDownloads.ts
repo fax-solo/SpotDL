@@ -7,6 +7,8 @@ import type { HistoryEntry } from './useHistory'
 import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendBatchCompleteNotification, ensureNotificationPermission } from '../lib/notifications'
 import { startDownloadForeground, updateDownloadForeground, stopDownloadForeground } from '../lib/nativePlugin'
 import { Capacitor } from '@capacitor/core'
+import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
+import { getDownloadLyrics } from '../lib/lyricsSettings'
 
 let processing = false
 
@@ -236,6 +238,24 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 set({ abortControllers: new Map(controllers) })
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
 
+                let plainLyrics: string | null = null
+                let syncedLyrics: string | null = null
+                if (getDownloadLyrics()) {
+                  try {
+                    const lyrics = await fetchLyricsWithFallback(
+                      item.track.title,
+                      item.track.artist,
+                      item.track.album,
+                      item.track.duration_ms ? item.track.duration_ms / 1000 : undefined,
+                      AbortSignal.timeout(10000),
+                    )
+                    plainLyrics = lyrics.plainLyrics
+                    syncedLyrics = lyrics.syncedLyrics
+                  } catch {
+                    // lyrics are best-effort
+                  }
+                }
+
                 sendDownloadCompleteNotification({
                   title: item.track.title,
                   artist: item.track.artist,
@@ -250,6 +270,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                       album: item.track.album,
                       artworkUrl: item.track.artwork_url,
                       filePath,
+                      plainLyrics,
+                      syncedLyrics,
                     } satisfies Omit<HistoryEntry, 'id' | 'timestamp'>,
                   }),
                 )

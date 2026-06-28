@@ -17,7 +17,7 @@ import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
-import { fetchLyricsForTrack } from './lib/api'
+import { fetchLyricsWithFallback } from './lib/fetchLyricsWithFallback'
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })))
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
@@ -112,15 +112,18 @@ function AppContent() {
     const handleDownload = (e: Event) => {
       const detail = (e as CustomEvent).detail
       if (!detail) return
+
       addEntry(detail)
 
-      fetchLyricsForTrack(detail.title, detail.artist, detail.album, detail.duration)
-        .then(lyrics => {
-          if (lyrics.plainLyrics || lyrics.syncedLyrics) {
-            updateEntryLyrics(detail.title, detail.artist, lyrics.plainLyrics, lyrics.syncedLyrics)
-          }
-        })
-        .catch(() => {})
+      if (!detail.plainLyrics && !detail.syncedLyrics) {
+        fetchLyricsWithFallback(detail.title, detail.artist, detail.album, detail.duration)
+          .then(lyrics => {
+            if (lyrics.plainLyrics || lyrics.syncedLyrics) {
+              updateEntryLyrics(detail.title, detail.artist, lyrics.plainLyrics, lyrics.syncedLyrics)
+            }
+          })
+          .catch(() => {})
+      }
     }
     window.addEventListener('trackDownloaded', handleDownload)
     return () => window.removeEventListener('trackDownloaded', handleDownload)

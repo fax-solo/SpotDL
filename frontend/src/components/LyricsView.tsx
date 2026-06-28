@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useLyrics } from '../hooks/useLyrics'
 
 interface LyricsViewProps {
@@ -7,17 +7,45 @@ interface LyricsViewProps {
   albumName: string
   duration: number
   currentTime: number
+  artworkUrl?: string | null
   storedLyrics?: { plainLyrics: string | null; syncedLyrics: string | null } | null
   scrollRef?: React.RefObject<HTMLDivElement | null>
   onSeek?: (time: number) => void
 }
 
-export function LyricsView({ trackName, artistName, albumName, duration, currentTime, storedLyrics, scrollRef, onSeek }: LyricsViewProps) {
+function extractColors(url: string): Promise<string[]> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1
+      canvas.height = 1
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve([]); return }
+      ctx.drawImage(img, 0, 0, 1, 1)
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+      resolve([`rgb(${r},${g},${b})`, `rgb(${Math.min(r + 40, 255)},${Math.min(g + 30, 255)},${Math.min(b + 50, 255)})`])
+    }
+    img.onerror = () => resolve([])
+    img.src = url
+  })
+}
+
+export function LyricsView({ trackName, artistName, albumName, duration, currentTime, artworkUrl, storedLyrics, scrollRef, onSeek }: LyricsViewProps) {
   const { plainLyrics, syncedLines, synced, currentLine, loading, error } = useLyrics(
     trackName, artistName, albumName, duration, currentTime, storedLyrics,
   )
   const containerRef = useRef<HTMLDivElement>(null)
   const activeRef = useRef<HTMLDivElement>(null)
+  const [colors, setColors] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!artworkUrl) { setColors([]); return }
+    let cancelled = false
+    extractColors(artworkUrl).then(c => { if (!cancelled) setColors(c) })
+    return () => { cancelled = true }
+  }, [artworkUrl])
 
   useEffect(() => {
     if (!synced || !activeRef.current || !containerRef.current) return
@@ -29,75 +57,114 @@ export function LyricsView({ trackName, artistName, albumName, duration, current
     target.scrollBy({ top: offset, behavior: 'smooth' })
   }, [currentLine, synced, scrollRef])
 
+  const bgGradient = colors.length >= 2
+    ? `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1]} 50%, ${colors[0]} 100%)`
+    : undefined
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <div className="relative flex items-center justify-center py-20 min-h-[50vh]">
+        <div className="w-6 h-6 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-light-muted dark:text-zinc-500">{error}</p>
+      <div className="relative flex items-center justify-center py-20 min-h-[50vh]">
+        <p className="text-sm text-white/50">{error}</p>
       </div>
     )
   }
 
   if (!plainLyrics && syncedLines.length === 0) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-light-muted dark:text-zinc-500">No lyrics available</p>
+      <div className="relative flex items-center justify-center py-20 min-h-[50vh]">
+        <p className="text-sm text-white/50">No lyrics available</p>
       </div>
     )
   }
 
-  if (synced && syncedLines.length > 0) {
-    return (
-      <div
-        ref={containerRef}
-        className="w-full"
-      >
-        <div className="flex flex-col items-center gap-4 pb-[45%]">
-          {syncedLines.map((line, i) => {
-            const isActive = i === currentLine
-            const isPast = i < currentLine
-            return (
-              <div
-                key={i}
-                ref={isActive ? activeRef : undefined}
-                onClick={onSeek ? () => onSeek(line.time) : undefined}
-                dir="auto"
-                className={`text-center transition-all duration-500 ease-out ${
-                  isActive
-                    ? 'text-white text-xl font-semibold scale-100 opacity-100 drop-shadow-[0_0_14px_rgba(255,255,255,0.4)]'
-                    : isPast
-                    ? 'text-white/25 text-sm font-normal scale-90'
-                    : 'text-white/45 text-sm font-normal scale-90'
-                } ${onSeek ? 'cursor-pointer' : ''}`}
-                style={isActive ? {
-                  background: 'linear-gradient(to right, rgba(255,255,255,0.8) 0%, #fff 40%, #fff 60%, rgba(255,255,255,0.8) 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                } : undefined}
-              >
-                {line.text}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
+  const syncedContent = synced && syncedLines.length > 0
+  const lyricsContent = syncedContent ? null : plainLyrics
 
   return (
-    <div className="w-full">
-      <div className="flex flex-col items-center gap-3">
-        {plainLyrics?.split('\n').filter(l => l.trim()).map((line, i) => (
-          <p key={i} dir="auto" className="text-white/60 text-base text-center leading-relaxed">{line}</p>
-        ))}
+    <div className="relative w-full min-h-[50vh]">
+      {artworkUrl && (
+        <>
+          <div
+            className="fixed inset-0 -z-10 bg-black"
+            style={{
+              backgroundImage: `url(${artworkUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'blur(50px) brightness(0.35) saturate(1.2)',
+              transform: 'scale(1.15)',
+            }}
+          />
+          {bgGradient && (
+            <div
+              className="fixed inset-0 -z-10 opacity-40"
+              style={{
+                background: bgGradient,
+                mixBlendMode: 'overlay',
+              }}
+            />
+          )}
+          <div
+            className="fixed inset-0 -z-10"
+            style={{
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.9) 100%)',
+            }}
+          />
+        </>
+      )}
+
+      <div className="relative z-10 w-full px-6 py-8">
+        <div
+          className="rounded-2xl p-6 mx-auto max-w-lg"
+          style={{
+            background: artworkUrl ? 'rgba(0,0,0,0.25)' : undefined,
+            backdropFilter: artworkUrl ? 'blur(24px)' : undefined,
+            WebkitBackdropFilter: artworkUrl ? 'blur(24px)' : undefined,
+          }}
+        >
+          {syncedContent ? (
+            <div ref={containerRef} className="w-full">
+              <div className="flex flex-col items-center gap-5 pb-[45%]">
+                {syncedLines.map((line, i) => {
+                  const isActive = i === currentLine
+                  const isPast = i < currentLine
+                  return (
+                    <div
+                      key={i}
+                      ref={isActive ? activeRef : undefined}
+                      onClick={onSeek ? () => onSeek(line.time) : undefined}
+                      dir="auto"
+                      className={`text-center transition-all duration-500 ease-out ${
+                        isActive
+                          ? 'text-white text-xl font-semibold scale-100 opacity-100 drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]'
+                          : isPast
+                          ? 'text-white/20 text-sm font-light scale-90'
+                          : 'text-white/40 text-sm font-light scale-90'
+                      } ${onSeek ? 'cursor-pointer' : ''}`}
+                    >
+                      {line.text}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : lyricsContent ? (
+            <div className="flex flex-col items-center gap-3">
+              {lyricsContent.split('\n').filter(l => l.trim()).map((line, i) => (
+                <p key={i} dir="auto" className="text-white/70 text-base text-center leading-relaxed font-light">
+                  {line}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )
