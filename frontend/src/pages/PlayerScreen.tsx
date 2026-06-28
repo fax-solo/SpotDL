@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowDown, Play, Pause, SkipBack, SkipForward, Music, Mic2, ListMusic,
   Plus, Trash2, Play as PlayIcon, Music2, FolderOpen, Check,
-  Shuffle, Repeat, Clock,
+  Shuffle, Repeat, Clock, Download, Loader2,
 } from 'lucide-react'
 
 const RepeatOneIcon = ({ className }: { className?: string }) => (
@@ -29,6 +29,7 @@ import { useDownloads } from '../hooks/useDownloads'
 import { useBottomBar } from '../hooks/useBottomBar'
 import { BottomSheet } from '../components/BottomSheet'
 import { fileExists } from '../lib/capacitorBridge'
+import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
 
 function formatTime(sec: number): string {
   if (!isFinite(sec) || sec < 0) return '0:00'
@@ -45,7 +46,7 @@ export function PlayerScreen() {
     shuffle, repeatMode, toggleShuffle, cycleRepeat,
     sleepTimer, setSleepTimer,
   } = usePlayer()
-  const { entries, removeEntry, clearHistory } = useHistory()
+  const { entries, removeEntry, clearHistory, updateEntryLyrics } = useHistory()
   const { playlists, createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist, renamePlaylist } = usePlaylists()
   const { addDownload } = useDownloads()
   const { toast } = useToast()
@@ -135,6 +136,50 @@ export function PlayerScreen() {
     setActivePlaylist(null)
   }, [entries, play, toast])
 
+  const [downloadingLyrics, setDownloadingLyrics] = useState<string | null>(null)
+  const [bulkDownloading, setBulkDownloading] = useState(false)
+
+  const handleDownloadLyrics = useCallback(async (title: string, artist: string, album?: string) => {
+    if (downloadingLyrics) return
+    setDownloadingLyrics(title)
+    try {
+      const lyrics = await fetchLyricsWithFallback(title, artist, album)
+      if (lyrics.plainLyrics || lyrics.syncedLyrics) {
+        updateEntryLyrics(title, artist, lyrics.plainLyrics, lyrics.syncedLyrics)
+        toast('Lyrics downloaded', 'success')
+      } else {
+        toast('No lyrics found for this track', 'info')
+      }
+    } catch {
+      toast('Failed to download lyrics', 'error')
+    }
+    setDownloadingLyrics(null)
+  }, [downloadingLyrics, updateEntryLyrics, toast])
+
+  const handleDownloadAllLyrics = useCallback(async () => {
+    if (bulkDownloading) return
+    setBulkDownloading(true)
+    let success = 0
+    let failed = 0
+    const entriesToProcess = entries.filter(e => e.title)
+    for (let i = 0; i < entriesToProcess.length; i++) {
+      const e = entriesToProcess[i]
+      try {
+        const lyrics = await fetchLyricsWithFallback(e.title, e.artist, e.album)
+        if (lyrics.plainLyrics || lyrics.syncedLyrics) {
+          updateEntryLyrics(e.title, e.artist, lyrics.plainLyrics, lyrics.syncedLyrics)
+          success++
+        } else {
+          failed++
+        }
+      } catch {
+        failed++
+      }
+    }
+    setBulkDownloading(false)
+    toast(`Lyrics: ${success} downloaded, ${failed} not found`, success > 0 ? 'success' : 'info')
+  }, [bulkDownloading, entries, updateEntryLyrics, toast])
+
   const handleRename = useCallback((id: string) => {
     const name = renameValue.trim()
     if (!name) return
@@ -218,9 +263,25 @@ export function PlayerScreen() {
 
           {/* ─── All Songs ─── */}
           <section>
-            <h2 className="text-sm font-semibold text-light-muted dark:text-dark-muted uppercase tracking-wider mb-3">
-              All Songs
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-light-muted dark:text-dark-muted uppercase tracking-wider">
+                All Songs
+              </h2>
+              {downloadedEntries.length > 0 && (
+                <button
+                  onClick={handleDownloadAllLyrics}
+                  disabled={bulkDownloading}
+                  className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {bulkDownloading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  {bulkDownloading ? 'Downloading...' : 'Get all lyrics'}
+                </button>
+              )}
+            </div>
             {downloadedEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Music className="w-12 h-12 text-light-muted dark:text-dark-muted mb-3" />
@@ -402,6 +463,23 @@ export function PlayerScreen() {
           {(sleepTimer.mode === 'endOfTrack' || sleepTimer.mode === 'endOfQueue') && (
             <span className="text-xs font-medium text-accent">1 track</span>
           )}
+          <button
+            onClick={() => handleDownloadLyrics(currentTrack.title, currentTrack.artist, currentTrack.album)}
+            disabled={downloadingLyrics === currentTrack.title}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              downloadingLyrics === currentTrack.title
+                ? 'bg-accent/50 text-white'
+                : currentTrackLyrics?.plainLyrics || currentTrackLyrics?.syncedLyrics
+                ? 'text-green-500'
+                : 'hover:bg-white/10 dark:hover:bg-zinc-800/50 text-light-muted dark:text-dark-muted'
+            }`}
+            title="Download lyrics"
+          >
+            {downloadingLyrics === currentTrack.title
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Download className="w-4 h-4" />
+            }
+          </button>
           <button
             onClick={() => { setShowQueue(false); setShowLyrics(v => !v) }}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
