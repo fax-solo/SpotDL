@@ -10,7 +10,7 @@ interface AuthState {
 
   initialize: () => Promise<void>
   login: (login: string, password: string) => Promise<void>
-  signup: (email: string, password: string, displayName?: string, username?: string) => Promise<void>
+  signup: (email: string, password: string, displayName?: string) => Promise<void>
   googleAuth: (idToken: string, displayName?: string) => Promise<void>
   guestLogin: () => Promise<void>
   logout: () => void
@@ -52,7 +52,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     set({ user: res.user, isGuest: false })
   },
 
-  signup: async (email: string, password: string, displayName?: string, username?: string) => {
+  signup: async (email: string, password: string, displayName?: string) => {
     const res = await auth.signup(email, password, displayName)
     auth.storeUser(res.user)
     set({ user: res.user, isGuest: false })

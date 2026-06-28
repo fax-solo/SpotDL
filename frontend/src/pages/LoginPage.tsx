@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, LogIn, User, Globe } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { apiUrl } from '../lib/apiConfig'
 
 export function LoginPage() {
   const navigate = useNavigate()

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, UserPlus, User, Globe } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, UserPlus, User } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 export function SignUpPage() {

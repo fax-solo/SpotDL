@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Users, Download, UserCheck, UserPlus, Globe, Shield,
-  TrendingUp, Calendar, ArrowLeft, Activity, Music,
-  ChevronDown, ChevronUp, UserX,
+  Calendar, ArrowLeft, Activity, Music,
+  ChevronDown, ChevronUp, UserX, Mail,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { apiUrl } from '../lib/apiConfig'
@@ -106,7 +106,7 @@ export function AdminDashboard() {
     setError(null)
     try {
       const token = localStorage.getItem('sinc_token')
-      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
 
       const [statsRes, usersRes] = await Promise.all([
         fetch(apiUrl('/api/admin/stats'), { headers }),
@@ -132,7 +132,7 @@ export function AdminDashboard() {
   async function toggleUserActive(userId: string) {
     try {
       const token = localStorage.getItem('sinc_token')
-      const headers: HeadersInit = {
+      const headers: Record<string, string> = {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       }

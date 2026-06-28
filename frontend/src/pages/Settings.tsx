@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon, User, LogOut, Camera, Upload, Shield, Mail, Pencil } from 'lucide-react'
+import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon, User, LogOut, Camera, Shield, Mail, Pencil } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
 import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
