@@ -27,22 +27,45 @@ try {
   console.error('Failed to load .env:', e.message)
 }
 
+function findFunctionFile(relPath) {
+  // Try exact match: /api/auth/signup -> functions/api/auth/signup.js
+  const exact = path.join(FUNCTIONS_DIR, `${relPath}.js`)
+  if (fs.existsSync(exact)) return exact
+
+  // Try index in directory: /api/auth -> functions/api/auth/index.js
+  const index = path.join(FUNCTIONS_DIR, relPath, 'index.js')
+  if (fs.existsSync(index)) return index
+
+  // Try catch-all: /api/auth/signup -> functions/api/auth/[[catchall]].js  
+  const parts = relPath.split('/')
+  for (let i = parts.length; i > 0; i--) {
+    const dir = path.join(FUNCTIONS_DIR, ...parts.slice(0, i))
+    if (fs.existsSync(dir)) {
+      const entries = fs.readdirSync(dir)
+      const catchall = entries.find(e => e.startsWith('[[') && e.endsWith(']]') && e.endsWith('.js'))
+      if (catchall) return path.join(dir, catchall)
+    }
+  }
+
+  return null
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
-  const match = url.pathname.match(/^\/api\/([\w-]+)$/)
 
-  if (!match) {
+  // Must start with /api/
+  if (!url.pathname.startsWith('/api/')) {
     res.writeHead(404)
     res.end()
     return
   }
 
-  const functionName = match[1]
-  const functionPath = path.join(FUNCTIONS_DIR, `${functionName}.js`)
+  const relPath = url.pathname.slice(5) // Remove "/api/"
+  const functionPath = findFunctionFile(relPath)
 
-  if (!fs.existsSync(functionPath)) {
+  if (!functionPath) {
     res.writeHead(404, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ error: `Function ${functionName} not found` }))
+    res.end(JSON.stringify({ error: `Function for ${url.pathname} not found` }))
     return
   }
 
@@ -54,21 +77,20 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk)
 
     req.on('end', async () => {
-      let requestBody = null
-      if (body && req.headers['content-type']?.includes('application/json')) {
-        try { requestBody = JSON.parse(body) } catch {}
-      }
-
-      const request = new Request(`http://localhost:${PORT}/api/${functionName}`, {
+      const request = new Request(`http://localhost:${PORT}${url.pathname}`, {
         method: req.method || 'GET',
         headers: req.headers,
         body: body || null,
       })
 
+      const params = {}
+      const match = url.pathname.match(/\/api\/auth\/spotify\/callback/)
+      if (match) params.provider = 'spotify'
+
       const context = {
         request,
         env,
-        params: {},
+        params,
         next: () => {},
       }
 
@@ -76,9 +98,11 @@ const server = http.createServer(async (req, res) => {
       const statusCode = result.status || 200
 
       const responseHeaders = {}
-      result.headers.forEach((value, key) => {
-        responseHeaders[key] = value
-      })
+      if (result.headers && typeof result.headers.forEach === 'function') {
+        result.headers.forEach((value, key) => {
+          responseHeaders[key] = value
+        })
+      }
 
       if (statusCode >= 300 && statusCode < 400 && responseHeaders['location']) {
         res.writeHead(statusCode, responseHeaders)
@@ -95,6 +119,7 @@ const server = http.createServer(async (req, res) => {
       res.end(responseBody)
     })
   } catch (err) {
+    console.error(`Error handling ${url.pathname}:`, err)
     res.writeHead(500, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: err.message }))
   }

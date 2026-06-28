@@ -53,8 +53,8 @@ export function SignUpPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-light-bg dark:bg-dark-bg">
-      <div className="flex-1 flex flex-col justify-center px-6 py-12 max-w-sm mx-auto w-full">
+    <div className="flex-1 flex flex-col bg-light-bg dark:bg-dark-bg">
+      <div className="flex-1 flex flex-col justify-center px-6 py-12 pb-28 max-w-sm mx-auto w-full">
         <div className="text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-5">
             <UserPlus className="w-8 h-8 text-accent" />
