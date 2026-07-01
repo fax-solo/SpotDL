@@ -95,10 +95,13 @@ export function Settings() {
             <User className="w-5 h-5 text-accent" />
             <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Profile</h2>
             {user?.role === 'admin' && !isGuest && (
-              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1">
+              <button
+                onClick={() => navigate('/admin')}
+                className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1 hover:bg-amber-500/20 transition-colors cursor-pointer"
+              >
                 <Shield className="w-3 h-3" />
                 Admin
-              </span>
+              </button>
             )}
           </div>
 
