@@ -9,10 +9,10 @@ interface SpotDLPlugin {
     url: string
   }>
   startDownloadForeground(options: { title?: string; count?: number }): Promise<{}>
-  updateDownloadForeground(options: { title?: string; count?: number }): Promise<{}>
+  updateDownloadForeground(options: { title?: string; count?: number; progress?: number }): Promise<{}>
   stopDownloadForeground(): Promise<{}>
-  startMediaForeground(options: { title?: string; artist?: string }): Promise<{}>
-  updateMediaForeground(options: { title?: string; artist?: string }): Promise<{}>
+  startMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string }): Promise<{}>
+  updateMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string }): Promise<{}>
   stopMediaForeground(): Promise<{}>
 }
 
@@ -48,10 +48,10 @@ export async function startDownloadForeground(title: string = 'Downloading...', 
   }
 }
 
-export async function updateDownloadForeground(title: string, count: number): Promise<void> {
+export async function updateDownloadForeground(title: string, count: number, progress?: number): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.updateDownloadForeground({ title, count })
+    await SpotDL.updateDownloadForeground({ title, count, progress })
   } catch (e) {
     console.warn('[native] Failed to update download foreground:', e)
   }
@@ -66,19 +66,19 @@ export async function stopDownloadForeground(): Promise<void> {
   }
 }
 
-export async function startMediaForeground(title: string = 'Playing', artist: string = ''): Promise<void> {
+export async function startMediaForeground(title: string = 'Playing', artist: string = '', artworkUrl?: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.startMediaForeground({ title, artist })
+    await SpotDL.startMediaForeground({ title, artist, artworkUrl })
   } catch (e) {
     console.warn('[native] Failed to start media foreground:', e)
   }
 }
 
-export async function updateMediaForeground(title: string, artist: string): Promise<void> {
+export async function updateMediaForeground(title: string, artist: string, artworkUrl?: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.updateMediaForeground({ title, artist })
+    await SpotDL.updateMediaForeground({ title, artist, artworkUrl })
   } catch (e) {
     console.warn('[native] Failed to update media foreground:', e)
   }
@@ -100,8 +100,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.error || `Server error: ${res.status}`)
+    const err = await res.json().catch(() => ({ detail: 'Unknown error' }))
+    throw new Error(err.detail || `Server error: ${res.status}`)
   }
   return res.json()
 }

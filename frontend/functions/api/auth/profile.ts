@@ -1,13 +1,13 @@
-import { json, error, handleOptions, requireUser } from '../_lib'
+import { json, error, requireUser } from '../_lib'
+import { validate, updateProfileSchema } from '../_lib/validation'
 import type { RouteHandler } from '../_lib'
 
 export const onRequest: RouteHandler = async (context) => {
-  if (context.request.method === 'OPTIONS') return handleOptions()
   if (context.request.method !== 'PUT') return error('Method not allowed', 405)
 
   try {
     const user = await requireUser(context, context.env.DB)
-    const { display_name } = await context.request.json() as any
+    const { display_name } = validate(updateProfileSchema, await context.request.json())
 
     if (display_name !== undefined) {
       await context.env.DB.prepare('UPDATE users SET display_name = ? WHERE id = ?')

@@ -1,14 +1,19 @@
 import os
 import uuid
+import json
+import base64
+import hmac
 import hashlib
 import secrets
+import bcrypt
 import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, EmailStr
-from sqlalchemy.orm import Session
+from sqlalchemy import select, func, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -31,21 +36,79 @@ security = HTTPBearer(auto_error=False)
 
 
 def _hash_password(password: str) -> str:
-    return hashlib.sha256((password + JWT_SECRET).encode()).hexdigest()
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _verify_password(password: str, stored_hash: str) -> bool:
+    if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
+        return bcrypt.checkpw(password.encode(), stored_hash.encode())
+    expected = hashlib.sha256((password + JWT_SECRET).encode()).hexdigest()
+    return secrets.compare_digest(stored_hash, expected)
+
+
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _create_token_sig(data: str) -> str:
+    return hmac.new(JWT_SECRET.encode(), data.encode(), hashlib.sha256).hexdigest()
+
+
+def _verify_token_sig(data: str, sig: str) -> bool:
+    expected = _create_token_sig(data)
+    return secrets.compare_digest(expected, sig)
 
 
 def _create_token(user_id: str) -> str:
-    payload = f"{user_id}:{int((datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY_HOURS)).timestamp())}"
-    sig = hashlib.sha256((payload + JWT_SECRET).encode()).hexdigest()
-    return f"{payload}:{sig}"
+    now = int(datetime.now(timezone.utc).timestamp())
+    header = _b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    payload = _b64(json.dumps({
+        "sub": user_id,
+        "iss": "sinc-api",
+        "iat": now,
+        "exp": now + JWT_EXPIRY_HOURS * 3600,
+        "jti": uuid.uuid4().hex,
+    }).encode())
+    sig = _create_token_sig(f"{header}.{payload}")
+    return f"{header}.{payload}.{sig}"
 
 
 def _verify_token(token: str) -> str | None:
     parts = token.split(":")
+    if len(parts) in (3, 4):
+        return _verify_legacy_token(parts)
+
+    parts = token.split(".")
     if len(parts) != 3:
         return None
-    user_id, expiry_ts, sig = parts
-    check = hashlib.sha256((f"{user_id}:{expiry_ts}" + JWT_SECRET).encode()).hexdigest()
+    header_b64, payload_b64, sig = parts
+    try:
+        payload_raw = base64.urlsafe_b64decode(payload_b64 + "==")
+        payload = json.loads(payload_raw)
+    except Exception:
+        return None
+
+    if not _verify_token_sig(f"{header_b64}.{payload_b64}", sig):
+        return None
+
+    exp = payload.get("exp")
+    if exp and int(exp) < datetime.now(timezone.utc).timestamp():
+        return None
+
+    return payload.get("sub")
+
+
+def _verify_legacy_token(parts: list[str]) -> str | None:
+    if len(parts) == 4:
+        user_id, expiry_ts, _jti, sig = parts
+        check_data = f"{user_id}:{expiry_ts}:{_jti}"
+    elif len(parts) == 3:
+        user_id, expiry_ts, sig = parts
+        check_data = f"{user_id}:{expiry_ts}"
+    else:
+        return None
+
+    check = hashlib.sha256((check_data + JWT_SECRET).encode()).hexdigest()
     if not secrets.compare_digest(sig, check):
         return None
     if int(expiry_ts) < datetime.now(timezone.utc).timestamp():
@@ -55,31 +118,33 @@ def _verify_token(token: str) -> str | None:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
     user_id = _verify_token(credentials.credentials)
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    user = db.query(User).filter(User.id == user_id).first()
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or disabled")
     user.last_active = _utcnow()
-    db.commit()
+    await db.commit()
     return user
 
 
 async def get_optional_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User | None:
     if not credentials:
         return None
     user_id = _verify_token(credentials.credentials)
     if not user_id:
         return None
-    user = db.query(User).filter(User.id == user_id).first()
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     if not user or not user.is_active:
         return None
     return user
@@ -155,16 +220,18 @@ def _user_response(user: User, token: str) -> dict:
 
 @router.post("/signup")
 @_auth_limiter.limit("10/minute")
-async def signup(request: Request, body: SignUpRequest, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(
-        (User.email == body.email) | ((User.username != None) & (User.username == body.username))
-    ).first()
-    if existing:
+async def signup(request: Request, body: SignUpRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(User).where(
+            (User.email == body.email) | ((User.username != None) & (User.username == body.username))
+        )
+    )
+    if result.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email or username already registered")
 
     if body.username:
-        existing_by_username = db.query(User).filter(User.username == body.username).first()
-        if existing_by_username:
+        result = await db.execute(select(User).where(User.username == body.username))
+        if result.scalar_one_or_none():
             raise HTTPException(status_code=409, detail="Username already taken")
 
     user = User(
@@ -175,8 +242,8 @@ async def signup(request: Request, body: SignUpRequest, db: Session = Depends(ge
         auth_provider="email",
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
 
     token = _create_token(user.id)
     return _user_response(user, token)
@@ -184,19 +251,21 @@ async def signup(request: Request, body: SignUpRequest, db: Session = Depends(ge
 
 @router.post("/login")
 @_auth_limiter.limit("20/minute")
-async def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
-    user = (
-        db.query(User).filter(
-            (User.email == body.login) | (User.username == body.login)
-        ).first()
+async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(User).where((User.email == body.login) | (User.username == body.login))
     )
-    if not user or user.password_hash != _hash_password(body.password):
+    user = result.scalar_one_or_none()
+    if not user or not user.password_hash or not _verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username/email or password")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
 
+    if user.password_hash and not user.password_hash.startswith("$2b$") and not user.password_hash.startswith("$2a$"):
+        user.password_hash = _hash_password(body.password)
+
     user.last_active = _utcnow()
-    db.commit()
+    await db.commit()
 
     token = _create_token(user.id)
     return _user_response(user, token)
@@ -204,7 +273,7 @@ async def login(request: Request, body: LoginRequest, db: Session = Depends(get_
 
 @router.post("/google")
 @_auth_limiter.limit("10/minute")
-async def google_auth(request: Request, body: GoogleAuthRequest, db: Session = Depends(get_db)):
+async def google_auth(request: Request, body: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
     import requests as req
 
     try:
@@ -223,9 +292,10 @@ async def google_auth(request: Request, body: GoogleAuthRequest, db: Session = D
     except Exception:
         raise HTTPException(status_code=502, detail="Google verification failed")
 
-    user = db.query(User).filter(
-        (User.google_id == google_id) | (User.email == email)
-    ).first()
+    result = await db.execute(
+        select(User).where((User.google_id == google_id) | (User.email == email))
+    )
+    user = result.scalar_one_or_none()
 
     if user:
         if not user.is_active:
@@ -237,8 +307,8 @@ async def google_auth(request: Request, body: GoogleAuthRequest, db: Session = D
             picture = info.get("picture")
             if picture:
                 user.avatar_path = await _save_google_avatar(picture, user.id)
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
     else:
         picture = info.get("picture")
         avatar_path = await _save_google_avatar(picture, email) if picture else None
@@ -250,8 +320,8 @@ async def google_auth(request: Request, body: GoogleAuthRequest, db: Session = D
             avatar_path=avatar_path,
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
 
     token = _create_token(user.id)
     return _user_response(user, token)
@@ -275,26 +345,27 @@ async def _save_google_avatar(picture_url: str, ident: str) -> str:
 
 @router.post("/guest")
 @_auth_limiter.limit("10/minute")
-async def guest_login(request: Request, body: GuestRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(
-        User.is_guest == True,
-        User.device_id == body.device_id,
-    ).first()
+async def guest_login(request: Request, body: GuestRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(User).where(User.is_guest == True, User.device_id == body.device_id)
+    )
+    user = result.scalar_one_or_none()
 
     if user:
         if not user.is_active:
             raise HTTPException(status_code=403, detail="Account disabled")
         user.last_active = _utcnow()
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
     else:
-        existing = db.query(User).filter(User.device_id == body.device_id).first()
+        result = await db.execute(select(User).where(User.device_id == body.device_id))
+        existing = result.scalar_one_or_none()
         if existing:
             user = existing
             user.last_active = _utcnow()
             user.is_guest = True
-            db.commit()
-            db.refresh(user)
+            await db.commit()
+            await db.refresh(user)
         else:
             user = User(
                 display_name=f"Guest_{body.device_id[:8]}",
@@ -302,8 +373,8 @@ async def guest_login(request: Request, body: GuestRequest, db: Session = Depend
                 device_id=body.device_id,
             )
             db.add(user)
-            db.commit()
-            db.refresh(user)
+            await db.commit()
+            await db.refresh(user)
 
     token = _create_token(user.id)
     resp = _user_response(user, token)
@@ -331,11 +402,11 @@ async def get_me(user: User = Depends(get_current_user)):
 async def update_profile(
     body: UpdateProfileRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     if body.display_name is not None:
         user.display_name = body.display_name
-    db.commit()
+    await db.commit()
     return {
         "id": user.id,
         "display_name": user.display_name,
@@ -372,7 +443,7 @@ async def upload_avatar(
         f.write(contents)
 
     user.avatar_path = filename
-    db.commit()
+    await db.commit()
 
     return {"avatar_url": _avatar_url(filename)}
 
@@ -380,18 +451,24 @@ async def upload_avatar(
 @router.get("/history")
 async def get_history(
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
 ):
-    entries = (
-        db.query(HistoryEntry)
-        .filter(HistoryEntry.user_id == user.id)
+    result = await db.execute(
+        select(HistoryEntry)
+        .where(HistoryEntry.user_id == user.id)
         .order_by(HistoryEntry.timestamp.desc())
         .offset(offset)
         .limit(limit)
-        .all()
     )
+    entries = result.scalars().all()
+
+    count_result = await db.execute(
+        select(func.count()).select_from(HistoryEntry).where(HistoryEntry.user_id == user.id)
+    )
+    total = count_result.scalar()
+
     return {
         "entries": [
             {
@@ -406,7 +483,7 @@ async def get_history(
             }
             for e in entries
         ],
-        "total": db.query(HistoryEntry).filter(HistoryEntry.user_id == user.id).count(),
+        "total": total or 0,
     }
 
 
@@ -414,7 +491,7 @@ async def get_history(
 async def add_history(
     body: UpdateHistoryRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     entry = HistoryEntry(
         user_id=user.id,
@@ -426,8 +503,8 @@ async def add_history(
         isrc=body.isrc,
     )
     db.add(entry)
-    db.commit()
-    db.refresh(entry)
+    await db.commit()
+    await db.refresh(entry)
     return {
         "id": entry.id,
         "title": entry.title,
@@ -444,26 +521,29 @@ async def add_history(
 async def delete_history(
     history_id: str,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    entry = db.query(HistoryEntry).filter(
-        HistoryEntry.id == history_id,
-        HistoryEntry.user_id == user.id,
-    ).first()
+    result = await db.execute(
+        select(HistoryEntry).where(
+            HistoryEntry.id == history_id,
+            HistoryEntry.user_id == user.id,
+        )
+    )
+    entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="History entry not found")
-    db.delete(entry)
-    db.commit()
+    await db.delete(entry)
+    await db.commit()
     return {"ok": True}
 
 
 @router.delete("/history")
 async def clear_history(
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    db.query(HistoryEntry).filter(HistoryEntry.user_id == user.id).delete()
-    db.commit()
+    await db.execute(delete(HistoryEntry).where(HistoryEntry.user_id == user.id))
+    await db.commit()
     return {"ok": True}
 
 

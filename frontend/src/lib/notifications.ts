@@ -10,6 +10,7 @@ type LocalNotificationsModule = {
       smallIcon?: string
       iconColor?: string
       sound?: string
+      actionTypeId?: string
       schedule?: { at: Date; repeats?: boolean; every?: 'hour' | 'day' | 'week' | 'month' }
       extra?: Record<string, unknown>
     }>
@@ -56,6 +57,7 @@ export async function sendDownloadCompleteNotification(params: {
         body: `${params.artist} — Download complete`,
         smallIcon: 'ic_stat_icon',
         iconColor: '#10B981',
+        actionTypeId: 'DOWNLOAD_ACTIONS',
         extra: { filePath: params.filePath },
       }],
     })
@@ -82,6 +84,7 @@ export async function sendDownloadErrorNotification(params: {
         body: params.error ? `${params.artist} — ${params.error}` : `${params.artist} — Something went wrong`,
         smallIcon: 'ic_stat_icon',
         iconColor: '#EF4444',
+        actionTypeId: 'DOWNLOAD_ACTIONS',
         sound: undefined,
       }],
     })
@@ -110,6 +113,7 @@ export async function sendBatchCompleteNotification(params: {
         body: msg,
         smallIcon: 'ic_stat_icon',
         iconColor: '#10B981',
+        actionTypeId: 'DOWNLOAD_ACTIONS',
         sound: undefined,
       }],
     })
@@ -136,6 +140,7 @@ export async function sendBackgroundPlaybackNotification(params: {
         body: `${params.artist} • Playing`,
         smallIcon: 'ic_stat_icon',
         iconColor: '#10B981',
+        actionTypeId: 'MEDIA_ACTIONS',
         schedule: { at: new Date() },
       }],
     })

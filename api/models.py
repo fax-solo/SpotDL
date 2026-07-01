@@ -26,10 +26,10 @@ class User(Base):
     google_id = Column(String(255), unique=True, nullable=True)
     role = Column(String(20), default="user")
     is_guest = Column(Boolean, default=False)
-    device_id = Column(String(255), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=_utcnow)
-    last_active = Column(DateTime(timezone=True), default=_utcnow)
-    is_active = Column(Boolean, default=True)
+    device_id = Column(String(255), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, index=True)
+    last_active = Column(DateTime(timezone=True), default=_utcnow, index=True)
+    is_active = Column(Boolean, default=True, index=True)
 
     history = relationship("HistoryEntry", back_populates="user", cascade="all, delete-orphan")
 
@@ -38,13 +38,13 @@ class HistoryEntry(Base):
     __tablename__ = "history"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(500), nullable=False)
     artist = Column(String(500), nullable=False)
     album = Column(String(500), default="Unknown Album")
     artwork_url = Column(String(2000), nullable=True)
     duration_ms = Column(Integer, nullable=True)
-    timestamp = Column(BigInteger, default=lambda: int(datetime.now(timezone.utc).timestamp() * 1000))
+    timestamp = Column(BigInteger, default=lambda: int(datetime.now(timezone.utc).timestamp() * 1000), index=True)
     isrc = Column(String(50), nullable=True)
 
     user = relationship("User", back_populates="history")
@@ -54,10 +54,10 @@ class DownloadLog(Base):
     __tablename__ = "download_logs"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     track_title = Column(String(500))
     track_artist = Column(String(500))
     quality = Column(String(10))
-    source = Column(String(50))
-    timestamp = Column(DateTime(timezone=True), default=_utcnow)
-    is_guest = Column(Boolean, default=False)
+    source = Column(String(50), index=True)
+    timestamp = Column(DateTime(timezone=True), default=_utcnow, index=True)
+    is_guest = Column(Boolean, default=False, index=True)

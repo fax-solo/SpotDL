@@ -1,8 +1,7 @@
-import { json, error, handleOptions, getUser, uuid } from '../_lib'
+import { json, error, getUser, uuid } from '../_lib'
 import type { RouteHandler } from '../_lib'
 
 export const onRequest: RouteHandler = async (context) => {
-  if (context.request.method === 'OPTIONS') return handleOptions()
   if (context.request.method !== 'POST') return error('Method not allowed', 405)
 
   try {

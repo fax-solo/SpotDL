@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { exchangeCode } from '../lib/spotifyAuth'
 import { useAuth } from '../hooks/useAuth'
 

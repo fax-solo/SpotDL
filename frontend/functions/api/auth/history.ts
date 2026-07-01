@@ -1,8 +1,8 @@
-import { json, error, handleOptions, requireUser, uuid } from '../_lib'
+import { json, error, requireUser, uuid } from '../_lib'
+import { validate, addHistorySchema } from '../_lib/validation'
 import type { RouteHandler } from '../_lib'
 
 export const onRequest: RouteHandler = async (context) => {
-  if (context.request.method === 'OPTIONS') return handleOptions()
 
   const db = context.env.DB
 
@@ -16,7 +16,7 @@ export const onRequest: RouteHandler = async (context) => {
       const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0)
 
       const entries = await db.prepare(
-        'SELECT * FROM history WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?'
+        'SELECT id, user_id, title, artist, album, artwork_url, duration_ms, timestamp, isrc FROM history WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?'
       ).bind(user.id, limit, offset).all()
 
       const total = await db.prepare(
@@ -31,7 +31,7 @@ export const onRequest: RouteHandler = async (context) => {
 
     // POST /api/auth/history - add history entry
     if (context.request.method === 'POST') {
-      const body = await context.request.json() as any
+      const body = validate(addHistorySchema, await context.request.json())
       const id = uuid()
       const ts = Date.now()
 
@@ -40,9 +40,7 @@ export const onRequest: RouteHandler = async (context) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         id, user.id,
-        body.title || 'Unknown',
-        body.artist || 'Unknown',
-        body.album || 'Unknown Album',
+        body.title, body.artist, body.album,
         body.artwork_url || null,
         body.duration_ms || null,
         ts,

@@ -1,15 +1,17 @@
-import { json, error, hashPassword, createToken, formatUser, handleOptions, uuid } from '../_lib'
+import { json, error, hashPassword, createToken, formatUser, uuid } from '../_lib'
+import { validate, signupSchema } from '../_lib/validation'
+import { checkRateLimit } from '../_lib/rate_limit'
 import type { RouteHandler } from '../_lib'
 
 export const onRequest: RouteHandler = async (context) => {
-  if (context.request.method === 'OPTIONS') return handleOptions()
   if (context.request.method !== 'POST') return error('Method not allowed', 405)
 
   try {
-    const { email, password, display_name, username } = await context.request.json() as any
+    const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+    const rl = await checkRateLimit(context.env.DB, `signup:${ip}`, 5)
+    if (!rl.allowed) return error('Too many signup attempts. Try again later.', 429)
 
-    if (!email || !password) return error('Email and password required', 400)
-    if (password.length < 6) return error('Password must be at least 6 characters', 400)
+    const { email, password, display_name, username } = validate(signupSchema, await context.request.json())
 
     const db = context.env.DB
 
@@ -25,7 +27,7 @@ export const onRequest: RouteHandler = async (context) => {
     }
 
     const id = uuid()
-    const passwordHash = await hashPassword(password, context.env.JWT_SECRET)
+    const passwordHash = await hashPassword(password)
     const displayName = display_name || username || email.split('@')[0]
     const now = new Date().toISOString()
 
@@ -34,7 +36,7 @@ export const onRequest: RouteHandler = async (context) => {
        VALUES (?, ?, ?, ?, ?, 'email', ?, ?)`
     ).bind(id, email, username || null, passwordHash, displayName, now, now).run()
 
-    const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()
+    const user = await db.prepare('SELECT id, username, email, display_name, avatar_path, role, auth_provider, is_guest, is_active, created_at, last_active FROM users WHERE id = ?').bind(id).first()
     const token = await createToken(id, context.env.JWT_SECRET)
 
     return json(formatUser(user, token), 201)

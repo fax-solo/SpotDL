@@ -70,8 +70,8 @@ async function fetchSpotifyViaScraper(url: string): Promise<TrackMeta | Collecti
       signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }))
-      throw new Error(err.error || 'Failed to fetch Spotify metadata')
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || 'Failed to fetch Spotify metadata')
     }
     return res.json()
   })

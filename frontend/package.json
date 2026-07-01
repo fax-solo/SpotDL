@@ -24,20 +24,24 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/local-notifications": "^8.2.0",
     "@capacitor/status-bar": "^8.0.2",
+    "@capawesome/capacitor-app-update": "^8.0.0",
     "@capawesome/capacitor-background-task": "^8.0.2",
+    "@capacitor/push-notifications": "^8.0.0",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.1",
-    "@tailwindcss/vite": "^4.3.0",
-    "browser-id3-writer": "^4.4.0",
-    "lucide-react": "^1.18.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "bcryptjs": "^3.0.3",
+    "browser-id3-writer": "^6.3.1",
+    "lucide-react": "^1.23.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.17.0",
-    "tailwindcss": "^4.3.0",
+    "react-router-dom": "^7.18.1",
+    "tailwindcss": "^4.3.2",
+    "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@types/node": "^24.12.3",
+    "@types/node": "^26.1.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
@@ -47,8 +51,8 @@
     "esbuild": "^0.28.1",
     "jsdom": "^29.1.1",
     "typescript": "~6.0.2",
-    "vite": "^8.0.12",
+    "vite": "^8.1.2",
     "vitest": "^4.1.9",
-    "wrangler": "^4.100.0"
+    "wrangler": "^4.106.0"
   }
 }

@@ -3,11 +3,6 @@ pages_build_output_dir = "dist"
 compatibility_date = "2026-06-21"
 
 [[d1_databases]]
-binding = "sinc_db"
-database_name = "sinc-db"
-database_id = "9ded8fa5-917b-4f08-9b52-8101c48879c2"
-
-[[d1_databases]]
 binding = "DB"
 database_name = "sinc-db"
 database_id = "9ded8fa5-917b-4f08-9b52-8101c48879c2"

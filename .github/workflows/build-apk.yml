@@ -101,8 +101,23 @@ jobs:
         run: npm run build
         working-directory: frontend
 
-      - name: Add Android platform
-        run: npx cap add android
+      - name: Ensure gradlew is executable
+        run: chmod +x android/gradlew
+        working-directory: frontend
+
+      - name: Create placeholder binaries for Android
+        run: |
+          mkdir -p android/app/src/main/res/raw
+          # Create empty zips so SpotDLCore doesn't crash on ResourceNotFoundException.
+          # Replace these with real cross-compiled Python/FFmpeg binaries for production builds.
+          for f in python ffmpeg; do
+            if [ ! -f "android/app/src/main/res/raw/$f.zip" ]; then
+              # Valid empty ZIP — end-of-central-directory with 0 entries (22 bytes)
+              printf 'PK\x05\x06\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' \
+                > "android/app/src/main/res/raw/$f.zip"
+              echo "  Created placeholder res/raw/$f.zip"
+            fi
+          done
         working-directory: frontend
 
       - name: Sync Capacitor

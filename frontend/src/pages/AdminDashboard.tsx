@@ -6,34 +6,7 @@ import {
   ChevronDown, ChevronUp, UserX, Mail,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { apiUrl } from '../lib/apiConfig'
-
-interface AdminStats {
-  total_users: number
-  total_guests: number
-  total_email_users: number
-  total_google_users: number
-  active_this_month: number
-  new_this_month: number
-  total_downloads: number
-  downloads_this_month: number
-  guest_downloads: number
-  user_downloads: number
-  downloads_by_source: Record<string, number>
-  last_7_days: { date: string; downloads: number }[]
-}
-
-interface AdminUser {
-  id: string
-  email: string | null
-  display_name: string | null
-  role: string
-  auth_provider: string
-  is_guest: boolean
-  created_at: string | null
-  last_active: string | null
-  is_active: boolean
-}
+import { useAdmin } from '../hooks/useAdmin'
 
 function StatCard({ icon, label, value, sub, color }: {
   icon: React.ReactNode
@@ -85,11 +58,7 @@ function MiniBar({ data, height = 40 }: { data: { date: string; downloads: numbe
 export function AdminDashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [stats, setStats] = useState<AdminStats | null>(null)
-  const [users, setUsers] = useState<AdminUser[]>([])
-  const [usersTotal, setUsersTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { stats, users, usersTotal, loading, error, loadData, toggleUserActive } = useAdmin()
   const [tab, setTab] = useState<'overview' | 'users'>('overview')
   const [showInactive, setShowInactive] = useState(false)
 
@@ -100,51 +69,6 @@ export function AdminDashboard() {
     }
     loadData()
   }, [user])
-
-  async function loadData() {
-    setLoading(true)
-    setError(null)
-    try {
-      const token = localStorage.getItem('sinc_token')
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-
-      const [statsRes, usersRes] = await Promise.all([
-        fetch(apiUrl('/api/admin/stats'), { headers }),
-        fetch(apiUrl('/api/admin/users?limit=200'), { headers }),
-      ])
-
-      if (!statsRes.ok || !usersRes.ok) {
-        throw new Error('Failed to load admin data')
-      }
-
-      const statsData = await statsRes.json()
-      const usersData = await usersRes.json()
-      setStats(statsData)
-      setUsers(usersData.users || [])
-      setUsersTotal(usersData.total || 0)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function toggleUserActive(userId: string) {
-    try {
-      const token = localStorage.getItem('sinc_token')
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      }
-      const res = await fetch(apiUrl(`/api/admin/users/${userId}/toggle-active`), {
-        method: 'PUT',
-        headers,
-      })
-      if (res.ok) {
-        setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !u.is_active } : u))
-      }
-    } catch {}
-  }
 
   const filteredUsers = showInactive ? users : users.filter(u => u.is_active)
 
@@ -187,7 +111,6 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 mb-6 p-1 rounded-xl bg-light-surface-2 dark:bg-dark-surface-2">
         <button
           onClick={() => setTab('overview')}
@@ -213,7 +136,6 @@ export function AdminDashboard() {
 
       {tab === 'overview' && stats && (
         <div className="space-y-4">
-          {/* User Stats */}
           <div className="grid grid-cols-2 gap-3">
             <StatCard
               icon={<Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
@@ -258,10 +180,7 @@ export function AdminDashboard() {
                   <span className="text-light-text dark:text-dark-text font-medium">{stats.total_email_users}</span>
                 </div>
                 <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-purple-500 transition-all"
-                    style={{ width: `${(stats.total_email_users / Math.max(stats.total_users, 1)) * 100}%` }}
-                  />
+                  <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${(stats.total_email_users / Math.max(stats.total_users, 1)) * 100}%` }} />
                 </div>
               </div>
               <div>
@@ -270,10 +189,7 @@ export function AdminDashboard() {
                   <span className="text-light-text dark:text-dark-text font-medium">{stats.total_google_users}</span>
                 </div>
                 <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-orange-500 transition-all"
-                    style={{ width: `${(stats.total_google_users / Math.max(stats.total_users, 1)) * 100}%` }}
-                  />
+                  <div className="h-full rounded-full bg-orange-500 transition-all" style={{ width: `${(stats.total_google_users / Math.max(stats.total_users, 1)) * 100}%` }} />
                 </div>
               </div>
               <div>
@@ -282,33 +198,17 @@ export function AdminDashboard() {
                   <span className="text-light-text dark:text-dark-text font-medium">{stats.total_guests}</span>
                 </div>
                 <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-zinc-400 dark:bg-zinc-600 transition-all"
-                    style={{ width: `${(stats.total_guests / Math.max(stats.total_users, 1)) * 100}%` }}
-                  />
+                  <div className="h-full rounded-full bg-zinc-400 dark:bg-zinc-600 transition-all" style={{ width: `${(stats.total_guests / Math.max(stats.total_users, 1)) * 100}%` }} />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Download Stats */}
           <div className="grid grid-cols-2 gap-3">
-            <StatCard
-              icon={<Download className="w-5 h-5 text-accent" />}
-              label="Total Downloads"
-              value={stats.total_downloads}
-              color="text-accent"
-            />
-            <StatCard
-              icon={<Music className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
-              label="This Month"
-              value={stats.downloads_this_month}
-              sub={`${stats.user_downloads} by users, ${stats.guest_downloads} by guests`}
-              color="text-sky-600 dark:text-sky-400"
-            />
+            <StatCard icon={<Download className="w-5 h-5 text-accent" />} label="Total Downloads" value={stats.total_downloads} color="text-accent" />
+            <StatCard icon={<Music className="w-5 h-5 text-sky-600 dark:text-sky-400" />} label="This Month" value={stats.downloads_this_month} sub={`${stats.user_downloads} by users, ${stats.guest_downloads} by guests`} color="text-sky-600 dark:text-sky-400" />
           </div>
 
-          {/* 7-day chart */}
           <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-4">
             <div className="flex items-center gap-2 mb-4">
               <Activity className="w-4 h-4 text-accent" />
@@ -319,7 +219,6 @@ export function AdminDashboard() {
             </div>
           </div>
 
-          {/* Status row */}
           <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -329,10 +228,7 @@ export function AdminDashboard() {
               <span className="text-lg font-bold text-accent">{stats.active_this_month}</span>
             </div>
             <div className="mt-3 h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-accent transition-all"
-                style={{ width: `${(stats.active_this_month / Math.max(stats.total_users, 1)) * 100}%` }}
-              />
+              <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(stats.active_this_month / Math.max(stats.total_users, 1)) * 100}%` }} />
             </div>
             <p className="text-xs text-light-muted dark:text-dark-muted mt-1.5">
               {((stats.active_this_month / Math.max(stats.total_users, 1)) * 100).toFixed(1)}% of all users
@@ -398,7 +294,7 @@ export function AdminDashboard() {
                   </div>
                   {u.role !== 'admin' && (
                     <button
-                      onClick={() => toggleUserActive(u.id)}
+                      onClick={() => toggleUserActive(u.id, u.is_active)}
                       className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                         u.is_active
                           ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20'

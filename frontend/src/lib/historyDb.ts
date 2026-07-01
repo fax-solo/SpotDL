@@ -1,12 +1,15 @@
 import type { HistoryEntry } from '../hooks/useHistory'
 
-const DB_NAME = 'sinc-history'
 const DB_VERSION = 1
 const STORE_NAME = 'entries'
 
-function openDB(): Promise<IDBDatabase> {
+function dbName(userId: string): string {
+  return `sinc-history-${userId}`
+}
+
+function openDB(userId: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    const req = indexedDB.open(dbName(userId), DB_VERSION)
     req.onupgradeneeded = () => {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -19,9 +22,9 @@ function openDB(): Promise<IDBDatabase> {
   })
 }
 
-export async function loadAll(): Promise<HistoryEntry[]> {
+export async function loadAll(userId: string): Promise<HistoryEntry[]> {
   try {
-    const db = await openDB()
+    const db = await openDB(userId)
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly')
       const store = tx.objectStore(STORE_NAME)
@@ -44,9 +47,9 @@ export async function loadAll(): Promise<HistoryEntry[]> {
   }
 }
 
-export async function addEntry(entry: HistoryEntry): Promise<void> {
+export async function addEntry(entry: HistoryEntry, userId: string): Promise<void> {
   try {
-    const db = await openDB()
+    const db = await openDB(userId)
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite')
       const store = tx.objectStore(STORE_NAME)
@@ -57,9 +60,9 @@ export async function addEntry(entry: HistoryEntry): Promise<void> {
   } catch {/* fall through */}
 }
 
-export async function removeEntry(id: string): Promise<void> {
+export async function removeEntry(id: string, userId: string): Promise<void> {
   try {
-    const db = await openDB()
+    const db = await openDB(userId)
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite')
       const store = tx.objectStore(STORE_NAME)
@@ -70,9 +73,9 @@ export async function removeEntry(id: string): Promise<void> {
   } catch {/* fall through */}
 }
 
-export async function clearAll(): Promise<void> {
+export async function clearAll(userId: string): Promise<void> {
   try {
-    const db = await openDB()
+    const db = await openDB(userId)
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite')
       const store = tx.objectStore(STORE_NAME)
@@ -83,9 +86,9 @@ export async function clearAll(): Promise<void> {
   } catch {/* fall through */}
 }
 
-export async function updateEntry(id: string, updates: Partial<HistoryEntry>): Promise<void> {
+export async function updateEntry(id: string, updates: Partial<HistoryEntry>, userId: string): Promise<void> {
   try {
-    const db = await openDB()
+    const db = await openDB(userId)
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite')
       const store = tx.objectStore(STORE_NAME)

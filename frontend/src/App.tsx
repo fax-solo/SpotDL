@@ -12,6 +12,7 @@ import { useMaterialYou } from './hooks/useMaterialYou'
 import { useHistory } from './hooks/useHistory'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useShareTarget } from './hooks/useShareTarget'
+import { useNotificationActions } from './hooks/useNotificationActions'
 import { useBottomBar } from './hooks/useBottomBar'
 import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -19,6 +20,9 @@ import { useAuth } from './hooks/useAuth'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 import { fetchLyricsWithFallback } from './lib/fetchLyricsWithFallback'
+import { initSentry } from './lib/sentry'
+import { checkForUpdate, promptUpdate } from './lib/autoUpdate'
+import { registerForPushNotifications, sendPushTokenToServer } from './lib/pushNotifications'
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })))
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
@@ -99,6 +103,7 @@ function AppContent() {
 
   useMaterialYou()
   useShareTarget()
+  useNotificationActions()
 
   useEffect(() => {
     auth.initialize()
@@ -302,6 +307,8 @@ function AppContent() {
 function App() {
   const { setTheme } = useTheme()
 
+  initSentry()
+
   useEffect(() => {
     const stored = localStorage.getItem('theme')
     if (stored) {
@@ -310,6 +317,34 @@ function App() {
       setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches)
     }
   }, [setTheme])
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+
+    const init = async () => {
+      const token = await registerForPushNotifications()
+      if (token) {
+        await sendPushTokenToServer(token)
+      }
+
+      try {
+        const release = await checkForUpdate()
+        if (release) {
+          const shouldUpdate = window.confirm(
+            `Update available: ${release.tag_name}\n\n${release.body?.slice(0, 200) || ''}\n\nDownload and install?`
+          )
+          if (shouldUpdate) {
+            await promptUpdate(release)
+          }
+        }
+      } catch {
+        // auto-update check is best-effort
+      }
+    }
+
+    const timer = setTimeout(init, 5000)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <BrowserRouter>

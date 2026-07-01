@@ -40,8 +40,8 @@ async function callSpotify(body: Record<string, unknown>): Promise<any> {
       signal: controller.signal,
     })
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Request failed' }))
-      throw new Error(err.error || `Spotify function error: ${res.status}`)
+      const err = await res.json().catch(() => ({ detail: 'Request failed' }))
+      throw new Error(err.detail || `Spotify function error: ${res.status}`)
     }
     return res.json()
   } finally {
@@ -360,7 +360,7 @@ export function clearWebPlayerToken(): void {
 
 export async function testWebPlayerToken(token: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const hashes = await fetch(apiUrl('/api/spotify-partner'), {
+    const hashes = await fetch(apiUrl('/api/spotify'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'test-token', token }),
@@ -378,14 +378,14 @@ export async function testWebPlayerToken(token: string): Promise<{ ok: boolean; 
 }
 
 async function callPartner(action: string, body: Record<string, unknown>): Promise<any> {
-  const res = await fetch(apiUrl('/api/spotify-partner'), {
+  const res = await fetch(apiUrl('/api/spotify'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...body }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Request failed' }))
-    throw new Error(err.error || `Partner API error: ${res.status}`)
+    const err = await res.json().catch(() => ({ detail: 'Request failed' }))
+    throw new Error(err.detail || `Partner API error: ${res.status}`)
   }
   return res.json()
 }

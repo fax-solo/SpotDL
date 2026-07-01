@@ -348,7 +348,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       sendBackgroundPlaybackNotification({ title: track.title, artist: track.artist, artworkUrl: track.artworkUrl })
       await ensureNotificationPermission()
-      startMediaForeground(track.title, track.artist)
+      startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined)
     } catch {
       audio.volume = volume
       setIsPlaying(false)

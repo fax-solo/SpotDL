@@ -55,6 +55,7 @@ interface DownloadsState {
   addDownload: (track: TrackMeta) => void
   addMultipleDownloads: (tracks: TrackMeta[]) => void
   removeDownload: (id: string) => void
+  retryTrack: (id: string) => void
   clearCompleted: () => void
   cancelAll: () => void
   cancelDownload: (id: string) => void
@@ -141,6 +142,14 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     })
   },
 
+  retryTrack: (id: string) => {
+    const state = get()
+    const item = state.queue.find(q => q.id === id)
+    if (item && item.failed) {
+      state.addDownload(item.track)
+    }
+  },
+
   clearCompleted: () => {
     set((state: DownloadsState) => {
       const queue = state.queue.filter((q) => !q.done && !q.failed)
@@ -187,7 +196,15 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
         if (Capacitor.isNativePlatform()) {
           try {
             const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
-            taskId = await BackgroundTask.beforeExit(async () => {})
+            taskId = await BackgroundTask.beforeExit(async () => {
+              const state = get()
+              const updated = state.queue.map(q =>
+                !q.done && !q.failed
+                  ? { ...q, failed: true, stage: 'Interrupted', error: 'App was closed' }
+                  : q
+              )
+              saveQueue(updated)
+            })
           } catch {}
           await ensureNotificationPermission()
           startDownloadForeground()
@@ -220,6 +237,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                     updateDownloadForeground(
                       `${item.track.artist} - ${item.track.title}`,
                       get().queue.filter(q => !q.done && !q.failed).length,
+                      pct ?? undefined,
                     )
                   }
                 }, controller.signal)
