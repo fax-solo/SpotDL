@@ -101,6 +101,23 @@ jobs:
         run: npm run build
         working-directory: frontend
 
+      - name: Add Android platform
+        run: npx cap add android
+        working-directory: frontend
+
+      - name: Restore custom Android files
+        run: |
+          cp -r android-overlay/build.gradle android/build.gradle
+          cp -r android-overlay/settings.gradle android/settings.gradle
+          cp -r android-overlay/variables.gradle android/variables.gradle
+          cp -r android-overlay/app/build.gradle android/app/build.gradle
+          cp -r android-overlay/app/google-services.json android/app/google-services.json
+          cp -r android-overlay/app/proguard-rules.pro android/app/proguard-rules.pro 2>/dev/null || true
+          cp -r android-overlay/spotdl-plugin android/
+          rm -rf android/app/src && cp -r android-overlay/app/src android/app/src
+          echo "Custom Android files restored"
+        working-directory: frontend
+
       - name: Ensure gradlew is executable
         run: chmod +x android/gradlew
         working-directory: frontend
@@ -109,10 +126,8 @@ jobs:
         run: |
           mkdir -p android/app/src/main/res/raw
           # Create empty zips so SpotDLCore doesn't crash on ResourceNotFoundException.
-          # Replace these with real cross-compiled Python/FFmpeg binaries for production builds.
           for f in python ffmpeg; do
             if [ ! -f "android/app/src/main/res/raw/$f.zip" ]; then
-              # Valid empty ZIP — end-of-central-directory with 0 entries (22 bytes)
               printf 'PK\x05\x06\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' \
                 > "android/app/src/main/res/raw/$f.zip"
               echo "  Created placeholder res/raw/$f.zip"

@@ -1,0 +1,6 @@
+# Large binaries — not tracked in git (downloaded or generated in CI)
+*.zip
+*.so
+*.png
+*.jpg
+*.jpeg
