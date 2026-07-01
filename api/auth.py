@@ -5,13 +5,17 @@ import secrets
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from database import get_db, JWT_SECRET
 from models import User, HistoryEntry, DownloadLog, _utcnow
+
+_auth_limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +154,8 @@ def _user_response(user: User, token: str) -> dict:
 # ─── Endpoints ───
 
 @router.post("/signup")
-async def signup(body: SignUpRequest, db: Session = Depends(get_db)):
+@_auth_limiter.limit("10/minute")
+async def signup(request: Request, body: SignUpRequest, db: Session = Depends(get_db)):
     existing = db.query(User).filter(
         (User.email == body.email) | ((User.username != None) & (User.username == body.username))
     ).first()
@@ -178,7 +183,8 @@ async def signup(body: SignUpRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-async def login(body: LoginRequest, db: Session = Depends(get_db)):
+@_auth_limiter.limit("20/minute")
+async def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     user = (
         db.query(User).filter(
             (User.email == body.login) | (User.username == body.login)
@@ -197,7 +203,8 @@ async def login(body: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/google")
-async def google_auth(body: GoogleAuthRequest, db: Session = Depends(get_db)):
+@_auth_limiter.limit("10/minute")
+async def google_auth(request: Request, body: GoogleAuthRequest, db: Session = Depends(get_db)):
     import requests as req
 
     try:
@@ -267,7 +274,8 @@ async def _save_google_avatar(picture_url: str, ident: str) -> str:
 
 
 @router.post("/guest")
-async def guest_login(body: GuestRequest, db: Session = Depends(get_db)):
+@_auth_limiter.limit("10/minute")
+async def guest_login(request: Request, body: GuestRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(
         User.is_guest == True,
         User.device_id == body.device_id,

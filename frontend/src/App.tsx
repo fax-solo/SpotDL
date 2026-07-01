@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useRef } from 'react'
-import { BrowserRouter, Routes, Route, useLocation, useNavigate, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, useNavigate, Link, Navigate } from 'react-router-dom'
 import { FileQuestion, WifiOff } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
@@ -43,8 +43,29 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ 
 
 const PAGE_ORDER = ['/', '/download', '/history', '/settings', '/player']
 
+const PUBLIC_ROUTES = ['/', '/login', '/signup', '/callback']
+
 function isNativeApp() {
   return Capacitor.isNativePlatform()
+}
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user, initialized } = useAuth()
+  const location = useLocation()
+
+  if (!initialized) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user && !PUBLIC_ROUTES.includes(location.pathname)) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
 }
 
 function NotFound() {
@@ -201,7 +222,7 @@ function AppContent() {
           <span>You are offline. Some features may be unavailable.</span>
         </div>
       )}
-      {!isNative && !['/login', '/signup'].includes(location.pathname) && <Navbar />}
+      {!isNative && location.pathname !== '/' && <Navbar />}
       <ErrorBoundary>
         <Suspense fallback={
           <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">
@@ -222,47 +243,47 @@ function AppContent() {
                             <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
                           </div>
                         ) : auth.user ? <Home /> : <LoginPage />} />
-                        <Route path="/search" element={<SearchPage />} />
-                        <Route path="/download" element={<Downloader />} />
-                        <Route path="/history" element={<HistoryPage />} />
-                        <Route path="/sync" element={<SyncPage />} />
-                        <Route path="/local-music" element={<LocalMusicPage />} />
-                        <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/search" element={<RequireAuth><SearchPage /></RequireAuth>} />
+                        <Route path="/download" element={<RequireAuth><Downloader /></RequireAuth>} />
+                        <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
+                        <Route path="/sync" element={<RequireAuth><SyncPage /></RequireAuth>} />
+                        <Route path="/local-music" element={<RequireAuth><LocalMusicPage /></RequireAuth>} />
+                        <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
                         <Route path="/callback" element={<CallbackPage />} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/signup" element={<SignUpPage />} />
-                        <Route path="/admin" element={<AdminDashboard />} />
-                        <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
-                        <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
-                        <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
-                        <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
-                        <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
-                        <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
-                        <Route path="/show/:id" element={<ShowDetail />} />
-                        <Route path="/player" element={<PlayerScreen />} />
+                        <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
+                        <Route path="/playlist/:id" element={<RequireAuth><PlaylistDetail onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/album/:id" element={<RequireAuth><AlbumDetail onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/artist/:id" element={<RequireAuth><ArtistPage onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/track/:id" element={<RequireAuth><TrackDetail onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/yt-track/:videoId" element={<RequireAuth><YtTrackDetail /></RequireAuth>} />
+                        <Route path="/episode/:id" element={<RequireAuth><EpisodeDetail onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/show/:id" element={<RequireAuth><ShowDetail /></RequireAuth>} />
+                        <Route path="/player" element={<RequireAuth><PlayerScreen /></RequireAuth>} />
                         <Route path="*" element={<NotFound />} />
                       </>
                     ) : (
                       <>
                         <Route path="/" element={<LandingPage />} />
-                        <Route path="/search" element={<SearchPage />} />
-                        <Route path="/download" element={<Downloader />} />
-                        <Route path="/history" element={<HistoryPage />} />
-                        <Route path="/sync" element={<SyncPage />} />
-                        <Route path="/local-music" element={<LocalMusicPage />} />
-                        <Route path="/settings" element={<SettingsPage />} />
-                        <Route path="/player" element={<PlayerScreen />} />
+                        <Route path="/search" element={<RequireAuth><SearchPage /></RequireAuth>} />
+                        <Route path="/download" element={<RequireAuth><Downloader /></RequireAuth>} />
+                        <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
+                        <Route path="/sync" element={<RequireAuth><SyncPage /></RequireAuth>} />
+                        <Route path="/local-music" element={<RequireAuth><LocalMusicPage /></RequireAuth>} />
+                        <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+                        <Route path="/player" element={<RequireAuth><PlayerScreen /></RequireAuth>} />
                         <Route path="/callback" element={<CallbackPage />} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/signup" element={<SignUpPage />} />
-                        <Route path="/admin" element={<AdminDashboard />} />
-                        <Route path="/playlist/:id" element={<PlaylistDetail onDownloadComplete={addEntry} />} />
-                        <Route path="/album/:id" element={<AlbumDetail onDownloadComplete={addEntry} />} />
-                        <Route path="/artist/:id" element={<ArtistPage onDownloadComplete={addEntry} />} />
-                        <Route path="/track/:id" element={<TrackDetail onDownloadComplete={addEntry} />} />
-                        <Route path="/yt-track/:videoId" element={<YtTrackDetail />} />
-                        <Route path="/episode/:id" element={<EpisodeDetail onDownloadComplete={addEntry} />} />
-                        <Route path="/show/:id" element={<ShowDetail />} />
+                        <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
+                        <Route path="/playlist/:id" element={<RequireAuth><PlaylistDetail onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/album/:id" element={<RequireAuth><AlbumDetail onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/artist/:id" element={<RequireAuth><ArtistPage onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/track/:id" element={<RequireAuth><TrackDetail onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/yt-track/:videoId" element={<RequireAuth><YtTrackDetail /></RequireAuth>} />
+                        <Route path="/episode/:id" element={<RequireAuth><EpisodeDetail onDownloadComplete={addEntry} /></RequireAuth>} />
+                        <Route path="/show/:id" element={<RequireAuth><ShowDetail /></RequireAuth>} />
                         <Route path="*" element={<NotFound />} />
                       </>
                     )}

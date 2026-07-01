@@ -12,7 +12,7 @@ export function LandingPage() {
   }, [])
 
   return (
-    <div className="min-h-[calc(100vh-73px)] flex flex-col relative overflow-hidden">
+    <div className="min-h-screen flex flex-col relative overflow-hidden">
       {/* Auth Header */}
       <div className="absolute top-0 left-0 right-0 z-50 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-end gap-3">
@@ -37,6 +37,7 @@ export function LandingPage() {
                 <UserPlus className="w-4 h-4" />
                 Sign Up
               </Link>
+
             </>
           )}
         </div>

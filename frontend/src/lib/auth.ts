@@ -49,11 +49,11 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-export async function signup(email: string, password: string, displayName?: string): Promise<AuthResponse> {
+export async function signup(email: string, password: string, displayName?: string, username?: string): Promise<AuthResponse> {
   const res = await fetchWithTimeout(apiUrl('/api/auth/signup'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, display_name: displayName }),
+    body: JSON.stringify({ email, password, display_name: displayName, username }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Signup failed (${res.status})` }))

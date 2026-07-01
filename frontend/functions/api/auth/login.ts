@@ -16,10 +16,10 @@ export const onRequest: RouteHandler = async (context) => {
     ).bind(login, login).first()
 
     if (!user) {
-      // Check if this is the admin user trying to log in for the first time
-      const adminUsername = context.env.ADMIN_USERNAME || 'mohamed baalash'
-      const adminPassword = context.env.ADMIN_PASSWORD || '50112010***Solo'
-      if (login === adminUsername && password === adminPassword) {
+      // Admin login via environment variables
+      const adminUsername = context.env.ADMIN_USERNAME
+      const adminPassword = context.env.ADMIN_PASSWORD
+      if (adminUsername && adminPassword && login === adminUsername && password === adminPassword) {
         const id = uuid()
         const now = new Date().toISOString()
         const passwordHash = await hashPassword(password, context.env.JWT_SECRET)

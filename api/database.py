@@ -27,8 +27,8 @@ if "jwt_secret" not in _stored:
     with open(SECRETS_FILE, "w") as f:
         json.dump(_stored, f)
 
-ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "mohamed baalash")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", '50112010***Solo')
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 
 
 class Base(DeclarativeBase):
@@ -50,25 +50,26 @@ def _hash_password(password: str) -> str:
 def init_db():
     Base.metadata.create_all(bind=engine)
 
-    # Seed default admin
+    # Seed admin from environment variables
     from models import User
     db = SessionLocal()
     try:
-        existing = db.query(User).filter(User.username == ADMIN_USERNAME).first()
-        if not existing:
-            admin = User(
-                username=ADMIN_USERNAME,
-                display_name="Admin",
-                role="admin",
-                auth_provider="email",
-                password_hash=_hash_password(ADMIN_PASSWORD),
-            )
-            db.add(admin)
-            db.commit()
-            print(f"Admin user '{ADMIN_USERNAME}' created")
-        else:
-            existing.role = "admin"
-            db.commit()
+        if ADMIN_USERNAME and ADMIN_PASSWORD:
+            existing = db.query(User).filter(User.username == ADMIN_USERNAME).first()
+            if not existing:
+                admin = User(
+                    username=ADMIN_USERNAME,
+                    display_name="Admin",
+                    role="admin",
+                    auth_provider="email",
+                    password_hash=_hash_password(ADMIN_PASSWORD),
+                )
+                db.add(admin)
+                db.commit()
+                print(f"Admin user '{ADMIN_USERNAME}' created")
+            else:
+                existing.role = "admin"
+                db.commit()
     except Exception as e:
         print(f"Admin seed: {e}")
     finally:

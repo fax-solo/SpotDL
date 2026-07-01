@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, UserPlus, User } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, UserPlus, User, AtSign } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 export function SignUpPage() {
   const navigate = useNavigate()
   const { signup, guestLogin, user } = useAuth()
   const [displayName, setDisplayName] = useState('')
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [guestLoading, setGuestLoading] = useState(false)
 
   useEffect(() => {
     if (user) navigate('/', { replace: true })
@@ -33,10 +36,15 @@ export function SignUpPage() {
 
     setLoading(true)
     try {
-      await signup(email, password, displayName || undefined)
+      await signup(email, password, displayName || undefined, username || undefined)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Signup failed')
+      const msg = err instanceof Error ? err.message : 'Signup failed'
+      if (msg.includes('abort') || msg.includes('Failed to fetch')) {
+        setError('Cannot reach the server. Make sure the API is running.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }
@@ -44,26 +52,34 @@ export function SignUpPage() {
 
   const handleGuest = async () => {
     setError(null)
+    setGuestLoading(true)
     try {
       await guestLogin()
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Guest login failed')
+      const msg = err instanceof Error ? err.message : 'Guest login failed'
+      if (msg.includes('abort') || msg.includes('Failed to fetch')) {
+        setError('Cannot reach the server. Make sure the API is running.')
+      } else {
+        setError(msg)
+      }
+    } finally {
+      setGuestLoading(false)
     }
   }
 
   return (
     <div className="flex-1 flex flex-col bg-light-bg dark:bg-dark-bg">
-      <div className="flex-1 flex flex-col justify-center px-6 py-12 pb-28 max-w-sm mx-auto w-full">
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-5">
+      <div className="flex-1 flex flex-col justify-center px-6 py-10 pb-28 max-w-sm mx-auto w-full">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-4">
             <UserPlus className="w-8 h-8 text-accent" />
           </div>
           <h1 className="text-3xl font-bold text-light-text dark:text-dark-text tracking-tight">Create account</h1>
           <p className="text-sm text-light-muted dark:text-dark-muted mt-2">Start downloading your favorite music</p>
         </div>
 
-        <form onSubmit={handleSignup} className="space-y-4">
+        <form onSubmit={handleSignup} className="space-y-3.5">
           <div>
             <label className="block text-sm font-medium text-light-text dark:text-dark-text mb-1.5">Display name</label>
             <div className="relative">
@@ -74,6 +90,21 @@ export function SignUpPage() {
                 onChange={e => setDisplayName(e.target.value)}
                 placeholder="Your name (optional)"
                 autoComplete="name"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-light-text dark:text-dark-text mb-1.5">Username</label>
+            <div className="relative">
+              <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-light-muted dark:text-dark-muted" />
+              <input
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="Choose a username (optional)"
+                autoComplete="username"
                 className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
             </div>
@@ -125,19 +156,27 @@ export function SignUpPage() {
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-light-muted dark:text-dark-muted" />
               <input
-                type="password"
+                type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 placeholder="Repeat your password"
                 required
                 autoComplete="new-password"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text cursor-pointer"
+                tabIndex={-1}
+              >
+                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-500 font-medium">
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-500 font-medium animate-fadeIn">
               {error}
             </div>
           )}
@@ -166,9 +205,14 @@ export function SignUpPage() {
 
         <button
           onClick={handleGuest}
-          className="w-full py-3 px-4 rounded-xl border border-light-border/50 dark:border-dark-border/50 bg-white dark:bg-dark-surface hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text font-medium text-sm transition-colors flex items-center justify-center gap-3 cursor-pointer"
+          disabled={guestLoading}
+          className="w-full py-3 px-4 rounded-xl border border-light-border/50 dark:border-dark-border/50 bg-white dark:bg-dark-surface hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text font-medium text-sm transition-colors flex items-center justify-center gap-3 disabled:opacity-40 cursor-pointer"
         >
-          <User className="w-5 h-5" />
+          {guestLoading ? (
+            <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <User className="w-5 h-5" />
+          )}
           Continue as Guest
         </button>
 

@@ -52,8 +52,6 @@ def verify_api_key(request: Request):
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer ") and auth[7:] == API_KEY:
         return True
-    if request.query_params.get("api_key") == API_KEY:
-        return True
     raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 

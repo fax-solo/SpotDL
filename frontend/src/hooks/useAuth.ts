@@ -10,7 +10,7 @@ interface AuthState {
 
   initialize: () => Promise<void>
   login: (login: string, password: string) => Promise<void>
-  signup: (email: string, password: string, displayName?: string) => Promise<void>
+  signup: (email: string, password: string, displayName?: string, username?: string) => Promise<void>
   googleAuth: (idToken: string, displayName?: string) => Promise<void>
   guestLogin: () => Promise<void>
   logout: () => void
@@ -42,33 +42,58 @@ export const useAuth = create<AuthState>((set, get) => ({
       auth.storeUser(user)
       set({ user, initialized: true, loading: false, isGuest: user.is_guest || false })
     } else {
+      auth.logout()
       set({ initialized: true, loading: false, user: null })
     }
   },
 
   login: async (login: string, password: string) => {
-    const res = await auth.login(login, password)
-    auth.storeUser(res.user)
-    set({ user: res.user, isGuest: false })
+    set({ loading: true })
+    try {
+      const res = await auth.login(login, password)
+      auth.storeUser(res.user)
+      set({ user: res.user, isGuest: false, loading: false })
+    } catch (e) {
+      set({ loading: false })
+      throw e
+    }
   },
 
-  signup: async (email: string, password: string, displayName?: string) => {
-    const res = await auth.signup(email, password, displayName)
-    auth.storeUser(res.user)
-    set({ user: res.user, isGuest: false })
+  signup: async (email: string, password: string, displayName?: string, username?: string) => {
+    set({ loading: true })
+    try {
+      const res = await auth.signup(email, password, displayName, username)
+      auth.storeUser(res.user)
+      set({ user: res.user, isGuest: false, loading: false })
+    } catch (e) {
+      set({ loading: false })
+      throw e
+    }
   },
 
   googleAuth: async (idToken: string, displayName?: string) => {
-    const res = await auth.googleAuth(idToken, displayName)
-    auth.storeUser(res.user)
-    set({ user: res.user, isGuest: false })
+    set({ loading: true })
+    try {
+      const res = await auth.googleAuth(idToken, displayName)
+      auth.storeUser(res.user)
+      set({ user: res.user, isGuest: false, loading: false })
+    } catch (e) {
+      set({ loading: false })
+      throw e
+    }
   },
 
   guestLogin: async () => {
-    const deviceId = getDeviceId()
-    const res = await auth.guestLogin(deviceId)
-    auth.storeUser(res.user)
-    set({ user: res.user, isGuest: true })
+    set({ loading: true })
+    try {
+      const deviceId = getDeviceId()
+      const res = await auth.guestLogin(deviceId)
+      auth.storeUser(res.user)
+      set({ user: res.user, isGuest: true, loading: false })
+    } catch (e) {
+      set({ loading: false })
+      throw e
+    }
   },
 
   logout: () => {

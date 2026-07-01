@@ -1,12 +1,24 @@
-import { Sun, Moon, Music, User, LogIn, UserPlus } from 'lucide-react'
+import { Sun, Moon, Music, User, LogIn, UserPlus, UserRound } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '../hooks/useTheme'
 import { useAuth } from '../hooks/useAuth'
+import { useState } from 'react'
 
 export function Navbar() {
   const { isDark, toggle } = useTheme()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, guestLogin } = useAuth()
+  const [guestLoading, setGuestLoading] = useState(false)
+
+  const handleGuest = async () => {
+    setGuestLoading(true)
+    try {
+      await guestLogin()
+    } catch {
+    } finally {
+      setGuestLoading(false)
+    }
+  }
 
   return (
     <nav className="flex items-center justify-between px-6 py-4 border-b border-light-border dark:border-dark-border">
@@ -57,6 +69,18 @@ export function Navbar() {
               <UserPlus className="w-4 h-4" />
               <span className="hidden sm:inline">Sign Up</span>
             </Link>
+            <button
+              onClick={handleGuest}
+              disabled={guestLoading}
+              className="px-3 py-1.5 rounded-lg border border-light-border/50 dark:border-dark-border/50 text-light-muted dark:text-dark-muted text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+            >
+              {guestLoading ? (
+                <div className="w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <UserRound className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">Guest</span>
+            </button>
           </>
         )}
         <button
