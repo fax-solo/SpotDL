@@ -13,6 +13,8 @@ export const onRequest: RouteHandler = async (context) => {
         'SELECT id, username, email, display_name, avatar_path, role, auth_provider, is_guest, is_active, created_at, last_active FROM users ORDER BY created_at DESC'
       ).all()
 
+      const total = await db.prepare('SELECT COUNT(*) as c FROM users').first()
+
       return json({
         users: users.results.map((u: any) => ({
           ...u,
@@ -20,6 +22,7 @@ export const onRequest: RouteHandler = async (context) => {
           is_guest: Boolean(u.is_guest),
           is_active: Boolean(u.is_active),
         })),
+        total: (total as any)?.c || 0,
       })
     }
 
