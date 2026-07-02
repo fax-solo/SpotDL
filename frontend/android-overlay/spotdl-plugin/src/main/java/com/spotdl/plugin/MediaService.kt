@@ -171,7 +171,7 @@ class MediaService : Service() {
         mediaSession?.let { session ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 builder.setStyle(
-                    android.app.Notification.MediaStyle()
+                    NotificationCompat.MediaStyle()
                         .setMediaSession(session.sessionToken)
                         .setShowActionsInCompactView(0, 2)
                 )
