@@ -14,6 +14,7 @@ import android.media.session.PlaybackState
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat.MediaStyle
 import java.net.URL
 import java.util.concurrent.Executors
 
@@ -171,7 +172,7 @@ class MediaService : Service() {
         mediaSession?.let { session ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 builder.setStyle(
-                    androidx.media.app.NotificationCompat.MediaStyle()
+                    MediaStyle()
                         .setMediaSession(session.sessionToken)
                         .setShowActionsInCompactView(0, 2)
                 )
