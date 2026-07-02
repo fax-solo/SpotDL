@@ -1,29 +1,36 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Users, Download, UserCheck, UserPlus, Globe, Shield,
   Calendar, ArrowLeft, Activity, Music,
-  ChevronDown, ChevronUp, UserX, Mail,
+  ChevronDown, ChevronUp, UserX, Mail, RefreshCw,
+  Search, Clock, AlertTriangle, X,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { useAdmin } from '../hooks/useAdmin'
+import { useAdmin, type AdminUser } from '../hooks/useAdmin'
 
-function StatCard({ icon, label, value, sub, color }: {
+function StatCard({ icon, label, value, sub, color, trend }: {
   icon: React.ReactNode
   label: string
   value: string | number
   sub?: string
   color: string
+  trend?: { value: number; label: string; positive?: boolean }
 }) {
   return (
-    <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-4">
+    <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium text-light-muted dark:text-dark-muted uppercase tracking-wider">{label}</p>
-          <p className={`text-2xl font-bold mt-1 ${color}`}>{value}</p>
-          {sub && <p className="text-xs text-light-muted dark:text-dark-muted mt-1">{sub}</p>}
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-light-muted dark:text-dark-muted uppercase tracking-wider truncate">{label}</p>
+          <p className={`text-2xl font-bold mt-1 ${color} tabular-nums`}>{value}</p>
+          {sub && <p className="text-xs text-light-muted dark:text-dark-muted mt-1 truncate">{sub}</p>}
+          {trend && (
+            <p className={`text-xs mt-1 flex items-center gap-1 ${trend.positive !== false ? 'text-emerald-500' : 'text-red-500'}`}>
+              {trend.positive !== false ? '+' : '-'}{trend.value} {trend.label}
+            </p>
+          )}
         </div>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color.replace('text-', 'bg-').replace('700', '100').replace('500', '100').replace('600', '100')} ${color.replace('text-', 'dark:bg-').replace('700', '900/30').replace('500', '900/30').replace('600', '900/30')}`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color.replace('text-', 'bg-').replace('700', '100').replace('500', '100').replace('600', '100')} ${color.replace('text-', 'dark:bg-').replace('700', '900/30').replace('500', '900/30').replace('600', '900/30')}`}>
           {icon}
         </div>
       </div>
@@ -40,14 +47,14 @@ function MiniBar({ data, height = 40 }: { data: { date: string; downloads: numbe
         const day = d.date.slice(5)
         return (
           <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-            <span className="text-[10px] text-light-muted dark:text-dark-muted opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[10px] text-light-muted dark:text-dark-muted opacity-0 group-hover:opacity-100 transition-opacity font-medium tabular-nums">
               {d.downloads}
             </span>
             <div
-              className="w-full rounded-sm bg-accent/60 dark:bg-accent/40 transition-all"
+              className="w-full rounded-sm bg-accent/60 dark:bg-accent/40 transition-all hover:bg-accent/80"
               style={{ height: Math.max(h, 2) }}
             />
-            <span className="text-[9px] text-light-muted dark:text-dark-muted">{day}</span>
+            <span className="text-[9px] text-light-muted dark:text-dark-muted tabular-nums">{day}</span>
           </div>
         )
       })}
@@ -55,22 +62,190 @@ function MiniBar({ data, height = 40 }: { data: { date: string; downloads: numbe
   )
 }
 
+function ConfirmDialog({ open, title, message, onConfirm, onCancel }: {
+  open: boolean
+  title: string
+  message: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-6 shadow-xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-light-text dark:text-dark-text">{title}</h3>
+        </div>
+        <p className="text-sm text-light-muted dark:text-dark-muted mb-6">{message}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-light-border/50 dark:border-dark-border/50 text-light-text dark:text-dark-text hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UserSkeleton() {
+  return (
+    <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-4 animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-light-surface-2 dark:bg-dark-surface-2" />
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-32 rounded bg-light-surface-2 dark:bg-dark-surface-2" />
+          <div className="h-3 w-48 rounded bg-light-surface-2 dark:bg-dark-surface-2" />
+          <div className="h-3 w-24 rounded bg-light-surface-2 dark:bg-dark-surface-2" />
+        </div>
+        <div className="h-8 w-16 rounded-lg bg-light-surface-2 dark:bg-dark-surface-2" />
+      </div>
+    </div>
+  )
+}
+
+function UserCard({ user, onToggle, toggling }: {
+  user: AdminUser
+  onToggle: (u: AdminUser) => void
+  toggling: boolean
+}) {
+  return (
+    <div
+      className={`rounded-xl bg-white dark:bg-dark-surface border p-4 transition-all hover:shadow-md ${
+        user.is_active
+          ? 'border-light-border/50 dark:border-dark-border/50'
+          : 'border-red-500/20 dark:border-red-500/20 bg-red-500/5'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+            user.is_guest
+              ? 'bg-zinc-100 dark:bg-zinc-800'
+              : user.auth_provider === 'google'
+                ? 'bg-orange-100 dark:bg-orange-900/30'
+                : 'bg-purple-100 dark:bg-purple-900/30'
+          }`}>
+            {user.is_guest ? (
+              <UserX className="w-5 h-5 text-zinc-500" />
+            ) : user.auth_provider === 'google' ? (
+              <Globe className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            ) : (
+              <Mail className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate">
+                {user.display_name || 'Unknown'}
+              </p>
+              {user.role === 'admin' && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
+                  Admin
+                </span>
+              )}
+              {!user.is_active && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">
+                  Disabled
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-light-muted dark:text-dark-muted truncate">
+              {user.email || 'No email'}
+            </p>
+            <div className="flex items-center gap-2 text-[11px] text-light-muted dark:text-dark-muted mt-0.5">
+              <span className="capitalize">{user.auth_provider}</span>
+              {user.created_at && (
+                <>
+                  <span>·</span>
+                  <span>Joined {new Date(user.created_at).toLocaleDateString()}</span>
+                </>
+              )}
+              {user.last_active && (
+                <>
+                  <span>·</span>
+                  <span>Active {new Date(user.last_active).toLocaleDateString()}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        {user.role !== 'admin' && (
+          <button
+            onClick={() => onToggle(user)}
+            disabled={toggling}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
+              user.is_active
+                ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20'
+                : 'bg-green-500/10 text-green-500 hover:bg-green-500/20 border border-green-500/20'
+            }`}
+          >
+            {user.is_active ? 'Disable' : 'Enable'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function AdminDashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { stats, users, usersTotal, loading, error, loadData, toggleUserActive } = useAdmin()
+  const { stats, users, usersTotal, loading, refreshing, error, lastUpdated, loadData, toggleUserActive } = useAdmin()
   const [tab, setTab] = useState<'overview' | 'users'>('overview')
   const [showInactive, setShowInactive] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [confirmUser, setConfirmUser] = useState<AdminUser | null>(null)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (user && user.role !== 'admin') {
       navigate('/', { replace: true })
-      return
     }
-    loadData()
-  }, [user])
+  }, [user, navigate])
 
-  const filteredUsers = showInactive ? users : users.filter(u => u.is_active)
+  const filteredUsers = useMemo(() => {
+    let list = showInactive ? users : users.filter(u => u.is_active)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(u =>
+        (u.display_name && u.display_name.toLowerCase().includes(q)) ||
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        u.auth_provider.toLowerCase().includes(q) ||
+        u.id.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [users, showInactive, searchQuery])
+
+  const handleToggle = async (u: AdminUser) => {
+    if (u.is_active) {
+      setConfirmUser(u)
+    } else {
+      setTogglingId(u.id)
+      await toggleUserActive(u.id, u.is_active)
+      setTogglingId(null)
+    }
+  }
+
+  const confirmToggle = async () => {
+    if (!confirmUser) return
+    setTogglingId(confirmUser.id)
+    setConfirmUser(null)
+    await toggleUserActive(confirmUser.id, confirmUser.is_active)
+    setTogglingId(null)
+  }
 
   if (loading && !stats) {
     return (
@@ -83,33 +258,66 @@ export function AdminDashboard() {
     )
   }
 
-  if (error) {
+  if (error && !stats) {
     return (
       <div className="px-4 pt-6 pb-32">
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-500 font-medium">
-          {error}
+        <div className="p-6 rounded-xl bg-red-500/10 border border-red-500/20 text-center">
+          <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+          <p className="text-sm text-red-500 font-medium mb-4">{error}</p>
+          <button
+            onClick={() => loadData()}
+            className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors cursor-pointer"
+          >
+            Retry
+          </button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="px-4 pt-6 pb-32">
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => navigate('/settings')}
-          className="w-9 h-9 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div>
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-accent" />
-            <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Admin</h1>
+    <div className="px-4 pt-6 pb-32 max-w-2xl mx-auto">
+      <ConfirmDialog
+        open={confirmUser !== null}
+        title="Disable User"
+        message={`Are you sure you want to disable ${confirmUser?.display_name || confirmUser?.email || 'this user'}? They will no longer be able to log in.`}
+        onConfirm={confirmToggle}
+        onCancel={() => setConfirmUser(null)}
+      />
+
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/settings')}
+            className="w-9 h-9 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-accent" />
+              <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Admin</h1>
+            </div>
+            <p className="text-sm text-light-muted dark:text-dark-muted mt-0.5">Dashboard & user management</p>
           </div>
-          <p className="text-sm text-light-muted dark:text-dark-muted mt-0.5">Dashboard & user management</p>
         </div>
+        <button
+          onClick={() => loadData()}
+          disabled={refreshing}
+          className="w-9 h-9 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer disabled:opacity-50"
+          title="Refresh data"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
       </div>
+
+      {lastUpdated && (
+        <div className="flex items-center gap-1.5 mb-4 text-[11px] text-light-muted dark:text-dark-muted">
+          <Clock className="w-3 h-3" />
+          <span>Updated {lastUpdated.toLocaleTimeString()}</span>
+          {refreshing && <span className="text-accent">· Refreshing...</span>}
+        </div>
+      )}
 
       <div className="flex gap-1 mb-6 p-1 rounded-xl bg-light-surface-2 dark:bg-dark-surface-2">
         <button
@@ -143,6 +351,7 @@ export function AdminDashboard() {
               value={stats.total_users}
               sub={`${stats.active_this_month} active this month`}
               color="text-blue-600 dark:text-blue-400"
+              trend={{ value: stats.new_this_month, label: 'new this month' }}
             />
             <StatCard
               icon={<UserPlus className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />}
@@ -171,42 +380,41 @@ export function AdminDashboard() {
                 <Users className="w-4 h-4 text-light-muted dark:text-dark-muted" />
                 <h3 className="text-sm font-semibold text-light-text dark:text-dark-text">User Breakdown</h3>
               </div>
-              <span className="text-xs text-light-muted dark:text-dark-muted">{stats.total_users} total</span>
+              <span className="text-xs text-light-muted dark:text-dark-muted tabular-nums">{stats.total_users} total</span>
             </div>
             <div className="space-y-2.5">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-light-muted dark:text-dark-muted">Email</span>
-                  <span className="text-light-text dark:text-dark-text font-medium">{stats.total_email_users}</span>
+              {[
+                { label: 'Email', value: stats.total_email_users, color: 'bg-purple-500' },
+                { label: 'Google', value: stats.total_google_users, color: 'bg-orange-500' },
+                { label: 'Guest', value: stats.total_guests, color: 'bg-zinc-400 dark:bg-zinc-600' },
+              ].map(({ label, value, color }) => (
+                <div key={label}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-light-muted dark:text-dark-muted">{label}</span>
+                    <span className="text-light-text dark:text-dark-text font-medium tabular-nums">{value}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
+                    <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${(value / Math.max(stats.total_users, 1)) * 100}%` }} />
+                  </div>
                 </div>
-                <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-                  <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${(stats.total_email_users / Math.max(stats.total_users, 1)) * 100}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-light-muted dark:text-dark-muted">Google</span>
-                  <span className="text-light-text dark:text-dark-text font-medium">{stats.total_google_users}</span>
-                </div>
-                <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-                  <div className="h-full rounded-full bg-orange-500 transition-all" style={{ width: `${(stats.total_google_users / Math.max(stats.total_users, 1)) * 100}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-light-muted dark:text-dark-muted">Guest</span>
-                  <span className="text-light-text dark:text-dark-text font-medium">{stats.total_guests}</span>
-                </div>
-                <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-                  <div className="h-full rounded-full bg-zinc-400 dark:bg-zinc-600 transition-all" style={{ width: `${(stats.total_guests / Math.max(stats.total_users, 1)) * 100}%` }} />
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <StatCard icon={<Download className="w-5 h-5 text-accent" />} label="Total Downloads" value={stats.total_downloads} color="text-accent" />
-            <StatCard icon={<Music className="w-5 h-5 text-sky-600 dark:text-sky-400" />} label="This Month" value={stats.downloads_this_month} sub={`${stats.user_downloads} by users, ${stats.guest_downloads} by guests`} color="text-sky-600 dark:text-sky-400" />
+            <StatCard
+              icon={<Download className="w-5 h-5 text-accent" />}
+              label="Total Downloads"
+              value={stats.total_downloads}
+              color="text-accent"
+            />
+            <StatCard
+              icon={<Music className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
+              label="This Month"
+              value={stats.downloads_this_month}
+              sub={`${stats.user_downloads} by users, ${stats.guest_downloads} by guests`}
+              color="text-sky-600 dark:text-sky-400"
+            />
           </div>
 
           <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-4">
@@ -225,7 +433,7 @@ export function AdminDashboard() {
                 <Calendar className="w-4 h-4 text-accent" />
                 <span className="text-sm text-light-text dark:text-dark-text font-medium">Active this month</span>
               </div>
-              <span className="text-lg font-bold text-accent">{stats.active_this_month}</span>
+              <span className="text-lg font-bold text-accent tabular-nums">{stats.active_this_month}</span>
             </div>
             <div className="mt-3 h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
               <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(stats.active_this_month / Math.max(stats.total_users, 1)) * 100}%` }} />
@@ -239,79 +447,67 @@ export function AdminDashboard() {
 
       {tab === 'users' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-light-muted dark:text-dark-muted">{usersTotal} total users</p>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-light-muted dark:text-dark-muted" />
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder-light-muted dark:placeholder-dark-muted focus:outline-none focus:border-accent/50 transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
             <button
               onClick={() => setShowInactive(!showInactive)}
-              className="flex items-center gap-1 text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer flex-shrink-0"
             >
               {showInactive ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              {showInactive ? 'Hide inactive' : 'Show inactive'}
+              {showInactive ? 'All' : 'Active'}
             </button>
           </div>
 
+          {searchQuery && (
+            <p className="text-xs text-light-muted dark:text-dark-muted mb-3">
+              Found {filteredUsers.length} of {usersTotal} users
+            </p>
+          )}
+
           <div className="space-y-2">
-            {filteredUsers.map(u => (
-              <div
-                key={u.id}
-                className={`rounded-xl bg-white dark:bg-dark-surface border p-4 transition-colors ${
-                  u.is_active
-                    ? 'border-light-border/50 dark:border-dark-border/50'
-                    : 'border-red-500/20 dark:border-red-500/20'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      u.is_guest
-                        ? 'bg-zinc-100 dark:bg-zinc-800'
-                        : u.auth_provider === 'google'
-                          ? 'bg-orange-100 dark:bg-orange-900/30'
-                          : 'bg-purple-100 dark:bg-purple-900/30'
-                    }`}>
-                      {u.is_guest ? (
-                        <UserX className="w-5 h-5 text-zinc-500" />
-                      ) : u.auth_provider === 'google' ? (
-                        <Globe className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                      ) : (
-                        <Mail className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate">
-                        {u.display_name || 'Unknown'}
-                      </p>
-                      <p className="text-xs text-light-muted dark:text-dark-muted truncate">
-                        {u.email || 'No email'}
-                        {u.role === 'admin' && ' • Admin'}
-                        {!u.is_active && ' • Disabled'}
-                      </p>
-                      <p className="text-[11px] text-light-muted dark:text-dark-muted mt-0.5">
-                        {u.auth_provider}
-                        {u.last_active && ` • Last active: ${new Date(u.last_active).toLocaleDateString()}`}
-                      </p>
-                    </div>
-                  </div>
-                  {u.role !== 'admin' && (
-                    <button
-                      onClick={() => toggleUserActive(u.id, u.is_active)}
-                      className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                        u.is_active
-                          ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20'
-                          : 'bg-green-500/10 text-green-500 hover:bg-green-500/20 border border-green-500/20'
-                      }`}
-                    >
-                      {u.is_active ? 'Disable' : 'Enable'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-            {filteredUsers.length === 0 && (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => <UserSkeleton key={i} />)
+            ) : filteredUsers.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="w-8 h-8 text-light-muted dark:text-dark-muted mx-auto mb-2" />
-                <p className="text-sm text-light-muted dark:text-dark-muted">No users found</p>
+                <p className="text-sm text-light-muted dark:text-dark-muted">
+                  {searchQuery ? 'No users match your search' : 'No users found'}
+                </p>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="mt-2 text-xs text-accent hover:underline cursor-pointer"
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
+            ) : (
+              filteredUsers.map(u => (
+                <UserCard
+                  key={u.id}
+                  user={u}
+                  onToggle={handleToggle}
+                  toggling={togglingId === u.id}
+                />
+              ))
             )}
           </div>
         </div>
