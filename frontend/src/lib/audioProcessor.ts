@@ -69,7 +69,7 @@ export async function convertAudio(
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
   onDownloadProgress?: (pct: number | null) => void,
-  durationMs?: number,
+  _durationMs?: number,
 ): Promise<ArrayBuffer> {
   const instance = await getFFmpeg()
 
