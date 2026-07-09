@@ -45,19 +45,31 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
 async function getPushTokenFromBridge(pn: PushNotificationsModule): Promise<string | null> {
   return new Promise<string | null>((resolve) => {
-    const timeout = setTimeout(() => resolve(null), 10000)
+    const cleanups: Array<() => void> = []
+
+    const cleanup = () => {
+      cleanups.forEach(fn => fn())
+      cleanups.length = 0
+    }
+
+    const timeout = setTimeout(() => {
+      cleanup()
+      resolve(null)
+    }, 10000)
 
     try {
       const anyPn = pn as any
       anyPn.addListener('registration', (token: { value: string }) => {
+        cleanup()
         clearTimeout(timeout)
         resolve(token.value)
-      }).catch(() => {})
+      }).then((remove: () => void) => cleanups.push(remove)).catch(() => {})
 
       anyPn.addListener('registrationError', () => {
+        cleanup()
         clearTimeout(timeout)
         resolve(null)
-      }).catch(() => {})
+      }).then((remove: () => void) => cleanups.push(remove)).catch(() => {})
     } catch {
       clearTimeout(timeout)
       resolve(null)

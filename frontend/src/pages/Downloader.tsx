@@ -52,7 +52,7 @@ export function Downloader() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-4 pt-6 pb-32">
+      <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-4 pt-6 pb-32 safe-area-top">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
             {presetCollection?.collection_name || 'Downloads'}

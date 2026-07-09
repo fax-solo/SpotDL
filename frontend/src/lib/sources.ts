@@ -23,14 +23,29 @@ interface SourceInfo {
   isrc?: string | null
 }
 
+class SourceError extends Error {
+  type: string
+  constructor(type: string, message: string) {
+    super(message)
+    this.name = 'SourceError'
+    this.type = type
+  }
+}
+
 async function callFunction(name: string, body: Record<string, unknown>) {
   const res = await fetch(apiUrl(`/api/${name}`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) return null
-  return res.json()
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    if (data.error_type) {
+      throw new SourceError(data.error_type, data.error || `${name} error`)
+    }
+    return null
+  }
+  return data
 }
 
 async function searchSoundcloud(query: string): Promise<SourceSearchResult[]> {
@@ -40,7 +55,8 @@ async function searchSoundcloud(query: string): Promise<SourceSearchResult[]> {
 
 async function soundcloudInfo(url: string): Promise<SourceInfo | null> {
   const data = await callFunction('soundcloud', { action: 'info', url })
-  return data
+  if (data?.audioUrl) return data
+  return null
 }
 
 async function searchBandcamp(query: string): Promise<SourceSearchResult[]> {
@@ -74,65 +90,114 @@ interface SourceResult {
   source: string
 }
 
+interface SourceCandidate {
+  info: SourceInfo
+  source: string
+  score: number
+}
+
+interface SourceModule {
+  name: string
+  search: (q: string) => Promise<SourceSearchResult[]>
+  info: (url: string) => Promise<SourceInfo | null>
+}
+
 const SEARCH_QUERIES = [
   (artist: string, title: string) => `${artist} ${title}`,
   (_artist: string, title: string) => title,
 ]
 
+async function trySource(
+  source: SourceModule,
+  queries: string[],
+  expectedTitle?: string,
+  expectedArtist?: string,
+  expectedDuration?: string | number | null,
+  expectedIsrc?: string | null,
+): Promise<SourceCandidate | null> {
+  let lastError: SourceError | null = null
+  for (const q of queries) {
+    let searchResults: SourceSearchResult[]
+    try {
+      searchResults = await source.search(q)
+    } catch (err) {
+      if (err instanceof SourceError) lastError = err
+      continue
+    }
+    if (searchResults.length === 0) continue
+
+    for (const result of searchResults) {
+      let info: SourceInfo | null = null
+
+      if (result.audioUrl) {
+        info = { title: result.title, author: result.artist || '', duration: result.duration || '0', audioUrl: result.audioUrl, thumbnail: result.thumbnail || null }
+      } else {
+        try {
+          info = await source.info(result.url)
+        } catch (err) {
+          if (err instanceof SourceError) lastError = err
+          continue
+        }
+      }
+
+      if (info && info.audioUrl) {
+        const score = matchScore({
+          expectedTitle: expectedTitle || q,
+          expectedArtist: expectedArtist || '',
+          foundTitle: info.title,
+          foundAuthor: info.author,
+          foundDuration: info.duration,
+          expectedDuration,
+          expectedIsrc,
+          foundIsrc: info.isrc || result.isrc || null,
+        })
+        if (score >= MIN_CONFIDENCE) {
+          return { info, source: source.name, score }
+        }
+      }
+    }
+  }
+  if (lastError && lastError.type === 'rate_limited') throw lastError
+  return null
+}
+
 export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string, expectedDuration?: string | number | null, expectedIsrc?: string | null): Promise<SourceResult> {
-  const sources: { name: string; search: (q: string) => Promise<SourceSearchResult[]>; info: (url: string) => Promise<SourceInfo | null> }[] = [
+  const sources: SourceModule[] = [
     { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
     { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
     { name: 'bandcamp', search: searchBandcamp, info: bandcampInfo },
   ]
 
-  const candidates: { info: SourceInfo; source: string; score: number }[] = []
   const queries = SEARCH_QUERIES.map(fn => fn(expectedArtist || '', expectedTitle || query).trim()).filter(Boolean)
   const uniqueQueries = [...new Set(queries)]
 
-  await Promise.allSettled(
-    sources.map(async (source) => {
-      for (const q of uniqueQueries) {
-        const searchResults = await source.search(q)
-        if (searchResults.length === 0) continue
+  // Try sources sequentially — stop at first high-confidence match
+  for (const source of sources) {
+    const candidate = await trySource(source, uniqueQueries, expectedTitle, expectedArtist, expectedDuration, expectedIsrc)
+    if (candidate && candidate.score >= 0.6) {
+      return { info: candidate.info, source: candidate.source }
+    }
+  }
 
-        for (const result of searchResults) {
-          let info: SourceInfo | null = null
+  // If no high-confidence match, return the best across all candidates
+  const allCandidates: SourceCandidate[] = []
+  let lastSourceError: SourceError | null = null
+  for (const source of sources) {
+    try {
+      const candidate = await trySource(source, uniqueQueries, expectedTitle, expectedArtist, expectedDuration, expectedIsrc)
+      if (candidate) allCandidates.push(candidate)
+    } catch (err) {
+      if (err instanceof SourceError) lastSourceError = err
+    }
+  }
 
-          if (result.audioUrl) {
-            info = { title: result.title, author: result.artist || '', duration: result.duration || '0', audioUrl: result.audioUrl, thumbnail: result.thumbnail || null }
-          } else {
-            info = await source.info(result.url)
-          }
-
-          if (info && info.audioUrl) {
-            const score = matchScore({
-              expectedTitle: expectedTitle || query,
-              expectedArtist: expectedArtist || '',
-              foundTitle: info.title,
-              foundAuthor: info.author,
-              foundDuration: info.duration,
-              expectedDuration,
-              expectedIsrc,
-              foundIsrc: info.isrc || result.isrc || null,
-            })
-            if (score >= MIN_CONFIDENCE) {
-              candidates.push({ info, source: source.name, score })
-            }
-          }
-        }
-        // If we found good candidates on this query, skip remaining queries for this source
-        if (candidates.some(c => c.source === source.name && c.score >= 0.6)) break
-      }
-    }),
-  )
-
-  if (candidates.length > 0) {
-    candidates.sort((a, b) => b.score - a.score)
-    const best = candidates[0]
+  if (allCandidates.length > 0) {
+    allCandidates.sort((a, b) => b.score - a.score)
+    const best = allCandidates[0]
     return { info: best.info, source: best.source }
   }
 
+  if (lastSourceError) throw lastSourceError
   throw new Error('No audio found on any source. Try a direct YouTube or SoundCloud URL.')
 }
 

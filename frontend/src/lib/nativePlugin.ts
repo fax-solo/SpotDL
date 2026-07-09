@@ -1,5 +1,15 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 
+interface LocalTrackResult {
+  id: number
+  title: string
+  artist: string
+  album: string
+  path: string
+  size: number
+  mtime: number
+}
+
 interface SpotDLPlugin {
   initialize(): Promise<{}>
   getStatus(): Promise<{
@@ -14,6 +24,9 @@ interface SpotDLPlugin {
   startMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string }): Promise<{}>
   updateMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string }): Promise<{}>
   stopMediaForeground(): Promise<{}>
+  scanLocalMusic(): Promise<{ tracks: LocalTrackResult[] }>
+  checkMediaAudioPermission(): Promise<{ granted: boolean }>
+  requestMediaAudioPermission(): Promise<{ granted: boolean }>
 }
 
 const SpotDL = registerPlugin<SpotDLPlugin>('SpotDL')
@@ -129,6 +142,16 @@ export async function nativeDownloadTrack(
   const filename = file.split('/').pop() || `${Date.now()}.mp3`
   const filePath = file ? `${result.output_dir}/${file}` : ''
   return { filePath, filename }
+}
+
+export async function nativeScanLocalMusic(): Promise<LocalTrackResult[]> {
+  if (!Capacitor.isNativePlatform()) return []
+  try {
+    const result = await SpotDL.scanLocalMusic()
+    return result.tracks
+  } catch {
+    return []
+  }
 }
 
 export async function checkServerHealth(): Promise<boolean> {

@@ -27,6 +27,17 @@ export function useShareTarget() {
       }
     }).then(h => { unlisten = h.remove })
 
-    return () => { unlisten?.() }
+    const onShareReceived = (e: Event) => {
+      const text = (e as CustomEvent).detail
+      if (typeof text === 'string') {
+        handleShare({ text })
+      }
+    }
+    window.addEventListener('shareReceived', onShareReceived)
+
+    return () => {
+      unlisten?.()
+      window.removeEventListener('shareReceived', onShareReceived)
+    }
   }, [navigate])
 }

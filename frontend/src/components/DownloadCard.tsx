@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { Download, DownloadCloud, Disc3, ListMusic, Link2, CheckCircle2, XCircle, Loader2, Music, RefreshCw } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
 import { ArtworkImage } from './ArtworkImage'
 import { fetchMetadata } from '../lib/api'
 import type { TrackMeta, CollectionMeta } from '../lib/api'
@@ -93,6 +94,12 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
   const downloadLabel = deezerConnected && getDeezerQuality() === 'FLAC' ? 'Download FLAC' : deezerConnected ? 'Download MP3' : 'Download MP3'
 
   const handleDownloadSingle = async (track: TrackMeta) => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Haptics, ImpactStyle } = await import('@capacitor/haptics')
+        Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {})
+      } catch {}
+    }
     addDownload(track)
   }
 

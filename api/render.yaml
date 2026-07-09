@@ -3,9 +3,16 @@ services:
     name: sinc-api
     env: docker
     dockerfilePath: ./Dockerfile
-    repo: https://github.com/YOUR_USERNAME/YOUR_REPO
+    repo: https://github.com/fax-solo/SpotDL
     branch: main
     healthCheckPath: /api/auth/me
+    disks:
+      # WARNING: api/data/ MUST reside on a persistent disk.
+      # Without it, ALL user data, download history, admin stats,
+      # and the JWT secret fallback are wiped on every redeploy.
+      - name: sinc-data
+        mountPath: /app/data
+        sizeGB: 1
     envVars:
       - key: JWT_SECRET
         generateValue: true

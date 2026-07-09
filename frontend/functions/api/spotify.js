@@ -1,3 +1,8 @@
+import { fetchWithRetry, scrapeResponse, scrapeError, isFailFast } from './_lib/retry.js'
+import { scrapeLog } from './_lib/log.js'
+
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+
 function abortTimeout(ms) {
   if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
     return AbortSignal.timeout(ms)
@@ -56,14 +61,21 @@ async function getSpotifyToken(context) {
   return data.access_token
 }
 
-async function officialFetch(context, path) {
+async function officialFetch(context, path, retried = false) {
   const token = await getSpotifyToken(context)
   if (!token) return null
   const res = await fetch(`https://api.spotify.com/v1${path}`, {
-    headers: { 'Authorization': `Bearer ${token}` },
+    headers: { 'Authorization': `Bearer ${token}`, 'User-Agent': BROWSER_UA },
     signal: abortTimeout(5000),
   })
-  if (!res.ok) return null
+  if (!res.ok) {
+    if ((res.status === 401 || res.status === 403) && !retried) {
+      scrapeLog('spotify', 'official_token_refresh', { path, status: res.status })
+      _tokenCache = { token: null, expiresAt: 0 }
+      return officialFetch(context, path, true)
+    }
+    return null
+  }
   return res.json()
 }
 
@@ -75,8 +87,14 @@ async function wolfxFetch(path) {
   const cached = _cache.get(path)
   if (cached && Date.now() < cached.expires) return cached.data
   try {
-    const res = await fetch(`${WOLFX_API}${path}`, { signal: abortTimeout(5000) })
-    if (!res.ok) return null
+    const res = await fetchWithRetry(`${WOLFX_API}${path}`,
+      { headers: { 'User-Agent': BROWSER_UA } },
+      { retries: 2, baseDelay: 1000, timeout: 5000,
+        onRetry: ({ attempt, status, delay }) => {
+          scrapeLog('spotify', 'wolfx_retry', { path, attempt, status, delay })
+        },
+      },
+    )
     const data = await res.json()
     const result = data.success ? data : null
     _cache.set(path, { data: result, expires: Date.now() + CACHE_TTL })
@@ -85,7 +103,10 @@ async function wolfxFetch(path) {
       for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
     }
     return result
-  } catch {
+  } catch (err) {
+    if (err instanceof Response) {
+      scrapeLog('spotify', 'wolfx_failed', { path, status: err.status })
+    }
     return null
   }
 }
@@ -250,31 +271,49 @@ async function handleEmbedScrape(context, url, summary) {
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/118.0.0.0 Safari/537.36',
   ]
   let lastErr = null
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     const ua = UAS[attempt % UAS.length]
-    const res = await fetch(embedUrl, {
-      headers: { 'User-Agent': ua, 'Accept-Language': 'en-US,en;q=0.9' },
-      signal: abortTimeout(8000),
-    })
-    if (res.ok) {
-      const html = await res.text()
-      const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.+?)<\/script>/)
-      if (match) {
-        const data = JSON.parse(match[1])
-        const entity = data?.props?.pageProps?.state?.data?.entity
-        if (entity) return await handleEmbeddedEntity(context, kind, id, entity, summary)
+    try {
+      const res = await fetchWithRetry(embedUrl,
+        { headers: { 'User-Agent': ua, 'Accept-Language': 'en-US,en;q=0.9' } },
+        { retries: 1, baseDelay: 1000, timeout: 8000,
+          onRetry: ({ attempt: retryAttempt, status, delay }) => {
+            scrapeLog('spotify', 'embed_retry', { kind, id, attempt: retryAttempt, status, delay })
+          },
+        },
+      )
+      if (res.ok) {
+        const html = await res.text()
+        const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.+?)<\/script>/)
+        if (match) {
+          const data = JSON.parse(match[1])
+          const entity = data?.props?.pageProps?.state?.data?.entity
+          if (entity) return await handleEmbeddedEntity(context, kind, id, entity, summary)
+        }
+        scrapeLog('spotify', 'embed_no_data', { kind, id })
+        return jsonError('Could not find embed data', 502)
       }
-      return jsonError('Could not find embed data', 502)
+      if (res.status === 429) {
+        lastErr = { status: 429, msg: 'Spotify rate limited' }
+        const delay = 1000 * Math.pow(2, attempt) + Math.random() * 500
+        await new Promise(r => setTimeout(r, delay))
+        continue
+      }
+      if (isFailFast(res.status)) {
+        return jsonError(`Spotify returned ${res.status}`, 502)
+      }
+      lastErr = { status: res.status, msg: `Spotify returned ${res.status}` }
+    } catch (err) {
+      lastErr = { status: -1, msg: err.message || 'Network error' }
+      if (attempt < 2) {
+        const delay = 1000 * Math.pow(2, attempt) + Math.random() * 500
+        await new Promise(r => setTimeout(r, delay))
+        continue
+      }
     }
-    if (res.status === 429) {
-      lastErr = { status: 429, msg: 'Spotify rate limited' }
-      const delay = 1000 * Math.pow(2, attempt) + Math.random() * 500
-      await new Promise(r => setTimeout(r, delay))
-      continue
-    }
-    return jsonError(`Spotify returned ${res.status}`, 502)
   }
-  return jsonError(lastErr.msg, 429)
+  scrapeLog('spotify', 'embed_exhausted', { kind, id, lastErr })
+  return jsonError(lastErr?.msg || 'Embed scrape failed', 429)
 }
 
 async function handleEmbeddedEntity(context, kind, id, entity, summary) {
@@ -677,16 +716,24 @@ async function makeTOTP() {
   return { totp: String(code % 1000000).padStart(6, '0'), version: v }
 }
 
+let _partnerTokenCache = null
+let _partnerTokenExpires = 0
+
 async function getPartnerToken() {
+  const now = Date.now()
+  if (_partnerTokenCache && now < _partnerTokenExpires) return _partnerTokenCache
   if (!secretCache.ts) await refreshSecrets()
   const { totp, version } = await makeTOTP()
   const url = `${WEB_PLAYER}/api/token?reason=init&productType=web-player&totp=${totp}&totpVer=${version}&totpServer=${totp}`
-  const r = await fetch(url, { headers: { 'User-Agent': UA } })
+  const r = await fetch(url, { headers: { 'User-Agent': UA }, signal: abortTimeout(10000) })
   if (!r.ok) {
     const t = await r.text().catch(() => '')
     throw new Error(`Token failed ${r.status}: ${t.slice(0, 100)}`)
   }
-  return r.json()
+  const data = await r.json()
+  _partnerTokenCache = data
+  _partnerTokenExpires = now + (data.accessTokenExpirationTimestampMs ? data.accessTokenExpirationTimestampMs - now - 60000 : 300000)
+  return data
 }
 
 async function getHashes() {
@@ -745,40 +792,61 @@ async function partnerQuery(operationName, variables, accessToken) {
   const hashes = await getHashes()
   const hash = hashes[operationName]
   if (!hash) throw new Error(`Unknown operation: ${operationName}`)
-  const params = new URLSearchParams({
-    operationName,
-    variables: JSON.stringify(variables),
-    extensions: JSON.stringify({ persistedQuery: { version: 1, sha256Hash: hash } }),
-  })
-  const r = await fetch(`${PARTNER_API}?${params}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      'User-Agent': UA,
-      'app-platform': 'WebPlayer',
-      'Accept-Language': 'en',
-    },
-  })
-  if (!r.ok) {
+  let attempt = 0
+  while (true) {
+    const params = new URLSearchParams({
+      operationName,
+      variables: JSON.stringify(variables),
+      extensions: JSON.stringify({ persistedQuery: { version: 1, sha256Hash: hash } }),
+    })
+    const r = await fetch(`${PARTNER_API}?${params}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'User-Agent': UA,
+        'app-platform': 'WebPlayer',
+        'Accept-Language': 'en',
+      },
+      signal: abortTimeout(10000),
+    })
+    if (r.ok) return r.json()
+    if ((r.status === 401 || r.status === 403) && attempt < 1) {
+      attempt++
+      scrapeLog('spotify-partner', 'token_refresh', { operationName, status: r.status })
+      _partnerTokenCache = null
+      _partnerTokenExpires = 0
+      hashCache = null
+      hashCacheTime = 0
+      const td = await getPartnerToken()
+      accessToken = td.accessToken
+      continue
+    }
     const t = await r.text().catch(() => '')
     throw new Error(`Partner API ${r.status}: ${t.slice(0, 300)}`)
   }
-  return r.json()
 }
 
 // Fast oEmbed-based track fetch (public Spotify API, very fast)
 async function oEmbedTrack(context, id) {
-  const res = await fetch(
-    `https://open.spotify.com/oembed?url=${encodeURIComponent('https://open.spotify.com/track/' + id)}`,
-    { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: abortTimeout(3000) }
-  )
-  if (!res.ok) return null
-  const oembed = await res.json()
-  return {
-    id, title: oembed.title || 'Unknown Track', artist: oembed.author_name || 'Unknown Artist',
-    artist_id: null, album: 'Single', album_id: null, artwork_url: oembed.thumbnail_url || null,
-    url: `https://open.spotify.com/track/${id}`, duration_ms: 0,
+  try {
+    const res = await fetchWithRetry(
+      `https://open.spotify.com/oembed?url=${encodeURIComponent('https://open.spotify.com/track/' + id)}`,
+      { headers: { 'User-Agent': BROWSER_UA, 'Accept-Language': 'en-US,en;q=0.9' } },
+      { retries: 1, baseDelay: 1000, timeout: 3000,
+        onRetry: ({ attempt, status, delay }) => {
+          scrapeLog('spotify', 'oembed_retry', { id, attempt, status, delay })
+        },
+      },
+    )
+    const oembed = await res.json()
+    return {
+      id, title: oembed.title || 'Unknown Track', artist: oembed.author_name || 'Unknown Artist',
+      artist_id: null, album: 'Single', album_id: null, artwork_url: oembed.thumbnail_url || null,
+      url: `https://open.spotify.com/track/${id}`, duration_ms: 0,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -816,34 +884,71 @@ async function officialTrack(context, id) {
   }
 }
 
+const _metadataCache = new Map()
+const METADATA_CACHE_TTL = 300000
+
+function getCachedMetadata(kind, id) {
+  const key = `${kind}:${id}`
+  const entry = _metadataCache.get(key)
+  if (entry && Date.now() < entry.expires) return entry.data
+  return null
+}
+
+function setCachedMetadata(kind, id, data) {
+  const key = `${kind}:${id}`
+  _metadataCache.set(key, { data, expires: Date.now() + METADATA_CACHE_TTL })
+  if (_metadataCache.size > 200) {
+    const now = Date.now()
+    for (const [k, v] of _metadataCache) { if (now >= v.expires) _metadataCache.delete(k) }
+  }
+}
+
 // Handle track by racing multiple fast sources in parallel
 async function handleTrack(context, id) {
+  const cached = getCachedMetadata('track', id)
+  if (cached) return jsonOk(cached)
+
   // Try sources with best artwork first (WolfX, Official), race them
   const fastResult = await raceSources([
     () => wolfxTrack(id),
     () => officialTrack(context, id),
   ], 3000)
 
-  if (fastResult && fastResult.artwork_url) return jsonOk(fastResult)
+  if (fastResult && fastResult.artwork_url) {
+    scrapeLog('spotify', 'track_found', { id, source: 'wolfx_official', has_artwork: true })
+    setCachedMetadata('track', id, fastResult)
+    return jsonOk(fastResult)
+  }
   if (fastResult) {
     // Try oEmbed as backup — it may have artwork even if WolfX/Official didn't
     const oembed = await oEmbedTrack(context, id)
-    if (oembed && oembed.artwork_url) return jsonOk({ ...fastResult, artwork_url: oembed.artwork_url })
+    if (oembed && oembed.artwork_url) {
+      const merged = { ...fastResult, artwork_url: oembed.artwork_url }
+      setCachedMetadata('track', id, merged)
+      return jsonOk(merged)
+    }
+    setCachedMetadata('track', id, fastResult)
     return jsonOk(fastResult)
   }
 
   // Fallback: oEmbed (fast but may lack artwork)
   const oembedResult = await oEmbedTrack(context, id)
-  if (oembedResult) return jsonOk(oembedResult)
+  if (oembedResult) {
+    setCachedMetadata('track', id, oembedResult)
+    return jsonOk(oembedResult)
+  }
 
   // Final fallback: full embed scrape (more reliable but slower)
   const embedResult = await handleEmbedScrape(context, `https://open.spotify.com/track/${id}`, false)
   if (embedResult.status === 200) return embedResult
 
+  scrapeLog('spotify', 'track_not_found', { id })
   return jsonError('Track not found', 404)
 }
 
 async function handleOfficialCollection(context, kind, id) {
+  const cached = getCachedMetadata(kind, id)
+  if (cached) return cached
   const token = await getSpotifyToken(context)
   if (!token) return null
 
@@ -869,13 +974,15 @@ async function handleOfficialCollection(context, kind, id) {
           type: 'track',
         }
       })
-    return jsonOk({
+    const playlistResult = jsonOk({
       type: 'collection',
       collection_name: data.name || 'Unknown',
       collection_artwork: data.images?.[0]?.url || null,
       collection_type: 'playlist',
       tracks,
     })
+    setCachedMetadata(kind, id, playlistResult)
+    return playlistResult
   }
 
   if (kind === 'album') {
@@ -893,13 +1000,15 @@ async function handleOfficialCollection(context, kind, id) {
       url: `https://open.spotify.com/track/${t.id}`,
       type: 'track',
     }))
-    return jsonOk({
+    const albumResult = jsonOk({
       type: 'collection',
       collection_name: data.name || 'Unknown',
       collection_artwork: data.images?.[0]?.url || null,
       collection_type: 'album',
       tracks,
     })
+    setCachedMetadata(kind, id, albumResult)
+    return albumResult
   }
 
   return null

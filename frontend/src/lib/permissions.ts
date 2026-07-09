@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 
 export interface PermissionDef {
   key: string
@@ -21,11 +21,16 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
   { key: 'media_audio', label: 'Music Library', description: 'Read audio files from your device', androidName: 'android.permission.READ_MEDIA_AUDIO', dangerous: true },
 ]
 
-const RUNTIME_KEYS = new Set(['notifications'])
+const RUNTIME_KEYS = new Set(['notifications', 'media_audio'])
 const AUTO_GRANTED_KEYS = new Set([
   'internet', 'storage', 'foreground_service', 'media_playback',
   'wake_lock', 'vibrate', 'exact_alarm', 'boot_completed',
 ])
+
+const SpotDL = registerPlugin<{
+  checkMediaAudioPermission: () => Promise<{ granted: boolean }>
+  requestMediaAudioPermission: () => Promise<{ granted: boolean }>
+}>('SpotDL')
 
 export async function requestPermission(key: string): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
@@ -35,6 +40,15 @@ export async function requestPermission(key: string): Promise<boolean> {
       const mod = await import('@capacitor/local-notifications')
       const result = await mod.LocalNotifications.requestPermissions()
       return result.display === 'granted'
+    } catch {
+      return false
+    }
+  }
+
+  if (key === 'media_audio') {
+    try {
+      const result = await SpotDL.requestMediaAudioPermission()
+      return result.granted
     } catch {
       return false
     }
@@ -55,6 +69,15 @@ export async function checkPermission(key: string): Promise<boolean> {
       const mod = await import('@capacitor/local-notifications')
       const result = await mod.LocalNotifications.checkPermissions()
       return result.display === 'granted'
+    } catch {
+      return false
+    }
+  }
+
+  if (key === 'media_audio') {
+    try {
+      const result = await SpotDL.checkMediaAudioPermission()
+      return result.granted
     } catch {
       return false
     }

@@ -1,23 +1,39 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Music, RefreshCw, Play, FileQuestion, Loader2, Download, Library } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
 import { scanDeviceMusic, type LocalTrack } from '../lib/localMusic'
 import { usePlayer } from '../hooks/usePlayer'
 import { useHistory } from '../hooks/useHistory'
 import { useToast } from '../components/Toast'
 import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
+import { requestPermission, checkPermission } from '../lib/permissions'
 export function LocalMusicPage() {
   const [tracks, setTracks] = useState<LocalTrack[]>([])
   const [scanning, setScanning] = useState(false)
   const [scanned, setScanned] = useState(false)
   const [importing, setImporting] = useState(false)
   const [bulkLyrics, setBulkLyrics] = useState(false)
+  const [permissionDenied, setPermissionDenied] = useState(false)
   const navigate = useNavigate()
   const { play } = usePlayer()
   const { addEntry, updateEntryLyrics } = useHistory()
   const { toast } = useToast()
 
   const scan = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) {
+      const hasPermission = await checkPermission('media_audio')
+      if (!hasPermission) {
+        const granted = await requestPermission('media_audio')
+        if (!granted) {
+          setPermissionDenied(true)
+          setScanning(false)
+          toast('Music Library permission is required to scan local files', 'error')
+          return
+        }
+      }
+    }
+    setPermissionDenied(false)
     setScanning(true)
     try {
       const found = await scanDeviceMusic()
@@ -140,6 +156,30 @@ export function LocalMusicPage() {
           </div>
         </div>
       </div>
+
+      {permissionDenied && (
+        <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+          <Music className="w-12 h-12 text-light-muted dark:text-dark-muted mb-3" />
+          <p className="text-sm font-medium text-light-text dark:text-dark-text mb-1">Permission required</p>
+          <p className="text-xs text-light-muted dark:text-dark-muted mb-4">
+            Music Library access is needed to scan your device for audio files
+          </p>
+          <button
+            onClick={async () => {
+              const granted = await requestPermission('media_audio')
+              if (granted) {
+                setPermissionDenied(false)
+                scan()
+              } else {
+                toast('Permission still denied. Check system settings.', 'error')
+              }
+            }}
+            className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-xl cursor-pointer"
+          >
+            Grant Permission
+          </button>
+        </div>
+      )}
 
       {scanning && !scanned && (
         <div className="flex flex-col items-center justify-center py-16 gap-3">

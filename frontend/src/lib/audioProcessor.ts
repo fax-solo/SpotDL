@@ -1,5 +1,4 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile } from '@ffmpeg/util'
+import type { FFmpeg } from '@ffmpeg/ffmpeg'
 import type { QualitySettings } from './qualitySettings'
 
 type FfmpegInstance = FFmpeg & {
@@ -14,12 +13,53 @@ async function getFFmpeg(): Promise<FfmpegInstance> {
   if (ffmpeg) return ffmpeg
   if (!loading) {
     loading = (async () => {
-      ffmpeg = new FFmpeg() as FfmpegInstance
+      const { FFmpeg: FFmpegClass } = await import('@ffmpeg/ffmpeg')
+      ffmpeg = new FFmpegClass() as FfmpegInstance
       await ffmpeg.load()
     })()
   }
   await loading
   return ffmpeg!
+}
+
+async function fetchWithProgress(
+  url: string,
+  onDownloadProgress?: (pct: number | null) => void,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  const response = await fetch(url, { signal })
+  if (!response.ok) throw new Error(`HTTP ${response.status} fetching audio`)
+  const contentLength = response.headers.get('Content-Length')
+  const total = contentLength ? parseInt(contentLength, 10) : null
+  if (!response.body) {
+    const buf = await response.arrayBuffer()
+    return new Uint8Array(buf)
+  }
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let loaded = 0
+  if (total !== null) {
+    onDownloadProgress?.(0)
+  } else {
+    onDownloadProgress?.(null)
+  }
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    loaded += value.length
+    if (total !== null) {
+      onDownloadProgress?.(Math.min(loaded / total, 1))
+    }
+  }
+  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0)
+  const result = new Uint8Array(totalLength)
+  let offset = 0
+  for (const chunk of chunks) {
+    result.set(chunk, offset)
+    offset += chunk.length
+  }
+  return result
 }
 
 export async function convertAudio(
@@ -28,11 +68,14 @@ export async function convertAudio(
   coverUrl?: string,
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
+  onDownloadProgress?: (pct: number | null) => void,
+  durationMs?: number,
 ): Promise<ArrayBuffer> {
   const instance = await getFFmpeg()
 
   const progressHandler = ({ progress }: { progress: number }) => {
-    onProgress?.(Math.round(progress * 100))
+    const ratio = typeof progress === 'number' ? progress : 0
+    onProgress?.(Math.round(Math.min(ratio, 1) * 100))
   }
 
   if (onProgress) {
@@ -46,8 +89,8 @@ export async function convertAudio(
 
   try {
     const data = signal
-      ? new Uint8Array(await (await fetch(audioUrl, { signal })).arrayBuffer())
-      : await fetchFile(audioUrl)
+      ? await fetchWithProgress(audioUrl, onDownloadProgress, signal)
+      : await fetchWithProgress(audioUrl, onDownloadProgress)
     await instance.writeFile(inputName, data)
 
     if (quality.format === 'mp3') {
@@ -59,7 +102,6 @@ export async function convertAudio(
         '-y', outputName,
       ])
     } else {
-      // For M4A, try to embed cover art and metadata in one pass
       let hasCover = false
       if (coverUrl) {
         try {
@@ -149,12 +191,14 @@ export async function downloadAudio(
     artworkUrl: string | null
   },
   onProgress?: (pct: number) => void,
+  onDownloadProgress?: (pct: number | null) => void,
   signal?: AbortSignal,
   quality?: QualitySettings,
+  durationMs?: number,
 ): Promise<Blob> {
   const q = quality || { bitrate: '320', format: 'mp3' }
   signal?.throwIfAborted()
-  const audioData = await convertAudio(audioUrl, q, metadata.artworkUrl || undefined, onProgress, signal)
+  const audioData = await convertAudio(audioUrl, q, metadata.artworkUrl || undefined, onProgress, signal, onDownloadProgress, durationMs)
   signal?.throwIfAborted()
 
   if (q.format === 'mp3') {

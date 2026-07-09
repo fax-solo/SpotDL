@@ -97,12 +97,29 @@ async def get_users(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
+    q: str = Query(default=None, max_length=100),
 ):
-    result = await db.execute(
-        select(User).order_by(User.created_at.desc()).offset(offset).limit(limit)
-    )
+    stmt = select(User).order_by(User.created_at.desc())
+    count_filters = []
+    if q:
+        pattern = f"%{q}%"
+        stmt = stmt.where(
+            User.display_name.ilike(pattern) |
+            User.email.ilike(pattern) |
+            User.auth_provider.ilike(pattern) |
+            User.id.ilike(pattern)
+        )
+        count_filters.append(
+            User.display_name.ilike(pattern) |
+            User.email.ilike(pattern) |
+            User.auth_provider.ilike(pattern) |
+            User.id.ilike(pattern)
+        )
+
+    result = await db.execute(stmt.offset(offset).limit(limit))
     users = result.scalars().all()
-    total = await _count(db, User)
+
+    total = await _count(db, User, *count_filters)
 
     return {
         "users": [
@@ -126,22 +143,6 @@ async def get_users(
 
 class UpdateUserRequest(BaseModel):
     is_active: bool | None = None
-
-@router.put("/users/{user_id}/toggle-active")
-async def toggle_user_active(
-    user_id: str,
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if user.id == admin.id:
-        raise HTTPException(status_code=400, detail="Cannot disable yourself")
-    user.is_active = not user.is_active
-    await db.commit()
-    return {"ok": True, "is_active": user.is_active}
 
 @router.patch("/{user_id}")
 async def update_user(

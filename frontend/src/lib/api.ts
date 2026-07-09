@@ -53,6 +53,12 @@ const DIRECT_URL_PATTERNS = [
   /deezer\.com/i,
 ]
 
+function requireOnline(): void {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('No internet connection')
+  }
+}
+
 export function isDirectUrl(url: string): boolean {
   return DIRECT_URL_PATTERNS.some(p => p.test(url))
 }
@@ -78,6 +84,7 @@ async function fetchSpotifyViaScraper(url: string): Promise<TrackMeta | Collecti
 }
 
 export async function fetchMetadata(url: string): Promise<TrackMeta | CollectionMeta> {
+  requireOnline()
   const parsed = parseSpotifyUrl(url)
 
   if (parsed && await nativeAvailable()) {
@@ -200,6 +207,7 @@ export async function downloadTrack(
   signal?: AbortSignal,
   retries = 2,
 ): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
+  requireOnline()
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
   const quality = getQualitySettings()
   const ext = quality.format === 'm4a' ? '.m4a' : '.mp3'
@@ -307,7 +315,7 @@ export async function downloadTrack(
       }
 
       signal?.throwIfAborted()
-      onProgress?.(`Downloading from ${source}...`, 0)
+      onProgress?.(`Downloading...`, 0)
 
       const blob = await downloadAudio(
         info.audioUrl,
@@ -318,8 +326,10 @@ export async function downloadTrack(
           artworkUrl: meta.artwork_url,
         },
         (pct) => onProgress?.(`Converting...`, pct),
+        (pct) => onProgress?.(`Downloading...`, pct !== null ? Math.round(pct * 100) : 0),
         signal,
         quality,
+        meta.duration_ms,
       )
 
       validateBlob(blob)
@@ -329,6 +339,10 @@ export async function downloadTrack(
       if (attempt < retries) {
         console.warn(`[api] Client download attempt ${attempt + 1} failed (source: ${lastSource}):`, lastError.message)
       }
+      // Don't retry rate-limited errors — they won't resolve in seconds
+      if ('type' in lastError && (lastError as any).type === 'rate_limited') break
+      if ('type' in lastError && (lastError as any).type === 'scrape_blocked') break
+      if ('type' in lastError && (lastError as any).type === 'source_unavailable') break
     }
   }
   throw lastError || new Error(`Download failed after retries. Last source: ${lastSource}. Try a different search query or a direct URL.`)

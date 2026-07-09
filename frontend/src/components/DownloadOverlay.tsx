@@ -40,11 +40,13 @@ export function DownloadOverlay() {
         if (d.done) return sum + 100
         if (d.failed) return sum + 0
         if (d.stage.includes('Searching')) return sum + 5
-        if (d.stage.includes('Downloading')) return sum + 10 + (d.pct ?? 0) * 0.3
-        if (d.stage.includes('Converting')) return sum + 40 + (d.pct ?? 0) * 0.6
+        if (d.stage.includes('Downloading')) return sum + 5 + (d.pct ?? 0) * 0.35
+        if (d.stage.includes('Converting')) return sum + 40 + (d.pct ?? 0) * 0.60
         return sum + 0
       }, 0) / totalCount)
     : 0
+
+  const anyIndeterminate = queue.some(d => !d.done && !d.failed && d.pct === null)
 
   return (
     <>
@@ -75,7 +77,14 @@ export function DownloadOverlay() {
                 </div>
               </div>
               <div className="h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${overallPct}%` }} />
+                <div
+                  ref={el => { if (el) el.style.width = `${overallPct}%` }}
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    anyIndeterminate
+                      ? 'bg-accent animate-pulse'
+                      : 'bg-accent'
+                  }`}
+                />
               </div>
               {activeCount > 1 && (
                 <div className="flex items-center gap-1 mt-1.5">

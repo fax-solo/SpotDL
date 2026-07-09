@@ -1,12 +1,13 @@
-import { lazy, Suspense, useEffect, useState, useRef } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, Link, Navigate } from 'react-router-dom'
-import { FileQuestion, WifiOff } from 'lucide-react'
+import { FileQuestion, WifiOff, X } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
 import { MiniPlayerBar } from './components/MiniPlayerBar'
 import { ToastProvider, useToast } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { BottomSheet } from './components/BottomSheet'
 import { useTheme } from './hooks/useTheme'
 import { useMaterialYou } from './hooks/useMaterialYou'
 import { useHistory } from './hooks/useHistory'
@@ -95,6 +96,11 @@ function AppContent() {
   const isOnline = useOnlineStatus()
   const { toast } = useToast()
   const [isNative, setIsNative] = useState(isNativeApp)
+  const [offlineDismissed, setOfflineDismissed] = useState(false)
+
+  useEffect(() => {
+    if (isOnline) setOfflineDismissed(false)
+  }, [isOnline])
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const locationRef = useRef(location)
@@ -150,6 +156,12 @@ function AppContent() {
 
       addEntry(detail)
 
+      if (Capacitor.isNativePlatform()) {
+        import('@capacitor/haptics').then(({ Haptics, NotificationType }) => {
+          Haptics.notification({ type: NotificationType.Success }).catch(() => {})
+        }).catch(() => {})
+      }
+
       if (!detail.plainLyrics && !detail.syncedLyrics) {
         fetchLyricsWithFallback(detail.title, detail.artist, detail.album, detail.duration)
           .then(lyrics => {
@@ -170,8 +182,18 @@ function AppContent() {
       if (done == null) return
       if (failed > 0) {
         toast(`Done: ${done} downloaded, ${failed} failed`, 'error')
+        if (Capacitor.isNativePlatform()) {
+          import('@capacitor/haptics').then(({ Haptics, NotificationType }) => {
+            Haptics.notification({ type: NotificationType.Error }).catch(() => {})
+          }).catch(() => {})
+        }
       } else {
         toast(`${done} tracks downloaded successfully`, 'success')
+        if (Capacitor.isNativePlatform()) {
+          import('@capacitor/haptics').then(({ Haptics, NotificationType }) => {
+            Haptics.notification({ type: NotificationType.Success }).catch(() => {})
+          }).catch(() => {})
+        }
       }
     }
     window.addEventListener('downloadsComplete', handleComplete)
@@ -220,11 +242,18 @@ function AppContent() {
   const showBottomBar = isNative && !keyboardOpen && !bottomBarHidden
 
   return (
-    <div className="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col safe-area-y" style={{ height: '100dvh', WebkitTapHighlightColor: 'transparent' }}>
-      {!isOnline && (
-        <div className="sticky top-0 z-[60] bg-red-500/90 dark:bg-red-600/90 backdrop-blur-sm text-white text-xs font-medium text-center py-2 px-4 flex items-center justify-center gap-2" role="alert" aria-live="assertive">
+    <div className="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col safe-area-y h-dvh">
+      {!isOnline && !offlineDismissed && (
+        <div className="sticky top-0 z-[60] bg-red-500/90 dark:bg-red-600/90 backdrop-blur-sm text-white text-xs font-medium py-2 px-4 flex items-center gap-2" role="alert" aria-live="assertive">
           <WifiOff className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>You are offline. Some features may be unavailable.</span>
+          <span className="flex-1 text-center">You are offline. Some features may be unavailable.</span>
+          <button
+            onClick={() => setOfflineDismissed(true)}
+            className="p-0.5 rounded hover:bg-white/20 transition-colors cursor-pointer flex-shrink-0"
+            aria-label="Dismiss offline notice"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
       {!isNative && location.pathname !== '/' && <Navbar />}
@@ -305,7 +334,8 @@ function AppContent() {
 }
 
 function App() {
-  const { setTheme } = useTheme()
+  const { setTheme, isDark } = useTheme()
+  const [updateInfo, setUpdateInfo] = useState<{ tag_name: string; body: string | null } | null>(null)
 
   initSentry()
 
@@ -320,6 +350,13 @@ function App() {
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
+    import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+      StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark })
+    }).catch(() => {})
+  }, [isDark])
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
 
     const init = async () => {
       const token = await registerForPushNotifications()
@@ -330,12 +367,7 @@ function App() {
       try {
         const release = await checkForUpdate()
         if (release) {
-          const shouldUpdate = window.confirm(
-            `Update available: ${release.tag_name}\n\n${release.body?.slice(0, 200) || ''}\n\nDownload and install?`
-          )
-          if (shouldUpdate) {
-            await promptUpdate(release)
-          }
+          setUpdateInfo({ tag_name: release.tag_name, body: release.body })
         }
       } catch {
         // auto-update check is best-effort
@@ -346,6 +378,19 @@ function App() {
     return () => clearTimeout(timer)
   }, [])
 
+  const handleUpdate = useCallback(async () => {
+    if (!updateInfo) return
+    try {
+      const release = await checkForUpdate()
+      if (release) {
+        await promptUpdate(release)
+      }
+    } catch {
+      // best-effort
+    }
+    setUpdateInfo(null)
+  }, [updateInfo])
+
   return (
     <BrowserRouter>
       <ToastProvider>
@@ -355,6 +400,33 @@ function App() {
           </PlayerProvider>
         </DownloadOverlayProvider>
       </ToastProvider>
+      <BottomSheet
+        open={!!updateInfo}
+        onClose={() => setUpdateInfo(null)}
+        title="Update Available"
+      >
+        {updateInfo && (
+          <div className="space-y-4">
+            <p className="text-sm text-light-muted dark:text-dark-muted">
+              {updateInfo.body?.slice(0, 500) || `Version ${updateInfo.tag_name} is available.`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleUpdate}
+                className="flex-1 px-4 py-2.5 bg-accent text-white rounded-xl font-medium text-sm cursor-pointer hover:bg-accent-hover transition-colors"
+              >
+                Update
+              </button>
+              <button
+                onClick={() => setUpdateInfo(null)}
+                className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-zinc-800 text-light-text dark:text-dark-text rounded-xl font-medium text-sm cursor-pointer hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        )}
+      </BottomSheet>
     </BrowserRouter>
   )
 }

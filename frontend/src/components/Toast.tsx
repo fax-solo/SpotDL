@@ -55,12 +55,15 @@ function SwipeableToast({ toast: t, onDismiss }: { toast: ToastItem; onDismiss: 
 
   return (
     <div
-      ref={toastRef}
+      ref={el => {
+        toastRef.current = el
+        if (!el) return
+        el.style.transform = dragging ? `translateX(${offsetX}px)` : 'none'
+      }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      style={{ touchAction: 'pan-y', transform: dragging ? `translateX(${offsetX}px)` : 'none' }}
-      className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur-xl cursor-pointer select-none transition-all duration-300 ${
+      className={`touch-pan-y pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur-xl cursor-pointer select-none transition-all duration-300 ${
         t.type === 'success' ? 'bg-green-500/10 dark:bg-green-500/15 border-green-500/30 text-green-700 dark:text-green-400' :
         t.type === 'error' ? 'bg-red-500/10 dark:bg-red-500/15 border-red-500/30 text-red-700 dark:text-red-400' :
         t.type === 'loading' ? 'bg-accent-subtle border-accent/30 text-accent' :
@@ -92,16 +95,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const toast = useCallback((message: string, type: ToastType = 'info') => {
     const id = String(++toastId)
-    setToasts(prev => [...prev, { id, message, type }])
+    setToasts(prev => {
+      const next = [...prev, { id, message, type }]
+      if (next.length > 3) {
+        const excess = next.slice(0, next.length - 3)
+        excess.forEach(t => setTimeout(() => dismiss(t.id), 0))
+        return next.slice(-3)
+      }
+      return next
+    })
     if (type !== 'loading') {
-      setTimeout(() => dismiss(id), 4000)
+      const delay = Math.min(Math.max(message.length * 80, 2000), 6000)
+      setTimeout(() => dismiss(id), delay)
     }
   }, [dismiss])
 
   return (
     <ToastContext.Provider value={{ toast, dismiss }}>
       {children}
-      <div className="fixed bottom-28 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[100] flex flex-col gap-2 pointer-events-none pb-[env(safe-area-inset-bottom,0px)]">
+      <div className="fixed bottom-[calc(112px+env(safe-area-inset-bottom,0px))] left-4 right-4 md:left-auto md:right-4 md:w-96 z-[100] flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => (
           <SwipeableToast key={t.id} toast={t} onDismiss={dismiss} />
         ))}

@@ -4,18 +4,29 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.Manifest
 import android.os.Build
 import android.util.Log
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.PermissionState
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.annotation.Permission
 
 const val LOCAL_PORT = 9182
 const val LOCAL_URL = "http://127.0.0.1:$LOCAL_PORT"
 
-@CapacitorPlugin(name = "SpotDL")
+@CapacitorPlugin(
+    name = "SpotDL",
+    permissions = [
+        Permission(
+            alias = "mediaAudio",
+            strings = [Manifest.permission.READ_MEDIA_AUDIO]
+        )
+    ]
+)
 class SpotDLPlugin : Plugin() {
     private val core = SpotDLCore()
     private var mediaButtonReceiver: BroadcastReceiver? = null
@@ -65,6 +76,17 @@ class SpotDLPlugin : Plugin() {
             try { activity.unregisterReceiver(it) } catch (_: Exception) {}
             mediaButtonReceiver = null
         }
+    }
+
+    @PluginMethod
+    fun checkMediaAudioPermission(call: PluginCall) {
+        val granted = getPermissionState("mediaAudio") == PermissionState.GRANTED
+        call.resolve(JSObject().apply { put("granted", granted) })
+    }
+
+    @PluginMethod
+    fun requestMediaAudioPermission(call: PluginCall) {
+        requestPermissionForAlias("mediaAudio", call)
     }
 
     @PluginMethod
@@ -163,6 +185,45 @@ class SpotDLPlugin : Plugin() {
             call.resolve()
         } catch (e: Exception) {
             call.reject("Failed to stop media foreground", e)
+        }
+    }
+
+    @PluginMethod
+    fun scanLocalMusic(call: PluginCall) {
+        try {
+            val ctx = context
+            val uri = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            val projection = arrayOf(
+                android.provider.MediaStore.Audio.Media._ID,
+                android.provider.MediaStore.Audio.Media.TITLE,
+                android.provider.MediaStore.Audio.Media.ARTIST,
+                android.provider.MediaStore.Audio.Media.ALBUM,
+                android.provider.MediaStore.Audio.Media.DATA,
+                android.provider.MediaStore.Audio.Media.SIZE,
+                android.provider.MediaStore.Audio.Media.DATE_MODIFIED,
+            )
+            val selection = "${android.provider.MediaStore.Audio.Media.IS_MUSIC} != 0"
+            val cursor = ctx.contentResolver.query(uri, projection, selection, null, null)
+            val tracks = org.json.JSONArray()
+            cursor?.use {
+                while (it.moveToNext()) {
+                    val path = it.getString(4) ?: ""
+                    if (path.isEmpty()) continue
+                    val track = JSObject().apply {
+                        put("id", it.getLong(0))
+                        put("title", it.getString(1) ?: "Unknown")
+                        put("artist", it.getString(2) ?: "Unknown")
+                        put("album", it.getString(3) ?: "Unknown")
+                        put("path", path)
+                        put("size", it.getLong(5))
+                        put("mtime", it.getLong(6))
+                    }
+                    tracks.put(track)
+                }
+            }
+            call.resolve(JSObject().apply { put("tracks", tracks) })
+        } catch (e: Exception) {
+            call.reject("Failed to scan local music", e)
         }
     }
 }

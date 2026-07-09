@@ -29,13 +29,16 @@ export interface AdminUser {
 }
 
 const POLL_INTERVAL = 15_000
+const PAGE_SIZE = 50
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('sinc_token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-export function useAdmin() {
+export type ToggleResult = 'ok' | 'unauthorized' | 'error'
+
+export function useAdmin({ enabled = true }: { enabled?: boolean } = {}) {
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [usersTotal, setUsersTotal] = useState(0)
@@ -43,10 +46,14 @@ export function useAdmin() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [hasMore, setHasMore] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const aborterRef = useRef<AbortController | null>(null)
+  const searchRef = useRef('')
+  const offsetRef = useRef(0)
 
-  const loadData = useCallback(async (silent = false) => {
+  const loadData = useCallback(async (silent = false, append = false) => {
     if (aborterRef.current) aborterRef.current.abort()
     const controller = new AbortController()
     aborterRef.current = controller
@@ -56,9 +63,12 @@ export function useAdmin() {
     setError(null)
     try {
       const headers = authHeaders()
+      const currentOffset = append ? offsetRef.current : 0
+      const q = searchRef.current
+      const searchParam = q ? `&q=${encodeURIComponent(q)}` : ''
       const [statsRes, usersRes] = await Promise.all([
         fetch(apiUrl('/api/admin/stats'), { headers, signal: controller.signal }),
-        fetch(apiUrl('/api/admin/users?limit=200'), { headers, signal: controller.signal }),
+        fetch(apiUrl(`/api/admin/users?limit=${PAGE_SIZE}&offset=${currentOffset}${searchParam}`), { headers, signal: controller.signal }),
       ])
       if (!statsRes.ok || !usersRes.ok) {
         throw new Error('Failed to load admin data')
@@ -66,8 +76,15 @@ export function useAdmin() {
       const statsData = await statsRes.json()
       const usersData = await usersRes.json()
       setStats(statsData)
-      setUsers(usersData.users || [])
-      setUsersTotal(usersData.total || 0)
+      if (append) {
+        setUsers(prev => [...prev, ...(usersData.users || [])])
+      } else {
+        setUsers(usersData.users || [])
+      }
+      const total = usersData.total || 0
+      setUsersTotal(total)
+      setHasMore((currentOffset + PAGE_SIZE) < total)
+      offsetRef.current = currentOffset + PAGE_SIZE
       setLastUpdated(new Date())
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -79,15 +96,37 @@ export function useAdmin() {
   }, [])
 
   useEffect(() => {
+    if (!enabled) return
+    offsetRef.current = 0
+    setUsers([])
     loadData(true)
-    pollRef.current = setInterval(() => loadData(true), POLL_INTERVAL)
+    const startPolling = () => {
+      pollRef.current = setInterval(() => loadData(true), POLL_INTERVAL)
+    }
+    const stopPolling = () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadData(true)
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+    startPolling()
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+      stopPolling()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       if (aborterRef.current) aborterRef.current.abort()
     }
-  }, [loadData])
+  }, [enabled, loadData])
 
-  const toggleUserActive = useCallback(async (userId: string, currentlyActive: boolean) => {
+  const toggleUserActive = useCallback(async (userId: string, currentlyActive: boolean): Promise<ToggleResult> => {
     try {
       const headers = { ...authHeaders(), 'Content-Type': 'application/json' }
       const res = await fetch(apiUrl(`/api/admin/${userId}`), {
@@ -97,13 +136,23 @@ export function useAdmin() {
       })
       if (res.ok) {
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !currentlyActive } : u))
-        return true
+        return 'ok'
       }
-      return false
+      if (res.status === 401) return 'unauthorized'
+      return 'error'
     } catch {
-      return false
+      return 'error'
     }
   }, [])
 
-  return { stats, users, usersTotal, loading, refreshing, error, lastUpdated, loadData, toggleUserActive }
+  const loadMore = useCallback(() => {
+    loadData(true, true)
+  }, [loadData])
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value)
+    searchRef.current = value
+  }, [])
+
+  return { stats, users, usersTotal, loading, refreshing, error, lastUpdated, loadData, toggleUserActive, searchQuery, handleSearchChange, hasMore, loadMore }
 }

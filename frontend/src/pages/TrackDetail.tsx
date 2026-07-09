@@ -88,8 +88,16 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
         streamUrl: info.audioUrl || undefined,
         timestamp: Date.now(),
       })
-    } catch {
-      toast('Could not find audio source', 'error')
+    } catch (err: any) {
+      if (err?.type === 'rate_limited') {
+        toast('Source is busy — try again in a moment', 'error')
+      } else if (err?.type === 'scrape_blocked') {
+        toast('Source blocked the request — try a different source', 'error')
+      } else if (err?.type === 'source_unavailable') {
+        toast('This track is not available on any source', 'error')
+      } else {
+        toast(err?.message || 'Could not find audio source', 'error')
+      }
     } finally {
       setPlaying(false)
     }
@@ -123,8 +131,7 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32">
       <button
         onClick={() => navigate(-1)}
-        className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white active:scale-90 transition-transform"
-        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+        className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white active:scale-90 transition-transform safe-top-1rem"
         aria-label="Go back"
       >
         <ArrowLeft className="w-5 h-5" aria-hidden="true" />

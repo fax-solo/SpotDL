@@ -61,15 +61,16 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
       onTouchEnd={handleTouchEnd}
     >
       <div
+        ref={el => { if (el) el.style.height = `${pullDistance}px` }}
         className="flex items-center justify-center transition-[height] duration-200 overflow-hidden"
-        style={{ height: pullDistance }}
       >
         <RefreshCw
-          className={`w-6 h-6 text-accent ${refreshing ? 'animate-spin' : ''}`}
-          style={{
-            transform: `rotate(${pullDistance * 3}deg)`,
-            transition: refreshing ? 'none' : 'transform 0.1s ease',
+          ref={el => {
+            if (!el) return
+            el.style.transform = `rotate(${pullDistance * 3}deg)`
+            el.style.transition = refreshing ? 'none' : 'transform 0.1s ease'
           }}
+          className={`w-6 h-6 text-accent ${refreshing ? 'animate-spin' : ''}`}
         />
       </div>
       {children}

@@ -187,8 +187,7 @@ export function ArtistPage(_props: ArtistPageProps) {
 
         <button
           onClick={() => navigate(-1)}
-          className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white active:scale-90 transition-transform"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+          className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white active:scale-90 transition-transform safe-top-1rem"
           aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5" aria-hidden="true" />
@@ -343,7 +342,7 @@ export function ArtistPage(_props: ArtistPageProps) {
                       <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-accent rounded-full"
-                          style={{ width: `${pct}%` }}
+                          ref={el => { if (el) el.style.width = `${pct}%` }}
                         />
                       </div>
                     </div>
@@ -361,7 +360,7 @@ export function ArtistPage(_props: ArtistPageProps) {
             <Music className="w-4 h-4 text-accent" />
             <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Featuring</h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-2">
             {artist.featuring.slice(0, 10).map((album, _i) => (
               <button
                 key={album.id}
@@ -387,7 +386,7 @@ export function ArtistPage(_props: ArtistPageProps) {
             <Users className="w-4 h-4 text-accent" />
             <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Fans Also Like</h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pb-4">
             {artist.related_artists.slice(0, 10).map((ra, _i) => (
               <button
                 key={ra.id}

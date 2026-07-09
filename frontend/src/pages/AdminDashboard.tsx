@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Users, Download, UserCheck, UserPlus, Globe, Shield,
@@ -7,7 +7,8 @@ import {
   Search, Clock, AlertTriangle, X,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { useAdmin, type AdminUser } from '../hooks/useAdmin'
+import { useAdmin, type AdminUser, type ToggleResult } from '../hooks/useAdmin'
+import { useToast } from '../components/Toast'
 
 function StatCard({ icon, label, value, sub, color, trend }: {
   icon: React.ReactNode
@@ -51,8 +52,8 @@ function MiniBar({ data, height = 40 }: { data: { date: string; downloads: numbe
               {d.downloads}
             </span>
             <div
+              ref={el => { if (el) el.style.height = `${Math.max(h, 2)}px` }}
               className="w-full rounded-sm bg-accent/60 dark:bg-accent/40 transition-all hover:bg-accent/80"
-              style={{ height: Math.max(h, 2) }}
             />
             <span className="text-[9px] text-light-muted dark:text-dark-muted tabular-nums">{day}</span>
           </div>
@@ -202,12 +203,13 @@ function UserCard({ user, onToggle, toggling }: {
 export function AdminDashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { stats, users, usersTotal, loading, refreshing, error, lastUpdated, loadData, toggleUserActive } = useAdmin()
+  const { toast } = useToast()
+  const { stats, users, usersTotal, loading, refreshing, error, lastUpdated, loadData, toggleUserActive, searchQuery, handleSearchChange, hasMore, loadMore } = useAdmin({ enabled: user?.role === 'admin' })
   const [tab, setTab] = useState<'overview' | 'users'>('overview')
   const [showInactive, setShowInactive] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
   const [confirmUser, setConfirmUser] = useState<AdminUser | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (user && user.role !== 'admin') {
@@ -215,27 +217,31 @@ export function AdminDashboard() {
     }
   }, [user, navigate])
 
+  const onSearchInput = (value: string) => {
+    handleSearchChange(value)
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      loadData(false, false)
+    }, 300)
+  }
+
   const filteredUsers = useMemo(() => {
     let list = showInactive ? users : users.filter(u => u.is_active)
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      list = list.filter(u =>
-        (u.display_name && u.display_name.toLowerCase().includes(q)) ||
-        (u.email && u.email.toLowerCase().includes(q)) ||
-        u.auth_provider.toLowerCase().includes(q) ||
-        u.id.toLowerCase().includes(q)
-      )
-    }
     return list
-  }, [users, showInactive, searchQuery])
+  }, [users, showInactive])
 
   const handleToggle = async (u: AdminUser) => {
     if (u.is_active) {
       setConfirmUser(u)
     } else {
       setTogglingId(u.id)
-      await toggleUserActive(u.id, u.is_active)
+      const result: ToggleResult = await toggleUserActive(u.id, u.is_active)
       setTogglingId(null)
+      if (result === 'unauthorized') {
+        toast('Session expired — please log in again', 'error')
+      } else if (result !== 'ok') {
+        toast('Failed to update user — try again', 'error')
+      }
     }
   }
 
@@ -243,8 +249,13 @@ export function AdminDashboard() {
     if (!confirmUser) return
     setTogglingId(confirmUser.id)
     setConfirmUser(null)
-    await toggleUserActive(confirmUser.id, confirmUser.is_active)
+    const result: ToggleResult = await toggleUserActive(confirmUser.id, confirmUser.is_active)
     setTogglingId(null)
+    if (result === 'unauthorized') {
+      toast('Session expired — please log in again', 'error')
+    } else if (result !== 'ok') {
+      toast('Failed to update user — try again', 'error')
+    }
   }
 
   if (loading && !stats) {
@@ -394,7 +405,7 @@ export function AdminDashboard() {
                     <span className="text-light-text dark:text-dark-text font-medium tabular-nums">{value}</span>
                   </div>
                   <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-                    <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${(value / Math.max(stats.total_users, 1)) * 100}%` }} />
+                    <div ref={el => { if (el) el.style.width = `${(value / Math.max(stats.total_users, 1)) * 100}%` }} className={`h-full rounded-full ${color} transition-all`} />
                   </div>
                 </div>
               ))}
@@ -422,7 +433,7 @@ export function AdminDashboard() {
               <Activity className="w-4 h-4 text-accent" />
               <h3 className="text-sm font-semibold text-light-text dark:text-dark-text">Downloads — Last 7 Days</h3>
             </div>
-            <div style={{ height: 50 }}>
+            <div className="h-[50px]">
               <MiniBar data={stats.last_7_days} />
             </div>
           </div>
@@ -436,7 +447,7 @@ export function AdminDashboard() {
               <span className="text-lg font-bold text-accent tabular-nums">{stats.active_this_month}</span>
             </div>
             <div className="mt-3 h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
-              <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(stats.active_this_month / Math.max(stats.total_users, 1)) * 100}%` }} />
+              <div ref={el => { if (el) el.style.width = `${(stats.active_this_month / Math.max(stats.total_users, 1)) * 100}%` }} className="h-full rounded-full bg-accent transition-all" />
             </div>
             <p className="text-xs text-light-muted dark:text-dark-muted mt-1.5">
               {((stats.active_this_month / Math.max(stats.total_users, 1)) * 100).toFixed(1)}% of all users
@@ -454,12 +465,12 @@ export function AdminDashboard() {
                 type="text"
                 placeholder="Search users..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => onSearchInput(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder-light-muted dark:placeholder-dark-muted focus:outline-none focus:border-accent/50 transition-colors"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                    onClick={() => { handleSearchChange(''); loadData(false, false) }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -492,7 +503,7 @@ export function AdminDashboard() {
                 </p>
                 {searchQuery && (
                   <button
-                    onClick={() => setSearchQuery('')}
+                  onClick={() => { handleSearchChange(''); loadData(false, false) }}
                     className="mt-2 text-xs text-accent hover:underline cursor-pointer"
                   >
                     Clear search
@@ -500,14 +511,24 @@ export function AdminDashboard() {
                 )}
               </div>
             ) : (
-              filteredUsers.map(u => (
-                <UserCard
-                  key={u.id}
-                  user={u}
-                  onToggle={handleToggle}
-                  toggling={togglingId === u.id}
-                />
-              ))
+              <>
+                {filteredUsers.map(u => (
+                  <UserCard
+                    key={u.id}
+                    user={u}
+                    onToggle={handleToggle}
+                    toggling={togglingId === u.id}
+                  />
+                ))}
+                {hasMore && (
+                  <button
+                    onClick={loadMore}
+                    className="w-full py-3 rounded-xl text-sm font-medium text-accent hover:bg-accent/5 border border-dashed border-light-border/50 dark:border-dark-border/50 transition-colors cursor-pointer"
+                  >
+                    Load more ({usersTotal - users.length} remaining)
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

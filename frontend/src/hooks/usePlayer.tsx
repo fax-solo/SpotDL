@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { getAudioSrc } from '../lib/capacitorBridge'
 import { findAudio } from '../lib/sources'
 import { getCrossfadeDuration } from '../lib/crossfadeSettings'
@@ -346,7 +347,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           artwork: track.artworkUrl ? [{ src: track.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : []
         })
       }
-      sendBackgroundPlaybackNotification({ title: track.title, artist: track.artist, artworkUrl: track.artworkUrl })
+      const { Capacitor } = await import('@capacitor/core')
+      if (!Capacitor.isNativePlatform()) {
+        sendBackgroundPlaybackNotification({ title: track.title, artist: track.artist, artworkUrl: track.artworkUrl })
+      }
       await ensureNotificationPermission()
       startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined)
     } catch {
@@ -551,6 +555,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler('nexttrack', next)
     }
   }, [resume, pause, prev, next])
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    let cleanups: (() => void)[] = []
+    const register = async () => {
+      try {
+        const mod = await import('@capacitor/core')
+        const SpotDL = mod.registerPlugin<{ addListener: (event: string, cb: () => void) => Promise<{ remove: () => void }> }>('SpotDL')
+        const h1 = (await SpotDL.addListener('mediaPlay', () => { resume() })).remove
+        const h2 = (await SpotDL.addListener('mediaPause', () => { pause() })).remove
+        const h3 = (await SpotDL.addListener('mediaNext', () => { next() })).remove
+        const h4 = (await SpotDL.addListener('mediaPrevious', () => { prev() })).remove
+        cleanups = [h1, h2, h3, h4]
+      } catch {}
+    }
+    register()
+    return () => { cleanups.forEach(h => h()) }
+  }, [resume, pause, next, prev])
 
   return (
     <PlayerContext.Provider value={{

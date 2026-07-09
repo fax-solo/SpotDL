@@ -231,14 +231,22 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
               set({ abortControllers: new Map(controllers) })
 
               try {
+                let lastNotifTime = 0
+                let lastNotifPct = -1
                 const result = await downloadTrack(item.track, (stage, pct) => {
                   if (get().queue.some(q => q.id === item.id)) {
                     get()._updateProgress(item.id, { stage, pct: pct ?? null })
-                    updateDownloadForeground(
-                      `${item.track.artist} - ${item.track.title}`,
-                      get().queue.filter(q => !q.done && !q.failed).length,
-                      pct ?? undefined,
-                    )
+                    const now = Date.now()
+                    const pctInt = pct !== undefined ? Math.round(pct) : -1
+                    if (now - lastNotifTime >= 400 || pctInt === 100 || pctInt !== lastNotifPct) {
+                      lastNotifTime = now
+                      lastNotifPct = pctInt
+                      updateDownloadForeground(
+                        `${item.track.artist} - ${item.track.title}`,
+                        get().queue.filter(q => !q.done && !q.failed).length,
+                        pct ?? undefined,
+                      )
+                    }
                   }
                 }, controller.signal)
 

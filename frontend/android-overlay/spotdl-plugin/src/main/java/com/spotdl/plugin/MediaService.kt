@@ -9,6 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
@@ -18,10 +21,55 @@ import androidx.media.app.NotificationCompat.MediaStyle
 import java.net.URL
 import java.util.concurrent.Executors
 
-class MediaService : Service() {
+class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
     private var mediaSession: MediaSession? = null
     private var cachedArtwork: Bitmap? = null
     private val executor = Executors.newSingleThreadExecutor()
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var hasAudioFocus = false
+
+    override fun onAudioFocusChange(focusChange: Int) {
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                hasAudioFocus = false
+                broadcastMediaAction(MEDIA_ACTION_PAUSE)
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                hasAudioFocus = true
+            }
+        }
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setOnAudioFocusChangeListener(this)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                .build()
+            audioFocusRequest = request
+            return am.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+        return am.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+                == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { am.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            am.abandonAudioFocus(this)
+        }
+        hasAudioFocus = false
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -38,6 +86,7 @@ class MediaService : Service() {
     }
 
     override fun onDestroy() {
+        abandonAudioFocus()
         executor.shutdownNow()
         mediaSession?.isActive = false
         mediaSession?.release()
@@ -55,6 +104,8 @@ class MediaService : Service() {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Playing"
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
                 val artworkUrl = intent.getStringExtra(EXTRA_ARTWORK_URL)
+                currentTitle = title
+                requestAudioFocus()
                 loadArtwork(artworkUrl)
                 updatePlaybackState(title, artist, true)
                 try {
@@ -68,12 +119,14 @@ class MediaService : Service() {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Playing"
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
                 val artworkUrl = intent.getStringExtra(EXTRA_ARTWORK_URL)
+                currentTitle = title
                 loadArtwork(artworkUrl)
                 updatePlaybackState(title, artist, true)
                 val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(NOTIFICATION_ID, createNotification(title, artist))
             }
             ACTION_STOP -> {
+                abandonAudioFocus()
                 updatePlaybackState(null, null, false)
                 cachedArtwork = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -99,7 +152,7 @@ class MediaService : Service() {
                     cachedArtwork = bitmap
                     val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     notificationManager.notify(NOTIFICATION_ID, createNotification(
-                        (if (intentHasExtra("title")) "Playing" else "Track"),
+                        currentTitle ?: "Track",
                         ""
                     ))
                 }
@@ -109,7 +162,7 @@ class MediaService : Service() {
         }
     }
 
-    private fun intentHasExtra(name: String): Boolean = true // placeholder; real state tracked differently
+    private var currentTitle: String? = null
 
     private fun updatePlaybackState(title: String?, artist: String?, playing: Boolean) {
         mediaSession?.apply {

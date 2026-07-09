@@ -242,6 +242,29 @@ npx cap sync android
 npx cap open android
 ```
 
+### Schema Management
+
+Database schema changes are managed through **Alembic migrations** (the single source of truth).
+`Base.metadata.create_all()` in `init_db()` is kept as a fallback for fresh databases only.
+
+- **Adding a migration:** `alembic revision --autogenerate -m "description"` after modifying `models.py`
+- **Applying migrations:** `alembic upgrade head` (runs automatically on container startup via `Dockerfile`'s `CMD`)
+- **Rolling back:** `alembic downgrade -1`
+- **Migration history:** `alembic history`
+
+All schema changes MUST go through Alembic. `create_all()` cannot add/remove columns or change
+types on existing tables — only Alembic can handle that safely with production data.
+
+### Persistent Storage
+
+**The `api/data/` directory MUST reside on a persistent volume.** SQLite stores all user data,
+download history, admin stats, and the JWT secret fallback there. Without a persistent disk,
+everything is wiped on redeploy.
+
+- **Render (production):** A `disks:` entry in `render.yaml` mounts a 1GB volume at `/app/data`
+- **Docker Compose (local):** The `docker-compose.yml` volume mount `./api/data:/app/data`
+- **Manual:** Ensure the `data/` directory is outside the container or on a durable filesystem
+
 ### Environment Variables
 
 | Variable | Required | Default | Description |

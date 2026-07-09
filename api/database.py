@@ -11,7 +11,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(DATA_DIR, 'sinc.db')}")
 _ASYNC_DATABASE_URL = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://", 1)
 
-engine = create_async_engine(_ASYNC_DATABASE_URL, echo=False)
+engine = create_async_engine(_ASYNC_DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
 SessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 SECRETS_FILE = os.path.join(DATA_DIR, "secrets.json")
@@ -74,6 +74,9 @@ async def _seed_admin():
 
 
 async def init_db():
+    async with engine.connect() as conn:
+        await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+        await conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _seed_admin()

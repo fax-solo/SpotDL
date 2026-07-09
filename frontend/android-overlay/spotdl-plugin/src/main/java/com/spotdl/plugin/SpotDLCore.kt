@@ -1,6 +1,7 @@
 package com.spotdl.plugin
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import org.apache.commons.io.FileUtils
@@ -9,6 +10,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.lang.reflect.Field
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -134,12 +136,25 @@ class SpotDLCore {
         }
     }
 
+    private fun getPid(process: Process): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            process.pid()
+        } else {
+            try {
+                val field: Field = process.javaClass.getDeclaredField("pid")
+                field.isAccessible = true
+                field.getInt(process)
+            } catch (_: Exception) {
+                -1
+            }
+        }
+    }
+
     fun startServer(context: Context) {
         if (serverProcess?.isAlive == true) return
 
         val command = listOf(
-            pythonPath.absolutePath,
-            serverScript.absolutePath,
+            "sh", "-c", "exec ${pythonPath.absolutePath} ${serverScript.absolutePath}"
         )
 
         val pb = ProcessBuilder(command)
@@ -194,6 +209,12 @@ class SpotDLCore {
     fun stopServer() {
         serverProcess?.let {
             if (it.isAlive) {
+                val pid = getPid(it)
+                if (pid > 0) {
+                    try {
+                        Runtime.getRuntime().exec(arrayOf("kill", "-9", "-$pid")).waitFor()
+                    } catch (_: Exception) {}
+                }
                 it.destroy()
                 try { it.waitFor(3, TimeUnit.SECONDS) } catch (_: Exception) {}
                 if (it.isAlive) it.destroyForcibly()

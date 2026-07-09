@@ -88,7 +88,7 @@ export function Home() {
 
   return (
     <PullToRefresh onRefresh={async () => { await Promise.all([loadCategories(), loadNewReleases(), loadRecentlyPlayed()]) }}>
-      <div className="px-4 pt-6 pb-32">
+      <div className="px-4 pt-6 pb-32 safe-area-top">
         <div
           className="mb-4"
         >
@@ -117,7 +117,7 @@ export function Home() {
               <Sparkles className="w-4 h-4 text-accent" />
               <h2 className="text-lg font-bold text-light-text dark:text-dark-text">New Releases</h2>
             </div>
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2">
               {newReleases.map((album, i) => (
                 <button
                   key={album.id}
@@ -223,7 +223,7 @@ export function Home() {
                 {categories.map(cat => (
                   <div key={cat.name} className="mb-6">
                     <h2 className="text-lg font-bold text-light-text dark:text-dark-text mb-3">{cat.name}</h2>
-                    <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2">
                       {cat.playlists.map((p, i) => (
                         <PlaylistCard key={p.id} playlist={p} onClick={() => openPlaylist(p.id)} index={i} />
                       ))}

@@ -191,7 +191,7 @@ export function PlayerScreen() {
   // ── Library view (no track selected) ──
   if (!currentTrack) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col">
+      <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col safe-area-top">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-6 pb-4">
           <h1 className="text-2xl font-bold">Your Library</h1>
@@ -433,7 +433,7 @@ export function PlayerScreen() {
   const pageRef = useRef<HTMLDivElement>(null)
 
   return (
-    <div className="h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col overflow-hidden">
+    <div className="h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col overflow-hidden safe-area-top safe-area-bottom">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
         <button
@@ -574,12 +574,12 @@ export function PlayerScreen() {
             className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full cursor-pointer group relative"
           >
             <div
+              ref={el => { if (el) el.style.width = `${progress}%` }}
               className="h-full bg-accent rounded-full relative"
-              style={{ width: `${progress}%` }}
             />
             <div
+              ref={el => { if (el) el.style.left = `calc(${progress}% - 7px)` }}
               className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ left: `calc(${progress}% - 7px)` }}
             />
           </div>
           <div className="flex justify-between mt-1.5">

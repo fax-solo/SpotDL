@@ -1,5 +1,6 @@
 import { Clock, Trash2, Download, ChevronDown, ChevronUp, Play } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
+import { Capacitor } from '@capacitor/core'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { ArtworkImage } from './ArtworkImage'
 
@@ -58,6 +59,11 @@ function SwipeableRow({
     if (offsetX > threshold) {
       setShowDelete(true)
       setOffsetX(80)
+      if (Capacitor.isNativePlatform()) {
+        import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => {
+          Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {})
+        }).catch(() => {})
+      }
     } else {
       setShowDelete(false)
       setOffsetX(0)
@@ -67,11 +73,17 @@ function SwipeableRow({
   return (
     <div className="relative overflow-hidden">
       <div
-        className={`absolute inset-y-0 right-0 flex items-center justify-end bg-red-500/10 dark:bg-red-500/15 transition-opacity duration-200 ${showDelete ? 'opacity-100' : 'opacity-0'}`}
-        style={{ width: 80 }}
+        className={`absolute inset-y-0 right-0 flex items-center justify-end bg-red-500/10 dark:bg-red-500/15 transition-opacity duration-200 w-20 ${showDelete ? 'opacity-100' : 'opacity-0'}`}
       >
         <button
-          onClick={() => onRemove(entry.id)}
+          onClick={() => {
+            if (Capacitor.isNativePlatform()) {
+              import('@capacitor/haptics').then(({ Haptics, NotificationType }) => {
+                Haptics.notification({ type: NotificationType.Warning }).catch(() => {})
+              }).catch(() => {})
+            }
+            onRemove(entry.id)
+          }}
           className="px-4 py-2 text-red-500 focus-visible:ring-2 focus-visible:ring-red-400 cursor-pointer"
           aria-label="Delete entry"
         >
@@ -79,11 +91,15 @@ function SwipeableRow({
         </button>
       </div>
       <div
+        ref={el => {
+          if (!el) return
+          el.style.transform = `translateX(${offsetX}px)`
+          el.style.transition = dragging.current ? 'none' : 'transform 0.2s'
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-dark-bg relative z-10 transition-colors select-none"
-        style={{ touchAction: 'pan-x', transform: `translateX(${offsetX}px)`, transition: dragging.current ? 'none' : 'transform 0.2s' }}
+        className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-dark-bg relative z-10 transition-colors select-none touch-pan-x"
       >
         <ArtworkImage
           src={entry.artworkUrl}
@@ -121,7 +137,14 @@ function SwipeableRow({
             <Download className="w-4 h-4" />
           </button>
           <button
-            onClick={() => onRemove(entry.id)}
+            onClick={() => {
+              if (Capacitor.isNativePlatform()) {
+                import('@capacitor/haptics').then(({ Haptics, NotificationType }) => {
+                  Haptics.notification({ type: NotificationType.Warning }).catch(() => {})
+                }).catch(() => {})
+              }
+              onRemove(entry.id)
+            }}
             className="p-3 rounded-xl text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-red-400 transition-colors cursor-pointer"
             aria-label="Remove entry"
           >

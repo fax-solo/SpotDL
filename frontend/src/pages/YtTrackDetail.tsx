@@ -86,8 +86,7 @@ export function YtTrackDetail() {
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32">
       <button
         onClick={() => navigate(-1)}
-        className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white"
-        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+        className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white safe-top-1rem"
         aria-label="Go back"
       >
         <ArrowLeft className="w-5 h-5" aria-hidden="true" />
@@ -130,8 +129,8 @@ export function YtTrackDetail() {
           >
             {downloading && (
               <div 
+                ref={el => { if (el) el.style.width = `${downloadProgress}%` }}
                 className="absolute left-0 top-0 bottom-0 bg-red-600 transition-all duration-300"
-                style={{ width: `${downloadProgress}%` }}
               />
             )}
             <span className="relative flex items-center gap-2 z-10">

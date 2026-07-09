@@ -42,6 +42,9 @@ def _hash_password(password: str) -> str:
 def _verify_password(password: str, stored_hash: str) -> bool:
     if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
         return bcrypt.checkpw(password.encode(), stored_hash.encode())
+    # Legacy SHA256 fallback for users who signed up before bcrypt was introduced.
+    # New password hashes are always bcrypt. This path can be removed once all
+    # legacy-format hashes have been upgraded via the login flow.
     expected = hashlib.sha256((password + JWT_SECRET).encode()).hexdigest()
     return secrets.compare_digest(stored_hash, expected)
 
@@ -129,8 +132,10 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or disabled")
-    user.last_active = _utcnow()
-    await db.commit()
+    now = _utcnow()
+    if user.last_active is None or (now - user.last_active).total_seconds() > 300:
+        user.last_active = now
+        await db.commit()
     return user
 
 

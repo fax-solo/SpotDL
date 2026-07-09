@@ -52,7 +52,7 @@ export function BottomSheet({ open, onClose, children, title }: BottomSheetProps
             onClick={onClose}
           />
           <div
-            style={{ transform: `translateY(${sheetY}px)` }}
+            ref={el => { if (el) el.style.transform = `translateY(${sheetY}px)` }}
             className="relative w-full max-h-[85vh] bg-white dark:bg-dark-surface rounded-t-2xl overflow-hidden shadow-xl"
           >
             <div

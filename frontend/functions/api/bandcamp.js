@@ -1,5 +1,11 @@
-const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+import { fetchWithRetry, scrapeResponse, scrapeError } from './_lib/retry.js'
+import { scrapeLog, errorType } from './_lib/log.js'
+
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+const HEADERS = { 'User-Agent': BROWSER_UA }
+
+function hasClientChallenge(html) {
+  return html.includes('Client Challenge') || html.includes('_fs-ch-')
 }
 
 export async function onRequest(context) {
@@ -12,29 +18,31 @@ export async function onRequest(context) {
 
     if (action === 'search') return await handleSearch(query)
     if (action === 'info') return await handleInfo(url)
-    return new Response(JSON.stringify({ error: 'Invalid action' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return scrapeError('invalid_action', 'Invalid action', 400)
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    scrapeLog('bandcamp', 'error', { message: err.message })
+    return scrapeError('internal_error', err.message, 500)
   }
 }
 
 async function handleSearch(query) {
+  const searchUrl = `https://bandcamp.com/search?q=${encodeURIComponent(query)}&item_type=t`
+
   try {
-    const searchUrl = `https://bandcamp.com/search?q=${encodeURIComponent(query)}&item_type=t`
-    const res = await fetch(searchUrl, { headers: HEADERS })
+    const res = await fetchWithRetry(searchUrl, { headers: HEADERS }, {
+      retries: 2,
+      baseDelay: 1000,
+      timeout: 10000,
+      onRetry: ({ attempt, status, delay }) => {
+        scrapeLog('bandcamp', 'search_retry', { query, attempt, status, delay })
+      },
+    })
+
     const html = await res.text()
 
-    if (html.includes('Client Challenge') || html.includes('_fs-ch-')) {
-      return new Response(JSON.stringify({ results: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    if (hasClientChallenge(html)) {
+      scrapeLog('bandcamp', 'search_blocked', { query })
+      return scrapeError('scrape_blocked', 'Bandcamp blocked the search request', 502)
     }
 
     const results = []
@@ -48,43 +56,50 @@ async function handleSearch(query) {
       }
     }
 
-    return new Response(JSON.stringify({ results: results.slice(0, 5) }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  } catch {
-    return new Response(JSON.stringify({ results: [] }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    if (results.length === 0) {
+      scrapeLog('bandcamp', 'search_no_results', { query, html_length: html.length })
+      return scrapeError('source_unavailable', 'No Bandcamp tracks found for this query', 502)
+    }
+
+    scrapeLog('bandcamp', 'search_ok', { query, results: results.length })
+    return scrapeResponse({ results: results.slice(0, 5) })
+  } catch (err) {
+    if (err instanceof Response) {
+      const et = errorType(err.status, 'Bandcamp')
+      scrapeLog('bandcamp', 'search_failed', { query, status: err.status })
+      return scrapeError(et.type, et.message, err.status === 429 ? 429 : 502)
+    }
+    scrapeLog('bandcamp', 'search_exception', { query, message: err.message })
+    return scrapeError('source_unavailable', 'Bandcamp search failed', 502)
   }
 }
 
 async function handleInfo(trackUrl) {
+  let parsedUrl
   try {
-    let parsedUrl
-    try {
-      parsedUrl = new URL(trackUrl)
-      if (!parsedUrl.hostname.endsWith('.bandcamp.com') && parsedUrl.hostname !== 'bandcamp.com') {
-        return new Response(JSON.stringify({ error: 'Invalid Bandcamp URL' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-    } catch {
-      return new Response(JSON.stringify({ error: 'Invalid URL' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    parsedUrl = new URL(trackUrl)
+    if (!parsedUrl.hostname.endsWith('.bandcamp.com') && parsedUrl.hostname !== 'bandcamp.com') {
+      return scrapeError('invalid_url', 'Invalid Bandcamp URL', 400)
     }
-    const res = await fetch(trackUrl, { headers: HEADERS })
+  } catch {
+    return scrapeError('invalid_url', 'Invalid URL', 400)
+  }
+
+  try {
+    const res = await fetchWithRetry(trackUrl, { headers: HEADERS }, {
+      retries: 2,
+      baseDelay: 1000,
+      timeout: 15000,
+      onRetry: ({ attempt, status, delay }) => {
+        scrapeLog('bandcamp', 'info_retry', { url: trackUrl, attempt, status, delay })
+      },
+    })
+
     const html = await res.text()
 
-    if (html.includes('Client Challenge') || html.includes('_fs-ch-')) {
-      return new Response(JSON.stringify({ error: 'Bandcamp page blocked by client challenge' }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    if (hasClientChallenge(html)) {
+      scrapeLog('bandcamp', 'info_blocked', { url: trackUrl })
+      return scrapeError('scrape_blocked', 'Bandcamp page blocked by client challenge', 502)
     }
 
     const tralbumMatch = html.match(/data-tralbum="([^"]+)"/)
@@ -94,57 +109,52 @@ async function handleInfo(trackUrl) {
         const track = data?.trackinfo?.[0] || {}
         const audioUrl = track.file?.['mp3-128'] || track.file?.['aac-hi'] || null
         if (audioUrl) {
-          return new Response(JSON.stringify({
+          scrapeLog('bandcamp', 'info_ok_data_tralbum', { url: trackUrl })
+          return scrapeResponse({
             title: track.title || extractOgTitle(html),
             author: data?.artist || extractOgAuthor(html) || 'Unknown',
             duration: String(track.duration || 0),
             audioUrl: audioUrl.replace(/\\\//g, '/').replace(/&amp;/g, '&'),
             thumbnail: data?.artThumbnailURL || data?.artFullsizeURL || extractOgImage(html),
-          }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
           })
         }
       } catch {}
     }
 
-    const audioUrl = extractOgAudio(html)
-    if (audioUrl) {
-      return new Response(JSON.stringify({
+    const audioUrlOg = extractOgAudio(html)
+    if (audioUrlOg) {
+      scrapeLog('bandcamp', 'info_ok_og_audio', { url: trackUrl })
+      return scrapeResponse({
         title: extractOgTitle(html) || 'Unknown',
         author: extractOgAuthor(html) || 'Unknown',
         duration: '0',
-        audioUrl,
+        audioUrl: audioUrlOg,
         thumbnail: extractOgImage(html),
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
       })
     }
 
     const inlineAudio = extractInlineAudio(html)
     if (inlineAudio) {
-      return new Response(JSON.stringify({
+      scrapeLog('bandcamp', 'info_ok_inline_audio', { url: trackUrl })
+      return scrapeResponse({
         title: extractOgTitle(html) || 'Unknown',
         author: extractOgAuthor(html) || 'Unknown',
         duration: '0',
         audioUrl: inlineAudio,
         thumbnail: extractOgImage(html),
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
       })
     }
 
-    return new Response(JSON.stringify({ error: 'No audio found on this page' }), {
-      status: 502,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    scrapeLog('bandcamp', 'info_no_audio', { url: trackUrl, html_length: html.length })
+    return scrapeError('source_unavailable', 'No audio found on this Bandcamp page', 502)
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 502,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    if (err instanceof Response) {
+      const et = errorType(err.status, 'Bandcamp')
+      scrapeLog('bandcamp', 'info_failed', { url: trackUrl, status: err.status })
+      return scrapeError(et.type, et.message, err.status === 429 ? 429 : 502)
+    }
+    scrapeLog('bandcamp', 'info_exception', { url: trackUrl, message: err.message })
+    return scrapeError('source_unavailable', 'Bandcamp info failed', 502)
   }
 }
 

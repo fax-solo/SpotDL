@@ -70,6 +70,7 @@ class DownloadService : Service() {
             .setContentText(body)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
             .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)

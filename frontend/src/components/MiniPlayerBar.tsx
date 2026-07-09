@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Play, Pause, ChevronUp, Shuffle, Repeat, Clock } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
 import { ArtworkImage } from './ArtworkImage'
 import { usePlayer } from '../hooks/usePlayer'
 import { useBottomBar } from '../hooks/useBottomBar'
@@ -28,11 +29,16 @@ export function MiniPlayerBar() {
   return (
     <div
       className={`fixed left-2 right-2 z-50 mx-auto max-w-xl pb-[env(safe-area-inset-bottom,0px)] ${
-        showBottomBar ? 'bottom-[66px]' : 'bottom-2'
+        showBottomBar
+          ? 'bottom-[calc(66px+env(safe-area-inset-bottom,0px))]'
+          : 'bottom-[calc(8px+env(safe-area-inset-bottom,0px))]'
       }`}
     >
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => navigate('/player')}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/player') } }}
         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white/95 dark:bg-dark-surface/95 backdrop-mobile border border-light-border/60 dark:border-dark-border/60 elevation-2 hover:shadow-md transition-shadow cursor-pointer text-left press-scale"
       >
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden elevation-1">
@@ -43,9 +49,16 @@ export function MiniPlayerBar() {
           <p className="text-xs text-light-muted dark:text-dark-muted truncate">{currentTrack.artist}</p>
         </div>
         <button
-          onClick={e => { e.stopPropagation(); isPlaying ? pause() : resume() }}
-          className="w-9 h-9 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer active:scale-90"
-          style={{ transition: 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)' }}
+          onClick={e => {
+            e.stopPropagation()
+            if (Capacitor.isNativePlatform()) {
+              import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => {
+                Haptics.impact({ style: ImpactStyle.Light }).catch(() => {})
+              }).catch(() => {})
+            }
+            isPlaying ? pause() : resume()
+          }}
+          className="w-9 h-9 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer active-scale"
         >
           {isPlaying ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white ml-0.5" />}
         </button>
@@ -62,7 +75,7 @@ export function MiniPlayerBar() {
           </div>
         )}
         <ChevronUp className="w-4 h-4 text-light-muted dark:text-dark-muted flex-shrink-0" />
-      </button>
+      </div>
     </div>
   )
 }

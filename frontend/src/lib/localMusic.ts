@@ -58,6 +58,26 @@ function trackFromPath(path: string): LocalTrack {
 export async function scanDeviceMusic(): Promise<LocalTrack[]> {
   if (!Capacitor.isNativePlatform()) return []
 
+  // Try native MediaStore query first (works on Android 11+)
+  try {
+    const { nativeScanLocalMusic } = await import('./nativePlugin')
+    const nativeTracks = await nativeScanLocalMusic()
+    if (nativeTracks.length > 0) {
+      return nativeTracks
+        .filter(t => t.path && isAudioFile(t.path))
+        .map(t => ({
+          name: t.title || t.path.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Unknown',
+          path: t.path,
+          uri: Capacitor.convertFileSrc(t.path),
+          size: t.size,
+          mtime: t.mtime,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    }
+  } catch {
+    // Fall through to filesystem scan
+  }
+
   const seen = new Set<string>()
   const all: LocalTrack[] = []
 

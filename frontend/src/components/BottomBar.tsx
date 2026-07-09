@@ -27,10 +27,7 @@ export function BottomBar() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white/85 dark:bg-dark-surface/85 backdrop-mobile border-t border-light-border dark:border-dark-border"
-      style={{
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      }}
+      className="fixed bottom-0 left-0 right-0 z-50 bg-white/85 dark:bg-dark-surface/85 backdrop-mobile border-t border-light-border dark:border-dark-border safe-area-bottom"
     >
       <div className="flex items-center justify-around max-w-lg mx-auto h-14">
         {TABS.map(tab => {

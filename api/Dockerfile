@@ -18,4 +18,4 @@ EXPOSE 8000
 
 USER spotdl
 
-CMD ["uvicorn", "index:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn index:app --host 0.0.0.0 --port 8000"]

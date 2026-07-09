@@ -202,8 +202,7 @@ export function PlaylistDetail(_props: PlaylistDetailProps) {
 
         <button
           onClick={() => navigate('/')}
-          className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white active:scale-90 transition-transform"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+          className="absolute left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 text-white active:scale-90 transition-transform safe-top-3rem"
           aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5" aria-hidden="true" />
@@ -257,8 +256,8 @@ export function PlaylistDetail(_props: PlaylistDetailProps) {
           </div>
           <div className="h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
             <div
+              ref={el => { if (el) el.style.width = `${(downloadedCount / tracks.length) * 100}%` }}
               className="h-full bg-green-500 rounded-full transition-all duration-500"
-              style={{ width: `${(downloadedCount / tracks.length) * 100}%` }}
             />
           </div>
         </div>
@@ -342,8 +341,8 @@ export function PlaylistDetail(_props: PlaylistDetailProps) {
                   <div className="px-3 pb-2">
                     <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
                       <div
+                        ref={el => { if (el) el.style.width = `${pct}%` }}
                         className="h-full bg-accent rounded-full"
-                        style={{ width: `${pct}%` }}
                       />
                     </div>
                   </div>

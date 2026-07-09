@@ -29,7 +29,14 @@ export interface PlaylistSummary {
   trackCount: number
 }
 
+function requireOnline(): void {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('No internet connection')
+  }
+}
+
 async function callSpotify(body: Record<string, unknown>): Promise<any> {
+  requireOnline()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12000)
   try {

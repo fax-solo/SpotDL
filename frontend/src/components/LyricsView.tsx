@@ -93,41 +93,24 @@ export function LyricsView({ trackName, artistName, albumName, duration, current
       {artworkUrl && (
         <>
           <div
-            className="fixed inset-0 -z-10 bg-black"
-            style={{
-              backgroundImage: `url(${artworkUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: 'blur(50px) brightness(0.35) saturate(1.2)',
-              transform: 'scale(1.15)',
-            }}
+            ref={el => { if (el) el.style.backgroundImage = `url(${artworkUrl})` }}
+            className="fixed inset-0 -z-10 bg-black lyrics-blur-bg"
           />
           {bgGradient && (
             <div
-              className="fixed inset-0 -z-10 opacity-40"
-              style={{
-                background: bgGradient,
-                mixBlendMode: 'overlay',
-              }}
+              ref={el => { if (el) el.style.background = bgGradient }}
+              className="fixed inset-0 -z-10 opacity-40 mix-blend-overlay"
             />
           )}
           <div
-            className="fixed inset-0 -z-10"
-            style={{
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.9) 100%)',
-            }}
+            className="fixed inset-0 -z-10 lyrics-fade-overlay"
           />
         </>
       )}
 
       <div className="relative z-10 w-full px-6 py-8">
         <div
-          className="rounded-2xl p-6 mx-auto max-w-lg"
-          style={{
-            background: artworkUrl ? 'rgba(0,0,0,0.25)' : undefined,
-            backdropFilter: artworkUrl ? 'blur(24px)' : undefined,
-            WebkitBackdropFilter: artworkUrl ? 'blur(24px)' : undefined,
-          }}
+          className={`rounded-2xl p-6 mx-auto max-w-lg ${artworkUrl ? 'lyrics-content-glass' : ''}`}
         >
           {syncedContent ? (
             <div ref={containerRef} className="w-full">

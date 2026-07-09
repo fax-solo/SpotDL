@@ -56,21 +56,81 @@ input, textarea, select, [contenteditable] {
 }
 
 /* --- Safe area helpers (edge-to-edge) --- */
+/* --sat/--sab are set by useEdgeToEdge; env() is iOS fallback */
 .safe-area-top {
-  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: var(--sat, env(safe-area-inset-top, 0px));
 }
 .safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
 }
 .safe-area-left {
-  padding-left: env(safe-area-inset-left, 0px);
+  padding-left: var(--sal, env(safe-area-inset-left, 0px));
 }
 .safe-area-right {
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-right: var(--sar, env(safe-area-inset-right, 0px));
 }
 .safe-area-y {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-top: var(--sat, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
+}
+
+/* Scrollbar hiding (cross-browser) */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch action overrides */
+.touch-pan-x {
+  touch-action: pan-x;
+}
+.touch-pan-y {
+  touch-action: pan-y;
+}
+
+/* Safe-area top offsets for detail pages */
+.safe-top-1rem {
+  top: calc(var(--sat, env(safe-area-inset-top, 0px)) + 1rem);
+}
+.safe-top-3rem {
+  top: calc(var(--sat, env(safe-area-inset-top, 0px)) + 3rem);
+}
+
+/* Drag transition for swipeable rows */
+.drag-transition {
+  transition: transform 0.2s;
+}
+
+/* Active press scale with custom easing */
+.active-scale {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.active-scale:active {
+  transform: scale(0.9);
+}
+
+/* Transition for transform property */
+.transition-transform-150 {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Lyrics view background effects */
+.lyrics-blur-bg {
+  background-size: cover;
+  background-position: center;
+  filter: blur(50px) brightness(0.35) saturate(1.2);
+  transform: scale(1.15);
+}
+.lyrics-fade-overlay {
+  background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.9) 100%);
+}
+.lyrics-content-glass {
+  background: rgba(0,0,0,0.25);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 /* --- Utility classes used by components --- */
