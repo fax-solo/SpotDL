@@ -238,7 +238,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                     get()._updateProgress(item.id, { stage, pct: pct ?? null })
                     const now = Date.now()
                     const pctInt = pct !== undefined ? Math.round(pct) : -1
-                    if (now - lastNotifTime >= 400 || pctInt === 100 || pctInt !== lastNotifPct) {
+                    if (pctInt === 100 || (now - lastNotifTime >= 400 && pctInt !== lastNotifPct)) {
                       lastNotifTime = now
                       lastNotifPct = pctInt
                       updateDownloadForeground(

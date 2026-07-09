@@ -52,6 +52,7 @@ export function useAdmin({ enabled = true }: { enabled?: boolean } = {}) {
   const aborterRef = useRef<AbortController | null>(null)
   const searchRef = useRef('')
   const offsetRef = useRef(0)
+  const loadedCountRef = useRef(0)
 
   const loadData = useCallback(async (silent = false, append = false) => {
     if (aborterRef.current) aborterRef.current.abort()
@@ -66,9 +67,10 @@ export function useAdmin({ enabled = true }: { enabled?: boolean } = {}) {
       const currentOffset = append ? offsetRef.current : 0
       const q = searchRef.current
       const searchParam = q ? `&q=${encodeURIComponent(q)}` : ''
+      const limit = (!append && loadedCountRef.current > PAGE_SIZE) ? Math.ceil(loadedCountRef.current / PAGE_SIZE) * PAGE_SIZE : PAGE_SIZE
       const [statsRes, usersRes] = await Promise.all([
         fetch(apiUrl('/api/admin/stats'), { headers, signal: controller.signal }),
-        fetch(apiUrl(`/api/admin/users?limit=${PAGE_SIZE}&offset=${currentOffset}${searchParam}`), { headers, signal: controller.signal }),
+        fetch(apiUrl(`/api/admin/users?limit=${limit}&offset=${currentOffset}${searchParam}`), { headers, signal: controller.signal }),
       ])
       if (!statsRes.ok || !usersRes.ok) {
         throw new Error('Failed to load admin data')
@@ -78,13 +80,15 @@ export function useAdmin({ enabled = true }: { enabled?: boolean } = {}) {
       setStats(statsData)
       if (append) {
         setUsers(prev => [...prev, ...(usersData.users || [])])
+        loadedCountRef.current += (usersData.users || []).length
       } else {
         setUsers(usersData.users || [])
+        loadedCountRef.current = (usersData.users || []).length
       }
       const total = usersData.total || 0
       setUsersTotal(total)
-      setHasMore((currentOffset + PAGE_SIZE) < total)
-      offsetRef.current = currentOffset + PAGE_SIZE
+      setHasMore((currentOffset + limit) < total)
+      offsetRef.current = currentOffset + limit
       setLastUpdated(new Date())
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return

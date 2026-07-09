@@ -69,12 +69,25 @@ export async function convertAudio(
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
   onDownloadProgress?: (pct: number | null) => void,
-  _durationMs?: number,
+  durationMs?: number,
 ): Promise<ArrayBuffer> {
   const instance = await getFFmpeg()
+  const convertStartTime = Date.now()
+  let hasNonZeroProgress = false
 
   const progressHandler = ({ progress }: { progress: number }) => {
-    const ratio = typeof progress === 'number' ? progress : 0
+    if (progress > 0) hasNonZeroProgress = true
+    let ratio = typeof progress === 'number' ? progress : 0
+
+    if (!hasNonZeroProgress && durationMs && durationMs > 0) {
+      const elapsed = (Date.now() - convertStartTime) / 1000
+      if (elapsed > 2) {
+        const expectedDuration = durationMs / 1000
+        const timeBased = Math.min(elapsed / expectedDuration, 0.9)
+        ratio = Math.max(ratio, timeBased)
+      }
+    }
+
     onProgress?.(Math.round(Math.min(ratio, 1) * 100))
   }
 

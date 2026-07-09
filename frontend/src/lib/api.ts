@@ -326,7 +326,7 @@ export async function downloadTrack(
           artworkUrl: meta.artwork_url,
         },
         (pct) => onProgress?.(`Converting...`, pct),
-        (pct) => onProgress?.(`Downloading...`, pct !== null ? Math.round(pct * 100) : 0),
+        (pct) => onProgress?.(`Downloading...`, pct !== null ? Math.round(pct * 100) : undefined),
         signal,
         quality,
         meta.duration_ms,
