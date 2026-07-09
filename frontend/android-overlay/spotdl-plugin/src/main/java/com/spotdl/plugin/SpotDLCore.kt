@@ -137,9 +137,10 @@ class SpotDLCore {
     }
 
     private fun getPid(process: Process): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            process.pid()
-        } else {
+        return try {
+            val pidMethod = process.javaClass.getMethod("pid")
+            pidMethod.invoke(process) as Int
+        } catch (_: Exception) {
             try {
                 val field: Field = process.javaClass.getDeclaredField("pid")
                 field.isAccessible = true

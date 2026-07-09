@@ -86,7 +86,7 @@ class SpotDLPlugin : Plugin() {
 
     @PluginMethod
     fun requestMediaAudioPermission(call: PluginCall) {
-        requestPermissionForAlias("mediaAudio", call)
+        requestPermissionForAlias("mediaAudio", call, "mediaAudioPermissionCallback")
     }
 
     @PluginMethod

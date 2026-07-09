@@ -17,7 +17,7 @@ import android.media.session.PlaybackState
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.media.app.NotificationCompat.MediaStyle
+import android.support.v4.media.session.MediaSessionCompat
 import java.net.URL
 import java.util.concurrent.Executors
 
@@ -56,8 +56,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
             audioFocusRequest = request
             return am.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         }
-        return am.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
-                == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return am.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
     private fun abandonAudioFocus() {
@@ -225,8 +224,8 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
         mediaSession?.let { session ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 builder.setStyle(
-                    MediaStyle()
-                        .setMediaSession(session.sessionToken)
+                    androidx.media.app.NotificationCompat.MediaStyle()
+                        .setMediaSession(MediaSessionCompat.Token.fromToken(session.sessionToken))
                         .setShowActionsInCompactView(0, 2)
                 )
             }
