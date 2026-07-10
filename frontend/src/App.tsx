@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate, Link, Navigate 
 import { FileQuestion, WifiOff, X } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
-import { MiniPlayerBar } from './components/MiniPlayerBar'
+
 import { ToastProvider, useToast } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -15,8 +15,7 @@ import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useShareTarget } from './hooks/useShareTarget'
 import { useNotificationActions } from './hooks/useNotificationActions'
 import { useBottomBar } from './hooks/useBottomBar'
-import { PlayerProvider, usePlayer } from './hooks/usePlayer'
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { PlayerProvider } from './hooks/usePlayer'
 import { useAuth } from './hooks/useAuth'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -36,7 +35,6 @@ const ArtistPage = lazy(() => import('./pages/ArtistPage').then(m => ({ default:
 const TrackDetail = lazy(() => import('./pages/TrackDetail').then(m => ({ default: m.TrackDetail })))
 const EpisodeDetail = lazy(() => import('./pages/EpisodeDetail').then(m => ({ default: m.EpisodeDetail })))
 const ShowDetail = lazy(() => import('./pages/ShowDetail').then(m => ({ default: m.ShowDetail })))
-const PlayerScreen = lazy(() => import('./pages/PlayerScreen').then(m => ({ default: m.PlayerScreen })))
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 const CallbackPage = lazy(() => import('./pages/CallbackPage').then(m => ({ default: m.CallbackPage })))
 const YtTrackDetail = lazy(() => import('./pages/YtTrackDetail').then(m => ({ default: m.YtTrackDetail })))
@@ -47,7 +45,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m
 const SignUpPage = lazy(() => import('./pages/SignUpPage').then(m => ({ default: m.SignUpPage })))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
 
-const PAGE_ORDER = ['/', '/download', '/history', '/settings', '/player']
+const PAGE_ORDER = ['/', '/download', '/history', '/settings']
 
 const PUBLIC_ROUTES = ['/', '/login', '/signup', '/callback']
 
@@ -121,7 +119,6 @@ function AppContent() {
         import('./pages/SearchPage')
         import('./pages/Downloader')
         import('./pages/HistoryPage')
-        import('./pages/PlayerScreen')
         import('./pages/LocalMusicPage')
       }, 1000)
       return () => clearTimeout(timer)
@@ -233,12 +230,9 @@ function AppContent() {
   }, [isNative, navigate])
 
   function isDetailPageRoute(path: string) {
-    return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/album/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/') || path === '/player'
+    return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/album/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/')
   }
 
-  usePlayer()
-  useKeyboardShortcuts()
-  const isPlayerPage = location.pathname === '/player'
   const bottomBarHidden = useBottomBar(s => s.hidden)
   const showBottomBar = isNative && !keyboardOpen && !bottomBarHidden
 
@@ -295,7 +289,6 @@ function AppContent() {
                         <Route path="/yt-track/:videoId" element={<RequireAuth><YtTrackDetail /></RequireAuth>} />
                         <Route path="/episode/:id" element={<RequireAuth><EpisodeDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/show/:id" element={<RequireAuth><ShowDetail /></RequireAuth>} />
-                        <Route path="/player" element={<RequireAuth><PlayerScreen /></RequireAuth>} />
                         <Route path="*" element={<NotFound />} />
                       </>
                     ) : (
@@ -307,7 +300,6 @@ function AppContent() {
                         <Route path="/sync" element={<RequireAuth><SyncPage /></RequireAuth>} />
                         <Route path="/local-music" element={<RequireAuth><LocalMusicPage /></RequireAuth>} />
                         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
-                        <Route path="/player" element={<RequireAuth><PlayerScreen /></RequireAuth>} />
                         <Route path="/callback" element={<CallbackPage />} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/signup" element={<SignUpPage />} />
@@ -328,7 +320,6 @@ function AppContent() {
         </Suspense>
       </ErrorBoundary>
       {showBottomBar && <BottomBar />}
-      {!isPlayerPage && <MiniPlayerBar />}
       <DownloadOverlay />
     </div>
   )
