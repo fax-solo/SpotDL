@@ -30,3 +30,6 @@ public/mipmap-anydpi-v26/
 *.njsproj
 *.sln
 *.sw?
+
+# Dev-server TypeScript cache
+.ts-cache/

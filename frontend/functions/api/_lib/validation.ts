@@ -21,10 +21,20 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required').max(128),
 })
 
-export const googleAuthSchema = z.object({
-  id_token: z.string().min(1, 'id_token is required'),
-  display_name: z.string().max(100).optional(),
+const idTokenSchema = z.object({
+  id_token: z.string().min(1),
 })
+
+const codeSchema = z.object({
+  code: z.string().min(1),
+  code_verifier: z.string().min(1),
+  redirect_uri: z.string().min(1),
+})
+
+export const googleAuthSchema = z.union([
+  idTokenSchema.extend({ display_name: z.string().max(100).optional() }),
+  codeSchema.extend({ display_name: z.string().max(100).optional() }),
+])
 
 export const guestSchema = z.object({
   device_id: z.string().min(1, 'device_id is required').max(255),

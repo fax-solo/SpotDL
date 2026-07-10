@@ -14,6 +14,15 @@ async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: 
   }
 }
 
+async function parseJson(res: Response): Promise<any> {
+  const ct = res.headers.get('content-type') || ''
+  if (!ct.includes('application/json')) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Expected JSON but got ${ct || 'no content-type'} (status ${res.status})${body ? ': ' + body.slice(0, 200) : ''}`)
+  }
+  return res.json()
+}
+
 export interface UserProfile {
   id: string
   username?: string | null
@@ -56,10 +65,10 @@ export async function signup(email: string, password: string, displayName?: stri
     body: JSON.stringify({ email, password, display_name: displayName, username }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: `Signup failed (${res.status})` }))
+    const err = await parseJson(res).catch(() => ({ detail: `Signup failed (${res.status})` }))
     throw new Error(err.detail || 'Signup failed')
   }
-  const data = await res.json()
+  const data = await parseJson(res)
   setToken(data.token)
   return data
 }
@@ -71,10 +80,10 @@ export async function login(login: string, password: string): Promise<AuthRespon
     body: JSON.stringify({ login, password }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: `Login failed (${res.status})` }))
+    const err = await parseJson(res).catch(() => ({ detail: `Login failed (${res.status})` }))
     throw new Error(err.detail || 'Login failed')
   }
-  const data = await res.json()
+  const data = await parseJson(res)
   setToken(data.token)
   return data
 }
@@ -86,10 +95,25 @@ export async function googleAuth(idToken: string, displayName?: string): Promise
     body: JSON.stringify({ id_token: idToken, display_name: displayName }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: `Google auth failed (${res.status})` }))
+    const err = await parseJson(res).catch(() => ({ detail: `Google auth failed (${res.status})` }))
     throw new Error(err.detail || 'Google auth failed')
   }
-  const data = await res.json()
+  const data = await parseJson(res)
+  setToken(data.token)
+  return data
+}
+
+export async function googleCodeAuth(code: string, codeVerifier: string, redirectUri: string, displayName?: string): Promise<AuthResponse> {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/google'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, code_verifier: codeVerifier, redirect_uri: redirectUri, display_name: displayName }),
+  })
+  if (!res.ok) {
+    const err = await parseJson(res).catch(() => ({ detail: `Google auth failed (${res.status})` }))
+    throw new Error(err.detail || 'Google auth failed')
+  }
+  const data = await parseJson(res)
   setToken(data.token)
   return data
 }
@@ -101,10 +125,10 @@ export async function guestLogin(deviceId: string): Promise<AuthResponse> {
     body: JSON.stringify({ device_id: deviceId }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: `Guest login failed (${res.status})` }))
+    const err = await parseJson(res).catch(() => ({ detail: `Guest login failed (${res.status})` }))
     throw new Error(err.detail || 'Guest login failed')
   }
-  const data = await res.json()
+  const data = await parseJson(res)
   setToken(data.token)
   return data
 }
@@ -120,7 +144,7 @@ export async function getMe(): Promise<UserProfile | null> {
       setToken(null)
       return null
     }
-    return res.json()
+    return parseJson(res)
   } catch (err) {
     console.error('getMe error:', err)
     return null
@@ -134,7 +158,7 @@ export async function updateProfile(displayName: string): Promise<UserProfile> {
     body: JSON.stringify({ display_name: displayName }),
   })
   if (!res.ok) throw new Error('Failed to update profile')
-  return res.json()
+  return parseJson(res)
 }
 
 export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
@@ -147,10 +171,10 @@ export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> 
     timeout: 15000,
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Upload failed' }))
+    const err = await parseJson(res).catch(() => ({ detail: 'Upload failed' }))
     throw new Error(err.detail || 'Upload failed')
   }
-  return res.json()
+  return parseJson(res)
 }
 
 export async function getHistory(limit = 100, offset = 0) {
@@ -158,7 +182,7 @@ export async function getHistory(limit = 100, offset = 0) {
     headers: authHeaders(),
   })
   if (!res.ok) throw new Error('Failed to fetch history')
-  return res.json()
+  return parseJson(res)
 }
 
 export async function addHistory(entry: {
@@ -175,7 +199,7 @@ export async function addHistory(entry: {
     body: JSON.stringify(entry),
   })
   if (!res.ok) throw new Error('Failed to save history')
-  return res.json()
+  return parseJson(res)
 }
 
 export async function deleteHistory(id: string) {
@@ -184,7 +208,7 @@ export async function deleteHistory(id: string) {
     headers: authHeaders(),
   })
   if (!res.ok) throw new Error('Failed to delete history entry')
-  return res.json()
+  return parseJson(res)
 }
 
 export async function clearAllHistory() {
@@ -193,7 +217,7 @@ export async function clearAllHistory() {
     headers: authHeaders(),
   })
   if (!res.ok) throw new Error('Failed to clear history')
-  return res.json()
+  return parseJson(res)
 }
 
 export async function logDownload(trackTitle: string, trackArtist: string, quality?: string, source?: string) {

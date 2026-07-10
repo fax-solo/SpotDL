@@ -56,19 +56,33 @@ export function LoginPage() {
     }
   }
 
-  const handleGoogle = () => {
-    const redirectUri = `${window.location.origin}/callback`
+  async function generateCodeChallenge(verifier: string): Promise<string> {
+    const enc = new TextEncoder()
+    const hash = await crypto.subtle.digest('SHA-256', enc.encode(verifier))
+    return btoa(String.fromCharCode(...new Uint8Array(hash)))
+      .replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+  }
+
+  const handleGoogle = async () => {
+    const redirectUri = `http://localhost:5173/callback`
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
     if (!googleClientId) {
       setError('Google sign-in is not configured. Use email/password instead.')
       return
     }
+
+    const codeVerifier = crypto.randomUUID() + crypto.randomUUID()
+    const codeChallenge = await generateCodeChallenge(codeVerifier)
+    sessionStorage.setItem('google_code_verifier', codeVerifier)
+
     const params = new URLSearchParams({
       client_id: googleClientId,
       redirect_uri: redirectUri,
-      response_type: 'id_token',
+      response_type: 'code',
       scope: 'openid email profile',
-      nonce: crypto.randomUUID(),
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      access_type: 'offline',
     })
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
   }

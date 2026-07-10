@@ -18,9 +18,42 @@ export function CallbackPage() {
     const code = searchParams.get('code')
     const error = searchParams.get('error')
 
+    // Google PKCE flow: authorization code + stored code_verifier
+    const codeVerifier = sessionStorage.getItem('google_code_verifier')
+    if (code && codeVerifier) {
+      sessionStorage.removeItem('google_code_verifier')
+      const redirectUri = `http://localhost:5173/callback`
+
+      import('../lib/auth').then(({ googleCodeAuth }) => {
+        googleCodeAuth(code, codeVerifier, redirectUri)
+          .then(() => {
+            if (statusRef.current) {
+              statusRef.current.innerHTML = `
+                <div class="flex flex-col items-center justify-center px-4">
+                  <svg class="w-10 h-10 text-green-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <p class="text-sm text-green-600 dark:text-green-400 font-medium">Signed in with Google!</p>
+                </div>`
+            }
+            setTimeout(() => navigate('/', { replace: true }), 1000)
+          })
+          .catch(err => {
+            console.error('Google auth error:', err)
+            if (statusRef.current) {
+              statusRef.current.innerHTML = `
+                <div class="flex flex-col items-center justify-center px-4">
+                  <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <p class="text-sm text-red-500 font-medium mb-2">Google authentication failed</p>
+                  <p class="text-xs text-red-400 text-center max-w-xs">${err instanceof Error ? err.message : 'Something went wrong'}</p>
+                </div>`
+            }
+          })
+      })
+      return
+    }
+
+    // Legacy Google implicit flow (id_token in hash) — kept for backward compatibility
     const hash = window.location.hash.slice(1)
     const idToken = searchParams.get('id_token') || (hash ? new URLSearchParams(hash).get('id_token') : null)
-
     if (idToken) {
       if (hash) {
         window.history.replaceState(null, '', window.location.pathname + window.location.search)
@@ -41,7 +74,7 @@ export function CallbackPage() {
           if (statusRef.current) {
             statusRef.current.innerHTML = `
               <div class="flex flex-col items-center justify-center px-4">
-                <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <p class="text-sm text-red-500 font-medium mb-2">Google authentication failed</p>
                 <p class="text-xs text-red-400 text-center max-w-xs">${err instanceof Error ? err.message : 'Something went wrong'}</p>
               </div>`
@@ -54,7 +87,7 @@ export function CallbackPage() {
       if (statusRef.current) {
         statusRef.current.innerHTML = `
           <div class="flex flex-col items-center justify-center px-4">
-            <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <p class="text-sm text-red-500 font-medium">Spotify denied authorization</p>
           </div>`
       }
@@ -66,7 +99,7 @@ export function CallbackPage() {
       if (statusRef.current) {
         statusRef.current.innerHTML = `
           <div class="flex flex-col items-center justify-center px-4">
-            <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <p class="text-sm text-red-500 font-medium">No authorization code received</p>
           </div>`
       }
@@ -74,7 +107,7 @@ export function CallbackPage() {
       return
     }
 
-    const redirectUri = window.location.origin + '/callback'
+    const redirectUri = `http://localhost:5173/callback`
 
     exchangeCode(code, redirectUri).then(result => {
       if (result.ok) {
@@ -90,7 +123,7 @@ export function CallbackPage() {
         if (statusRef.current) {
           statusRef.current.innerHTML = `
             <div class="flex flex-col items-center justify-center px-4">
-              <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+              <svg class="w-10 h-10 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <p class="text-sm text-red-500 font-medium mb-2">Token exchange failed</p>
               <p class="text-xs text-red-400 text-center max-w-xs">${result.error || 'Something went wrong'}</p>
             </div>`

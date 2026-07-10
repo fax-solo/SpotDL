@@ -27,22 +27,65 @@ try {
   console.error('Failed to load .env:', e.message)
 }
 
+// TypeScript support via esbuild bundling
+let esbuild
+try {
+  esbuild = await import('esbuild')
+} catch {
+  console.warn('esbuild not available - .ts functions will not work in dev server')
+}
+
+const TS_CACHE_DIR = path.join(__dirname, '.ts-cache')
+const tsCache = new Map()
+
+async function importFunction(functionPath) {
+  if (functionPath.endsWith('.ts') && esbuild) {
+    const mtime = fs.statSync(functionPath).mtimeMs
+    const cached = tsCache.get(functionPath)
+    if (cached && cached.mtime === mtime) return cached.mod
+
+    const outfile = path.join(TS_CACHE_DIR, path.relative(FUNCTIONS_DIR, functionPath).replace(/\.ts$/, '.mjs'))
+    fs.mkdirSync(path.dirname(outfile), { recursive: true })
+
+    await esbuild.build({
+      entryPoints: [functionPath],
+      outfile,
+      bundle: true,
+      format: 'esm',
+      platform: 'browser',
+      target: 'esnext',
+      external: ['bcryptjs'],
+      sourcemap: false,
+    })
+
+    const mod = await import(`file://${outfile}?t=${Date.now()}`)
+    tsCache.set(functionPath, { mtime, mod })
+    return mod
+  }
+
+  const cachePath = `file://${functionPath}?t=${Date.now()}`
+  return import(cachePath)
+}
+
 function findFunctionFile(relPath) {
-  // Try exact match: /api/auth/signup -> functions/api/auth/signup.js
-  const exact = path.join(FUNCTIONS_DIR, `${relPath}.js`)
-  if (fs.existsSync(exact)) return exact
+  const exactJs = path.join(FUNCTIONS_DIR, `${relPath}.js`)
+  if (fs.existsSync(exactJs)) return exactJs
 
-  // Try index in directory: /api/auth -> functions/api/auth/index.js
-  const index = path.join(FUNCTIONS_DIR, relPath, 'index.js')
-  if (fs.existsSync(index)) return index
+  const exactTs = path.join(FUNCTIONS_DIR, `${relPath}.ts`)
+  if (fs.existsSync(exactTs)) return exactTs
 
-  // Try catch-all: /api/auth/signup -> functions/api/auth/[[catchall]].js  
+  const indexJs = path.join(FUNCTIONS_DIR, relPath, 'index.js')
+  if (fs.existsSync(indexJs)) return indexJs
+
+  const indexTs = path.join(FUNCTIONS_DIR, relPath, 'index.ts')
+  if (fs.existsSync(indexTs)) return indexTs
+
   const parts = relPath.split('/')
   for (let i = parts.length; i > 0; i--) {
     const dir = path.join(FUNCTIONS_DIR, ...parts.slice(0, i))
     if (fs.existsSync(dir)) {
       const entries = fs.readdirSync(dir)
-      const catchall = entries.find(e => e.startsWith('[[') && e.endsWith(']]') && e.endsWith('.js'))
+      const catchall = entries.find(e => e.startsWith('[[') && e.endsWith(']]') && (e.endsWith('.js') || e.endsWith('.ts')))
       if (catchall) return path.join(dir, catchall)
     }
   }
@@ -53,14 +96,13 @@ function findFunctionFile(relPath) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
 
-  // Must start with /api/
   if (!url.pathname.startsWith('/api/')) {
     res.writeHead(404)
     res.end()
     return
   }
 
-  const relPath = url.pathname.slice(5) // Remove "/api/"
+  const relPath = url.pathname.slice(5)
   const functionPath = findFunctionFile(relPath)
 
   if (!functionPath) {
@@ -70,8 +112,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    const cachePath = `file://${functionPath}?t=${Date.now()}`
-    const fn = await import(cachePath)
+    const fn = await importFunction(functionPath)
 
     let body = ''
     req.on('data', chunk => body += chunk)
@@ -84,8 +125,6 @@ const server = http.createServer(async (req, res) => {
       })
 
       const params = {}
-      const match = url.pathname.match(/\/api\/auth\/spotify\/callback/)
-      if (match) params.provider = 'spotify'
 
       const context = {
         request,

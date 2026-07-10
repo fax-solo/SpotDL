@@ -176,7 +176,10 @@ class LoginRequest(BaseModel):
 
 
 class GoogleAuthRequest(BaseModel):
-    id_token: str = Field(min_length=1)
+    id_token: str | None = Field(default=None, min_length=1)
+    code: str | None = Field(default=None, min_length=1)
+    code_verifier: str | None = Field(default=None, min_length=1)
+    redirect_uri: str | None = Field(default=None, min_length=1)
     display_name: str | None = Field(default=None, max_length=100)
 
 
@@ -282,20 +285,53 @@ async def google_auth(request: Request, body: GoogleAuthRequest, db: AsyncSessio
     import requests as req
 
     try:
-        resp = req.get(
-            f"https://oauth2.googleapis.com/tokeninfo?id_token={body.id_token}",
-            timeout=10,
-        )
-        if not resp.ok:
-            raise HTTPException(status_code=401, detail="Invalid Google token")
-        info = resp.json()
+        if body.code and body.code_verifier and body.redirect_uri:
+            client_id = os.environ.get("GOOGLE_CLIENT_ID") or os.environ.get("VITE_GOOGLE_CLIENT_ID") or ""
+            if not client_id:
+                raise HTTPException(status_code=500, detail="Google sign-in is not configured (missing GOOGLE_CLIENT_ID)")
+            token_resp = req.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": body.code,
+                    "client_id": client_id,
+                    "redirect_uri": body.redirect_uri,
+                    "code_verifier": body.code_verifier,
+                    "grant_type": "authorization_code",
+                },
+                timeout=10,
+            )
+            if not token_resp.ok:
+                err_body = token_resp.text[:200]
+                raise HTTPException(status_code=502, detail=f"Google token exchange failed ({token_resp.status_code}): {err_body}")
+            token_data = token_resp.json()
+            id_token = token_data.get("id_token")
+            if not id_token:
+                raise HTTPException(status_code=502, detail="No id_token in Google token response")
+            info_resp = req.get(
+                f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}",
+                timeout=10,
+            )
+            if not info_resp.ok:
+                raise HTTPException(status_code=401, detail="Invalid Google token")
+            info = info_resp.json()
+        elif body.id_token:
+            resp = req.get(
+                f"https://oauth2.googleapis.com/tokeninfo?id_token={body.id_token}",
+                timeout=10,
+            )
+            if not resp.ok:
+                raise HTTPException(status_code=401, detail="Invalid Google token")
+            info = resp.json()
+        else:
+            raise HTTPException(status_code=400, detail="Either id_token or code+code_verifier+redirect_uri is required")
+
         google_id = info.get("sub")
         email = info.get("email")
-        name = body.display_name or info.get("name", email.split("@")[0])
+        name = body.display_name or info.get("name", email.split("@")[0]) if email else "User"
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=502, detail="Google verification failed")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Google verification failed: {e}")
 
     result = await db.execute(
         select(User).where((User.google_id == google_id) | (User.email == email))
