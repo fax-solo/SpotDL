@@ -22,7 +22,7 @@ export function CallbackPage() {
     const codeVerifier = sessionStorage.getItem('google_code_verifier')
     if (code && codeVerifier) {
       sessionStorage.removeItem('google_code_verifier')
-      const redirectUri = `http://localhost:5173/callback`
+      const redirectUri = `${window.location.origin}/callback`
 
       import('../lib/auth').then(({ googleCodeAuth, storeUser }) => {
         googleCodeAuth(code, codeVerifier, redirectUri)

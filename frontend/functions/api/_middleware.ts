@@ -37,7 +37,11 @@ function csrfCheck(request: Request, allowedOrigins?: string): void {
     }
   }
 
-  if (!allowed.some(o => requestOrigin === o)) {
+  const normalizedAllowed = allowed.map(o => {
+    if (o.startsWith('http://') || o.startsWith('https://')) return o
+    return `https://${o}`
+  })
+  if (!normalizedAllowed.some(o => requestOrigin === o)) {
     throw new Error('CSRF: Invalid origin')
   }
 }

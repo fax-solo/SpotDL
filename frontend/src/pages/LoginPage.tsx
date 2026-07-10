@@ -66,7 +66,7 @@ export function LoginPage() {
   }
 
   const handleGoogle = async () => {
-    const redirectUri = `http://localhost:5173/callback`
+    const redirectUri = `${window.location.origin}/callback`
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
     if (!googleClientId) {
       setError('Google sign-in is not configured. Use email/password instead.')
