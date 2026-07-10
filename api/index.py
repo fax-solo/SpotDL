@@ -5,6 +5,7 @@ import json
 import logging
 import uuid
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,8 +83,11 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestLogMiddleware)
 
+ALLOWED_ORIGINS_STR = os.environ.get("ALLOWED_ORIGINS", "")
+_allowed_origins = [o.strip() for o in ALLOWED_ORIGINS_STR.split(",") if o.strip()]
 CLIENT_URL = os.environ.get("CLIENT_URL", "")
-_cors_origins = [CLIENT_URL] if CLIENT_URL else ["http://localhost:5173", "http://localhost:3000"]
+_cors_origins = _allowed_origins if _allowed_origins else ([CLIENT_URL] if CLIENT_URL else ["http://localhost:5173", "http://localhost:3000"])
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -91,3 +95,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method not in self.SAFE_METHODS:
+            origin = request.headers.get("Origin")
+            if origin:
+                try:
+                    origin_parsed = urlparse(origin)
+                    request_origin = f"{origin_parsed.scheme}://{origin_parsed.netloc}".lower()
+                except Exception:
+                    return JSONResponse(status_code=403, content={"detail": "Invalid Origin header"})
+                allowed = [o.lower() for o in _cors_origins]
+                if not any(request_origin == o for o in allowed):
+                    return JSONResponse(status_code=403, content={"detail": "CSRF: Invalid origin"})
+        return await call_next(request)
+
+app.add_middleware(CSRFMiddleware)

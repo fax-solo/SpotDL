@@ -18,7 +18,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from database import get_db, JWT_SECRET
-from models import User, HistoryEntry, DownloadLog, _utcnow
+from models import User, HistoryEntry, DownloadLog, TokenBlacklist, _utcnow
 
 _auth_limiter = Limiter(key_func=get_remote_address)
 
@@ -76,7 +76,7 @@ def _create_token(user_id: str) -> str:
     return f"{header}.{payload}.{sig}"
 
 
-def _verify_token(token: str) -> str | None:
+def _verify_token(token: str) -> tuple[str, str | None] | None:
     parts = token.split(":")
     if len(parts) in (3, 4):
         return _verify_legacy_token(parts)
@@ -98,16 +98,17 @@ def _verify_token(token: str) -> str | None:
     if exp and int(exp) < datetime.now(timezone.utc).timestamp():
         return None
 
-    return payload.get("sub")
+    return payload.get("sub"), payload.get("jti")
 
 
-def _verify_legacy_token(parts: list[str]) -> str | None:
+def _verify_legacy_token(parts: list[str]) -> tuple[str, str | None] | None:
     if len(parts) == 4:
-        user_id, expiry_ts, _jti, sig = parts
-        check_data = f"{user_id}:{expiry_ts}:{_jti}"
+        user_id, expiry_ts, jti, sig = parts
+        check_data = f"{user_id}:{expiry_ts}:{jti}"
     elif len(parts) == 3:
         user_id, expiry_ts, sig = parts
         check_data = f"{user_id}:{expiry_ts}"
+        jti = None
     else:
         return None
 
@@ -116,7 +117,14 @@ def _verify_legacy_token(parts: list[str]) -> str | None:
         return None
     if int(expiry_ts) < datetime.now(timezone.utc).timestamp():
         return None
-    return user_id
+    return user_id, jti
+
+
+async def _check_blacklist(db: AsyncSession, jti: str | None) -> bool:
+    if not jti:
+        return False
+    result = await db.execute(select(TokenBlacklist).where(TokenBlacklist.jti == jti))
+    return result.scalar_one_or_none() is not None
 
 
 async def get_current_user(
@@ -125,9 +133,12 @@ async def get_current_user(
 ) -> User:
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    user_id = _verify_token(credentials.credentials)
-    if not user_id:
+    result = _verify_token(credentials.credentials)
+    if not result:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    user_id, jti = result
+    if await _check_blacklist(db, jti):
+        raise HTTPException(status_code=401, detail="Token has been revoked")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
@@ -145,8 +156,11 @@ async def get_optional_user(
 ) -> User | None:
     if not credentials:
         return None
-    user_id = _verify_token(credentials.credentials)
-    if not user_id:
+    result = _verify_token(credentials.credentials)
+    if not result:
+        return None
+    user_id, jti = result
+    if await _check_blacklist(db, jti):
         return None
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -425,6 +439,32 @@ async def guest_login(request: Request, body: GuestRequest, db: AsyncSession = D
     resp = _user_response(user, token)
     resp["user"]["is_guest"] = True
     return resp
+
+
+async def _cleanup_blacklist(db: AsyncSession):
+    now = int(datetime.now(timezone.utc).timestamp())
+    await db.execute(delete(TokenBlacklist).where(TokenBlacklist.expires_at < now))
+    await db.commit()
+
+
+@router.post("/logout")
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = _verify_token(credentials.credentials)
+    if result:
+        _, jti = result
+        if jti:
+            expires_at = int(datetime.now(timezone.utc).timestamp()) + JWT_EXPIRY_HOURS * 3600
+            existing = await db.execute(select(TokenBlacklist).where(TokenBlacklist.jti == jti))
+            if not existing.scalar_one_or_none():
+                db.add(TokenBlacklist(jti=jti, expires_at=expires_at))
+                await db.commit()
+    await _cleanup_blacklist(db)
+    return {"ok": True}
 
 
 @router.get("/me")

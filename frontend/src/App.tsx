@@ -44,6 +44,7 @@ const LocalMusicPage = lazy(() => import('./pages/LocalMusicPage').then(m => ({ 
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })))
 const SignUpPage = lazy(() => import('./pages/SignUpPage').then(m => ({ default: m.SignUpPage })))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
+const PlayerPage = lazy(() => import('./pages/PlayerPage').then(m => ({ default: m.PlayerPage })))
 
 const PAGE_ORDER = ['/', '/download', '/history', '/settings']
 
@@ -66,7 +67,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   }
 
   if (!user && !PUBLIC_ROUTES.includes(location.pathname)) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
   return <>{children}</>
@@ -126,8 +127,10 @@ function AppContent() {
 
 
   useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0, behavior: 'auto' })
-  }, [location.pathname])
+    if (isNative || location.pathname !== '/') {
+      contentRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+    }
+  }, [location.pathname, isNative])
 
   useEffect(() => {
     const onResize = () => setIsNative(isNativeApp())
@@ -237,7 +240,7 @@ function AppContent() {
   const showBottomBar = isNative && !keyboardOpen && !bottomBarHidden
 
   return (
-    <div className="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col safe-area-y h-dvh">
+    <div className={`bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col safe-area-y ${!isNative && location.pathname === '/' ? '' : 'h-dvh'}`}>
       {!isOnline && !offlineDismissed && (
         <div className="sticky top-0 z-[60] bg-red-500/90 dark:bg-red-600/90 backdrop-blur-sm text-white text-xs font-medium py-2 px-4 flex items-center gap-2" role="alert" aria-live="assertive">
           <WifiOff className="w-3.5 h-3.5 flex-shrink-0" />
@@ -261,7 +264,7 @@ function AppContent() {
         }>
           <div
             ref={contentRef}
-            className="flex-1 flex flex-col overflow-y-auto scroll-native"
+            className={`flex-1 flex flex-col ${!isNative && location.pathname === '/' ? '' : 'overflow-y-auto scroll-native'} ${!isNative && location.pathname !== '/' ? 'pb-16 sm:pb-0' : ''}`}
           >
             <div key={location.pathname}>
               <Routes location={location}>
@@ -282,6 +285,7 @@ function AppContent() {
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/signup" element={<SignUpPage />} />
                         <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
+                        <Route path="/player" element={<RequireAuth><PlayerPage /></RequireAuth>} />
                         <Route path="/playlist/:id" element={<RequireAuth><PlaylistDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/album/:id" element={<RequireAuth><AlbumDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/artist/:id" element={<RequireAuth><ArtistPage onDownloadComplete={addEntry} /></RequireAuth>} />
@@ -304,6 +308,7 @@ function AppContent() {
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/signup" element={<SignUpPage />} />
                         <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
+                        <Route path="/player" element={<RequireAuth><PlayerPage /></RequireAuth>} />
                         <Route path="/playlist/:id" element={<RequireAuth><PlaylistDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/album/:id" element={<RequireAuth><AlbumDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/artist/:id" element={<RequireAuth><ArtistPage onDownloadComplete={addEntry} /></RequireAuth>} />

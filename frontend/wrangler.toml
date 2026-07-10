@@ -2,6 +2,8 @@ name = "spotify-downloader"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-06-21"
 
+# D1 binding kept for FCM push tokens only.
+# Auth, admin, and download logging now live on the Python/FastAPI backend on Render.
 [[d1_databases]]
 binding = "DB"
 database_name = "sinc-db"

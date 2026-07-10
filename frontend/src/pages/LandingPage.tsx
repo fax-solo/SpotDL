@@ -110,8 +110,8 @@ export function LandingPage() {
     tl.to('#orb2', { x: -200, y: 120, scale: 2, opacity: 0.3, duration: 0.10 }, 0.75)
     tl.to('#exitCtaOverlay', {
       opacity: 1, duration: 0.08, ease: 'power2.out',
-      onStart: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto' },
-      onReverseComplete: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none' },
+      onStart: () => { document.getElementById('exitCtaOverlay') && (document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto') },
+      onReverseComplete: () => { document.getElementById('exitCtaOverlay') && (document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none') },
     }, 0.78)
     tl.to('.phone-frame', { opacity: 0.2, scale: 0.45, duration: 0.10 }, 0.85)
     tl.to('#orb1', { opacity: 0.1, duration: 0.10 }, 0.90)
@@ -201,8 +201,8 @@ export function LandingPage() {
     tl.to('#orb2', { x: -100, y: 60, scale: 1.5, opacity: 0.3, duration: 0.10 }, 0.75)
     tl.to('#exitCtaOverlay', {
       opacity: 1, duration: 0.08, ease: 'power2.out',
-      onStart: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto' },
-      onReverseComplete: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none' },
+      onStart: () => { document.getElementById('exitCtaOverlay') && (document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto') },
+      onReverseComplete: () => { document.getElementById('exitCtaOverlay') && (document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none') },
     }, 0.78)
     tl.to('.phone-frame', { opacity: 0.2, scale: 0.45, duration: 0.10 }, 0.85)
     tl.to('#orb1', { opacity: 0.1, duration: 0.10 }, 0.90)
@@ -372,11 +372,11 @@ export function LandingPage() {
             </Link>
           ) : (
             <>
-              <Link to="/login" className="px-4 py-2 rounded-xl text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2">
+              <Link to="/login" className="px-4 py-2 rounded-xl text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-white/40">
                 <LogIn className="w-4 h-4" />
                 Sign In
               </Link>
-              <Link to="/signup" className="px-4 py-2 rounded-xl bg-[#1DB954] text-white text-sm font-medium hover:bg-[#169c46] transition-colors flex items-center gap-2">
+              <Link to="/signup" className="px-4 py-2 rounded-xl bg-[#1DB954] text-white text-sm font-medium hover:bg-[#169c46] transition-colors flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-white/40">
                 <UserPlus className="w-4 h-4" />
                 Sign Up
               </Link>
@@ -392,18 +392,18 @@ export function LandingPage() {
       </div>
 
       {/* Hero Section */}
-      <section className="h-screen flex flex-col items-center justify-center text-center relative">
+      <section className="h-screen flex flex-col items-center justify-center text-center relative min-h-[500px]">
         <div>
-          <div className="text-[#1DB954] text-xs font-semibold tracking-[3px] uppercase mb-4">SpotDL v3</div>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-none">
+          <div className="text-[#1DB954] text-xs font-semibold tracking-[3px] uppercase mb-3">SpotDL v3</div>
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-none">
             <span className="bg-gradient-to-r from-[#1DB954] to-[#1ed760] bg-clip-text text-transparent">Scrollytelling</span>
             <br />
             <span className="text-white/90">Preview</span>
           </h1>
-          <p className="mt-6 text-white/30 text-sm max-w-md mx-auto leading-relaxed px-4">
+          <p className="mt-4 text-white/30 text-sm max-w-md mx-auto leading-relaxed px-4">
             Scroll down to experience the interactive narrative. Each scroll phase reveals a new dimension of the SpotDL app.
           </p>
-          <div className="mt-10 flex justify-center animate-bounce">
+          <div className="mt-8 flex justify-center animate-bounce">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M7 13l5 5 5-5" /><path d="M7 6l5 5 5-5" />
             </svg>
@@ -413,7 +413,7 @@ export function LandingPage() {
 
       {/* Scrollytelling */}
       <section id="scrollytell" ref={scrollytellRef} className="relative" style={{ height: '600vh' }}>
-        <div className="pinned-content h-screen w-full flex items-center justify-center overflow-hidden relative">
+          <div className="pinned-content h-screen w-full flex items-center justify-center overflow-hidden relative">
           <div className="backdrop-orb orb-1" id="orb1" />
           <div className="backdrop-orb orb-2" id="orb2" />
 
@@ -638,11 +638,11 @@ export function LandingPage() {
                 Free, open-source, and privacy-first.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Link to="/download" className="inline-flex items-center gap-2 px-8 py-3 bg-[#1DB954] hover:bg-[#169c46] text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_-5px_rgba(29,185,84,0.4)]">
+                <Link to="/download" className="inline-flex items-center gap-2 px-8 py-3 bg-[#1DB954] hover:bg-[#169c46] text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_-5px_rgba(29,185,84,0.4)] focus-visible:ring-2 focus-visible:ring-white/40">
                   <Download className="w-5 h-5" />
                   Start Downloading
                 </Link>
-                <button onClick={downloadLatestAPK} className="inline-flex items-center gap-2 px-8 py-3 border border-white/10 hover:border-white/20 text-white/70 hover:text-white font-medium rounded-xl transition-colors">
+                <button onClick={downloadLatestAPK} className="inline-flex items-center gap-2 px-8 py-3 border border-white/10 hover:border-white/20 text-white/70 hover:text-white font-medium rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-white/40">
                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
                   GitHub Release
                 </button>
@@ -653,29 +653,29 @@ export function LandingPage() {
       </section>
 
       {/* Exit CTA Section */}
-      <section className="flex items-center justify-center px-6 py-16" style={{ background: '#0C0C0E' }}>
-        <div className="max-w-[680px] text-center px-6 py-16 md:px-12 md:py-16 rounded-3xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/20 text-[#1DB954] text-xs font-semibold tracking-wider uppercase mb-5">
+      <section className="flex items-center justify-center px-6 py-8 md:py-12" style={{ background: '#0C0C0E' }}>
+        <div className="max-w-[680px] text-center px-6 py-8 md:px-12 md:py-10 rounded-3xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/20 text-[#1DB954] text-xs font-semibold tracking-wider uppercase mb-3">
             SpotDL v3
           </span>
-          <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-5">Your Music, Always Yours to Keep</h2>
-          <p className="text-white/40 text-sm max-w-md mx-auto mb-8 leading-relaxed">
+          <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-3">Your Music, Always Yours to Keep</h2>
+          <p className="text-white/40 text-sm max-w-md mx-auto mb-5 leading-relaxed">
             Download high-fidelity audio from Spotify with automated ID3 tagging, album art, and LRC lyrics.
           </p>
-          <Link to="/download" className="inline-flex items-center gap-2 px-8 py-3 bg-[#1DB954] hover:bg-[#169c46] text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_-5px_rgba(29,185,84,0.4)]">
+          <Link to="/download" className="inline-flex items-center gap-2 px-8 py-3 bg-[#1DB954] hover:bg-[#169c46] text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_-5px_rgba(29,185,84,0.4)] focus-visible:ring-2 focus-visible:ring-white/40">
             <Download className="w-5 h-5" />
             Get SpotDL
           </Link>
-          <p className="mt-4 text-white/20 text-xs">v3.0.0 &middot; Free &amp; Open Source</p>
+          <p className="mt-3 text-white/20 text-xs">v3.0.0 &middot; Free &amp; Open Source</p>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section className="px-4 py-20 bg-gradient-to-b from-transparent to-black/30 relative border-t border-white/5" style={{ background: '#0C0C0E' }}>
+      <section className="px-4 py-12 md:py-16 bg-gradient-to-b from-transparent to-black/30 relative" style={{ background: '#0C0C0E' }}>
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">Why choose SpotDL?</h2>
-            <p className="text-lg text-white/40 max-w-2xl mx-auto">We've built the most reliable, feature-rich downloading pipeline to give you the ultimate audio experience.</p>
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-2xl md:text-4xl font-bold text-white mb-3">Why choose SpotDL?</h2>
+            <p className="text-sm md:text-base text-white/40 max-w-2xl mx-auto">We've built the most reliable, feature-rich downloading pipeline to give you the ultimate audio experience.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <FeatureCard
@@ -703,10 +703,10 @@ export function LandingPage() {
       </section>
 
       {/* How it Works */}
-      <section className="px-4 py-20 scroll-mt-20" style={{ background: '#0C0C0E' }}>
+      <section className="px-4 py-12 md:py-16 scroll-mt-20" style={{ background: '#0C0C0E' }}>
         <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-20">How it works</h2>
-          <div className="grid md:grid-cols-3 gap-12 md:gap-8 relative">
+          <h2 className="text-2xl md:text-4xl font-bold text-white mb-10 md:mb-12">How it works</h2>
+          <div className="grid md:grid-cols-3 gap-8 md:gap-6 relative">
             <div className="hidden md:block absolute top-[44px] left-[16%] right-[16%] h-[2px] overflow-hidden">
               <div className="w-full h-full bg-gradient-to-r from-transparent via-[#1DB954] to-transparent" />
               <div className="absolute inset-0 bg-white/5 opacity-50" />
@@ -715,9 +715,9 @@ export function LandingPage() {
             <StepCard number="2" title="Paste & Fetch" description="Paste the link into SpotDL. We'll instantly fetch the metadata and artwork." />
             <StepCard number="3" title="Download" description="Click download. We'll find the highest quality audio and tag it for you." />
           </div>
-          <div className="mt-24">
+          <div className="mt-12 md:mt-16">
             <Link to="/download">
-              <button className="inline-flex items-center gap-2 px-8 py-4 bg-white/5 border border-[#1DB954]/30 text-[#1DB954] font-semibold rounded-2xl hover:bg-[#1DB954] hover:text-white hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] transition-all hover:scale-[1.05] active:scale-[0.95] transition-transform">
+              <button className="inline-flex items-center gap-2 px-8 py-4 bg-white/5 border border-[#1DB954]/30 text-[#1DB954] font-semibold rounded-2xl hover:bg-[#1DB954] hover:text-white hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] transition-all hover:scale-[1.05] active:scale-[0.95] focus-visible:ring-2 focus-visible:ring-[#1DB954]">
                 <Download className="w-5 h-5" />
                 Try it Now
               </button>
@@ -727,9 +727,9 @@ export function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 text-center text-sm text-white/30 border-t border-white/5" style={{ background: '#0C0C0E' }}>
+      <footer className="py-8 text-center text-sm text-white/30 border-t border-white/5" style={{ background: '#0C0C0E' }}>
         <p>Built with React, Tailwind CSS, GSAP, and FastAPI.</p>
-        <p className="mt-2 text-xs opacity-70">SpotDL is not affiliated with Spotify AB.</p>
+        <p className="mt-1 text-xs opacity-70">SpotDL is not affiliated with Spotify AB.</p>
       </footer>
     </div>
   )
@@ -737,15 +737,15 @@ export function LandingPage() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="p-8 rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 shadow-sm hover:shadow-xl hover:shadow-black/5 transition-shadow relative overflow-hidden group hover:-translate-y-1 transition-transform">
-      <div className="absolute top-0 right-0 p-8 opacity-5 transform translate-x-1/4 -translate-y-1/4 group-hover:scale-150 transition-transform duration-500 pointer-events-none">
+    <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-sm hover:shadow-xl hover:shadow-black/5 transition-shadow relative overflow-hidden group hover:-translate-y-1 transition-transform">
+      <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-1/4 -translate-y-1/4 group-hover:scale-150 transition-transform duration-500 pointer-events-none">
         {icon}
       </div>
-      <div className="w-14 h-14 rounded-2xl bg-black/30 flex items-center justify-center mb-6 border border-white/10 shadow-sm">
+      <div className="w-12 h-12 rounded-xl bg-black/30 flex items-center justify-center mb-4 border border-white/10 shadow-sm">
         {icon}
       </div>
-      <h3 className="text-xl font-bold text-white mb-3">{title}</h3>
-      <p className="text-white/40 leading-relaxed">{description}</p>
+      <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+      <p className="text-white/40 text-sm leading-relaxed">{description}</p>
     </div>
   )
 }
@@ -753,12 +753,12 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode; titl
 function StepCard({ number, title, description }: { number: string; title: string; description: string }) {
   return (
     <div className="relative flex flex-col items-center group">
-      <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl font-bold text-[#1DB954] shadow-xl mb-8 z-10 relative overflow-hidden group-hover:scale-110 transition-transform">
+      <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-xl font-bold text-[#1DB954] shadow-lg mb-6 z-10 relative overflow-hidden group-hover:scale-110 transition-transform">
         <div className="absolute inset-0 bg-[#1DB954]/5 group-hover:bg-[#1DB954]/10 transition-colors" />
         {number}
       </div>
-      <h3 className="text-2xl font-bold text-white mb-4">{title}</h3>
-      <p className="text-white/40 leading-relaxed max-w-xs">{description}</p>
+      <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+      <p className="text-white/40 text-sm leading-relaxed max-w-xs">{description}</p>
     </div>
   )
 }

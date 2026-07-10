@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Float, ForeignKey, BigInteger
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Float, ForeignKey, BigInteger, BigInteger
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -61,3 +61,10 @@ class DownloadLog(Base):
     source = Column(String(50), index=True)
     timestamp = Column(DateTime(timezone=True), default=_utcnow, index=True)
     is_guest = Column(Boolean, default=False, index=True)
+
+
+class TokenBlacklist(Base):
+    __tablename__ = "token_blacklist"
+
+    jti = Column(String(64), primary_key=True)
+    expires_at = Column(BigInteger, nullable=False, index=True)

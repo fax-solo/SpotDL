@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, UserPlus, User, AtSign } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 export function SignUpPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { signup, guestLogin, user } = useAuth()
+  const from = (location.state as { from?: string })?.from
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -18,8 +20,8 @@ export function SignUpPage() {
   const [guestLoading, setGuestLoading] = useState(false)
 
   useEffect(() => {
-    if (user) navigate('/', { replace: true })
-  }, [user, navigate])
+    if (user) navigate(from || '/', { replace: true })
+  }, [user, navigate, from])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,7 +39,7 @@ export function SignUpPage() {
     setLoading(true)
     try {
       await signup(email, password, displayName || undefined, username || undefined)
-      navigate('/', { replace: true })
+      navigate(from || '/', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Signup failed'
       if (msg.includes('abort') || msg.includes('Failed to fetch')) {
@@ -55,7 +57,7 @@ export function SignUpPage() {
     setGuestLoading(true)
     try {
       await guestLogin()
-      navigate('/', { replace: true })
+      navigate(from || '/', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Guest login failed'
       if (msg.includes('abort') || msg.includes('Failed to fetch')) {
@@ -76,7 +78,7 @@ export function SignUpPage() {
             <UserPlus className="w-8 h-8 text-accent" />
           </div>
           <h1 className="text-3xl font-bold text-light-text dark:text-dark-text tracking-tight">Create account</h1>
-          <p className="text-sm text-light-muted dark:text-dark-muted mt-2">Start downloading your favorite music</p>
+          <p className="text-sm text-light-muted dark:text-dark-muted mt-2">{from ? 'Sign up to start downloading' : 'Start downloading your favorite music'}</p>
         </div>
 
         <form onSubmit={handleSignup} className="space-y-3.5">

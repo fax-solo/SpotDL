@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, LogIn, User } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login, guestLogin, user } = useAuth()
+  const from = (location.state as { from?: string })?.from
   const [loginField, setLoginField] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -14,8 +16,8 @@ export function LoginPage() {
   const [guestLoading, setGuestLoading] = useState(false)
 
   useEffect(() => {
-    if (user) navigate('/', { replace: true })
-  }, [user, navigate])
+    if (user) navigate(from || '/', { replace: true })
+  }, [user, navigate, from])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,7 +25,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(loginField, password)
-      navigate('/', { replace: true })
+      navigate(from || '/', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Login failed'
       console.error('Login error:', err)
@@ -42,7 +44,7 @@ export function LoginPage() {
     setGuestLoading(true)
     try {
       await guestLogin()
-      navigate('/', { replace: true })
+      navigate(from || '/', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Guest login failed'
       console.error('Guest login error:', err)
@@ -95,7 +97,7 @@ export function LoginPage() {
             <LogIn className="w-8 h-8 text-accent" />
           </div>
           <h1 className="text-3xl font-bold text-light-text dark:text-dark-text tracking-tight">Welcome back</h1>
-          <p className="text-sm text-light-muted dark:text-dark-muted mt-2">Sign in to your account</p>
+          <p className="text-sm text-light-muted dark:text-dark-muted mt-2">{from ? 'Sign in to start downloading' : 'Sign in to your account'}</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">

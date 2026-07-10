@@ -13,7 +13,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 from database import Base
-from models import User, HistoryEntry, DownloadLog
+from models import User, HistoryEntry, DownloadLog, TokenBlacklist
 
 target_metadata = Base.metadata
 
