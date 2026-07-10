@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Headphones, Zap, Tags, Smartphone, Download, LogIn, UserPlus } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
@@ -8,209 +8,222 @@ import { TextPlugin } from 'gsap/TextPlugin'
 
 gsap.registerPlugin(ScrollTrigger, TextPlugin)
 
+async function downloadLatestAPK() {
+  try {
+    const res = await fetch('https://api.github.com/repos/anomalyco/Spotify-downloader/releases/latest')
+    const data = await res.json()
+    const asset = data.assets?.find((a: { name: string }) => a.name.endsWith('.apk'))
+    if (asset?.browser_download_url) {
+      window.location.href = asset.browser_download_url
+      return
+    }
+  } catch { /* fallback */ }
+  window.open('https://github.com/anomalyco/Spotify-downloader/releases/latest', '_blank')
+}
+
 export function LandingPage() {
   const { user } = useAuth()
   const scrollytellRef = useRef<HTMLDivElement>(null)
-  const pinnedRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     import('./Downloader')
   }, [])
 
+  const buildDesktopTL = useCallback((): gsap.core.Timeline => {
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: '#scrollytell',
+        start: 'top top',
+        end: '+=600%',
+        pin: true,
+        scrub: 1.5,
+        anticipatePin: 1,
+        invalidateOnRefresh: true,
+      },
+      defaults: { ease: 'none' },
+    })
+
+    tl.set('.phone-frame', { y: '120vh', opacity: 0, scale: 0.85 })
+    tl.set('.stage-text.s2, .stage-text.s3, .stage-text.s4, .stage-text.s5', { opacity: 0 })
+    tl.set('.stage-text.s1', { opacity: 1 })
+    tl.set('#stage1Reveal', { text: '' })
+    tl.set('#exitCtaOverlay', { opacity: 0, pointerEvents: 'none' })
+
+    tl.to('.phone-frame', { y: 0, opacity: 1, scale: 1, duration: 0.14, ease: 'power2.out' }, 0)
+    tl.to('#stage1Reveal', { duration: 0.06, text: 'Discover the Power of SpotDL', ease: 'none' }, 0.04)
+    tl.to('#orb1', { scale: 1.2, opacity: 0.6, duration: 0.14 }, 0)
+    tl.to('#orb2', { scale: 1.3, opacity: 0.5, duration: 0.14 }, 0)
+
+    tl.to('.stage-text.s1', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.14)
+    tl.set('.stage-text.s2', { opacity: 1 }, 0.17)
+    tl.set('.stage-text.s2 h2', { opacity: 0, y: 25, scale: 0.95 }, 0.17)
+    tl.set('.stage-text.s2 p', { opacity: 0, y: 15 }, 0.17)
+    tl.to('.stage-text.s2 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.17)
+    tl.to('.stage-text.s2 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.20)
+    tl.to('#orb1', { x: 80, y: -60, scale: 1.5, duration: 0.16 }, 0.14)
+    tl.to('#orb2', { x: -60, y: 40, scale: 1.4, duration: 0.16 }, 0.14)
+
+    tl.to('.screen-1', { opacity: 0, duration: 0.02 }, 0.30)
+    tl.to('.screen-2', { opacity: 1, duration: 0.02 }, 0.30)
+    tl.to('.stage-text.s2', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.30)
+    tl.set('.stage-text.s3', { opacity: 1 }, 0.33)
+    tl.set('.stage-text.s3 h2', { opacity: 0, y: 25, scale: 0.95 }, 0.33)
+    tl.set('.stage-text.s3 p', { opacity: 0, y: 15 }, 0.33)
+    tl.to('.stage-text.s3 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.33)
+    tl.to('.stage-text.s3 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.36)
+
+    tl.set('#cursorDot, #cursorRing', { opacity: 0, scale: 1, left: '20%', top: '5%' })
+    tl.to('#cursorDot', { opacity: 0.9, duration: 0.02 }, 0.34)
+    tl.to('#cursorRing', { opacity: 0.4, duration: 0.02 }, 0.34)
+    tl.to('#cursorDot', { left: '50%', top: '67%', duration: 0.06, ease: 'power2.inOut' }, 0.36)
+    tl.to('#cursorRing', { left: '50%', top: '67%', duration: 0.06, ease: 'power2.inOut' }, 0.36)
+    tl.to('#cursorDot', { scale: 0.6, opacity: 0.7, duration: 0.02 }, 0.42)
+    tl.to('#cursorRing', { scale: 0.6, duration: 0.02 }, 0.42)
+    tl.set('#cursorClickRing', { left: '50%', top: '67%', opacity: 1, scale: 0 })
+    tl.to('#cursorClickRing', { scale: 2.5, opacity: 0, duration: 0.06, ease: 'power2.out' }, 0.43)
+    tl.to('#cursorDot, #cursorRing', { opacity: 0, duration: 0.02 }, 0.47)
+    tl.to('#progressFill', { scaleX: 1, duration: 0.18, ease: 'power3.inOut' }, 0.35)
+
+    tl.to('.screen-2', { opacity: 0, duration: 0.02 }, 0.50)
+    tl.to('.screen-3', { opacity: 1, duration: 0.02 }, 0.50)
+    tl.to('.stage-text.s3', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.50)
+    tl.set('.stage-text.s4', { opacity: 1 }, 0.53)
+    tl.set('.stage-text.s4 h2', { opacity: 0, y: 25, scale: 0.95 }, 0.53)
+    tl.set('.stage-text.s4 p', { opacity: 0, y: 15 }, 0.53)
+    tl.to('.stage-text.s4 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.53)
+    tl.to('.stage-text.s4 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.56)
+    tl.to('#successOverlay', { opacity: 1, duration: 0.04, ease: 'power2.out' }, 0.52)
+    tl.to('#checkmarkIcon', { scale: 1, rotation: 0, opacity: 1, duration: 0.06, ease: 'back.out(2.5)' }, 0.54)
+    tl.to('#successText', { opacity: 1, y: 0, duration: 0.03 }, 0.56)
+    tl.to('#libraryText', { opacity: 1, y: 0, duration: 0.03 }, 0.57)
+    tl.to('#successActions', { opacity: 1, y: 0, duration: 0.03 }, 0.58)
+
+    tl.to('.phone-frame', { scale: 0.7, x: '-42vw', y: 20, duration: 0.10, ease: 'power2.inOut' }, 0.75)
+    tl.to('.stage-text.s4', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.75)
+    tl.set('.stage-text.s5', { opacity: 1 }, 0.78)
+    tl.set('.stage-text.s5 h2', { opacity: 0, y: 25, scale: 0.95 }, 0.78)
+    tl.set('.stage-text.s5 p', { opacity: 0, y: 15 }, 0.78)
+    tl.to('.stage-text.s5 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.78)
+    tl.to('.stage-text.s5 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.81)
+    tl.to('#sideCopy', { x: '-10vw', opacity: 0, duration: 0.08, ease: 'power2.in' }, 0.78)
+    tl.to('#orb1', { x: 200, y: -120, scale: 2, opacity: 0.3, duration: 0.10 }, 0.75)
+    tl.to('#orb2', { x: -200, y: 120, scale: 2, opacity: 0.3, duration: 0.10 }, 0.75)
+    tl.to('#exitCtaOverlay', {
+      opacity: 1, duration: 0.08, ease: 'power2.out',
+      onStart: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto' },
+      onReverseComplete: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none' },
+    }, 0.78)
+    tl.to('.phone-frame', { opacity: 0.2, scale: 0.45, duration: 0.10 }, 0.85)
+    tl.to('#orb1', { opacity: 0.1, duration: 0.10 }, 0.90)
+    tl.to('#orb2', { opacity: 0.1, duration: 0.10 }, 0.95)
+
+    return tl
+  }, [])
+
+  const buildMobileTL = useCallback((): gsap.core.Timeline => {
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: '#scrollytell',
+        start: 'top top',
+        end: '+=600%',
+        pin: true,
+        scrub: 1.5,
+        anticipatePin: 1,
+        invalidateOnRefresh: true,
+      },
+      defaults: { ease: 'none' },
+    })
+
+    tl.set('.phone-frame', { y: '100vh', opacity: 0, scale: 0.8 })
+    tl.set('.stage-text.s2, .stage-text.s3, .stage-text.s4, .stage-text.s5', { opacity: 0 })
+    tl.set('.stage-text.s1', { opacity: 1 })
+    tl.set('#stage1Reveal', { text: '' })
+    tl.set('#exitCtaOverlay', { opacity: 0, pointerEvents: 'none' })
+
+    tl.to('.phone-frame', { y: 0, opacity: 1, scale: 1, duration: 0.14, ease: 'power2.out' }, 0)
+    tl.to('#stage1Reveal', { duration: 0.06, text: 'Discover the Power of SpotDL', ease: 'none' }, 0.04)
+    tl.to('#orb1', { scale: 1.2, opacity: 0.6, duration: 0.14 }, 0)
+    tl.to('#orb2', { scale: 1.3, opacity: 0.5, duration: 0.14 }, 0)
+
+    tl.to('.stage-text.s1', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.14)
+    tl.set('.stage-text.s2', { opacity: 1 }, 0.17)
+    tl.set('.stage-text.s2 h2', { opacity: 0, y: 16, scale: 0.95 }, 0.17)
+    tl.set('.stage-text.s2 p', { opacity: 0, y: 10 }, 0.17)
+    tl.to('.stage-text.s2 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.17)
+    tl.to('.stage-text.s2 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.20)
+    tl.to('#orb1', { x: 40, y: -30, scale: 1.3, duration: 0.16 }, 0.14)
+    tl.to('#orb2', { x: -30, y: 20, scale: 1.2, duration: 0.16 }, 0.14)
+
+    tl.to('.screen-1', { opacity: 0, duration: 0.02 }, 0.30)
+    tl.to('.screen-2', { opacity: 1, duration: 0.02 }, 0.30)
+    tl.to('.stage-text.s2', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.30)
+    tl.set('.stage-text.s3', { opacity: 1 }, 0.33)
+    tl.set('.stage-text.s3 h2', { opacity: 0, y: 16, scale: 0.95 }, 0.33)
+    tl.set('.stage-text.s3 p', { opacity: 0, y: 10 }, 0.33)
+    tl.to('.stage-text.s3 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.33)
+    tl.to('.stage-text.s3 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.36)
+
+    tl.set('#cursorDot, #cursorRing', { opacity: 0, scale: 1, left: '20%', top: '5%' })
+    tl.to('#cursorDot', { opacity: 0.9, duration: 0.02 }, 0.34)
+    tl.to('#cursorRing', { opacity: 0.4, duration: 0.02 }, 0.34)
+    tl.to('#cursorDot', { left: '50%', top: '67%', duration: 0.06, ease: 'power2.inOut' }, 0.36)
+    tl.to('#cursorRing', { left: '50%', top: '67%', duration: 0.06, ease: 'power2.inOut' }, 0.36)
+    tl.to('#cursorDot', { scale: 0.6, opacity: 0.7, duration: 0.02 }, 0.42)
+    tl.to('#cursorRing', { scale: 0.6, duration: 0.02 }, 0.42)
+    tl.set('#cursorClickRing', { left: '50%', top: '67%', opacity: 1, scale: 0 })
+    tl.to('#cursorClickRing', { scale: 2, opacity: 0, duration: 0.06, ease: 'power2.out' }, 0.43)
+    tl.to('#cursorDot, #cursorRing', { opacity: 0, duration: 0.02 }, 0.47)
+    tl.to('#progressFill', { scaleX: 1, duration: 0.18, ease: 'power3.inOut' }, 0.35)
+
+    tl.to('.screen-2', { opacity: 0, duration: 0.02 }, 0.50)
+    tl.to('.screen-3', { opacity: 1, duration: 0.02 }, 0.50)
+    tl.to('.stage-text.s3', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.50)
+    tl.set('.stage-text.s4', { opacity: 1 }, 0.53)
+    tl.set('.stage-text.s4 h2', { opacity: 0, y: 16, scale: 0.95 }, 0.53)
+    tl.set('.stage-text.s4 p', { opacity: 0, y: 10 }, 0.53)
+    tl.to('.stage-text.s4 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.53)
+    tl.to('.stage-text.s4 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.56)
+    tl.to('#successOverlay', { opacity: 1, duration: 0.04 }, 0.52)
+    tl.to('#checkmarkIcon', { scale: 1, rotation: 0, opacity: 1, duration: 0.06, ease: 'back.out(2.5)' }, 0.54)
+    tl.to('#successText', { opacity: 1, y: 0, duration: 0.03 }, 0.56)
+    tl.to('#libraryText', { opacity: 1, y: 0, duration: 0.03 }, 0.57)
+    tl.to('#successActions', { opacity: 1, y: 0, duration: 0.03 }, 0.58)
+
+    tl.to('.phone-frame', { scale: 0.7, x: '-50vw', y: 20, duration: 0.10, ease: 'power2.inOut' }, 0.75)
+    tl.to('.stage-text.s4', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.75)
+    tl.set('.stage-text.s5', { opacity: 1 }, 0.78)
+    tl.set('.stage-text.s5 h2', { opacity: 0, y: 16, scale: 0.95 }, 0.78)
+    tl.set('.stage-text.s5 p', { opacity: 0, y: 10 }, 0.78)
+    tl.to('.stage-text.s5 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.78)
+    tl.to('.stage-text.s5 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.81)
+    tl.to('#sideCopy', { x: '-10vw', opacity: 0, duration: 0.08, ease: 'power2.in' }, 0.78)
+    tl.to('#orb1', { x: 100, y: -60, scale: 1.5, opacity: 0.3, duration: 0.10 }, 0.75)
+    tl.to('#orb2', { x: -100, y: 60, scale: 1.5, opacity: 0.3, duration: 0.10 }, 0.75)
+    tl.to('#exitCtaOverlay', {
+      opacity: 1, duration: 0.08, ease: 'power2.out',
+      onStart: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto' },
+      onReverseComplete: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none' },
+    }, 0.78)
+    tl.to('.phone-frame', { opacity: 0.2, scale: 0.45, duration: 0.10 }, 0.85)
+    tl.to('#orb1', { opacity: 0.1, duration: 0.10 }, 0.90)
+    tl.to('#orb2', { opacity: 0.1, duration: 0.10 }, 0.95)
+
+    return tl
+  }, [])
+
   useEffect(() => {
     const mm = gsap.matchMedia()
-    const ctx = gsap.context(() => {
-      mm.add('(min-width: 768px)', () => {
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: '#scrollytell',
-            start: 'top top',
-            end: '+=600%',
-            pin: true,
-            scrub: 1.5,
-            anticipatePin: 1,
-            invalidateOnRefresh: true,
-          },
-          defaults: { ease: 'none' },
-        })
+    mm.add('(min-width: 768px)', buildDesktopTL)
+    mm.add('(max-width: 767px)', buildMobileTL)
 
-        tl.set('.phone-frame', { y: '120vh', opacity: 0, scale: 0.85 })
-        tl.set('.stage-text.s2, .stage-text.s3, .stage-text.s4, .stage-text.s5', { opacity: 0 })
-        tl.set('.stage-text.s1', { opacity: 1 })
-        tl.set('#stage1Reveal', { text: '' })
-        tl.set('#exitCtaOverlay', { opacity: 0, pointerEvents: 'none' })
-
-        tl.to('.phone-frame', { y: 0, opacity: 1, scale: 1, duration: 0.14, ease: 'power2.out' }, 0)
-        tl.to('#stage1Reveal', { duration: 0.06, text: 'Discover the Power of SpotDL', ease: 'none' }, 0.04)
-        tl.to('#orb1', { scale: 1.2, opacity: 0.6, duration: 0.14 }, 0)
-        tl.to('#orb2', { scale: 1.3, opacity: 0.5, duration: 0.14 }, 0)
-
-        tl.to('.stage-text.s1', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.14)
-        tl.set('.stage-text.s2', { opacity: 1 }, 0.17)
-        tl.set('.stage-text.s2 h2', { opacity: 0, y: 25, scale: 0.95 }, 0.17)
-        tl.set('.stage-text.s2 p', { opacity: 0, y: 15 }, 0.17)
-        tl.to('.stage-text.s2 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.17)
-        tl.to('.stage-text.s2 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.20)
-        tl.to('#orb1', { x: 80, y: -60, scale: 1.5, duration: 0.16 }, 0.14)
-        tl.to('#orb2', { x: -60, y: 40, scale: 1.4, duration: 0.16 }, 0.14)
-
-        tl.to('.screen-1', { opacity: 0, duration: 0.02 }, 0.30)
-        tl.to('.screen-2', { opacity: 1, duration: 0.02 }, 0.30)
-        tl.to('.stage-text.s2', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.30)
-        tl.set('.stage-text.s3', { opacity: 1 }, 0.33)
-        tl.set('.stage-text.s3 h2', { opacity: 0, y: 25, scale: 0.95 }, 0.33)
-        tl.set('.stage-text.s3 p', { opacity: 0, y: 15 }, 0.33)
-        tl.to('.stage-text.s3 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.33)
-        tl.to('.stage-text.s3 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.36)
-
-        tl.set('#cursorDot, #cursorRing', { opacity: 0, scale: 1, left: '20%', top: '5%' })
-        tl.to('#cursorDot', { opacity: 0.9, duration: 0.02 }, 0.34)
-        tl.to('#cursorRing', { opacity: 0.4, duration: 0.02 }, 0.34)
-        tl.to('#cursorDot', { left: '50%', top: '67%', duration: 0.06, ease: 'power2.inOut' }, 0.36)
-        tl.to('#cursorRing', { left: '50%', top: '67%', duration: 0.06, ease: 'power2.inOut' }, 0.36)
-        tl.to('#cursorDot', { scale: 0.6, opacity: 0.7, duration: 0.02 }, 0.42)
-        tl.to('#cursorRing', { scale: 0.6, duration: 0.02 }, 0.42)
-        tl.set('#cursorClickRing', { left: '50%', top: '67%', opacity: 1, scale: 0 })
-        tl.to('#cursorClickRing', { scale: 2.5, opacity: 0, duration: 0.06, ease: 'power2.out' }, 0.43)
-        tl.to('#cursorDot, #cursorRing', { opacity: 0, duration: 0.02 }, 0.47)
-        tl.to('#progressFill', { scaleX: 1, duration: 0.18, ease: 'power3.inOut' }, 0.35)
-
-        tl.to('.screen-2', { opacity: 0, duration: 0.02 }, 0.50)
-        tl.to('.screen-3', { opacity: 1, duration: 0.02 }, 0.50)
-        tl.to('.stage-text.s3', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.50)
-        tl.set('.stage-text.s4', { opacity: 1 }, 0.53)
-        tl.set('.stage-text.s4 h2', { opacity: 0, y: 25, scale: 0.95 }, 0.53)
-        tl.set('.stage-text.s4 p', { opacity: 0, y: 15 }, 0.53)
-        tl.to('.stage-text.s4 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.53)
-        tl.to('.stage-text.s4 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.56)
-        tl.to('#successOverlay', { opacity: 1, duration: 0.04, ease: 'power2.out' }, 0.52)
-        tl.to('#checkmarkIcon', { scale: 1, rotation: 0, opacity: 1, duration: 0.06, ease: 'back.out(2.5)' }, 0.54)
-        tl.to('#successText', { opacity: 1, y: 0, duration: 0.03 }, 0.56)
-        tl.to('#libraryText', { opacity: 1, y: 0, duration: 0.03 }, 0.57)
-        tl.to('#successActions', { opacity: 1, y: 0, duration: 0.03 }, 0.58)
-
-        tl.to('.phone-frame', { scale: 0.7, x: '-42vw', y: 20, duration: 0.10, ease: 'power2.inOut' }, 0.75)
-        tl.to('.stage-text.s4', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.75)
-        tl.set('.stage-text.s5', { opacity: 1 }, 0.78)
-        tl.set('.stage-text.s5 h2', { opacity: 0, y: 25, scale: 0.95 }, 0.78)
-        tl.set('.stage-text.s5 p', { opacity: 0, y: 15 }, 0.78)
-        tl.to('.stage-text.s5 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.78)
-        tl.to('.stage-text.s5 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.81)
-        tl.to('#sideCopy', { x: '-10vw', opacity: 0, duration: 0.08, ease: 'power2.in' }, 0.78)
-        tl.to('#orb1', { x: 200, y: -120, scale: 2, opacity: 0.3, duration: 0.10 }, 0.75)
-        tl.to('#orb2', { x: -200, y: 120, scale: 2, opacity: 0.3, duration: 0.10 }, 0.75)
-        tl.to('#exitCtaOverlay', {
-          opacity: 1, duration: 0.08, ease: 'power2.out',
-          onStart: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto' },
-          onReverseComplete: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none' },
-        }, 0.78)
-        tl.to('.phone-frame', { opacity: 0.3, scale: 0.5, duration: 0.10 }, 0.82)
-        tl.to('#orb1', { opacity: 0.15, duration: 0.10 }, 0.88)
-        tl.to('#orb2', { opacity: 0.15, duration: 0.10 }, 0.92)
-
-        return () => { tl.kill() }
-      })
-
-      mm.add('(max-width: 767px)', () => {
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: '#scrollytell',
-            start: 'top top',
-            end: '+=600%',
-            pin: true,
-            scrub: 1.5,
-            anticipatePin: 1,
-            invalidateOnRefresh: true,
-          },
-          defaults: { ease: 'none' },
-        })
-
-        tl.set('.phone-frame', { y: '100vh', opacity: 0, scale: 0.8 })
-        tl.set('.stage-text.s2, .stage-text.s3, .stage-text.s4, .stage-text.s5', { opacity: 0 })
-        tl.set('.stage-text.s1', { opacity: 1 })
-        tl.set('#stage1Reveal', { text: '' })
-        tl.set('#exitCtaOverlay', { opacity: 0, pointerEvents: 'none' })
-
-        tl.to('.phone-frame', { y: 0, opacity: 1, scale: 1, duration: 0.14, ease: 'power2.out' }, 0)
-        tl.to('#stage1Reveal', { duration: 0.06, text: 'Discover the Power of SpotDL', ease: 'none' }, 0.04)
-        tl.to('#orb1', { scale: 1.2, opacity: 0.6, duration: 0.14 }, 0)
-        tl.to('#orb2', { scale: 1.3, opacity: 0.5, duration: 0.14 }, 0)
-
-        tl.to('.stage-text.s1', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.14)
-        tl.set('.stage-text.s2', { opacity: 1 }, 0.17)
-        tl.set('.stage-text.s2 h2', { opacity: 0, y: 16, scale: 0.95 }, 0.17)
-        tl.set('.stage-text.s2 p', { opacity: 0, y: 10 }, 0.17)
-        tl.to('.stage-text.s2 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.17)
-        tl.to('.stage-text.s2 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.20)
-        tl.to('#orb1', { x: 40, y: -30, scale: 1.3, duration: 0.16 }, 0.14)
-        tl.to('#orb2', { x: -30, y: 20, scale: 1.2, duration: 0.16 }, 0.14)
-
-        tl.to('.screen-1', { opacity: 0, duration: 0.02 }, 0.30)
-        tl.to('.screen-2', { opacity: 1, duration: 0.02 }, 0.30)
-        tl.to('.stage-text.s2', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.30)
-        tl.set('.stage-text.s3', { opacity: 1 }, 0.33)
-        tl.set('.stage-text.s3 h2', { opacity: 0, y: 16, scale: 0.95 }, 0.33)
-        tl.set('.stage-text.s3 p', { opacity: 0, y: 10 }, 0.33)
-        tl.to('.stage-text.s3 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.33)
-        tl.to('.stage-text.s3 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.36)
-
-        tl.set('#cursorDot, #cursorRing', { opacity: 0, scale: 1, left: '20%', top: '5%' })
-        tl.to('#cursorDot', { opacity: 0.9, duration: 0.02 }, 0.34)
-        tl.to('#cursorRing', { opacity: 0.4, duration: 0.02 }, 0.34)
-        tl.to('#cursorDot', { left: '50%', top: '67%', duration: 0.06, ease: 'power2.inOut' }, 0.36)
-        tl.to('#cursorRing', { left: '50%', top: '67%', duration: 0.06, ease: 'power2.inOut' }, 0.36)
-        tl.to('#cursorDot', { scale: 0.6, opacity: 0.7, duration: 0.02 }, 0.42)
-        tl.to('#cursorRing', { scale: 0.6, duration: 0.02 }, 0.42)
-        tl.set('#cursorClickRing', { left: '50%', top: '67%', opacity: 1, scale: 0 })
-        tl.to('#cursorClickRing', { scale: 2, opacity: 0, duration: 0.06, ease: 'power2.out' }, 0.43)
-        tl.to('#cursorDot, #cursorRing', { opacity: 0, duration: 0.02 }, 0.47)
-        tl.to('#progressFill', { scaleX: 1, duration: 0.18, ease: 'power3.inOut' }, 0.35)
-
-        tl.to('.screen-2', { opacity: 0, duration: 0.02 }, 0.50)
-        tl.to('.screen-3', { opacity: 1, duration: 0.02 }, 0.50)
-        tl.to('.stage-text.s3', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.50)
-        tl.set('.stage-text.s4', { opacity: 1 }, 0.53)
-        tl.set('.stage-text.s4 h2', { opacity: 0, y: 16, scale: 0.95 }, 0.53)
-        tl.set('.stage-text.s4 p', { opacity: 0, y: 10 }, 0.53)
-        tl.to('.stage-text.s4 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.53)
-        tl.to('.stage-text.s4 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.56)
-        tl.to('#successOverlay', { opacity: 1, duration: 0.04 }, 0.52)
-        tl.to('#checkmarkIcon', { scale: 1, rotation: 0, opacity: 1, duration: 0.06, ease: 'back.out(2.5)' }, 0.54)
-        tl.to('#successText', { opacity: 1, y: 0, duration: 0.03 }, 0.56)
-        tl.to('#libraryText', { opacity: 1, y: 0, duration: 0.03 }, 0.57)
-        tl.to('#successActions', { opacity: 1, y: 0, duration: 0.03 }, 0.58)
-
-        tl.to('.phone-frame', { scale: 0.7, x: '-50vw', y: 20, duration: 0.10, ease: 'power2.inOut' }, 0.75)
-        tl.to('.stage-text.s4', { opacity: 0, duration: 0.03, ease: 'power2.in' }, 0.75)
-        tl.set('.stage-text.s5', { opacity: 1 }, 0.78)
-        tl.set('.stage-text.s5 h2', { opacity: 0, y: 16, scale: 0.95 }, 0.78)
-        tl.set('.stage-text.s5 p', { opacity: 0, y: 10 }, 0.78)
-        tl.to('.stage-text.s5 h2', { opacity: 1, y: 0, scale: 1, duration: 0.05, ease: 'power3.out' }, 0.78)
-        tl.to('.stage-text.s5 p', { opacity: 1, y: 0, duration: 0.04, ease: 'power2.out' }, 0.81)
-        tl.to('#sideCopy', { x: '-10vw', opacity: 0, duration: 0.08, ease: 'power2.in' }, 0.78)
-        tl.to('#orb1', { x: 100, y: -60, scale: 1.5, opacity: 0.3, duration: 0.10 }, 0.75)
-        tl.to('#orb2', { x: -100, y: 60, scale: 1.5, opacity: 0.3, duration: 0.10 }, 0.75)
-        tl.to('#exitCtaOverlay', {
-          opacity: 1, duration: 0.08, ease: 'power2.out',
-          onStart: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto' },
-          onReverseComplete: () => { document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none' },
-        }, 0.78)
-        tl.to('.phone-frame', { opacity: 0.3, scale: 0.5, duration: 0.10 }, 0.82)
-        tl.to('#orb1', { opacity: 0.15, duration: 0.10 }, 0.88)
-        tl.to('#orb2', { opacity: 0.15, duration: 0.10 }, 0.92)
-
-        return () => { tl.kill() }
-      })
-    }, scrollytellRef)
-
-    return () => ctx.revert()
-  }, [])
-
-  useEffect(() => {
     ScrollTrigger.refresh()
-    const timer = setTimeout(() => ScrollTrigger.refresh(), 500)
-    return () => clearTimeout(timer)
-  }, [])
+    const timer = setTimeout(() => ScrollTrigger.refresh(), 800)
+
+    return () => {
+      clearTimeout(timer)
+      mm.revert()
+    }
+  }, [buildDesktopTL, buildMobileTL])
 
   return (
     <div className="relative overflow-x-hidden bg-[#0C0C0E] text-white font-sans">
@@ -399,8 +412,8 @@ export function LandingPage() {
       </section>
 
       {/* Scrollytelling */}
-      <section id="scrollytell" ref={scrollytellRef} className="relative" style={{ height: '605vh' }}>
-        <div ref={pinnedRef} className="pinned-content h-screen w-full flex items-center justify-center overflow-hidden relative">
+      <section id="scrollytell" ref={scrollytellRef} className="relative" style={{ height: '600vh' }}>
+        <div className="pinned-content h-screen w-full flex items-center justify-center overflow-hidden relative">
           <div className="backdrop-orb orb-1" id="orb1" />
           <div className="backdrop-orb orb-2" id="orb2" />
 
@@ -629,10 +642,10 @@ export function LandingPage() {
                   <Download className="w-5 h-5" />
                   Start Downloading
                 </Link>
-                <a href="https://github.com/anomalyco/Spotify-downloader/releases" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-8 py-3 border border-white/10 hover:border-white/20 text-white/70 hover:text-white font-medium rounded-xl transition-colors">
+                <button onClick={downloadLatestAPK} className="inline-flex items-center gap-2 px-8 py-3 border border-white/10 hover:border-white/20 text-white/70 hover:text-white font-medium rounded-xl transition-colors">
                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
                   GitHub Release
-                </a>
+                </button>
               </div>
             </div>
           </div>
@@ -640,7 +653,7 @@ export function LandingPage() {
       </section>
 
       {/* Exit CTA Section */}
-      <section className="min-h-screen flex items-center justify-center px-6 py-20" style={{ background: '#0C0C0E' }}>
+      <section className="flex items-center justify-center px-6 py-16" style={{ background: '#0C0C0E' }}>
         <div className="max-w-[680px] text-center px-6 py-16 md:px-12 md:py-16 rounded-3xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/20 text-[#1DB954] text-xs font-semibold tracking-wider uppercase mb-5">
             SpotDL v3
@@ -658,7 +671,7 @@ export function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section className="px-4 py-32 bg-gradient-to-b from-transparent to-black/30 relative border-t border-white/5" style={{ background: '#0C0C0E' }}>
+      <section className="px-4 py-20 bg-gradient-to-b from-transparent to-black/30 relative border-t border-white/5" style={{ background: '#0C0C0E' }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">Why choose SpotDL?</h2>
@@ -690,7 +703,7 @@ export function LandingPage() {
       </section>
 
       {/* How it Works */}
-      <section className="px-4 py-32 scroll-mt-20" style={{ background: '#0C0C0E' }}>
+      <section className="px-4 py-20 scroll-mt-20" style={{ background: '#0C0C0E' }}>
         <div className="max-w-5xl mx-auto text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-20">How it works</h2>
           <div className="grid md:grid-cols-3 gap-12 md:gap-8 relative">
