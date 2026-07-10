@@ -2,11 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Headphones, Zap, Tags, Smartphone, Download, LogIn, UserPlus } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { gsap } from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { TextPlugin } from 'gsap/TextPlugin'
-
-gsap.registerPlugin(ScrollTrigger, TextPlugin)
+import { gsap, ScrollTrigger } from '../lib/gsap'
 
 async function downloadLatestAPK() {
   try {
