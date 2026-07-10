@@ -24,6 +24,7 @@ import { fetchLyricsWithFallback } from './lib/fetchLyricsWithFallback'
 import { initSentry } from './lib/sentry'
 import { checkForUpdate, promptUpdate } from './lib/autoUpdate'
 import { registerForPushNotifications, sendPushTokenToServer } from './lib/pushNotifications'
+import { createNotificationChannels } from './lib/notifications'
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })))
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
@@ -359,6 +360,8 @@ function App() {
     if (!Capacitor.isNativePlatform()) return
 
     const init = async () => {
+      await createNotificationChannels()
+
       const token = await registerForPushNotifications()
       if (token) {
         await sendPushTokenToServer(token)

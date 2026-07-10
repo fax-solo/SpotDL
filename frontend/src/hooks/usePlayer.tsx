@@ -5,8 +5,8 @@ import { findAudio } from '../lib/sources'
 import { getCrossfadeDuration } from '../lib/crossfadeSettings'
 import type { HistoryEntry } from './useHistory'
 import { useBackgroundAudio } from './useBackgroundAudio'
-import { sendBackgroundPlaybackNotification, cancelBackgroundPlaybackNotification, ensureNotificationPermission } from '../lib/notifications'
-import { startMediaForeground, stopMediaForeground } from '../lib/nativePlugin'
+import { ensureNotificationPermission } from '../lib/notifications'
+import { startMediaForeground, stopMediaForeground, updateMediaForeground } from '../lib/nativePlugin'
 
 type RepeatMode = 'none' | 'one' | 'all'
 export type SleepTimerMode = 'off' | 'countdown' | 'endOfTrack' | 'endOfQueue'
@@ -142,11 +142,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     audioRef.current = audio
 
     const onLoadedMetadata = () => {
-      setDuration(audio.duration || 0)
+      const dur = audio.duration || 0
+      setDuration(dur)
     }
 
     const onTimeUpdate = () => {
-      setCurrentTime(audio.currentTime)
+      const time = audio.currentTime
+      setCurrentTime(time)
     }
 
     const resetSleepTimer = () => {
@@ -162,7 +164,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const idx = queueIndexRef.current
       const sOrder = shuffleOrderRef.current
 
-      // endOfTrack: pause after this track ends
       if (st.mode === 'endOfTrack') {
         resetSleepTimer()
         setIsPlaying(false)
@@ -339,24 +340,32 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (crossfadeMs > 0) {
         await fadeVolume(audio, 0, volume, crossfadeMs / 2)
       }
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: track.title,
-          artist: track.artist,
-          album: track.album,
-          artwork: track.artworkUrl ? [{ src: track.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : []
-        })
-      }
-      const { Capacitor } = await import('@capacitor/core')
-      if (!Capacitor.isNativePlatform()) {
-        sendBackgroundPlaybackNotification({ title: track.title, artist: track.artist, artworkUrl: track.artworkUrl })
-      }
+      setMediaSession(track)
       await ensureNotificationPermission()
-      startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined)
+      startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined, 0, audio.duration)
     } catch {
       audio.volume = volume
       setIsPlaying(false)
     }
+  }, [volume])
+
+  const setMediaSession = useCallback((track: HistoryEntry) => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      artwork: track.artworkUrl ? [{ src: track.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : []
+    })
+  }, [])
+
+  const syncMediaSessionPosition = useCallback((time: number, dur: number) => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.setPositionState({
+      duration: dur,
+      playbackRate: 1,
+      position: time,
+    })
   }, [])
 
   const buildShuffleOrder = useCallback((q: HistoryEntry[], currentIdx: number): number[] => {
@@ -383,12 +392,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const pause = useCallback(() => {
     audioRef.current?.pause()
     setIsPlaying(false)
-    cancelBackgroundPlaybackNotification()
     stopMediaForeground()
   }, [])
 
   const resume = useCallback(() => {
-    audioRef.current?.play().then(() => setIsPlaying(true)).catch(() => {})
+    audioRef.current?.play().then(() => {
+      setIsPlaying(true)
+      const audio = audioRef.current
+      if (audio && currentTrackRef.current) {
+        startMediaForeground(
+          currentTrackRef.current.title,
+          currentTrackRef.current.artist,
+          currentTrackRef.current.artworkUrl ?? undefined,
+          audio.currentTime,
+          audio.duration,
+        )
+      }
+    }).catch(() => {})
   }, [])
 
   const next = useCallback(() => {
@@ -403,7 +423,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (currentPos < sOrder.length - 1) {
         nextIdx = sOrder[currentPos + 1]
       } else {
-        return // end of shuffle order
+        return
       }
     } else {
       nextIdx = idx + 1
@@ -528,7 +548,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Sleep timer countdown
   useEffect(() => {
     if (sleepTimer.mode !== 'countdown') return
     const interval = setInterval(() => {
@@ -545,6 +564,37 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval)
   }, [sleepTimer.mode, pause])
 
+  const positionSyncRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (isPlaying && currentTrack) {
+      const audio = audioRef.current
+      if (!audio) return
+      syncMediaSessionPosition(audio.currentTime, audio.duration)
+      const interval = setInterval(() => {
+        if (audioRef.current && currentTrackRef.current) {
+          const t = audioRef.current.currentTime
+          const d = audioRef.current.duration
+          syncMediaSessionPosition(t, d)
+          updateMediaForeground(
+            currentTrackRef.current.title,
+            currentTrackRef.current.artist,
+            currentTrackRef.current.artworkUrl ?? undefined,
+            t,
+            d,
+          )
+        }
+      }, 5000)
+      positionSyncRef.current = interval as unknown as number
+      return () => clearInterval(interval)
+    } else {
+      if (positionSyncRef.current != null) {
+        clearInterval(positionSyncRef.current)
+        positionSyncRef.current = null
+      }
+    }
+  }, [isPlaying, currentTrack, syncMediaSessionPosition])
+
   useBackgroundAudio(currentTrack, isPlaying)
 
   useEffect(() => {
@@ -553,8 +603,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler('pause', pause)
       navigator.mediaSession.setActionHandler('previoustrack', prev)
       navigator.mediaSession.setActionHandler('nexttrack', next)
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime != null) seek(details.seekTime)
+      })
+      navigator.mediaSession.setActionHandler('stop', pause)
     }
-  }, [resume, pause, prev, next])
+  }, [resume, pause, prev, next, seek])
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
@@ -562,17 +616,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const register = async () => {
       try {
         const mod = await import('@capacitor/core')
-        const SpotDL = mod.registerPlugin<{ addListener: (event: string, cb: () => void) => Promise<{ remove: () => void }> }>('SpotDL')
+        const SpotDL = mod.registerPlugin<{
+          addListener: (event: string, cb: (data: any) => void) => Promise<{ remove: () => void }>
+        }>('SpotDL')
         const h1 = (await SpotDL.addListener('mediaPlay', () => { resume() })).remove
         const h2 = (await SpotDL.addListener('mediaPause', () => { pause() })).remove
         const h3 = (await SpotDL.addListener('mediaNext', () => { next() })).remove
         const h4 = (await SpotDL.addListener('mediaPrevious', () => { prev() })).remove
-        cleanups = [h1, h2, h3, h4]
+        const h5 = (await SpotDL.addListener('mediaSeek', (data) => {
+          if (data?.position != null) seek(data.position / 1000)
+        })).remove
+        cleanups = [h1, h2, h3, h4, h5]
       } catch {}
     }
     register()
     return () => { cleanups.forEach(h => h()) }
-  }, [resume, pause, next, prev])
+  }, [resume, pause, next, prev, seek])
 
   return (
     <PlayerContext.Provider value={{

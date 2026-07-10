@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
+import { getNavigationBarHeight, getStatusBarHeight, getDisplayCutoutInsets } from '../lib/nativePlugin'
 
 interface SafeAreaInsets {
   top: number
@@ -8,12 +9,12 @@ interface SafeAreaInsets {
   left: number
 }
 
-function setCSSCustomProperties(top: number, bottom: number) {
+function setCSSCustomProperties(top: number, bottom: number, left: number, right: number) {
   const root = document.documentElement
   root.style.setProperty('--sat', `${top}px`)
   root.style.setProperty('--sab', `${bottom}px`)
-  root.style.setProperty('--sal', '0px')
-  root.style.setProperty('--sar', '0px')
+  root.style.setProperty('--sal', `${left}px`)
+  root.style.setProperty('--sar', `${right}px`)
 }
 
 function getInsets(): SafeAreaInsets {
@@ -34,24 +35,36 @@ export function useEdgeToEdge() {
 
   const updateInsets = useCallback(() => {
     const sbHeight = statusBarHeightRef.current
-    if (sbHeight === 0) {
-      setInsets(getInsets())
-      return
-    }
-    // Compute bottom inset from visualViewport vs window height difference
-    // (accounts for gesture navigation bar or 3-button nav bar)
     let bottomInset = 0
+    let leftInset = 0
+    let rightInset = 0
+
     if (window.visualViewport) {
       const diff = window.innerHeight - window.visualViewport.height
-      // When keyboard is open diff includes keyboard, so only use when diff is small
       if (diff > 0 && diff < 200) {
         bottomInset = diff - sbHeight
       }
     }
-    // Fallback: gesture nav bar ~24px, 3-button nav ~48px
-    if (bottomInset <= 0) bottomInset = 24
-    setCSSCustomProperties(sbHeight, bottomInset)
-    setInsets({ top: sbHeight, right: 0, bottom: bottomInset, left: 0 })
+
+    if (Capacitor.isNativePlatform()) {
+      if (bottomInset <= 0) bottomInset = 24
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      const innerW = window.innerWidth
+      const screenW = window.screen.width
+      if (innerW < screenW) {
+        const diff = screenW - innerW
+        const isLandscape = window.innerWidth > window.innerHeight
+        if (isLandscape) {
+          leftInset = Math.round(diff / 2)
+          rightInset = Math.round(diff / 2)
+        }
+      }
+    }
+
+    setCSSCustomProperties(sbHeight, bottomInset, leftInset, rightInset)
+    setInsets({ top: sbHeight, right: rightInset, bottom: bottomInset, left: leftInset })
   }, [])
 
   useEffect(() => {
@@ -71,16 +84,41 @@ export function useEdgeToEdge() {
     let cancelled = false
     const run = async () => {
       try {
-        const { StatusBar } = await import('@capacitor/status-bar')
-        const info = await StatusBar.getInfo()
+        const [sbInfo, navHeight, cutout] = await Promise.all([
+          getStatusBarHeight(),
+          getNavigationBarHeight(),
+          getDisplayCutoutInsets(),
+        ])
         if (!cancelled) {
-          const h = info.height ?? 0
-          setStatusBarHeight(h)
-          statusBarHeightRef.current = h
+          setStatusBarHeight(sbInfo)
+          statusBarHeightRef.current = sbInfo
+
+          if (cutout.left > 0 || cutout.right > 0 || cutout.top > 0) {
+            setCSSCustomProperties(
+              Math.max(sbInfo, cutout.top),
+              24,
+              cutout.left,
+              cutout.right,
+            )
+          }
+
+          if (navHeight > 0 && navHeight !== 24) {
+            const style = getComputedStyle(document.documentElement)
+            const currentBottom = parseInt(style.getPropertyValue('--sab').replace('px', ''), 10) || 0
+            if (currentBottom > 0) {
+              setCSSCustomProperties(
+                statusBarHeightRef.current,
+                Math.max(navHeight, currentBottom),
+                cutout.left,
+                cutout.right,
+              )
+            }
+          }
+
           updateInsets()
         }
       } catch {
-        // StatusBar plugin not available
+        // native plugins not available
       }
     }
     run()

@@ -22,6 +22,11 @@
   --font-sans: 'Inter', system-ui, sans-serif;
 }
 
+html {
+  font-size: clamp(14px, 0.875rem + 0.15vw, 18px);
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -29,8 +34,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  /* Edge-to-edge: render under system bars */
   background-color: var(--color-dark-bg);
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .dark body {
@@ -41,7 +47,6 @@ body:not(.dark) {
   background-color: var(--color-light-bg);
 }
 
-/* Ensure root fills the screen edge-to-edge */
 #root {
   min-height: 100dvh;
   min-height: -webkit-fill-available;
@@ -55,8 +60,15 @@ input, textarea, select, [contenteditable] {
   font-size: 16px;
 }
 
-/* --- Safe area helpers (edge-to-edge) --- */
-/* --sat/--sab are set by useEdgeToEdge; env() is iOS fallback */
+/* Prevent text overflow on all elements */
+p, h1, h2, h3, h4, h5, h6, span, a, button, li, label {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+}
+
+/* Safe area helpers (edge-to-edge) */
 .safe-area-top {
   padding-top: var(--sat, env(safe-area-inset-top, 0px));
 }
@@ -72,6 +84,10 @@ input, textarea, select, [contenteditable] {
 .safe-area-y {
   padding-top: var(--sat, env(safe-area-inset-top, 0px));
   padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
+}
+.safe-area-x {
+  padding-left: var(--sal, env(safe-area-inset-left, 0px));
+  padding-right: var(--sar, env(safe-area-inset-right, 0px));
 }
 
 /* Scrollbar hiding (cross-browser) */
@@ -133,7 +149,7 @@ input, textarea, select, [contenteditable] {
   -webkit-backdrop-filter: blur(24px);
 }
 
-/* --- Utility classes used by components --- */
+/* Utility classes */
 .backdrop-mobile {
   -webkit-backdrop-filter: blur(20px) saturate(1.8);
   backdrop-filter: blur(20px) saturate(1.8);
@@ -184,4 +200,35 @@ input, textarea, select, [contenteditable] {
 }
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out;
+}
+
+/* Shimmer loading animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(156, 163, 175, 0.05) 0%,
+    rgba(156, 163, 175, 0.15) 50%,
+    rgba(156, 163, 175, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+.dark .shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.02) 0%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Bottom bar height CSS variable */
+:root {
+  --bottom-bar-height: 56px;
 }

@@ -24,9 +24,11 @@ export function CallbackPage() {
       sessionStorage.removeItem('google_code_verifier')
       const redirectUri = `http://localhost:5173/callback`
 
-      import('../lib/auth').then(({ googleCodeAuth }) => {
+      import('../lib/auth').then(({ googleCodeAuth, storeUser }) => {
         googleCodeAuth(code, codeVerifier, redirectUri)
-          .then(() => {
+          .then(data => {
+            storeUser(data.user)
+            useAuth.setState({ user: data.user, isGuest: false, initialized: true, loading: false })
             if (statusRef.current) {
               statusRef.current.innerHTML = `
                 <div class="flex flex-col items-center justify-center px-4">

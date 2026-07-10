@@ -12,29 +12,35 @@ export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying:
   useEffect(() => { trackRef.current = currentTrack }, [currentTrack])
   useEffect(() => { playingRef.current = isPlaying }, [isPlaying])
 
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return
-
-    const acquireWakeLock = async () => {
-      try {
-        if ('wakeLock' in navigator) {
-          if (wakeLockRef.current) wakeLockRef.current.release().catch(() => {})
-          wakeLockRef.current = await navigator.wakeLock.request('screen')
+  const acquireWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        if (wakeLockRef.current) {
+          if (wakeLockRef.current.released) {
+            wakeLockRef.current = null
+          } else {
+            return
+          }
         }
-      } catch {
-        // WakeLock not supported or denied
+        wakeLockRef.current = await navigator.wakeLock.request('screen')
       }
+    } catch {
+      // WakeLock not supported or denied
     }
+  }
 
-    const releaseWakeLock = async () => {
-      if (wakeLockRef.current) {
-        try {
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        if (!wakeLockRef.current.released) {
           await wakeLockRef.current.release()
-        } catch {}
-        wakeLockRef.current = null
-      }
+        }
+      } catch {}
+      wakeLockRef.current = null
     }
+  }
 
+  useEffect(() => {
     if (isPlaying) {
       acquireWakeLock()
     } else {
@@ -43,8 +49,23 @@ export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying:
     }
 
     return () => {
-      releaseWakeLock()
       cancelBackgroundPlaybackNotification()
+    }
+  }, [isPlaying])
+
+  useEffect(() => {
+    if (!isPlaying) return
+
+    const reacquireWakeLock = () => {
+      acquireWakeLock()
+    }
+
+    document.addEventListener('visibilitychange', reacquireWakeLock)
+    window.addEventListener('focus', reacquireWakeLock)
+
+    return () => {
+      document.removeEventListener('visibilitychange', reacquireWakeLock)
+      window.removeEventListener('focus', reacquireWakeLock)
     }
   }, [isPlaying])
 

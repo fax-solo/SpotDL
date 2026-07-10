@@ -7,6 +7,12 @@ vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: vi.fn(),
   },
+  registerPlugin: vi.fn(() => ({
+    checkPermission: vi.fn().mockResolvedValue({ granted: false }),
+    requestPermission: vi.fn().mockResolvedValue({ granted: false }),
+    shouldShowRationale: vi.fn().mockResolvedValue({ show: false }),
+    openAppSettings: vi.fn(),
+  })),
 }))
 
 vi.mock('@capacitor/local-notifications', () => ({
@@ -16,9 +22,18 @@ vi.mock('@capacitor/local-notifications', () => ({
   },
 }))
 
+vi.mock('./nativePlugin', () => ({
+  checkPermissionNative: vi.fn().mockResolvedValue(false),
+  requestPermissionNative: vi.fn().mockResolvedValue(false),
+  shouldShowRationaleNative: vi.fn().mockResolvedValue(false),
+  openAppSettings: vi.fn(),
+}))
+
 import { Capacitor } from '@capacitor/core'
 import {
   ALL_PERMISSIONS,
+  RUNTIME_PERMISSIONS,
+  MANIFEST_PERMISSIONS,
   requestPermission,
   checkPermission,
   isNative,
@@ -42,6 +57,15 @@ describe('ALL_PERMISSIONS', () => {
     expect(keys).toContain('vibrate')
     expect(keys).toContain('exact_alarm')
     expect(keys).toContain('boot_completed')
+    expect(keys).toContain('media_audio')
+    expect(keys).toContain('media_images')
+  })
+
+  it('separates runtime from manifest permissions', () => {
+    expect(RUNTIME_PERMISSIONS.map(p => p.key)).toContain('notifications')
+    expect(RUNTIME_PERMISSIONS.map(p => p.key)).toContain('media_audio')
+    expect(MANIFEST_PERMISSIONS.map(p => p.key)).toContain('internet')
+    expect(MANIFEST_PERMISSIONS.map(p => p.key)).toContain('wake_lock')
   })
 
   it('marks runtime permissions as dangerous', () => {
@@ -75,7 +99,11 @@ describe('requiresRuntimePermission', () => {
     expect(requiresRuntimePermission('notifications')).toBe(true)
   })
 
-  it('returns false for auto-granted permissions', () => {
+  it('returns true for media_audio', () => {
+    expect(requiresRuntimePermission('media_audio')).toBe(true)
+  })
+
+  it('returns false for manifest permissions', () => {
     expect(requiresRuntimePermission('internet')).toBe(false)
     expect(requiresRuntimePermission('storage')).toBe(false)
     expect(requiresRuntimePermission('vibrate')).toBe(false)
@@ -118,25 +146,17 @@ describe('requestPermission', () => {
     })
   })
 
-  describe('auto-granted permissions', () => {
+  describe('manifest (non-runtime) permissions', () => {
     beforeEach(() => {
       vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
     })
 
-    it('returns true for internet', async () => {
-      expect(await requestPermission('internet')).toBe(true)
+    it('returns false for internet (not runtime)', async () => {
+      expect(await requestPermission('internet')).toBe(false)
     })
 
-    it('returns true for storage', async () => {
-      expect(await requestPermission('storage')).toBe(true)
-    })
-
-    it('returns true for foreground_service', async () => {
-      expect(await requestPermission('foreground_service')).toBe(true)
-    })
-
-    it('returns true for media_playback', async () => {
-      expect(await requestPermission('media_playback')).toBe(true)
+    it('returns false for storage (not runtime)', async () => {
+      expect(await requestPermission('storage')).toBe(false)
     })
   })
 
@@ -179,16 +199,16 @@ describe('checkPermission', () => {
     })
   })
 
-  describe('auto-granted permissions', () => {
+  describe('manifest (non-runtime) permissions', () => {
     beforeEach(() => {
       vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
     })
 
-    it('returns true for internet', async () => {
+    it('returns true for internet (always granted)', async () => {
       expect(await checkPermission('internet')).toBe(true)
     })
 
-    it('returns true for storage', async () => {
+    it('returns true for storage (always granted)', async () => {
       expect(await checkPermission('storage')).toBe(true)
     })
   })

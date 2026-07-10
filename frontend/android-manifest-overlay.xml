@@ -3,7 +3,35 @@
   Instructions:
   1. Run: npm run build && npx cap sync android
   2. Open android/app/src/main/AndroidManifest.xml
-  3. Inside the <application> element, add the following inside the main <activity>:
+  3. Inside the <application> element, add the following:
+
+  <!-- ===== SERVICES ===== -->
+
+  <!-- Media playback foreground service with MEDIA_BUTTON for hardware controls -->
+  <service
+      android:name="com.spotdl.plugin.MediaService"
+      android:exported="false">
+      <intent-filter>
+          <action android:name="android.intent.action.MEDIA_BUTTON" />
+      </intent-filter>
+  </service>
+
+  <!-- Download foreground service -->
+  <service
+      android:name="com.spotdl.plugin.DownloadService"
+      android:exported="false" />
+
+  <!-- ===== RECEIVERS ===== -->
+  <receiver
+      android:name="com.spotdl.plugin.BootReceiver"
+      android:exported="true">
+      <intent-filter>
+          <action android:name="android.intent.action.BOOT_COMPLETED" />
+      </intent-filter>
+  </receiver>
+
+  <!-- ===== ACTIVITY CONFIG ===== -->
+  Inside the main <activity>:
 
   <!-- Share target: receive URLs from other apps -->
   <intent-filter>
@@ -25,36 +53,39 @@
   Also add android:windowSoftInputMode="adjustResize" to the activity
   if not already present (for keyboard handling).
 
-  4. Open android/app/src/main/java/com/spotdl/app/MainActivity.java
-  5. Replace or add the onCreate method:
+  ===== PERMISSIONS AT TOP LEVEL OF MANIFEST =====
+  (Add these before the <application> element)
 
-  import androidx.activity.EdgeToEdge;
-  ...
-  @Override
-  public void onCreate(Bundle savedInstanceState) {
-      super.onCreate(savedInstanceState);
-      EdgeToEdge.enable(this);
-      // ... existing code
-  }
-
-  6. Build: cd android && ./gradlew assembleDebug
-
-  === FOR BACKGROUND AUDIO ===
-  To enable background audio playback, add this to your AndroidManifest.xml
-  inside the <application> element, before the <activity>:
-
-  <service
-      android:name="com.spotdl.app.MediaPlaybackService"
-      android:exported="false">
-      <intent-filter>
-          <action android:name="android.intent.action.MEDIA_BUTTON" />
-      </intent-filter>
-  </service>
-
-  And request the FOREGROUND_SERVICE permission at the top level of the manifest:
-
+  <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.VIBRATE" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+  <!-- Android 13+ granular media permissions -->
+  <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+  <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+  ===== MAIN ACTIVITY JAVA =====
+  In MainActivity.java (android/app/src/main/java/com/spotdl/app/MainActivity.java):
+
+  import androidx.activity.EdgeToEdge;
+  import android.view.WindowManager;
+  import android.view.WindowInsets;
+  import android.view.Display;
+
+  @Override
+  public void onCreate(Bundle savedInstanceState) {
+      super.onCreate(savedInstanceState);
+      EdgeToEdge.enable(this);
+      // Ensure edge-to-edge layout
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          getWindow().setDecorFitsSystemWindows(false);
+      }
+      handleIntent(getIntent());
+  }
 -->

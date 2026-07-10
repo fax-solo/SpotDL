@@ -3,6 +3,7 @@ import re
 import json
 import base64
 import time
+import threading
 import logging
 import urllib.parse
 from pathlib import Path
@@ -94,30 +95,29 @@ def _extract_track_image(item: dict) -> str | None:
                 if sources:
                     sources.sort(key=lambda s: s.get("width") or 0, reverse=True)
                     return sources[0].get("url")
-            except Exception:
+            except Exception as e:
+                logger.debug("_extract_track_image coverArt fallback: %s", e)
                 continue
-    try:
-        if item.get("image"):
-            return item["image"]
-    except Exception:
-        pass
-    try:
-        if item.get("thumbnail"):
-            return item["thumbnail"]
-    except Exception:
-        pass
-    try:
-        if item.get("artwork_url"):
-            return item["artwork_url"]
-    except Exception:
-        pass
+
+    # Direct field checks
+    for field in ("image", "thumbnail", "artwork_url"):
+        try:
+            val = item.get(field)
+            if val:
+                return val
+        except Exception as e:
+            logger.debug("_extract_track_image field '%s': %s", field, e)
+
+    # images array
     try:
         images = item.get("images") or []
         if images and isinstance(images, list):
             images.sort(key=lambda i: i.get("width") or i.get("height") or 0, reverse=True)
             return images[0].get("url")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("_extract_track_image images array: %s", e)
+
+    # album sub-object
     try:
         album = item.get("albumOfTrack") or item.get("album")
         if isinstance(album, dict):
@@ -127,8 +127,9 @@ def _extract_track_image(item: dict) -> str | None:
                     return imgs[0]["url"]
             if album.get("image"):
                 return album["image"]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("_extract_track_image album sub-object: %s", e)
+
     return None
 
 
@@ -195,6 +196,8 @@ _user_auth: dict = {
     "refresh_token": None,
     "expires_at": 0,
 }
+
+_token_lock = threading.Lock()
 
 TOKEN_STORE_PATH = Path(__file__).parent / "data" / "token_store.enc"
 _OLD_TOKEN_STORE_PATH = Path(__file__).parent / "data" / "token_store.json"
@@ -302,9 +305,12 @@ def handle_spotify_callback(code: str, redirect_uri: str | None = None) -> dict:
 
 
 def get_user_token() -> str | None:
-    if not _user_auth["access_token"]:
-        return None
-    if time.time() >= _user_auth["expires_at"]:
+    with _token_lock:
+        if not _user_auth["access_token"]:
+            return None
+        if time.time() < _user_auth["expires_at"]:
+            return _user_auth["access_token"]
+
         if not _user_auth.get("refresh_token"):
             _user_auth["access_token"] = None
             _user_auth["expires_at"] = 0
@@ -319,7 +325,7 @@ def get_user_token() -> str | None:
             _user_auth["expires_at"] = 0
             _save_token_store()
             return None
-    return _user_auth["access_token"]
+        return _user_auth["access_token"]
 
 
 def _refresh_user_token() -> None:

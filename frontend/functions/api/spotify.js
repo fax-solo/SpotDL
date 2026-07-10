@@ -152,11 +152,11 @@ function extractImage(entity) {
   try {
     const sources = entity.coverArt?.sources || []
     if (sources.length) { sources.sort((a, b) => (b.width || 0) - (a.width || 0)); return sources[0].url }
-  } catch {}
+  } catch (e) { scrapeLog('spotify', 'extractImage_coverArt', { err: e?.message }) }
   try {
     const images = entity.visualIdentity?.image || []
     if (images.length) { images.sort((a, b) => (b.maxHeight || 0) - (a.maxHeight || 0)); return images[0].url }
-  } catch {}
+  } catch (e) { scrapeLog('spotify', 'extractImage_visualIdentity', { err: e?.message }) }
   return null
 }
 
@@ -166,23 +166,23 @@ function extractTrackImage(item) {
       const sub = item[key]; if (!sub) continue
       const sources = sub.coverArt?.sources || sub.sources || []
       if (sources.length) { sources.sort((a, b) => (b.width || 0) - (a.width || 0)); return sources[0].url }
-    } catch {}
+    } catch (e) { scrapeLog('spotify', 'extractTrackImage_coverArt', { key, err: e?.message }) }
   }
-  try { if (item.image) return item.image } catch {}
-  try { if (item.images?.[0]?.url) return item.images[0].url } catch {}
-  try { if (item.thumbnail) return item.thumbnail } catch {}
-  try { if (item.artwork_url) return item.artwork_url } catch {}
+  if (item.image) return item.image
+  if (item.images?.[0]?.url) return item.images[0].url
+  if (item.thumbnail) return item.thumbnail
+  if (item.artwork_url) return item.artwork_url
   try {
     const album = item.albumOfTrack || item.album
     if (album?.images?.[0]?.url) return album.images[0].url
     if (album?.image) return album.image
-  } catch {}
+  } catch (e) { scrapeLog('spotify', 'extractTrackImage_album', { err: e?.message }) }
   try {
     if (item.albumOfTrack?.coverArt?.sources?.length) {
       const s = [...item.albumOfTrack.coverArt.sources].sort((a, b) => (b.width || 0) - (a.width || 0))
       return s[0].url
     }
-  } catch {}
+  } catch (e) { scrapeLog('spotify', 'extractTrackImage_albumCoverArt', { err: e?.message }) }
   return null
 }
 
@@ -261,7 +261,7 @@ async function handleEmbedScrape(context, url, summary) {
           return await handleEmbeddedEntity(context, kind, id, entity, summary)
         }
       }
-    } catch {}
+    } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
   }
 
   const embedUrl = `https://open.spotify.com/embed/${kind}/${id}`
@@ -422,7 +422,7 @@ async function handleSearch(context, query, types, limit) {
         officialSearch(context, query, type, limit).then(d => ({ type, data: d })).catch(() => ({ type, data: null }))
       ))
       if (officialResults.some(r => r.data?.length > 0)) results.splice(0, results.length, ...officialResults)
-    } catch {}
+    } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
   }
 
   const result = { tracks: [], albums: [], artists: [], playlists: [], shows: [], top_artist: null }
@@ -582,7 +582,7 @@ async function handleArtist(context, id) {
           related_artists: relatedArtists,
         })
       }
-    } catch {}
+    } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
     try {
       const embedRes = await fetch(`https://open.spotify.com/embed/artist/${id}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
@@ -615,7 +615,7 @@ async function handleArtist(context, id) {
           }
         }
       }
-    } catch {}
+    } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
     return jsonError('Artist not found', 404)
   }
   const p = profile.artist || profile
@@ -753,7 +753,7 @@ async function getHashes() {
         const decoder = new TextDecoder()
         const cfg = JSON.parse(decoder.decode(bytes))
         if (cfg.clientVersion) clientVersion = cfg.clientVersion
-      } catch {}
+      } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
     }
     const seen = new Set()
     const bundles = []
@@ -771,7 +771,7 @@ async function getHashes() {
       try {
         const r = await fetch(url, { headers: { 'User-Agent': UA }, signal: abortTimeout(10000) })
         if (r.ok) allJS += await r.text() + '\n'
-      } catch {}
+      } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
     }
     const found = {}
     for (const name of Object.keys(FALLBACK_HASHES)) {

@@ -14,10 +14,11 @@ async function verifyIdToken(idToken: string): Promise<any> {
   return resp.json()
 }
 
-async function exchangeCode(code: string, codeVerifier: string, redirectUri: string, clientId: string): Promise<any> {
+async function exchangeCode(code: string, codeVerifier: string, redirectUri: string, clientId: string, clientSecret: string): Promise<any> {
   const params = new URLSearchParams({
     code,
     client_id: clientId,
+    client_secret: clientSecret,
     redirect_uri: redirectUri,
     code_verifier: codeVerifier,
     grant_type: 'authorization_code',
@@ -96,8 +97,10 @@ export const onRequest: RouteHandler = async (context) => {
     } else {
       // PKCE code flow: exchange code + verifier for tokens
       const clientId = getGoogleClientId(context.env)
+      const clientSecret = context.env.GOOGLE_CLIENT_SECRET || ''
       if (!clientId) return error('Google sign-in is not configured (missing GOOGLE_CLIENT_ID)', 500)
-      const idToken = await exchangeCode(body.code, body.code_verifier, body.redirect_uri, clientId)
+      if (!clientSecret) return error('Google sign-in is not configured (missing GOOGLE_CLIENT_SECRET)', 500)
+      const idToken = await exchangeCode(body.code, body.code_verifier, body.redirect_uri, clientId, clientSecret)
       info = await verifyIdToken(idToken)
       display_name = (body as any).display_name
     }

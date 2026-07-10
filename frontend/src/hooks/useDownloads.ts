@@ -72,10 +72,8 @@ function loadQueue(): DownloadProgress[] {
     const parsed = JSON.parse(raw) as DownloadProgress[]
     return parsed.map(q => ({
       ...q,
-      done: false,
-      failed: true,
-      stage: 'Restored — tap retry',
-      error: 'Session restored, tap to retry',
+      stage: q.done ? 'Done' : (q.failed ? 'Restored — tap retry' : q.stage),
+      error: q.done ? undefined : (q.failed ? 'Session restored, tap to retry' : q.error),
     }))
   } catch {
     return []
@@ -230,25 +228,27 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
               controllers.set(item.id, controller)
               set({ abortControllers: new Map(controllers) })
 
-              try {
-                let lastNotifTime = 0
-                let lastNotifPct = -1
-                const result = await downloadTrack(item.track, (stage, pct) => {
-                  if (get().queue.some(q => q.id === item.id)) {
-                    get()._updateProgress(item.id, { stage, pct: pct ?? null })
-                    const now = Date.now()
-                    const pctInt = pct !== undefined ? Math.round(pct) : -1
-                    if (pctInt === 100 || (now - lastNotifTime >= 400 && pctInt !== lastNotifPct)) {
-                      lastNotifTime = now
-                      lastNotifPct = pctInt
-                      updateDownloadForeground(
-                        `${item.track.artist} - ${item.track.title}`,
-                        get().queue.filter(q => !q.done && !q.failed).length,
-                        pct ?? undefined,
-                      )
+                try {
+                  let lastNotifTime = 0
+                  let lastNotifPct = -1
+                  const result = await downloadTrack(item.track, (stage, pct) => {
+                    if (get().queue.some(q => q.id === item.id)) {
+                      const actualPct = pct !== undefined ? Math.round(pct * 100) / 100 : null
+                      get()._updateProgress(item.id, { stage, pct: actualPct })
+                      const now = Date.now()
+                      const pctInt = actualPct !== null ? Math.round(actualPct) : -1
+                      if (pctInt === 100 || (now - lastNotifTime >= 400 && pctInt !== lastNotifPct)) {
+                        lastNotifTime = now
+                        lastNotifPct = pctInt
+                        updateDownloadForeground(
+                          `${item.track.artist} - ${item.track.title}`,
+                          get().queue.filter(q => !q.done && !q.failed).length,
+                          actualPct ?? undefined,
+                          stage,
+                        )
+                      }
                     }
-                  }
-                }, controller.signal)
+                  }, controller.signal)
 
                 recordSuccess()
 

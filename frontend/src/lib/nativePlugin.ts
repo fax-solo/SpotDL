@@ -10,6 +10,13 @@ interface LocalTrackResult {
   mtime: number
 }
 
+interface Insets {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
 interface SpotDLPlugin {
   initialize(): Promise<{}>
   getStatus(): Promise<{
@@ -18,11 +25,18 @@ interface SpotDLPlugin {
     port: number
     url: string
   }>
+  checkPermission(options: { alias: string }): Promise<{ granted: boolean }>
+  requestPermission(options: { alias: string }): Promise<{ granted: boolean }>
+  shouldShowRationale(options: { alias: string }): Promise<{ show: boolean }>
+  openAppSettings(): Promise<{}>
+  getNavigationBarHeight(): Promise<{ height: number }>
+  getStatusBarHeight(): Promise<{ height: number }>
+  getDisplayCutoutInsets(): Promise<Insets>
   startDownloadForeground(options: { title?: string; count?: number }): Promise<{}>
-  updateDownloadForeground(options: { title?: string; count?: number; progress?: number }): Promise<{}>
+  updateDownloadForeground(options: { title?: string; count?: number; progress?: number; stage?: string }): Promise<{}>
   stopDownloadForeground(): Promise<{}>
-  startMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string }): Promise<{}>
-  updateMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string }): Promise<{}>
+  startMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string; position?: number; duration?: number }): Promise<{}>
+  updateMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string; position?: number; duration?: number }): Promise<{}>
   stopMediaForeground(): Promise<{}>
   scanLocalMusic(): Promise<{ tracks: LocalTrackResult[] }>
   checkMediaAudioPermission(): Promise<{ granted: boolean }>
@@ -61,10 +75,10 @@ export async function startDownloadForeground(title: string = 'Downloading...', 
   }
 }
 
-export async function updateDownloadForeground(title: string, count: number, progress?: number): Promise<void> {
+export async function updateDownloadForeground(title: string, count: number, progress?: number, stage?: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.updateDownloadForeground({ title, count, progress })
+    await SpotDL.updateDownloadForeground({ title, count, progress, stage })
   } catch (e) {
     console.warn('[native] Failed to update download foreground:', e)
   }
@@ -79,19 +93,19 @@ export async function stopDownloadForeground(): Promise<void> {
   }
 }
 
-export async function startMediaForeground(title: string = 'Playing', artist: string = '', artworkUrl?: string): Promise<void> {
+export async function startMediaForeground(title: string = 'Playing', artist: string = '', artworkUrl?: string, position?: number, duration?: number): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.startMediaForeground({ title, artist, artworkUrl })
+    await SpotDL.startMediaForeground({ title, artist, artworkUrl, position, duration })
   } catch (e) {
     console.warn('[native] Failed to start media foreground:', e)
   }
 }
 
-export async function updateMediaForeground(title: string, artist: string, artworkUrl?: string): Promise<void> {
+export async function updateMediaForeground(title: string, artist: string, artworkUrl?: string, position?: number, duration?: number): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.updateMediaForeground({ title, artist, artworkUrl })
+    await SpotDL.updateMediaForeground({ title, artist, artworkUrl, position, duration })
   } catch (e) {
     console.warn('[native] Failed to update media foreground:', e)
   }
@@ -103,6 +117,74 @@ export async function stopMediaForeground(): Promise<void> {
     await SpotDL.stopMediaForeground()
   } catch (e) {
     console.warn('[native] Failed to stop media foreground:', e)
+  }
+}
+
+export async function checkPermissionNative(alias: string): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false
+  try {
+    const result = await SpotDL.checkPermission({ alias })
+    return result.granted
+  } catch {
+    return false
+  }
+}
+
+export async function requestPermissionNative(alias: string): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false
+  try {
+    const result = await SpotDL.requestPermission({ alias })
+    return result.granted
+  } catch {
+    return false
+  }
+}
+
+export async function shouldShowRationaleNative(alias: string): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false
+  try {
+    const result = await SpotDL.shouldShowRationale({ alias })
+    return result.show
+  } catch {
+    return false
+  }
+}
+
+export async function openAppSettings(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.openAppSettings()
+  } catch (e) {
+    console.warn('[native] Failed to open app settings:', e)
+  }
+}
+
+export async function getNavigationBarHeight(): Promise<number> {
+  if (!Capacitor.isNativePlatform()) return 0
+  try {
+    const result = await SpotDL.getNavigationBarHeight()
+    return result.height
+  } catch {
+    return 0
+  }
+}
+
+export async function getStatusBarHeight(): Promise<number> {
+  if (!Capacitor.isNativePlatform()) return 0
+  try {
+    const result = await SpotDL.getStatusBarHeight()
+    return result.height
+  } catch {
+    return 0
+  }
+}
+
+export async function getDisplayCutoutInsets(): Promise<Insets> {
+  if (!Capacitor.isNativePlatform()) return { left: 0, top: 0, right: 0, bottom: 0 }
+  try {
+    return await SpotDL.getDisplayCutoutInsets()
+  } catch {
+    return { left: 0, top: 0, right: 0, bottom: 0 }
   }
 }
 

@@ -5,8 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.Manifest
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
+import android.view.WindowInsets
+import android.view.WindowManager
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -24,7 +28,23 @@ const val LOCAL_URL = "http://127.0.0.1:$LOCAL_PORT"
         Permission(
             alias = "mediaAudio",
             strings = [Manifest.permission.READ_MEDIA_AUDIO]
-        )
+        ),
+        Permission(
+            alias = "mediaImages",
+            strings = [Manifest.permission.READ_MEDIA_IMAGES]
+        ),
+        Permission(
+            alias = "mediaVideo",
+            strings = [Manifest.permission.READ_MEDIA_VIDEO]
+        ),
+        Permission(
+            alias = "postNotifications",
+            strings = [Manifest.permission.POST_NOTIFICATIONS]
+        ),
+        Permission(
+            alias = "scheduleExactAlarm",
+            strings = [Manifest.permission.USE_EXACT_ALARM]
+        ),
     ]
 )
 class SpotDLPlugin : Plugin() {
@@ -51,9 +71,14 @@ class SpotDLPlugin : Plugin() {
                     MediaService.MEDIA_ACTION_NEXT -> "mediaNext"
                     MediaService.MEDIA_ACTION_PREV -> "mediaPrevious"
                     MediaService.MEDIA_ACTION_STOP -> "mediaStop"
+                    MediaService.MEDIA_ACTION_SEEK -> "mediaSeek"
                     else -> return
                 }
-                notifyListeners(eventName, JSObject())
+                val ret = JSObject()
+                if (action == MediaService.MEDIA_ACTION_SEEK) {
+                    ret.put("position", intent.getLongExtra("position", 0L))
+                }
+                notifyListeners(eventName, ret)
             }
         }
         mediaButtonReceiver = receiver
@@ -63,6 +88,7 @@ class SpotDLPlugin : Plugin() {
             addAction(MediaService.MEDIA_ACTION_NEXT)
             addAction(MediaService.MEDIA_ACTION_PREV)
             addAction(MediaService.MEDIA_ACTION_STOP)
+            addAction(MediaService.MEDIA_ACTION_SEEK)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             activity.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -75,6 +101,119 @@ class SpotDLPlugin : Plugin() {
         mediaButtonReceiver?.let {
             try { activity.unregisterReceiver(it) } catch (_: Exception) {}
             mediaButtonReceiver = null
+        }
+    }
+
+    @PluginMethod
+    fun checkPermission(call: PluginCall) {
+        val alias = call.getString("alias") ?: ""
+        val state = getPermissionState(alias)
+        call.resolve(JSObject().apply {
+            put("granted", state == PermissionState.GRANTED)
+        })
+    }
+
+    @PluginMethod
+    fun requestPermission(call: PluginCall) {
+        val alias = call.getString("alias") ?: ""
+        requestPermissionForAlias(alias, call, "permissionCallback")
+    }
+
+    @PluginMethod
+    fun shouldShowRationale(call: PluginCall) {
+        val alias = call.getString("alias") ?: ""
+        val strings = when (alias) {
+            "mediaAudio" -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+            "mediaImages" -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+            "mediaVideo" -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
+            "postNotifications" -> arrayOf(Manifest.permission.POST_NOTIFICATIONS)
+            else -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+        }
+        val show = strings.any { shouldShowRequestPermissionRationale(it) }
+        call.resolve(JSObject().apply { put("show", show) })
+    }
+
+    @PluginMethod
+    fun openAppSettings(call: PluginCall) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            call.resolve()
+        } catch (e: Exception) {
+            call.reject("Failed to open app settings", e)
+        }
+    }
+
+    @PluginMethod
+    fun getNavigationBarHeight(call: PluginCall) {
+        try {
+            val windowManager = activity.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val height = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val insets = activity.windowManager.currentWindowMetrics.windowInsets
+                val navInsets = insets.getInsets(WindowInsets.Type.navigationBars())
+                navInsets.bottom
+            } else {
+                @Suppress("DEPRECATION")
+                val resourceId = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
+                if (resourceId > 0) context.resources.getDimensionPixelSize(resourceId) else 0
+            }
+            call.resolve(JSObject().apply { put("height", height) })
+        } catch (e: Exception) {
+            call.resolve(JSObject().apply { put("height", 0) })
+        }
+    }
+
+    @PluginMethod
+    fun getStatusBarHeight(call: PluginCall) {
+        try {
+            val height = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val insets = activity.windowManager.currentWindowMetrics.windowInsets
+                val statusInsets = insets.getInsets(WindowInsets.Type.statusBars())
+                statusInsets.top
+            } else {
+                @Suppress("DEPRECATION")
+                val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+                if (resourceId > 0) context.resources.getDimensionPixelSize(resourceId) else 0
+            }
+            call.resolve(JSObject().apply { put("height", height) })
+        } catch (e: Exception) {
+            call.resolve(JSObject().apply { put("height", 0) })
+        }
+    }
+
+    @PluginMethod
+    fun getDisplayCutoutInsets(call: PluginCall) {
+        try {
+            var left = 0
+            var top = 0
+            var right = 0
+            var bottom = 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val insets = activity.windowManager.currentWindowMetrics.windowInsets
+                val cutout = insets.displayCutout
+                if (cutout != null) {
+                    val boundingRects = cutout.boundingRects
+                    for (rect in boundingRects) {
+                        left = maxOf(left, rect.left)
+                        top = maxOf(top, rect.top)
+                        right = maxOf(right, rect.right)
+                        bottom = maxOf(bottom, rect.bottom)
+                    }
+                }
+            }
+            call.resolve(JSObject().apply {
+                put("left", left)
+                put("top", top)
+                put("right", right)
+                put("bottom", bottom)
+            })
+        } catch (e: Exception) {
+            call.resolve(JSObject().apply {
+                put("left", 0); put("top", 0); put("right", 0); put("bottom", 0)
+            })
         }
     }
 
@@ -132,7 +271,8 @@ class SpotDLPlugin : Plugin() {
             val title = call.getString("title") ?: "Downloading..."
             val count = call.getInt("count", 1) ?: 1
             val progress = if (call.getData().has("progress")) call.getFloat("progress", -1f) ?: -1f else -1f
-            DownloadService.update(ctx, title, count, if (progress >= 0) progress else null)
+            val stage = call.getString("stage")
+            DownloadService.update(ctx, title, count, if (progress >= 0) progress else null, stage)
             call.resolve()
         } catch (e: Exception) {
             call.reject("Failed to update download foreground", e)
@@ -157,7 +297,9 @@ class SpotDLPlugin : Plugin() {
             val title = call.getString("title") ?: "Playing"
             val artist = call.getString("artist") ?: ""
             val artworkUrl = call.getString("artworkUrl")
-            MediaService.start(ctx, title, artist, artworkUrl)
+            val position = if (call.getData().has("position")) call.getDouble("position", 0.0) ?: 0.0 else 0.0
+            val duration = if (call.getData().has("duration")) call.getDouble("duration", 0.0) ?: 0.0 else 0.0
+            MediaService.start(ctx, title, artist, artworkUrl, position, duration)
             call.resolve()
         } catch (e: Exception) {
             call.reject("Failed to start media foreground", e)
@@ -171,7 +313,9 @@ class SpotDLPlugin : Plugin() {
             val title = call.getString("title") ?: "Playing"
             val artist = call.getString("artist") ?: ""
             val artworkUrl = call.getString("artworkUrl")
-            MediaService.update(ctx, title, artist, artworkUrl)
+            val position = if (call.getData().has("position")) call.getDouble("position", 0.0) ?: 0.0 else 0.0
+            val duration = if (call.getData().has("duration")) call.getDouble("duration", 0.0) ?: 0.0 else 0.0
+            MediaService.update(ctx, title, artist, artworkUrl, position, duration)
             call.resolve()
         } catch (e: Exception) {
             call.reject("Failed to update media foreground", e)

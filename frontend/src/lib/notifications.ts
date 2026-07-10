@@ -13,12 +13,25 @@ type LocalNotificationsModule = {
       actionTypeId?: string
       schedule?: { at: Date; repeats?: boolean; every?: 'hour' | 'day' | 'week' | 'month' }
       extra?: Record<string, unknown>
+      channelId?: string
     }>
   }) => Promise<{ notifications: Array<{ id: number }> }>
   cancel: (options: { notifications: Array<{ id: number }> }) => Promise<void>
   getPending: () => Promise<{ notifications: Array<{ id: number; title: string; body: string }> }>
   requestPermissions: () => Promise<{ display: 'granted' | 'denied' | 'prompt' }>
   registerActionTypes?: (options: { types: Array<unknown> }) => Promise<void>
+  createChannel?: (options: {
+    id: string
+    name: string
+    description?: string
+    importance: 0 | 1 | 2 | 3 | 4 | 5
+    visibility?: 0 | 1 | -1
+    sound?: string
+    lights?: boolean
+    vibration?: boolean
+  }) => Promise<void>
+  deleteChannel?: (options: { id: string }) => Promise<void>
+  listChannels?: () => Promise<{ channels: Array<{ id: string; name: string }> }>
 }
 
 let _ln: LocalNotificationsModule | null = null
@@ -37,6 +50,40 @@ async function getLN(): Promise<LocalNotificationsModule | null> {
 export async function ensureNotificationPermission(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
   return ensurePerm()
+}
+
+export async function createNotificationChannels(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  const ln = await getLN()
+  if (!ln?.createChannel) return
+  try {
+    await ln.createChannel({
+      id: 'spotdl_downloads_complete',
+      name: 'Download Complete',
+      description: 'Alerts when a download finishes',
+      importance: 4,
+      lights: true,
+      vibration: true,
+    })
+    await ln.createChannel({
+      id: 'spotdl_downloads_error',
+      name: 'Download Errors',
+      description: 'Alerts when a download fails',
+      importance: 5,
+      lights: true,
+      vibration: true,
+    })
+    await ln.createChannel({
+      id: 'spotdl_media',
+      name: 'Music Playback',
+      description: 'Now playing notification with lock screen controls',
+      importance: 2,
+      lights: false,
+      vibration: false,
+    })
+  } catch {
+    // best-effort
+  }
 }
 
 export async function sendDownloadCompleteNotification(params: {
@@ -58,6 +105,7 @@ export async function sendDownloadCompleteNotification(params: {
         smallIcon: 'ic_stat_icon',
         iconColor: '#10B981',
         actionTypeId: 'DOWNLOAD_ACTIONS',
+        channelId: 'spotdl_downloads_complete',
         extra: { filePath: params.filePath },
       }],
     })
@@ -85,6 +133,7 @@ export async function sendDownloadErrorNotification(params: {
         smallIcon: 'ic_stat_icon',
         iconColor: '#EF4444',
         actionTypeId: 'DOWNLOAD_ACTIONS',
+        channelId: 'spotdl_downloads_error',
         sound: undefined,
       }],
     })
@@ -114,6 +163,7 @@ export async function sendBatchCompleteNotification(params: {
         smallIcon: 'ic_stat_icon',
         iconColor: '#10B981',
         actionTypeId: 'DOWNLOAD_ACTIONS',
+        channelId: 'spotdl_downloads_complete',
         sound: undefined,
       }],
     })
@@ -141,6 +191,7 @@ export async function sendBackgroundPlaybackNotification(params: {
         smallIcon: 'ic_stat_icon',
         iconColor: '#10B981',
         actionTypeId: 'MEDIA_ACTIONS',
+        channelId: 'spotdl_media',
         schedule: { at: new Date() },
       }],
     })

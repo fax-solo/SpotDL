@@ -1,5 +1,6 @@
 package com.spotdl.plugin
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -16,6 +17,7 @@ import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import android.support.v4.media.session.MediaSessionCompat
 import java.net.URL
@@ -27,6 +29,11 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
     private val executor = Executors.newSingleThreadExecutor()
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
+    private var currentPosition: Long = 0
+    private var totalDuration: Long = 0
+    private var currentTitle: String? = null
+    private var currentArtist: String? = null
+    private var isCurrentlyPlaying: Boolean = false
 
     override fun onAudioFocusChange(focusChange: Int) {
         when (focusChange) {
@@ -79,6 +86,13 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 override fun onSkipToNext() { broadcastMediaAction(MEDIA_ACTION_NEXT) }
                 override fun onSkipToPrevious() { broadcastMediaAction(MEDIA_ACTION_PREV) }
                 override fun onStop() { broadcastMediaAction(MEDIA_ACTION_STOP) }
+                override fun onSeekTo(pos: Long) {
+                    val intent = Intent(MEDIA_ACTION_SEEK).apply {
+                        setPackage(packageName)
+                        putExtra("position", pos)
+                    }
+                    sendBroadcast(intent)
+                }
             })
             isActive = true
         }
@@ -103,10 +117,14 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Playing"
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
                 val artworkUrl = intent.getStringExtra(EXTRA_ARTWORK_URL)
+                currentPosition = (intent.getDoubleExtra(EXTRA_POSITION, 0.0) * 1000).toLong()
+                totalDuration = (intent.getDoubleExtra(EXTRA_DURATION, 0.0) * 1000).toLong()
                 currentTitle = title
+                currentArtist = artist
+                isCurrentlyPlaying = true
                 requestAudioFocus()
                 loadArtwork(artworkUrl)
-                updatePlaybackState(title, artist, true)
+                updatePlaybackState(true)
                 try {
                     startForeground(NOTIFICATION_ID, createNotification(title, artist))
                 } catch (e: SecurityException) {
@@ -115,25 +133,51 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 }
             }
             ACTION_UPDATE -> {
-                val title = intent.getStringExtra(EXTRA_TITLE) ?: "Playing"
-                val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
+                val title = intent.getStringExtra(EXTRA_TITLE) ?: currentTitle ?: "Playing"
+                val artist = intent.getStringExtra(EXTRA_ARTIST) ?: currentArtist ?: ""
                 val artworkUrl = intent.getStringExtra(EXTRA_ARTWORK_URL)
+                currentPosition = (intent.getDoubleExtra(EXTRA_POSITION, currentPosition / 1000.0) * 1000).toLong()
+                totalDuration = (intent.getDoubleExtra(EXTRA_DURATION, totalDuration / 1000.0) * 1000).toLong()
                 currentTitle = title
+                currentArtist = artist
+                isCurrentlyPlaying = true
                 loadArtwork(artworkUrl)
-                updatePlaybackState(title, artist, true)
+                updatePlaybackState(true)
                 val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(NOTIFICATION_ID, createNotification(title, artist))
             }
             ACTION_STOP -> {
+                isCurrentlyPlaying = false
                 abandonAudioFocus()
-                updatePlaybackState(null, null, false)
+                updatePlaybackState(false)
                 cachedArtwork = null
+                currentPosition = 0
+                totalDuration = 0
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
         }
 
-        return START_NOT_STICKY
+        return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val restartIntent = Intent(this, MediaService::class.java).apply {
+            action = ACTION_PLAY
+            putExtra(EXTRA_TITLE, currentTitle ?: "Playing")
+            putExtra(EXTRA_ARTIST, currentArtist ?: "")
+        }
+        val pendingIntent = PendingIntent.getService(
+            this, 0, restartIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarm.set(
+            AlarmManager.ELAPSED_REALTIME,
+            SystemClock.elapsedRealtime() + 1000,
+            pendingIntent
+        )
+        super.onTaskRemoved(rootIntent)
     }
 
     private fun loadArtwork(url: String?) {
@@ -152,7 +196,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                     val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     notificationManager.notify(NOTIFICATION_ID, createNotification(
                         currentTitle ?: "Track",
-                        ""
+                        currentArtist ?: ""
                     ))
                 }
             } catch (_: Exception) {
@@ -161,30 +205,27 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
         }
     }
 
-    private var currentTitle: String? = null
-
-    private fun updatePlaybackState(title: String?, artist: String?, playing: Boolean) {
+    private fun updatePlaybackState(playing: Boolean) {
         mediaSession?.apply {
             val metadataBuilder = android.media.MediaMetadata.Builder()
-                .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, title ?: "")
-                .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, artist ?: "")
+                .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, currentTitle ?: "")
+                .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, currentArtist ?: "")
+                .putLong(android.media.MediaMetadata.METADATA_KEY_DURATION, totalDuration)
             cachedArtwork?.let { bm ->
                 metadataBuilder.putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, bm)
             }
             setMetadata(metadataBuilder.build())
+            val state = if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
             setPlaybackState(
                 PlaybackState.Builder()
-                    .setState(
-                        if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_STOPPED,
-                        PlaybackState.PLAYBACK_POSITION_UNKNOWN,
-                        1f
-                    )
+                    .setState(state, currentPosition, if (playing) 1f else 0f)
                     .setActions(
                         PlaybackState.ACTION_PLAY or
                         PlaybackState.ACTION_PAUSE or
                         PlaybackState.ACTION_SKIP_TO_NEXT or
                         PlaybackState.ACTION_SKIP_TO_PREVIOUS or
-                        PlaybackState.ACTION_STOP
+                        PlaybackState.ACTION_STOP or
+                        PlaybackState.ACTION_SEEK_TO
                     )
                     .build()
             )
@@ -216,6 +257,15 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
+            .setShowWhen(false)
+
+        if (totalDuration > 0) {
+            builder.setProgress(
+                (totalDuration / 1000).toInt(),
+                (currentPosition / 1000).toInt(),
+                false
+            )
+        }
 
         cachedArtwork?.let { bm ->
             builder.setLargeIcon(bm)
@@ -226,7 +276,14 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 builder.setStyle(
                     androidx.media.app.NotificationCompat.MediaStyle()
                         .setMediaSession(MediaSessionCompat.Token.fromToken(session.sessionToken))
-                        .setShowActionsInCompactView(0, 2)
+                        .setShowActionsInCompactView(0, 1, 2)
+                        .setShowCancelButton(true)
+                        .setCancelButtonIntent(
+                            PendingIntent.getBroadcast(
+                                this, 3, Intent(MEDIA_ACTION_STOP).setPackage(packageName),
+                                PendingIntent.FLAG_IMMUTABLE
+                            )
+                        )
                 )
             }
             builder.addAction(
@@ -236,13 +293,23 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                     PendingIntent.FLAG_IMMUTABLE
                 )
             )
-            builder.addAction(
-                android.R.drawable.ic_media_pause, "Pause",
-                PendingIntent.getBroadcast(
-                    this, 1, Intent(MEDIA_ACTION_PAUSE).setPackage(packageName),
-                    PendingIntent.FLAG_IMMUTABLE
+            if (isCurrentlyPlaying) {
+                builder.addAction(
+                    android.R.drawable.ic_media_pause, "Pause",
+                    PendingIntent.getBroadcast(
+                        this, 1, Intent(MEDIA_ACTION_PAUSE).setPackage(packageName),
+                        PendingIntent.FLAG_IMMUTABLE
+                    )
                 )
-            )
+            } else {
+                builder.addAction(
+                    android.R.drawable.ic_media_play, "Play",
+                    PendingIntent.getBroadcast(
+                        this, 1, Intent(MEDIA_ACTION_PLAY).setPackage(packageName),
+                        PendingIntent.FLAG_IMMUTABLE
+                    )
+                )
+            }
             builder.addAction(
                 android.R.drawable.ic_media_next, "Next",
                 PendingIntent.getBroadcast(
@@ -259,7 +326,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
         val channel = NotificationChannel(
             CHANNEL_ID, "Music Playback", NotificationManager.IMPORTANCE_LOW,
         ).apply {
-            description = "Shows currently playing track"
+            description = "Shows currently playing track with lock screen controls"
             setShowBadge(false)
         }
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -275,18 +342,23 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
         const val EXTRA_TITLE = "title"
         const val EXTRA_ARTIST = "artist"
         const val EXTRA_ARTWORK_URL = "artworkUrl"
+        const val EXTRA_POSITION = "position"
+        const val EXTRA_DURATION = "duration"
 
         const val MEDIA_ACTION_PLAY = "com.spotdl.plugin.MEDIA_BTN_PLAY"
         const val MEDIA_ACTION_PAUSE = "com.spotdl.plugin.MEDIA_BTN_PAUSE"
         const val MEDIA_ACTION_NEXT = "com.spotdl.plugin.MEDIA_BTN_NEXT"
         const val MEDIA_ACTION_PREV = "com.spotdl.plugin.MEDIA_BTN_PREV"
         const val MEDIA_ACTION_STOP = "com.spotdl.plugin.MEDIA_BTN_STOP"
+        const val MEDIA_ACTION_SEEK = "com.spotdl.plugin.MEDIA_BTN_SEEK"
 
-        fun start(context: Context, title: String = "Playing", artist: String = "", artworkUrl: String? = null) {
+        fun start(context: Context, title: String = "Playing", artist: String = "", artworkUrl: String? = null, position: Double = 0.0, duration: Double = 0.0) {
             val intent = Intent(context, MediaService::class.java).apply {
                 action = ACTION_PLAY
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_ARTIST, artist)
+                putExtra(EXTRA_POSITION, position)
+                putExtra(EXTRA_DURATION, duration)
                 if (artworkUrl != null) putExtra(EXTRA_ARTWORK_URL, artworkUrl)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -296,11 +368,13 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
             }
         }
 
-        fun update(context: Context, title: String, artist: String, artworkUrl: String? = null) {
+        fun update(context: Context, title: String, artist: String, artworkUrl: String? = null, position: Double = 0.0, duration: Double = 0.0) {
             context.startService(Intent(context, MediaService::class.java).apply {
                 action = ACTION_UPDATE
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_ARTIST, artist)
+                putExtra(EXTRA_POSITION, position)
+                putExtra(EXTRA_DURATION, duration)
                 if (artworkUrl != null) putExtra(EXTRA_ARTWORK_URL, artworkUrl)
             })
         }

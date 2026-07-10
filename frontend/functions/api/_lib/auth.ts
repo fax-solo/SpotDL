@@ -95,7 +95,13 @@ export async function getUser(context: { request: Request; env: Env; params: any
     if (requireAuth) throw new Error('Not authenticated')
     return null
   }
-  const userId = await verifyToken(auth.slice(7), context.env.JWT_SECRET, db)
+  let userId: string | null
+  try {
+    userId = await verifyToken(auth.slice(7), context.env.JWT_SECRET, db)
+  } catch {
+    if (requireAuth) throw new Error('Invalid or expired token')
+    return null
+  }
   if (!userId) {
     if (requireAuth) throw new Error('Invalid or expired token')
     return null

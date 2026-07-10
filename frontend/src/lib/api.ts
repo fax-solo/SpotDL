@@ -175,18 +175,24 @@ async function delay(ms: number) {
 }
 
 let _serverAvailable: boolean | null = null
+let _serverLastCheck = 0
+const SERVER_CHECK_TTL = 60_000
 
 async function isServerAvailable(signal?: AbortSignal): Promise<boolean> {
-  if (_serverAvailable === false) return false
-  if (_serverAvailable === true) return true
+  const now = Date.now()
+  if (_serverAvailable !== null && now - _serverLastCheck < SERVER_CHECK_TTL) {
+    return _serverAvailable
+  }
   try {
     const pingUrl = apiUrl('/api/ping')
     if (!pingUrl || pingUrl.startsWith('/')) return false
     const res = await fetch(pingUrl, { signal: signal || AbortSignal.timeout(2000) })
     _serverAvailable = res.ok
+    _serverLastCheck = now
     return res.ok
   } catch {
     _serverAvailable = false
+    _serverLastCheck = now
     return false
   }
 }

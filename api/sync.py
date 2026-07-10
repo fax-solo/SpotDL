@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import threading
 import logging
 import shutil
 from datetime import datetime, timezone
@@ -14,23 +15,27 @@ logger = logging.getLogger(__name__)
 SYNC_DB_PATH = os.environ.get("SYNC_DB_PATH", "data/sync.json")
 SYNC_DOWNLOAD_DIR = os.environ.get("SYNC_DOWNLOAD_DIR", "sync_music")
 
+_sync_db_lock = threading.Lock()
+
 
 def _load_db() -> dict:
-    if not os.path.exists(SYNC_DB_PATH):
-        return {"subscriptions": []}
-    try:
-        with open(SYNC_DB_PATH) as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return {"subscriptions": []}
+    with _sync_db_lock:
+        if not os.path.exists(SYNC_DB_PATH):
+            return {"subscriptions": []}
+        try:
+            with open(SYNC_DB_PATH) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return {"subscriptions": []}
 
 
 def _save_db(db: dict):
-    parent = os.path.dirname(SYNC_DB_PATH)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(SYNC_DB_PATH, "w") as f:
-        json.dump(db, f, indent=2)
+    with _sync_db_lock:
+        parent = os.path.dirname(SYNC_DB_PATH)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(SYNC_DB_PATH, "w") as f:
+            json.dump(db, f, indent=2)
 
 
 def list_subscriptions() -> list[dict]:

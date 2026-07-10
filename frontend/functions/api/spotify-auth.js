@@ -3,9 +3,12 @@ function randomHex(bytes) {
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+const STATE_TTL_MS = 10 * 60 * 1000
+
 export async function onRequest(context) {
   const CLIENT_ID = context.env.VITE_SPOTIFY_CLIENT_ID || context.env.SPOTIFY_CLIENT_ID
   const CLIENT_SECRET = context.env.SPOTIFY_CLIENT_SECRET || ''
+  const DB = context.env.DB
 
   if (!CLIENT_ID) {
     console.error('Missing VITE_SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_ID environment variable')
@@ -13,18 +16,28 @@ export async function onRequest(context) {
 
   const url = new URL(context.request.url)
   const params = Object.fromEntries(url.searchParams)
-  const { action, origin } = params
+  const { action, origin, state: returnedState } = params
 
   if (action === 'login') {
     if (!origin) {
       return new Response(JSON.stringify({ error: 'Missing origin' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       })
     }
 
-    const state = randomHex(16)
+    const state = randomHex(32)
     const redirectUri = `${origin}/callback`
+
+    if (DB) {
+      try {
+        await DB.prepare(
+          'INSERT INTO oauth_state (state, created_at) VALUES (?, ?)'
+        ).bind(state, Date.now()).run()
+      } catch (e) {
+        console.warn('Failed to store oauth state in D1:', e.message)
+      }
+    }
 
     const authorizeUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
       client_id: CLIENT_ID,
@@ -47,11 +60,11 @@ export async function onRequest(context) {
     } catch {
       return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       })
     }
 
-    const { code, redirect_uri: redirectUri, refresh_token: refreshToken } = body
+    const { code, redirect_uri: redirectUri, refresh_token: refreshToken, state } = body
 
     if (refreshToken) {
       try {
@@ -68,7 +81,7 @@ export async function onRequest(context) {
         if (!tokenRes.ok) {
           return new Response(JSON.stringify({ error: 'Token refresh failed' }), {
             status: 502,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
           })
         }
 
@@ -79,12 +92,12 @@ export async function onRequest(context) {
           expires_in: tokens.expires_in,
         }), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         })
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 502,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         })
       }
     }
@@ -92,14 +105,37 @@ export async function onRequest(context) {
     if (!code || !redirectUri) {
       return new Response(JSON.stringify({ error: 'Missing code or redirect_uri' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       })
+    }
+
+    if (state && DB) {
+      try {
+        const stored = await DB.prepare(
+          'SELECT created_at FROM oauth_state WHERE state = ?'
+        ).bind(state).first()
+        if (!stored) {
+          return new Response(JSON.stringify({ error: 'Invalid state parameter — possible CSRF' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          })
+        }
+        if (Date.now() - stored.created_at > STATE_TTL_MS) {
+          return new Response(JSON.stringify({ error: 'State parameter expired' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          })
+        }
+        await DB.prepare('DELETE FROM oauth_state WHERE state = ?').bind(state).run()
+      } catch (e) {
+        console.warn('State verification failed:', e.message)
+      }
     }
 
     if (!CLIENT_SECRET) {
       return new Response(JSON.stringify({ error: 'SPOTIFY_CLIENT_SECRET not configured' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       })
     }
 
@@ -121,7 +157,7 @@ export async function onRequest(context) {
         const errText = await tokenRes.text().catch(() => 'unknown')
         return new Response(JSON.stringify({ error: 'Token exchange failed', detail: errText }), {
           status: 502,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         })
       }
 
@@ -132,18 +168,18 @@ export async function onRequest(context) {
         expires_in: tokens.expires_in,
       }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       })
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message }), {
         status: 502,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       })
     }
   }
 
   return new Response(JSON.stringify({ error: 'Invalid request' }), {
     status: 400,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   })
 }

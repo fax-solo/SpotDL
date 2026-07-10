@@ -1,5 +1,6 @@
 package com.spotdl.plugin
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 
 class DownloadService : Service() {
@@ -22,7 +24,7 @@ class DownloadService : Service() {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Downloading..."
                 val count = intent.getIntExtra(EXTRA_COUNT, 1)
                 try {
-                    startForeground(NOTIFICATION_ID, createNotification(title, count, null))
+                    startForeground(NOTIFICATION_ID, createProgressNotification(title, count, null, null))
                 } catch (e: SecurityException) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -32,8 +34,9 @@ class DownloadService : Service() {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Downloading..."
                 val count = intent.getIntExtra(EXTRA_COUNT, 1)
                 val progress = if (intent.hasExtra(EXTRA_PROGRESS)) intent.getFloatExtra(EXTRA_PROGRESS, -1f) else null
+                val stage = intent.getStringExtra(EXTRA_STAGE)
                 val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                notificationManager.notify(NOTIFICATION_ID, createNotification(title, count, progress))
+                notificationManager.notify(NOTIFICATION_ID, createProgressNotification(title, count, progress, stage))
             }
             ACTION_STOP -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -41,11 +44,30 @@ class DownloadService : Service() {
             }
         }
 
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
-    private fun createNotification(title: String, count: Int, progress: Float?): Notification {
-        createChannel()
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val restartIntent = Intent(this, DownloadService::class.java).apply {
+            action = ACTION_START
+            putExtra(EXTRA_TITLE, "Downloading...")
+            putExtra(EXTRA_COUNT, 1)
+        }
+        val pendingIntent = PendingIntent.getService(
+            this, 0, restartIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarm.set(
+            AlarmManager.ELAPSED_REALTIME,
+            SystemClock.elapsedRealtime() + 1000,
+            pendingIntent
+        )
+        super.onTaskRemoved(rootIntent)
+    }
+
+    private fun createProgressNotification(title: String, count: Int, progress: Float?, stage: String?): Notification {
+        createProgressChannel()
 
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -63,10 +85,19 @@ class DownloadService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val body = if (count > 1) "$count tracks in queue" else title
+        val displayTitle = if (count > 1) "Downloading ($count remaining)" else title
+        val body = buildString {
+            append(title)
+            if (stage != null && stage.isNotEmpty()) {
+                append(" • $stage")
+            }
+            if (progress != null && progress in 0f..1f) {
+                append(" • ${(progress * 100).toInt()}%")
+            }
+        }
 
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Downloading...")
+        val builder = NotificationCompat.Builder(this, CHANNEL_PROGRESS)
+            .setContentTitle(displayTitle)
             .setContentText(body)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setOngoing(true)
@@ -85,19 +116,75 @@ class DownloadService : Service() {
         return builder.build()
     }
 
-    private fun createChannel() {
+    fun sendCompleteNotification(trackTitle: String, trackArtist: String) {
+        createCompleteChannel()
+        val notification = NotificationCompat.Builder(this, CHANNEL_COMPLETE)
+            .setContentTitle("Download complete")
+            .setContentText("$trackTitle • $trackArtist")
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setSilent(false)
+            .build()
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(System.currentTimeMillis().toInt(), notification)
+    }
+
+    fun sendErrorNotification(trackTitle: String, trackArtist: String, errorMsg: String?) {
+        createErrorChannel()
+        val notification = NotificationCompat.Builder(this, CHANNEL_ERROR)
+            .setContentTitle("Download failed: $trackTitle")
+            .setContentText(errorMsg ?: "$trackArtist — Something went wrong")
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setSilent(false)
+            .setVibrate(longArrayOf(0, 200, 100, 200))
+            .build()
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(System.currentTimeMillis().toInt(), notification)
+    }
+
+    private fun createProgressChannel() {
         val channel = NotificationChannel(
-            CHANNEL_ID, "Downloads", NotificationManager.IMPORTANCE_LOW,
+            CHANNEL_PROGRESS, "Download Progress", NotificationManager.IMPORTANCE_LOW,
         ).apply {
-            description = "Shows download progress"
+            description = "Shows real-time download progress (silent)"
             setShowBadge(false)
+            enableVibration(false)
+            setSound(null, null)
+        }
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun createCompleteChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_COMPLETE, "Download Complete", NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "Alerts when a download finishes"
+            setShowBadge(true)
+        }
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun createErrorChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_ERROR, "Download Errors", NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "Alerts when a download fails"
+            setShowBadge(true)
+            enableVibration(true)
         }
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
     }
 
     companion object {
-        const val CHANNEL_ID = "spotdl_downloads"
+        const val CHANNEL_PROGRESS = "spotdl_downloads_progress"
+        const val CHANNEL_COMPLETE = "spotdl_downloads_complete"
+        const val CHANNEL_ERROR = "spotdl_downloads_error"
         const val NOTIFICATION_ID = 1001
         const val ACTION_START = "com.spotdl.plugin.DOWNLOAD_START"
         const val ACTION_UPDATE = "com.spotdl.plugin.DOWNLOAD_UPDATE"
@@ -105,6 +192,7 @@ class DownloadService : Service() {
         const val EXTRA_TITLE = "title"
         const val EXTRA_COUNT = "count"
         const val EXTRA_PROGRESS = "progress"
+        const val EXTRA_STAGE = "stage"
 
         fun start(context: Context, title: String = "Downloading...", count: Int = 1) {
             val intent = Intent(context, DownloadService::class.java).apply {
@@ -119,13 +207,16 @@ class DownloadService : Service() {
             }
         }
 
-        fun update(context: Context, title: String, count: Int, progress: Float? = null) {
+        fun update(context: Context, title: String, count: Int, progress: Float? = null, stage: String? = null) {
             context.startService(Intent(context, DownloadService::class.java).apply {
                 action = ACTION_UPDATE
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_COUNT, count)
                 if (progress != null) {
                     putExtra(EXTRA_PROGRESS, progress)
+                }
+                if (stage != null) {
+                    putExtra(EXTRA_STAGE, stage)
                 }
             })
         }

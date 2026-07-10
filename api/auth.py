@@ -287,13 +287,17 @@ async def google_auth(request: Request, body: GoogleAuthRequest, db: AsyncSessio
     try:
         if body.code and body.code_verifier and body.redirect_uri:
             client_id = os.environ.get("GOOGLE_CLIENT_ID") or os.environ.get("VITE_GOOGLE_CLIENT_ID") or ""
+            client_secret = os.environ.get("GOOGLE_CLIENT_SECRET") or ""
             if not client_id:
                 raise HTTPException(status_code=500, detail="Google sign-in is not configured (missing GOOGLE_CLIENT_ID)")
+            if not client_secret:
+                raise HTTPException(status_code=500, detail="Google sign-in is not configured (missing GOOGLE_CLIENT_SECRET)")
             token_resp = req.post(
                 "https://oauth2.googleapis.com/token",
                 data={
                     "code": body.code,
                     "client_id": client_id,
+                    "client_secret": client_secret,
                     "redirect_uri": body.redirect_uri,
                     "code_verifier": body.code_verifier,
                     "grant_type": "authorization_code",

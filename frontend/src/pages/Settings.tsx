@@ -4,7 +4,7 @@ import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, Refres
 import { useAuth } from '../hooks/useAuth'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
 import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
-import { ALL_PERMISSIONS, requestPermission, checkPermission, isNative } from '../lib/permissions'
+import { RUNTIME_PERMISSIONS, MANIFEST_PERMISSIONS, requestPermission, checkPermission, shouldShowRationale, openAppSettings, isNative, requestPermissionWithRationale } from '../lib/permissions'
 import { APP_VERSION, GITHUB_REPO } from '../lib/version'
 import { checkForUpdates, type UpdateCheckResult } from '../lib/checkUpdate'
 import { getDeezerArl, setDeezerArl, clearDeezerArl, getDeezerQuality, setDeezerQuality, type DeezerQuality } from '../lib/deezer'
@@ -49,11 +49,14 @@ export function Settings() {
 
   useEffect(() => {
     if (!isNative()) return
-    for (const p of ALL_PERMISSIONS) {
-      checkPermission(p.key).then(granted => {
-        setPermStatus(prev => ({ ...prev, [p.key]: granted }))
-      })
+    const checkAll = async () => {
+      const status: Record<string, boolean> = {}
+      for (const p of RUNTIME_PERMISSIONS) {
+        status[p.key] = await checkPermission(p.key)
+      }
+      setPermStatus(status)
     }
+    checkAll()
   }, [])
 
   const handleTestToken = async () => {
@@ -552,8 +555,11 @@ export function Settings() {
               <ShieldCheck className="w-5 h-5 text-accent" />
               <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Permissions</h2>
             </div>
+            <p className="text-xs text-light-muted dark:text-dark-muted mb-4">
+              Runtime permissions that can be toggled. If permanently denied, use the button to open system settings.
+            </p>
             <div className="space-y-1">
-              {ALL_PERMISSIONS.map(p => {
+              {RUNTIME_PERMISSIONS.map(p => {
                 const granted = permStatus[p.key]
                 const loading = requestingPerm === p.key
                 return (
@@ -562,42 +568,93 @@ export function Settings() {
                       <p className="text-sm font-medium text-light-text dark:text-dark-text">{p.label}</p>
                       <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5 truncate">{p.description}</p>
                     </div>
-                    <button
-                      onClick={async () => {
-                        if (granted) return
-                        setRequestingPerm(p.key)
-                        try {
-                          const result = await Promise.race([
-                            requestPermission(p.key),
-                            new Promise<boolean>(resolve => setTimeout(() => resolve(false), 5000)),
-                          ])
-                          setPermStatus(prev => ({ ...prev, [p.key]: result }))
-                        } finally {
-                          setRequestingPerm(null)
-                        }
-                      }}
-                      disabled={loading || granted}
-                      className={`flex-shrink-0 relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed ${
-                        granted ? 'bg-accent' : 'bg-zinc-300 dark:bg-zinc-600'
-                      }`}
-                      role="switch"
-                      aria-checked={granted}
-                    >
-                      {loading ? (
-                        <span className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        </span>
-                      ) : (
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                            granted ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {!granted && (
+                        <button
+                          onClick={async () => {
+                            setRequestingPerm(p.key)
+                            try {
+                              const rationale = await shouldShowRationale(p.key)
+                              if (!rationale) {
+                                await openAppSettings()
+                                return
+                              }
+                              const result = await requestPermissionWithRationale(p.key)
+                              if (result === 'permanently_denied') {
+                                await openAppSettings()
+                              }
+                              setPermStatus(prev => ({ ...prev, [p.key]: result === 'granted' }))
+                            } finally {
+                              setRequestingPerm(null)
+                            }
+                          }}
+                          className="text-xs text-accent hover:text-accent-hover font-medium cursor-pointer px-2 py-1 rounded-lg hover:bg-accent/10 transition-colors"
+                        >
+                          Settings
+                        </button>
                       )}
-                    </button>
+                      <button
+                        onClick={async () => {
+                          if (granted) return
+                          setRequestingPerm(p.key)
+                          try {
+                            const result = await Promise.race([
+                              requestPermission(p.key),
+                              new Promise<boolean>(resolve => setTimeout(() => resolve(false), 5000)),
+                            ])
+                            if (!result) {
+                              const rationale = await shouldShowRationale(p.key)
+                              if (!rationale) {
+                                await openAppSettings()
+                              }
+                            }
+                            setPermStatus(prev => ({ ...prev, [p.key]: result }))
+                          } finally {
+                            setRequestingPerm(null)
+                          }
+                        }}
+                        disabled={loading || granted}
+                        className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed ${
+                          granted ? 'bg-accent' : 'bg-zinc-300 dark:bg-zinc-600'
+                        }`}
+                        role="switch"
+                        aria-checked={granted}
+                      >
+                        {loading ? (
+                          <span className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          </span>
+                        ) : (
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+                              granted ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )
               })}
+            </div>
+
+            <hr className="my-4 border-light-border/50 dark:border-dark-border/50" />
+
+            <p className="text-xs text-light-muted dark:text-dark-muted mb-3">
+              Manifest permissions — always granted at install time, cannot be revoked:
+            </p>
+            <div className="space-y-1">
+              {MANIFEST_PERMISSIONS.map(p => (
+                <div key={p.key} className="flex items-center justify-between py-2 px-3 rounded-xl">
+                  <div className="flex-1 min-w-0 mr-3">
+                    <p className="text-sm font-medium text-light-text dark:text-dark-text">{p.label}</p>
+                    <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5 truncate">{p.description}</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

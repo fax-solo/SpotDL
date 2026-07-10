@@ -26,13 +26,14 @@ export function MiniPlayerBar() {
 
   if (!currentTrack) return null
 
+  const bottomOffset = showBottomBar
+    ? `calc(var(--bottom-bar-height, 56px) + var(--sab, 0px) + 10px)`
+    : `calc(8px + var(--sab, 0px))`
+
   return (
     <div
-      className={`fixed left-2 right-2 z-50 mx-auto max-w-xl pb-[env(safe-area-inset-bottom,0px)] ${
-        showBottomBar
-          ? 'bottom-[calc(66px+env(safe-area-inset-bottom,0px))]'
-          : 'bottom-[calc(8px+env(safe-area-inset-bottom,0px))]'
-      }`}
+      className="fixed left-2 right-2 z-50 mx-auto max-w-xl"
+      style={{ bottom: bottomOffset }}
     >
       <div
         role="button"

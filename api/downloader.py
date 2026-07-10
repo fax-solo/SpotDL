@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import shutil
 import tempfile
@@ -13,6 +12,7 @@ from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, error as MutagenError
 from mutagen.mp4 import MP4, MP4Cover
 
 from cache import metadata_cache
+from _matching import normalize, strip_feat, title_matches
 
 logger = logging.getLogger(__name__)
 
@@ -44,64 +44,8 @@ SOURCES = [
 ]
 
 
-def _normalize(s: str) -> str:
-    return re.sub(r'\([^)]*\)|\[[^\]]*\]|-\s*\w+\s*topic', '', s.lower()).strip()
-
-def _tokenize(s: str) -> set:
-    return set(re.sub(r'[^\w\s]', ' ', s).split())
-
-def _strip_feat(s: str) -> str:
-    return re.sub(r'\b(feat|ft|featuring)\b.*', '', s, flags=re.IGNORECASE).strip()
-
-def _word_overlap(expected: set, found: set) -> float:
-    if not expected or not found:
-        return 0
-    common = len(expected & found)
-    union = len(expected | found)
-    return common / union if union > 0 else 0
-
-def _title_matches(title: str, artist: str, found_title: str | None, found_uploader: str | None = None) -> bool:
-    if not found_title:
-        return False
-    t = _normalize(title)
-    a = _normalize(artist)
-    ft = _normalize(found_title)
-    fu = _normalize(found_uploader) if found_uploader else ""
-
-    t_clean = _strip_feat(t)
-    a_clean = _strip_feat(a)
-    ft_clean = _strip_feat(ft)
-    fu_clean = _strip_feat(fu)
-
-    t_tokens = _tokenize(t_clean)
-    a_tokens = _tokenize(a_clean)
-    ft_tokens = _tokenize(ft_clean)
-
-    # Token overlap check for title (more robust than substring)
-    title_overlap = _word_overlap(t_tokens, ft_tokens)
-    if title_overlap < 0.4 and t not in ft:
-        return False
-
-    if not a:
-        return True
-
-    # Artist in found title
-    if a in ft:
-        return True
-    # Artist tokens in uploader
-    if fu:
-        fu_tokens = _tokenize(fu_clean)
-        artist_overlap = _word_overlap(a_tokens, fu_tokens)
-        if artist_overlap >= 0.5:
-            return True
-        # Substring fallback
-        if a in fu:
-            return True
-    # Artist tokens in found title
-    if _word_overlap(a_tokens, ft_tokens) >= 0.4:
-        return True
-
-    return False
+# All matching/tokenization logic moved to _matching.py
+# Imports: normalize, strip_feat, title_matches
 
 
 def search_track(query: str, source: str, prefix: str) -> list[dict]:
@@ -180,7 +124,7 @@ def download_track(
         for src in SOURCES:
             entries = search_track(query, src["name"], src["prefix"])
             for entry in entries:
-                if _title_matches(title, artist, entry.get("title"), entry.get("uploader")):
+                if title_matches(title, artist, entry.get("title"), entry.get("uploader")):
                     track_urls.append((entry["url"], src["name"]))
                     break
             if track_urls:
@@ -193,38 +137,38 @@ def download_track(
     last_error: Exception | None = None
 
     for track_url, source_name in track_urls:
-        tmpdir = tempfile.mkdtemp()
-        safe_name = f"{_safe(artist)} - {_safe(title)}"
-        outtmpl = os.path.join(tmpdir, f"{safe_name}.%(ext)s")
-
-        opts = {
-            **_get_base_opts(),
-            "outtmpl": outtmpl,
-        }
-
-        if ffmpeg_available:
-            opts["format"] = "bestaudio/best"
-            opts["postprocessors"] = [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": output_format if output_format in ("mp3", "m4a") else "mp3",
-                    "preferredquality": quality,
-                }
-            ]
-        else:
-            opts["format"] = "bestaudio[ext=m4a]/bestaudio"
-
-        if "youtube.com" in track_url or "youtu.be" in track_url:
-            opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
-
+        tmpdir = None
         try:
+            tmpdir = tempfile.mkdtemp()
+            safe_name = f"{_safe(artist)} - {_safe(title)}"
+            outtmpl = os.path.join(tmpdir, f"{safe_name}.%(ext)s")
+
+            opts = {
+                **_get_base_opts(),
+                "outtmpl": outtmpl,
+            }
+
+            if ffmpeg_available:
+                opts["format"] = "bestaudio/best"
+                opts["postprocessors"] = [
+                    {
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": output_format if output_format in ("mp3", "m4a") else "mp3",
+                        "preferredquality": quality,
+                    }
+                ]
+            else:
+                opts["format"] = "bestaudio[ext=m4a]/bestaudio"
+
+            if "youtube.com" in track_url or "youtu.be" in track_url:
+                opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
+
             logger.info(f"download_track: trying {source_name}: {track_url}")
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([track_url])
 
             files = [f for f in os.listdir(tmpdir) if not f.endswith('.part')]
             if not files:
-                shutil.rmtree(tmpdir, ignore_errors=True)
                 continue
 
             files.sort()
@@ -242,15 +186,16 @@ def download_track(
             return filepath, ext
 
         except yt_dlp.DownloadError as e:
-            shutil.rmtree(tmpdir, ignore_errors=True)
             last_error = e
             if "DRM" in str(e):
                 logger.warning(f"download_track: {source_name} {track_url} is DRM protected, trying next...")
                 continue
             raise
         except Exception as e:
-            shutil.rmtree(tmpdir, ignore_errors=True)
             raise
+        finally:
+            if tmpdir and os.path.isdir(tmpdir):
+                shutil.rmtree(tmpdir, ignore_errors=True)
 
     raise RuntimeError(
         f"Could not download '{title}' by {artist}. "
@@ -299,5 +244,5 @@ def _embed_cover(audio, artwork_url: str, fmt: str):
                 )
             elif fmt == "m4a":
                 audio["covr"] = [MP4Cover(resp.content, MP4Cover.FORMAT_JPEG)]
-    except requests.RequestException:
-        pass
+    except requests.RequestException as e:
+        logger.debug("Failed to embed cover art: %s", e)

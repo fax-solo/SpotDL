@@ -35,6 +35,7 @@ from routes.sync import router as sync_router
 from routes.scraping import router as scraping_router
 from routes.debug import router as debug_router
 from routes.spotify_auth import router as spotify_auth_router
+from routes.events import router as events_router
 
 
 @asynccontextmanager
@@ -62,6 +63,7 @@ app.include_router(sync_router)
 app.include_router(scraping_router)
 app.include_router(debug_router)
 app.include_router(spotify_auth_router)
+app.include_router(events_router)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter

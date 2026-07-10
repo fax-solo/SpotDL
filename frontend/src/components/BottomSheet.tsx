@@ -1,6 +1,5 @@
 import { type ReactNode, useRef, useState, useCallback, useEffect } from 'react'
 
-
 interface BottomSheetProps {
   open: boolean
   onClose: () => void
@@ -69,7 +68,7 @@ export function BottomSheet({ open, onClose, children, title }: BottomSheetProps
                   </h3>
                 )}
               </div>
-              <div className="px-4 pb-6">
+              <div className="px-4" style={{ paddingBottom: 'calc(1.5rem + var(--sab, env(safe-area-inset-bottom, 0px)))' }}>
                 {children}
               </div>
             </div>

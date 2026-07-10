@@ -191,7 +191,14 @@ export function PlayerScreen() {
   // ── Library view (no track selected) ──
   if (!currentTrack) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col safe-area-top">
+      <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col"
+      style={{
+        paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'var(--sab, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'var(--sal, env(safe-area-inset-left, 0px))',
+        paddingRight: 'var(--sar, env(safe-area-inset-right, 0px))',
+      }}
+    >
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-6 pb-4">
           <h1 className="text-2xl font-bold">Your Library</h1>
@@ -433,7 +440,14 @@ export function PlayerScreen() {
   const pageRef = useRef<HTMLDivElement>(null)
 
   return (
-    <div className="h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col overflow-hidden safe-area-top safe-area-bottom">
+    <div className="h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col overflow-hidden"
+      style={{
+        paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'var(--sab, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'var(--sal, env(safe-area-inset-left, 0px))',
+        paddingRight: 'var(--sar, env(safe-area-inset-right, 0px))',
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
         <button
@@ -550,7 +564,7 @@ export function PlayerScreen() {
           className="w-full max-w-sm text-center mb-6"
         >
           <div className="flex items-center justify-center gap-2">
-            <h1 className="text-xl font-bold text-light-text dark:text-white leading-tight line-clamp-2">
+            <h1 className="text-xl font-bold text-light-text dark:text-white leading-tight line-clamp-2 break-words" style={{ hyphens: 'auto', overflowWrap: 'break-word' }}>
               {currentTrack.title}
             </h1>
             <button

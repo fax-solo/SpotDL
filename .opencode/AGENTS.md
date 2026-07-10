@@ -14,6 +14,7 @@
 The following env vars should be set in the Cloudflare Pages dashboard:
 - `JWT_SECRET` — JWT signing secret
 - `GOOGLE_CLIENT_ID` — Google OAuth client ID for PKCE flow
+- `GOOGLE_CLIENT_SECRET` — Google OAuth client secret
 - `ADMIN_USERNAME` — Admin login username
 - `ADMIN_PASSWORD` — Admin login password
 

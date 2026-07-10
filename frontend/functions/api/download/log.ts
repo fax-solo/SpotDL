@@ -26,7 +26,8 @@ export const onRequest: RouteHandler = async (context) => {
     ).run()
 
     return json({ ok: true })
-  } catch {
-    return json({ ok: true })
+  } catch (e) {
+    console.warn('[download/log] Failed to log download:', e instanceof Error ? e.message : e)
+    return { ok: true }
   }
 }

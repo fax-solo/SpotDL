@@ -1,14 +1,16 @@
 import os
-import io
 import re
 import json
 import logging
 import tempfile
+import shutil
 import requests
 from Cryptodome.Cipher import Blowfish
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, error as MutagenError
 from mutagen.flac import FLAC as FLACTag, Picture
 from mutagen.mp4 import MP4, MP4Cover
+
+from _matching import normalize, strip_feat, word_overlap, pick_best_match
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +71,7 @@ class DeezerClient:
         tracks = resp.json().get("data", [])
         if not tracks:
             return None
-        return _pick_best_match(tracks, title, artist)
+        return pick_best_match(tracks, title, artist)
 
     def search_by_isrc(self, isrc: str) -> dict | None:
         resp = self.session.get(
@@ -177,7 +179,6 @@ class DeezerClient:
             return output_path, ext
 
         except Exception as e:
-            import shutil
             shutil.rmtree(tmpdir, ignore_errors=True)
             raise
 
@@ -185,70 +186,8 @@ class DeezerClient:
         self.session.close()
 
 
-def _normalize(s: str) -> str:
-    return re.sub(r'\([^)]*\)|\[[^\]]*\]', '', s.lower()).strip()
-
-def _tokenize(s: str) -> set:
-    return set(re.sub(r'[^\w\s]', ' ', s).split())
-
-def _strip_feat(s: str) -> str:
-    return re.sub(r'\b(feat|ft|featuring)\b.*', '', s, flags=re.IGNORECASE).strip()
-
-def _pick_best_match(tracks: list[dict], expected_title: str, expected_artist: str) -> dict | None:
-    t = _normalize(expected_title)
-    a = _normalize(expected_artist)
-    t_clean = _strip_feat(t)
-    a_clean = _strip_feat(a)
-    a_tokens = _tokenize(a_clean)
-    t_tokens = _tokenize(t_clean)
-
-    best = None
-    best_score = 0
-
-    def _word_overlap(expected: set, found: set) -> float:
-        if not expected or not found:
-            return 0
-        common = len(expected & found)
-        union = len(expected | found)
-        return common / union if union > 0 else 0
-
-    for track in tracks:
-        track_title = _normalize(track.get("title") or "")
-        track_artist = _normalize((track.get("artist") or {}).get("name", ""))
-        track_title_clean = _strip_feat(track_title)
-        track_artist_clean = _strip_feat(track_artist)
-        ft_tokens = _tokenize(track_title_clean)
-        fa_tokens = _tokenize(track_artist_clean)
-
-        score = 0
-
-        # Title token overlap (weight: 4)
-        title_overlap = _word_overlap(t_tokens, ft_tokens)
-        score += title_overlap * 4
-
-        # Artist token overlap (weight: 4)
-        artist_overlap = _word_overlap(a_tokens, fa_tokens)
-        score += artist_overlap * 4
-
-        # Exact matches get bonus
-        if t_clean == track_title_clean:
-            score += 1
-        if a_clean == track_artist_clean:
-            score += 1
-
-        # Duration match if available (weight: 2)
-        expected_dur = track.get("duration")
-        found_dur = track.get("duration")
-        if expected_dur and found_dur and expected_dur > 0 and found_dur > 0:
-            ratio = min(expected_dur, found_dur) / max(expected_dur, found_dur)
-            if ratio >= 0.9:
-                score += 2
-
-        if score > best_score:
-            best_score = score
-            best = track
-
-    return best
+# All matching/tokenization logic moved to _matching.py
+# Imports: normalize, strip_feat, word_overlap, pick_best_match
 
 
 def _pick_best_media(media: list[dict], can_lossless: bool) -> dict | None:
