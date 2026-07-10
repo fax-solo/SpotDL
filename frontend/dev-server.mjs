@@ -2,10 +2,12 @@ import http from 'http'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { DatabaseSync } from 'node:sqlite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 9999
 const FUNCTIONS_DIR = path.join(__dirname, 'functions', 'api')
+const MIGRATIONS_DIR = path.join(__dirname, 'migrations')
 
 const env = {}
 try {
@@ -27,7 +29,115 @@ try {
   console.error('Failed to load .env:', e.message)
 }
 
-// TypeScript support via esbuild bundling
+// Ensure required env vars have defaults in dev
+if (!env.JWT_SECRET) {
+  env.JWT_SECRET = 'dev-jwt-secret-change-in-production'
+  console.log('  JWT_SECRET not set, using dev default')
+}
+
+// --- D1 Mock ---
+
+class MockD1Statement {
+  constructor(db, sql) {
+    this.db = db
+    this.sql = sql
+    this.params = []
+  }
+
+  bind(...params) {
+    this.params = params
+    return this
+  }
+
+  async first() {
+    const result = this.db.prepare(this.sql).get(...this.params)
+    return result ?? null
+  }
+
+  async run() {
+    const stmt = this.db.prepare(this.sql)
+    const info = stmt.run(...this.params)
+    return { success: true, meta: { changes: info.changes, last_row_id: info.lastInsertRowid } }
+  }
+
+  async all() {
+    const results = this.db.prepare(this.sql).all(...this.params)
+    return { results }
+  }
+}
+
+class MockD1Database {
+  constructor(sqlitePath) {
+    this.db = new DatabaseSync(sqlitePath)
+    this.db.exec('PRAGMA journal_mode=WAL')
+  }
+
+  prepare(sql) {
+    return new MockD1Statement(this.db, sql)
+  }
+
+  close() {
+    this.db.close()
+  }
+}
+
+function loadMigrations() {
+  if (!fs.existsSync(MIGRATIONS_DIR)) return []
+  const files = fs.readdirSync(MIGRATIONS_DIR)
+    .filter(f => f.endsWith('.sql'))
+    .sort()
+  return files.map(f => path.join(MIGRATIONS_DIR, f))
+}
+
+function runMigrations(db) {
+  const files = loadMigrations()
+  if (files.length === 0) {
+    console.warn('No migration files found')
+    return
+  }
+  for (const file of files) {
+    const sql = fs.readFileSync(file, 'utf-8')
+    try {
+      db.exec(sql)
+      console.log(`  ✓ ${path.basename(file)}`)
+    } catch (e) {
+      console.error(`  ✗ ${path.basename(file)}: ${e.message}`)
+    }
+  }
+}
+
+async function seedAdmin(db) {
+  const username = env.ADMIN_USERNAME
+  const password = env.ADMIN_PASSWORD
+  if (!username || !password) return
+
+  const existing = db.prepare(
+    'SELECT id FROM users WHERE username = ?'
+  ).get(username)
+  if (existing) {
+    db.prepare('UPDATE users SET role = ? WHERE username = ?').run('admin', username)
+    return
+  }
+
+  const bcrypt = await import('bcryptjs')
+  const salt = bcrypt.genSaltSync(10)
+  const hash = bcrypt.hashSync(password, salt)
+  db.prepare(
+    "INSERT INTO users (username, display_name, password_hash, auth_provider, role, is_guest) VALUES (?, ?, ?, 'email', 'admin', 0)"
+  ).run(username, 'Admin', hash)
+  console.log(`  Admin user '${username}' seeded`)
+}
+
+// Initialize D1 mock database
+console.log('Initializing D1 mock database...')
+const DB_PATH = path.join(__dirname, '.d1-dev.sqlite')
+const sqliteDb = new MockD1Database(DB_PATH)
+runMigrations(sqliteDb.db)
+await seedAdmin(sqliteDb)
+env.DB = sqliteDb
+
+// --- TypeScript support ---
+
 let esbuild
 try {
   esbuild = await import('esbuild')
@@ -92,6 +202,8 @@ function findFunctionFile(relPath) {
 
   return null
 }
+
+// --- HTTP Server ---
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
@@ -167,4 +279,14 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Functions server running on http://localhost:${PORT}`)
   console.log(`Functions directory: ${FUNCTIONS_DIR}`)
+})
+
+// Cleanup on exit
+process.on('SIGINT', () => {
+  sqliteDb.close()
+  process.exit(0)
+})
+process.on('SIGTERM', () => {
+  sqliteDb.close()
+  process.exit(0)
 })

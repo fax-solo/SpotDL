@@ -1,1 +1,5 @@
+# Proxies unhandled API routes (downloads, admin, etc.) to the Render backend
+# Auth routes are handled by CF Functions directly — skip proxy for those
+/api/* https://sinc-api.onrender.com/api/:splat 200
+# SPA fallback: all unmatched routes serve index.html
 /* /index.html 200

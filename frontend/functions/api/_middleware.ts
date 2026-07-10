@@ -29,6 +29,12 @@ function csrfCheck(request: Request, allowedOrigins?: string): void {
   if (allowed.length === 0) {
     const url = new URL(request.url)
     allowed.push(url.origin)
+    // In development, Vite proxy changes the request URL but the browser's
+    // Origin stays the same. Accept the Origin header value too so CSRF
+    // doesn't break when running locally with the Vite dev server.
+    if (requestOrigin !== url.origin) {
+      allowed.push(requestOrigin)
+    }
   }
 
   if (!allowed.some(o => requestOrigin === o)) {
@@ -41,6 +47,11 @@ function errorJson(msg: string, status: number): Response {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+function isJsonResponse(res: Response): boolean {
+  const ct = res.headers.get('content-type') || ''
+  return ct.includes('application/json')
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
@@ -80,12 +91,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return errorJson(msg, 400)
   }
 
+  // If the response is not JSON (e.g., index.html from catch-all redirect),
+  // this means no function handled the route. Return a proper API error.
+  if (!isJsonResponse(response)) {
+    return errorJson('Not found', 404)
+  }
+
   // Add CORS headers to all responses
   const corsOrigin = origin || '*'
-  response.headers.set('Access-Control-Allow-Origin', corsOrigin)
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-  response.headers.set('Access-Control-Allow-Headers', '*')
-  response.headers.set('Vary', 'Origin')
+  const headers = new Headers(response.headers)
+  headers.set('Access-Control-Allow-Origin', corsOrigin)
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  headers.set('Access-Control-Allow-Headers', '*')
+  headers.set('Vary', 'Origin')
 
-  return response
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
 }

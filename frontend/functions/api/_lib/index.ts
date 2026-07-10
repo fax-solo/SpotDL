@@ -13,6 +13,7 @@ export type RouteHandler = PagesFunction<Env>
 
 export { json, error } from './response'
 export { sha256, uuid } from './crypto'
+export { validate } from './validation'
 export {
   createToken,
   verifyToken,
