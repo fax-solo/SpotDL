@@ -17,17 +17,6 @@ function setCSSCustomProperties(top: number, bottom: number, left: number, right
   root.style.setProperty('--sar', `${right}px`)
 }
 
-function getInsets(): SafeAreaInsets {
-  const style = getComputedStyle(document.documentElement)
-  const parse = (val: string) => parseInt(val.replace('px', ''), 10) || 0
-  return {
-    top: parse(style.getPropertyValue('--sat')),
-    right: parse(style.getPropertyValue('--sar')),
-    bottom: parse(style.getPropertyValue('--sab')),
-    left: parse(style.getPropertyValue('--sal')),
-  }
-}
-
 export function useEdgeToEdge() {
   const [insets, setInsets] = useState<SafeAreaInsets>({ top: 0, right: 0, bottom: 0, left: 0 })
   const [statusBarHeight, setStatusBarHeight] = useState(0)

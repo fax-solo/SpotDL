@@ -1,4 +1,4 @@
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { Capacitor } from '@capacitor/core'
 import { checkPermissionNative, requestPermissionNative, shouldShowRationaleNative, openAppSettings } from './nativePlugin'
 
 export interface PermissionDef {
