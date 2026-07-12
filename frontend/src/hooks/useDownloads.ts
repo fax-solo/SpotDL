@@ -9,6 +9,7 @@ import { startDownloadForeground, updateDownloadForeground, stopDownloadForegrou
 import { Capacitor } from '@capacitor/core'
 import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
 import { getDownloadLyrics } from '../lib/lyricsSettings'
+import { logDownload } from '../lib/auth'
 
 let processing = false
 
@@ -263,6 +264,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 controllers.delete(item.id)
                 set({ abortControllers: new Map(controllers) })
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
+
+                logDownload(item.track.title, item.track.artist).catch(() => {})
 
                 let plainLyrics: string | null = null
                 let syncedLyrics: string | null = null
