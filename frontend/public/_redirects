@@ -1,5 +1,19 @@
-# Proxies unhandled API routes (downloads, admin, etc.) to the Render backend
-# Auth routes are handled by CF Functions directly — skip proxy for those
-/api/* https://sinc-api.onrender.com/api/:splat 200
+# Auth login/signup/logout/me/profile handled by CF Functions directly
+# FastAPI-only auth sub-routes (avatar, history, spotify) proxied to Render
+/api/auth/avatar https://sinc-api.onrender.com/api/auth/avatar 200
+/api/auth/avatar/ https://sinc-api.onrender.com/api/auth/avatar/ 200
+/api/auth/history* https://sinc-api.onrender.com/api/auth/history$1 200
+/api/auth/spotify/* https://sinc-api.onrender.com/api/auth/spotify/:splat 200
+# Admin handled by CF Functions — do not proxy
+# Render backend handles: downloads, sync, health, metadata, etc.
+/api/download/* https://sinc-api.onrender.com/api/download/:splat 200
+/api/ping https://sinc-api.onrender.com/api/ping 200
+/api/status https://sinc-api.onrender.com/api/status 200
+/api/config https://sinc-api.onrender.com/api/config 200
+/api/metadata https://sinc-api.onrender.com/api/metadata 200
+/api/sync/* https://sinc-api.onrender.com/api/sync/:splat 200
+/api/scraping/* https://sinc-api.onrender.com/api/scraping/:splat 200
+/api/events https://sinc-api.onrender.com/api/events 200
+/api/debug/* https://sinc-api.onrender.com/api/debug/:splat 200
 # SPA fallback: all unmatched routes serve index.html
 /* /index.html 200

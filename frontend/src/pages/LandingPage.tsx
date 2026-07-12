@@ -1,12 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Headphones, Zap, Tags, Smartphone, Download, LogIn, UserPlus } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { gsap, ScrollTrigger } from '../lib/gsap'
+import './LandingPage.css'
 
 async function downloadLatestAPK() {
   try {
-    const res = await fetch('https://api.github.com/repos/anomalyco/Spotify-downloader/releases/latest')
+    const res = await fetch('https://api.github.com/repos/fax-solo/SpotDL/releases/latest')
     const data = await res.json()
     const asset = data.assets?.find((a: { name: string }) => a.name.endsWith('.apk'))
     if (asset?.browser_download_url) {
@@ -14,12 +15,11 @@ async function downloadLatestAPK() {
       return
     }
   } catch { /* fallback */ }
-  window.open('https://github.com/anomalyco/Spotify-downloader/releases/latest', '_blank')
+  window.location.href = 'https://github.com/fax-solo/SpotDL/releases/latest'
 }
 
 export function LandingPage() {
   const { user } = useAuth()
-  const scrollytellRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     import('./Downloader')
@@ -31,10 +31,10 @@ export function LandingPage() {
         trigger: '#scrollytell',
         start: 'top top',
         end: '+=600%',
-        pin: true,
         scrub: 1.5,
         anticipatePin: 1,
         invalidateOnRefresh: true,
+        pin: '.pinned-content',
       },
       defaults: { ease: 'none' },
     })
@@ -43,10 +43,9 @@ export function LandingPage() {
     tl.set('.stage-text.s2, .stage-text.s3, .stage-text.s4, .stage-text.s5', { opacity: 0 })
     tl.set('.stage-text.s1', { opacity: 1 })
     tl.set('#stage1Reveal', { text: '' })
-    tl.set('#exitCtaOverlay', { opacity: 0, pointerEvents: 'none' })
 
     tl.to('.phone-frame', { y: 0, opacity: 1, scale: 1, duration: 0.14, ease: 'power2.out' }, 0)
-    tl.to('#stage1Reveal', { duration: 0.06, text: 'Discover the Power of SpotDL', ease: 'none' }, 0.04)
+    tl.to('#stage1Reveal', { duration: 0.06, text: 'Discover the Power of Sinc', ease: 'none' }, 0.04)
     tl.to('#orb1', { scale: 1.2, opacity: 0.6, duration: 0.14 }, 0)
     tl.to('#orb2', { scale: 1.3, opacity: 0.5, duration: 0.14 }, 0)
 
@@ -104,11 +103,6 @@ export function LandingPage() {
     tl.to('#sideCopy', { x: '-10vw', opacity: 0, duration: 0.08, ease: 'power2.in' }, 0.78)
     tl.to('#orb1', { x: 200, y: -120, scale: 2, opacity: 0.3, duration: 0.10 }, 0.75)
     tl.to('#orb2', { x: -200, y: 120, scale: 2, opacity: 0.3, duration: 0.10 }, 0.75)
-    tl.to('#exitCtaOverlay', {
-      opacity: 1, duration: 0.08, ease: 'power2.out',
-      onStart: () => { document.getElementById('exitCtaOverlay') && (document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto') },
-      onReverseComplete: () => { document.getElementById('exitCtaOverlay') && (document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none') },
-    }, 0.78)
     tl.to('.phone-frame', { opacity: 0.2, scale: 0.45, duration: 0.10 }, 0.85)
     tl.to('#orb1', { opacity: 0.1, duration: 0.10 }, 0.90)
     tl.to('#orb2', { opacity: 0.1, duration: 0.10 }, 0.95)
@@ -122,10 +116,10 @@ export function LandingPage() {
         trigger: '#scrollytell',
         start: 'top top',
         end: '+=600%',
-        pin: true,
         scrub: 1.5,
         anticipatePin: 1,
         invalidateOnRefresh: true,
+        pin: '.pinned-content',
       },
       defaults: { ease: 'none' },
     })
@@ -134,10 +128,9 @@ export function LandingPage() {
     tl.set('.stage-text.s2, .stage-text.s3, .stage-text.s4, .stage-text.s5', { opacity: 0 })
     tl.set('.stage-text.s1', { opacity: 1 })
     tl.set('#stage1Reveal', { text: '' })
-    tl.set('#exitCtaOverlay', { opacity: 0, pointerEvents: 'none' })
 
     tl.to('.phone-frame', { y: 0, opacity: 1, scale: 1, duration: 0.14, ease: 'power2.out' }, 0)
-    tl.to('#stage1Reveal', { duration: 0.06, text: 'Discover the Power of SpotDL', ease: 'none' }, 0.04)
+    tl.to('#stage1Reveal', { duration: 0.06, text: 'Discover the Power of Sinc', ease: 'none' }, 0.04)
     tl.to('#orb1', { scale: 1.2, opacity: 0.6, duration: 0.14 }, 0)
     tl.to('#orb2', { scale: 1.3, opacity: 0.5, duration: 0.14 }, 0)
 
@@ -195,11 +188,6 @@ export function LandingPage() {
     tl.to('#sideCopy', { x: '-10vw', opacity: 0, duration: 0.08, ease: 'power2.in' }, 0.78)
     tl.to('#orb1', { x: 100, y: -60, scale: 1.5, opacity: 0.3, duration: 0.10 }, 0.75)
     tl.to('#orb2', { x: -100, y: 60, scale: 1.5, opacity: 0.3, duration: 0.10 }, 0.75)
-    tl.to('#exitCtaOverlay', {
-      opacity: 1, duration: 0.08, ease: 'power2.out',
-      onStart: () => { document.getElementById('exitCtaOverlay') && (document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'auto') },
-      onReverseComplete: () => { document.getElementById('exitCtaOverlay') && (document.getElementById('exitCtaOverlay')!.style.pointerEvents = 'none') },
-    }, 0.78)
     tl.to('.phone-frame', { opacity: 0.2, scale: 0.45, duration: 0.10 }, 0.85)
     tl.to('#orb1', { opacity: 0.1, duration: 0.10 }, 0.90)
     tl.to('#orb2', { opacity: 0.1, duration: 0.10 }, 0.95)
@@ -212,145 +200,21 @@ export function LandingPage() {
     mm.add('(min-width: 768px)', buildDesktopTL)
     mm.add('(max-width: 767px)', buildMobileTL)
 
+    const handleResize = () => ScrollTrigger.refresh()
+    window.addEventListener('resize', handleResize)
     ScrollTrigger.refresh()
     const timer = setTimeout(() => ScrollTrigger.refresh(), 800)
 
     return () => {
       clearTimeout(timer)
+      window.removeEventListener('resize', handleResize)
       mm.revert()
     }
   }, [buildDesktopTL, buildMobileTL])
 
   return (
     <div className="relative overflow-x-hidden bg-[#0C0C0E] text-white font-sans">
-      <style>{`
-        .phone-frame {
-          width: 280px;
-          aspect-ratio: 9 / 19.5;
-          background: #121214;
-          border-radius: 44px;
-          border: 2px solid rgba(255,255,255,0.08);
-          box-shadow: 0 0 0 1px rgba(255,255,255,0.03) inset, 0 30px 80px rgba(0,0,0,0.7), 0 0 60px rgba(29,185,84,0.06);
-          padding: 12px;
-          position: relative;
-          flex-shrink: 0;
-        }
-        .phone-notch {
-          position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-          width: 110px; height: 26px; background: #000;
-          border-radius: 0 0 16px 16px; z-index: 30;
-        }
-        .phone-notch-inner { display: flex; align-items: center; justify-content: center; gap: 8px; height: 100%; padding-bottom: 2px; }
-        .phone-notch-camera { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #1a1a3e, #0a0a1a); box-shadow: inset 0 1px 2px rgba(255,255,255,0.05); }
-        .screen-viewport { width: 100%; height: 100%; background: #0a0a0f; border-radius: 32px; overflow: hidden; position: relative; }
-        .screen { position: absolute; inset: 0; width: 100%; height: 100%; display: flex; flex-direction: column; }
-        .screen-1 { z-index: 3; opacity: 1; }
-        .screen-2 { z-index: 2; opacity: 0; }
-        .screen-3 { z-index: 1; opacity: 0; }
-        .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px 4px; font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.8); letter-spacing: 0.3px; }
-        .status-icons { display: flex; align-items: center; gap: 4px; }
-        .status-icons svg { width: 14px; height: 14px; fill: rgba(255,255,255,0.8); }
-        .home-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px; }
-        .home-logo { font-size: 16px; font-weight: 800; letter-spacing: -0.5px; background: linear-gradient(135deg, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .home-greeting { padding: 8px 16px 4px; font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.5); letter-spacing: 0.5px; text-transform: uppercase; }
-        .home-title { padding: 0 16px; font-size: 18px; font-weight: 700; line-height: 1.2; }
-        .search-bar { margin: 10px 16px; padding: 8px 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; display: flex; align-items: center; gap: 8px; font-size: 11px; color: rgba(255,255,255,0.35); }
-        .search-bar svg { width: 14px; height: 14px; opacity: 0.4; flex-shrink: 0; }
-        .section-label { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 6px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); }
-        .section-label span { font-size: 9px; font-weight: 500; color: #1DB954; }
-        .track-row { display: flex; align-items: center; gap: 10px; padding: 6px 16px; }
-        .track-art { width: 34px; height: 34px; border-radius: 6px; flex-shrink: 0; }
-        .track-info { flex: 1; min-width: 0; }
-        .track-name { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .track-artist { font-size: 9px; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .track-meta { font-size: 8px; color: rgba(255,255,255,0.25); }
-        .bottom-nav { display: flex; align-items: center; justify-content: space-around; padding: 8px 12px 6px; margin-top: auto; border-top: 1px solid rgba(255,255,255,0.04); background: rgba(0,0,0,0.3); }
-        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 8px; color: rgba(255,255,255,0.3); }
-        .nav-item.active { color: #1DB954; }
-        .nav-item svg { width: 16px; height: 16px; }
-        .detail-back { display: flex; align-items: center; gap: 4px; padding: 6px 12px; font-size: 10px; color: rgba(255,255,255,0.6); }
-        .detail-back svg { width: 16px; height: 16px; }
-        .album-art-large { margin: 4px 20px; aspect-ratio: 1; border-radius: 12px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
-        .album-art-large::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.4) 100%); }
-        .album-art-icon { width: 48px; height: 48px; opacity: 0.3; }
-        .album-art-icon svg { width: 100%; height: 100%; }
-        .detail-info { padding: 8px 20px 4px; }
-        .detail-title { font-size: 13px; font-weight: 700; line-height: 1.2; }
-        .detail-artist { font-size: 10px; font-weight: 500; color: rgba(255,255,255,0.5); margin-top: 1px; }
-        .detail-album { font-size: 9px; color: rgba(255,255,255,0.3); margin-top: 1px; }
-        .detail-meta-row { display: flex; justify-content: space-between; padding: 4px 20px; font-size: 8px; color: rgba(255,255,255,0.25); letter-spacing: 0.3px; }
-        .download-btn-wrap { padding: 6px 20px 4px; }
-        .download-btn { width: 100%; padding: 10px 0; background: linear-gradient(135deg, #1DB954, #169c46); border: none; border-radius: 10px; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 24px rgba(29,185,84,0.3); position: relative; }
-        .download-btn svg { width: 14px; height: 14px; }
-        .download-btn-glow { position: absolute; inset: -2px; border-radius: 12px; background: linear-gradient(135deg, #1DB95444, transparent); filter: blur(8px); z-index: -1; }
-        .progress-bar { margin: 6px 20px; height: 3px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
-        .progress-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #1DB954, #1ed760); border-radius: 4px; transform-origin: left; transform: scaleX(0); }
-        .detail-footer { padding: 4px 20px; font-size: 7px; color: rgba(255,255,255,0.15); margin-top: auto; padding-bottom: 8px; }
-        .success-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 5; opacity: 0; border-radius: 32px; }
-        .checkmark { width: 48px; height: 48px; background: #1DB954; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 40px rgba(29,185,84,0.5); transform: scale(0); }
-        .checkmark svg { width: 24px; height: 24px; stroke: #fff; stroke-width: 3; fill: none; }
-        .success-text { font-size: 13px; font-weight: 700; color: #1DB954; margin-top: 12px; opacity: 0; transform: translateY(8px); }
-        .library-text { font-size: 9px; color: rgba(255,255,255,0.5); margin-top: 4px; opacity: 0; transform: translateY(8px); }
-        .success-actions { display: flex; gap: 8px; margin-top: 14px; opacity: 0; transform: translateY(8px); }
-        .success-btn { padding: 6px 14px; border-radius: 8px; font-size: 9px; font-weight: 600; border: none; cursor: pointer; }
-        .success-btn-primary { background: #1DB954; color: #000; }
-        .success-btn-secondary { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
-        .cursor-dot { position: absolute; width: 12px; height: 12px; background: rgba(255,255,255,0.95); border-radius: 50%; pointer-events: none; z-index: 50; opacity: 0; box-shadow: 0 0 12px rgba(255,255,255,0.3), 0 0 4px rgba(29,185,84,0.2); transform: translate(-50%, -50%); }
-        .cursor-ring { position: absolute; width: 28px; height: 28px; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 50%; pointer-events: none; z-index: 49; opacity: 0; transform: translate(-50%, -50%); }
-        .cursor-click-ring { position: absolute; width: 40px; height: 40px; border: 2px solid #1DB954; border-radius: 50%; pointer-events: none; z-index: 48; opacity: 0; transform: translate(-50%, -50%) scale(0); }
-        .side-copy { max-width: 360px; min-width: 300px; width: 100%; min-height: 320px; }
-        .stage-text { opacity: 0; position: absolute; left: 0; right: 0; top: 0; pointer-events: none; }
-        .stage-text.s1 { opacity: 1; }
-        .stage-text .label { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #1DB954; margin-bottom: 8px; }
-        .stage-text h2 { font-size: 32px; font-weight: 800; line-height: 1.15; letter-spacing: -0.5px; }
-        .stage-text p { font-size: 14px; color: rgba(255,255,255,0.4); line-height: 1.6; margin-top: 12px; }
-        .stage-number { font-size: 80px; font-weight: 800; color: rgba(255,255,255,0.02); position: absolute; right: -20px; top: -30px; line-height: 1; pointer-events: none; }
-        .backdrop-orb { position: absolute; border-radius: 50%; pointer-events: none; z-index: 0; }
-        .orb-1 { width: 500px; height: 500px; background: rgba(29,185,84,0.04); top: -10%; right: -10%; }
-        .orb-2 { width: 400px; height: 400px; background: rgba(29,185,84,0.03); bottom: -10%; left: -10%; }
-        @media (max-width: 768px) {
-          .phone-frame { width: 220px; border-radius: 36px; padding: 10px; border-width: 1.5px; }
-          .phone-notch { width: 90px; height: 22px; border-radius: 0 0 12px 12px; }
-          .screen-viewport { border-radius: 26px; }
-          .stage-text h2 { font-size: 24px; }
-          .stage-text p { font-size: 13px; }
-          .side-copy { max-width: 280px; min-width: 240px; min-height: 260px; }
-          .album-art-large { margin: 2px 14px; border-radius: 10px; }
-          .detail-title { font-size: 12px; }
-          .detail-info { padding: 6px 16px 2px; }
-          .download-btn-wrap { padding: 4px 16px; }
-          .download-btn { padding: 8px 0; font-size: 10px; }
-          .progress-bar { margin: 4px 16px; }
-          .success-text { font-size: 11px; }
-          .checkmark { width: 40px; height: 40px; }
-          .home-title { font-size: 15px; }
-          .cursor-dot { width: 10px; height: 10px; }
-          .cursor-ring { width: 24px; height: 24px; }
-        }
-        @media (max-width: 480px) {
-          .phone-frame { width: 180px; border-radius: 28px; padding: 8px; }
-          .phone-notch { width: 72px; height: 18px; border-radius: 0 0 10px 10px; }
-          .screen-viewport { border-radius: 20px; }
-          .stage-text h2 { font-size: 20px; }
-          .side-copy { max-width: 220px; min-width: 200px; min-height: 230px; }
-          .album-art-large { margin: 2px 10px; }
-          .detail-title { font-size: 10px; }
-          .detail-info { padding: 4px 12px 2px; }
-          .download-btn-wrap { padding: 2px 12px; }
-          .download-btn { padding: 6px 0; font-size: 9px; border-radius: 8px; }
-          .detail-meta-row { padding: 2px 12px; font-size: 7px; }
-          .detail-footer { padding: 2px 12px 6px; font-size: 6px; }
-          .home-title { font-size: 13px; }
-          .search-bar { margin: 6px 10px; padding: 6px 10px; font-size: 9px; }
-          .section-label { padding: 6px 10px 4px; font-size: 9px; }
-          .track-row { padding: 4px 10px; }
-          .track-art { width: 28px; height: 28px; }
-          .track-name { font-size: 9px; }
-          .track-artist { font-size: 7px; }
-          .cursor-dot { width: 8px; height: 8px; }
-          .cursor-ring { width: 20px; height: 20px; }
-        }
-      `}</style>
+
 
       {/* Auth Header */}
       <div className="absolute top-0 left-0 right-0 z-50 px-6 py-4">
@@ -390,14 +254,14 @@ export function LandingPage() {
       {/* Hero Section */}
       <section className="h-screen flex flex-col items-center justify-center text-center relative min-h-[500px]">
         <div>
-          <div className="text-[#1DB954] text-xs font-semibold tracking-[3px] uppercase mb-3">SpotDL v3</div>
+          <div className="text-[#1DB954] text-xs font-semibold tracking-[3px] uppercase mb-3">Sinc v3</div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-none">
             <span className="bg-gradient-to-r from-[#1DB954] to-[#1ed760] bg-clip-text text-transparent">Scrollytelling</span>
             <br />
             <span className="text-white/90">Preview</span>
           </h1>
           <p className="mt-4 text-white/30 text-sm max-w-md mx-auto leading-relaxed px-4">
-            Scroll down to experience the interactive narrative. Each scroll phase reveals a new dimension of the SpotDL app.
+            Scroll down to experience the interactive narrative. Each scroll phase reveals a new dimension of the Sinc app.
           </p>
           <div className="mt-8 flex justify-center animate-bounce">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -408,8 +272,8 @@ export function LandingPage() {
       </section>
 
       {/* Scrollytelling */}
-      <section id="scrollytell" ref={scrollytellRef} className="relative" style={{ height: '600vh' }}>
-          <div className="pinned-content h-screen w-full flex items-center justify-center overflow-hidden relative">
+      <section id="scrollytell" className="relative">
+          <div className="pinned-content h-screen w-full flex items-center justify-center relative">
           <div className="backdrop-orb orb-1" id="orb1" />
           <div className="backdrop-orb orb-2" id="orb2" />
 
@@ -435,12 +299,12 @@ export function LandingPage() {
                     </div>
 
                     <div className="home-header">
-                      <div className="home-logo">SpotDL</div>
+                      <div className="home-logo">Sinc</div>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></svg>
                     </div>
 
                     <div className="home-greeting">Good evening</div>
-                    <div className="home-title">Discover the Power<br />of SpotDL</div>
+                    <div className="home-title">Discover the Power<br />of Sinc</div>
 
                     <div className="search-bar">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
@@ -587,20 +451,20 @@ export function LandingPage() {
             <div className="side-copy relative" id="sideCopy">
               <div className="stage-text s1" data-stage="1">
                 <div className="label">Stage 01</div>
-                <h2><span id="stage1Reveal">Discover the Power of SpotDL</span></h2>
-                <p>Paste any Spotify track, album, or playlist link and let SpotDL handle the rest. High-fidelity audio, album art, and metadata — all in one seamless experience.</p>
+                <h2><span id="stage1Reveal">Discover the Power of Sinc</span></h2>
+                <p>Paste any Spotify track, album, or playlist link and let Sinc handle the rest. High-fidelity audio, album art, and metadata — all in one seamless experience.</p>
                 <div className="stage-number">01</div>
               </div>
               <div className="stage-text s2" data-stage="2">
                 <div className="label">Stage 02</div>
                 <h2>Immersive Native<br />User Interface</h2>
-                <p>Crafted for speed and beauty. Every pixel of the SpotDL app is optimized for a fluid, native-feeling experience with Material You theming.</p>
+                <p>Crafted for speed and beauty. Every pixel of the Sinc app is optimized for a fluid, native-feeling experience with Material You theming.</p>
                 <div className="stage-number">02</div>
               </div>
               <div className="stage-text s3" data-stage="3">
                 <div className="label">Stage 03</div>
                 <h2>Seamless One-Tap<br />Downloads</h2>
-                <p>Tap once and watch the magic happen. SpotDL fetches, converts, and tags your track at 320kbps with full album artwork embedded.</p>
+                <p>Tap once and watch the magic happen. Sinc fetches, converts, and tags your track at 320kbps with full album artwork embedded.</p>
                 <div className="stage-number">03</div>
               </div>
               <div className="stage-text s4" data-stage="4">
@@ -612,56 +476,30 @@ export function LandingPage() {
               <div className="stage-text s5" data-stage="5">
                 <div className="label">Stage 05</div>
                 <h2>Ready for High-Quality<br />Offline Audio?</h2>
-                <p>Download the SpotDL app and start building your offline music collection today. Free, open-source, and privacy-first.</p>
+                <p>Download the Sinc app and start building your offline music collection today. Free, open-source, and privacy-first.</p>
                 <div className="stage-number">05</div>
               </div>
             </div>
           </div>
 
-          {/* Exit CTA Overlay */}
-          <div className="exit-cta-overlay absolute inset-0 flex items-center justify-center pointer-events-none z-20" id="exitCtaOverlay" style={{ opacity: 0 }}>
-            <div className="text-center max-w-lg px-6">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/20 text-[#1DB954] text-xs font-semibold tracking-wider uppercase mb-5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                Download Now
-              </div>
-              <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-4">
-                Ready for High-Quality<br />
-                <span className="bg-gradient-to-r from-[#1DB954] to-[#1ed760] bg-clip-text text-transparent">Offline Audio?</span>
-              </h2>
-              <p className="text-white/40 text-sm max-w-md mx-auto mb-8 leading-relaxed">
-                Download the SpotDL app and start building your offline music collection today.
-                Free, open-source, and privacy-first.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Link to="/download" className="inline-flex items-center gap-2 px-8 py-3 bg-[#1DB954] hover:bg-[#169c46] text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_-5px_rgba(29,185,84,0.4)] focus-visible:ring-2 focus-visible:ring-white/40">
-                  <Download className="w-5 h-5" />
-                  Start Downloading
-                </Link>
-                <button onClick={downloadLatestAPK} className="inline-flex items-center gap-2 px-8 py-3 border border-white/10 hover:border-white/20 text-white/70 hover:text-white font-medium rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-white/40">
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
-                  GitHub Release
-                </button>
-              </div>
-            </div>
-          </div>
+
         </div>
       </section>
 
       {/* Exit CTA Section */}
-      <section className="flex items-center justify-center px-6 py-8 md:py-12" style={{ background: '#0C0C0E' }}>
+      <section className="relative flex items-center justify-center px-6 py-8 md:py-12" style={{ background: '#0C0C0E' }}>
         <div className="max-w-[680px] text-center px-6 py-8 md:px-12 md:py-10 rounded-3xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/20 text-[#1DB954] text-xs font-semibold tracking-wider uppercase mb-3">
-            SpotDL v3
+            Sinc v3
           </span>
           <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-3">Your Music, Always Yours to Keep</h2>
           <p className="text-white/40 text-sm max-w-md mx-auto mb-5 leading-relaxed">
             Download high-fidelity audio from Spotify with automated ID3 tagging, album art, and LRC lyrics.
           </p>
-          <Link to="/download" className="inline-flex items-center gap-2 px-8 py-3 bg-[#1DB954] hover:bg-[#169c46] text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_-5px_rgba(29,185,84,0.4)] focus-visible:ring-2 focus-visible:ring-white/40">
+          <button onClick={downloadLatestAPK} className="inline-flex items-center gap-2 px-8 py-3 bg-[#1DB954] hover:bg-[#169c46] text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_-5px_rgba(29,185,84,0.4)] focus-visible:ring-2 focus-visible:ring-white/40">
             <Download className="w-5 h-5" />
-            Get SpotDL
-          </Link>
+            Get Sinc on Android
+          </button>
           <p className="mt-3 text-white/20 text-xs">v3.0.0 &middot; Free &amp; Open Source</p>
         </div>
       </section>
@@ -670,7 +508,7 @@ export function LandingPage() {
       <section className="px-4 py-12 md:py-16 bg-gradient-to-b from-transparent to-black/30 relative" style={{ background: '#0C0C0E' }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-8 md:mb-12">
-            <h2 className="text-2xl md:text-4xl font-bold text-white mb-3">Why choose SpotDL?</h2>
+            <h2 className="text-2xl md:text-4xl font-bold text-white mb-3">Why choose Sinc?</h2>
             <p className="text-sm md:text-base text-white/40 max-w-2xl mx-auto">We've built the most reliable, feature-rich downloading pipeline to give you the ultimate audio experience.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -692,7 +530,7 @@ export function LandingPage() {
             <FeatureCard
               icon={<Smartphone className="w-7 h-7 text-purple-500" />}
               title="Cross Platform"
-              description="Use SpotDL beautifully on the web or install the native Android APK for on-the-go access."
+              description="Use Sinc beautifully on the web or install the native Android APK for on-the-go access."
             />
           </div>
         </div>
@@ -708,7 +546,7 @@ export function LandingPage() {
               <div className="absolute inset-0 bg-white/5 opacity-50" />
             </div>
             <StepCard number="1" title="Copy Link" description="Find a track, album, or playlist on Spotify and copy its share link." />
-            <StepCard number="2" title="Paste & Fetch" description="Paste the link into SpotDL. We'll instantly fetch the metadata and artwork." />
+            <StepCard number="2" title="Paste & Fetch" description="Paste the link into Sinc. We'll instantly fetch the metadata and artwork." />
             <StepCard number="3" title="Download" description="Click download. We'll find the highest quality audio and tag it for you." />
           </div>
           <div className="mt-12 md:mt-16">
@@ -725,7 +563,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="py-8 text-center text-sm text-white/30 border-t border-white/5" style={{ background: '#0C0C0E' }}>
         <p>Built with React, Tailwind CSS, GSAP, and FastAPI.</p>
-        <p className="mt-1 text-xs opacity-70">SpotDL is not affiliated with Spotify AB.</p>
+        <p className="mt-1 text-xs opacity-70">Sinc is not affiliated with Spotify AB.</p>
       </footer>
     </div>
   )
@@ -733,7 +571,7 @@ export function LandingPage() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-sm hover:shadow-xl hover:shadow-black/5 transition-shadow relative overflow-hidden group hover:-translate-y-1 transition-transform">
+    <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-sm hover:shadow-xl hover:shadow-black/5 transition-all relative overflow-hidden group hover:-translate-y-1">
       <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-1/4 -translate-y-1/4 group-hover:scale-150 transition-transform duration-500 pointer-events-none">
         {icon}
       </div>
