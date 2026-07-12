@@ -12,7 +12,7 @@ const AUTH_ERRORS = new Set([
 function csrfCheck(request: Request, allowedOrigins?: string): void {
   if (SAFE_METHODS.has(request.method)) return
   const origin = request.headers.get('Origin')
-  if (!origin) return
+  if (!origin || origin === 'null') return
 
   let requestOrigin: string | null = null
   try {
@@ -29,9 +29,6 @@ function csrfCheck(request: Request, allowedOrigins?: string): void {
   if (allowed.length === 0) {
     const url = new URL(request.url)
     allowed.push(url.origin)
-    // In development, Vite proxy changes the request URL but the browser's
-    // Origin stays the same. Accept the Origin header value too so CSRF
-    // doesn't break when running locally with the Vite dev server.
     if (requestOrigin !== url.origin) {
       allowed.push(requestOrigin)
     }

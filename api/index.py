@@ -102,7 +102,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.method not in self.SAFE_METHODS:
             origin = request.headers.get("Origin")
-            if origin:
+            if origin and origin != "null":
                 try:
                     origin_parsed = urlparse(origin)
                     request_origin = f"{origin_parsed.scheme}://{origin_parsed.netloc}".lower()

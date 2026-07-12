@@ -133,10 +133,10 @@ export function useAdmin({ enabled = true }: { enabled?: boolean } = {}) {
   const toggleUserActive = useCallback(async (userId: string, currentlyActive: boolean): Promise<ToggleResult> => {
     try {
       const headers = { ...authHeaders(), 'Content-Type': 'application/json' }
-      const res = await fetch(apiUrl(`/api/admin/${userId}`), {
-        method: 'PATCH',
+      const res = await fetch(apiUrl('/api/admin/toggle'), {
+        method: 'POST',
         headers,
-        body: JSON.stringify({ is_active: !currentlyActive }),
+        body: JSON.stringify({ user_id: userId, is_active: !currentlyActive }),
       })
       if (res.ok) {
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !currentlyActive } : u))
