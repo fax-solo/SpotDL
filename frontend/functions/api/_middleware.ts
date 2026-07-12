@@ -35,7 +35,7 @@ function csrfCheck(request: Request, allowedOrigins?: string): void {
   }
 
   const normalizedAllowed = allowed.map(o => {
-    if (o.startsWith('http://') || o.startsWith('https://')) return o
+    if (o.includes('://')) return o
     return `https://${o}`
   })
   if (!normalizedAllowed.some(o => requestOrigin === o)) {
