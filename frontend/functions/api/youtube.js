@@ -1,5 +1,6 @@
 import { fetchWithRetry, scrapeResponse, scrapeError, isFailFast } from './_lib/retry.js'
 import { scrapeLog } from './_lib/log.js'
+import { checkRateLimit } from './_lib/rate_limit'
 
 const CLIENTS = [
   { name: 'ANDROID_v1', context: { client: { clientName: 'ANDROID', clientVersion: '18.37.36', androidSdkVersion: 30, osName: 'Android', osVersion: '13', platform: 'MOBILE', gl: 'US', hl: 'en' } } },
@@ -326,6 +327,13 @@ export async function onRequest(context) {
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405, headers: CORS })
   }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:youtube:${ip}`, 30)
+  if (!allowed) {
+    return scrapeError('rate_limited', 'Too many requests. Try again later.', 429)
+  }
+
   const key = context.env?.YOUTUBE_API_KEY || ''
   if (!key) {
     return new Response(JSON.stringify({ error: 'YouTube API key not configured' }), {

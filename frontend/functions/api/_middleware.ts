@@ -1,5 +1,8 @@
 import type { RouteHandler, Env } from './_lib'
 
+const ALLOWED_METHODS = 'GET, POST, OPTIONS'
+const ALLOWED_HEADERS = 'Content-Type, Authorization'
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 const AUTH_ERRORS = new Set([
   'Not authenticated',
@@ -7,6 +10,16 @@ const AUTH_ERRORS = new Set([
   'User not found or disabled',
   'Admin access required',
 ])
+
+function getAllowedOrigins(env: Env): string[] {
+  return env.ALLOWED_ORIGINS
+    ? env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+    : []
+}
+
+function normalizeOrigin(o: string): string {
+  return o.includes('://') ? o : `https://${o}`
+}
 
 function csrfCheck(request: Request, allowedOrigins?: string): void {
   if (SAFE_METHODS.has(request.method)) return
@@ -33,10 +46,7 @@ function csrfCheck(request: Request, allowedOrigins?: string): void {
     }
   }
 
-  const normalizedAllowed = allowed.map(o => {
-    if (o.includes('://')) return o
-    return `https://${o}`
-  })
+  const normalizedAllowed = allowed.map(normalizeOrigin)
   if (!normalizedAllowed.some(o => requestOrigin === o)) {
     throw new Error('CSRF: Invalid origin')
   }
@@ -54,6 +64,19 @@ function isJsonResponse(res: Response): boolean {
   return ct.includes('application/json')
 }
 
+function corsHeaders(env: Env, origin: string): Record<string, string> {
+  const allowed = getAllowedOrigins(env)
+  const corsOrigin = allowed.length > 0 && origin
+    ? (allowed.some(a => origin === normalizeOrigin(a)) ? origin : 'null')
+    : origin || '*'
+  return {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Methods': ALLOWED_METHODS,
+    'Access-Control-Allow-Headers': ALLOWED_HEADERS,
+    'Vary': 'Origin',
+  }
+}
+
 export const onRequest: RouteHandler = async (context) => {
   const origin = context.request.headers.get('Origin') || ''
 
@@ -62,9 +85,7 @@ export const onRequest: RouteHandler = async (context) => {
     return new Response(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': origin || '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': '*',
+        ...corsHeaders(context.env, origin),
         'Access-Control-Max-Age': '86400',
       },
     })
@@ -98,12 +119,10 @@ export const onRequest: RouteHandler = async (context) => {
   }
 
   // Add CORS headers to all responses
-  const corsOrigin = origin || '*'
   const headers = new Headers(response.headers)
-  headers.set('Access-Control-Allow-Origin', corsOrigin)
-  headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-  headers.set('Access-Control-Allow-Headers', '*')
-  headers.set('Vary', 'Origin')
+  for (const [k, v] of Object.entries(corsHeaders(context.env, origin))) {
+    headers.set(k, v)
+  }
 
   return new Response(response.body, {
     status: response.status,

@@ -1,3 +1,5 @@
+import { checkRateLimit } from './_lib/rate_limit'
+
 const LRCLIB_API = 'https://lrclib.net/api'
 
 function jsonOk(data) {
@@ -39,6 +41,12 @@ async function fetchLrcLib(url) {
 export async function onRequest(context) {
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 })
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:lyrics:${ip}`, 30)
+  if (!allowed) {
+    return jsonError('Too many requests. Try again later.', 429)
   }
 
   try {

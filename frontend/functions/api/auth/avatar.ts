@@ -1,5 +1,6 @@
 import { json, error, requireUser } from '../_lib'
 import type { RouteHandler } from '../_lib'
+import { checkRateLimit } from '../_lib/rate_limit'
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const MAX_SIZE = 5 * 1024 * 1024
@@ -10,6 +11,12 @@ export const onRequest: RouteHandler = async (context) => {
   }
   if (context.request.method !== 'POST') {
     return error('Method not allowed', 405)
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:avatar:${ip}`, 5)
+  if (!allowed) {
+    return error('Too many requests. Try again later.', 429)
   }
 
   let user: any

@@ -1,4 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+
+beforeAll(() => {
+  const store = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, value) },
+    removeItem: (key: string) => { store.delete(key) },
+    clear: () => { store.clear() },
+    get length() { return store.size },
+    key: (index: number) => [...store.keys()][index] ?? null,
+  })
+})
 
 /* ============================================================
    MODULE 1: apiConfig - API URL resolution
@@ -7,7 +19,6 @@ describe('apiConfig', () => {
   beforeEach(() => {
     vi.resetModules()
     delete (process.env as Record<string, string>)['VITE_API_URL']
-    delete (process.env as Record<string, string>)['VITE_CLOUDFLARE_URL']
   })
 
   it('returns empty string for web by default', async () => {
@@ -16,11 +27,11 @@ describe('apiConfig', () => {
   })
 
   it('returns cloudflare URL when env var is set', async () => {
-    import.meta.env.VITE_CLOUDFLARE_URL = 'https://custom.pages.dev'
+    import.meta.env.VITE_API_URL = 'https://custom.pages.dev'
     vi.resetModules()
     const { getApiBase } = await import('./apiConfig')
     expect(getApiBase()).toBe('https://custom.pages.dev')
-    delete import.meta.env.VITE_CLOUDFLARE_URL
+    delete import.meta.env.VITE_API_URL
   })
 
   it('returns empty string for web by default via apiUrl', async () => {

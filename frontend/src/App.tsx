@@ -45,8 +45,9 @@ const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m
 const SignUpPage = lazy(() => import('./pages/SignUpPage').then(m => ({ default: m.SignUpPage })))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
 const PlayerPage = lazy(() => import('./pages/PlayerPage').then(m => ({ default: m.PlayerPage })))
+const PlaylistsPage = lazy(() => import('./pages/PlaylistsPage').then(m => ({ default: m.PlaylistsPage })))
 
-const PAGE_ORDER = ['/', '/download', '/history', '/settings']
+const PAGE_ORDER = ['/', '/download', '/history', '/my-playlists', '/settings']
 
 const PUBLIC_ROUTES = ['/', '/login', '/signup', '/callback']
 
@@ -233,7 +234,7 @@ function AppContent() {
   }, [isNative, navigate])
 
   function isDetailPageRoute(path: string) {
-    return path === '/search' || path.startsWith('/playlist/') || path.startsWith('/album/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/')
+    return path === '/search' || path === '/my-playlists' || path.startsWith('/playlist/') || path.startsWith('/album/') || path.startsWith('/artist/') || path.startsWith('/track/') || path.startsWith('/yt-track/') || path.startsWith('/episode/') || path.startsWith('/show/')
   }
 
   const bottomBarHidden = useBottomBar(s => s.hidden)
@@ -286,6 +287,7 @@ function AppContent() {
                         <Route path="/signup" element={<SignUpPage />} />
                         <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
                         <Route path="/player" element={<RequireAuth><PlayerPage /></RequireAuth>} />
+                        <Route path="/my-playlists" element={<RequireAuth><PlaylistsPage /></RequireAuth>} />
                         <Route path="/playlist/:id" element={<RequireAuth><PlaylistDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/album/:id" element={<RequireAuth><AlbumDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/artist/:id" element={<RequireAuth><ArtistPage onDownloadComplete={addEntry} /></RequireAuth>} />
@@ -309,6 +311,7 @@ function AppContent() {
                         <Route path="/signup" element={<SignUpPage />} />
                         <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
                         <Route path="/player" element={<RequireAuth><PlayerPage /></RequireAuth>} />
+                        <Route path="/my-playlists" element={<RequireAuth><PlaylistsPage /></RequireAuth>} />
                         <Route path="/playlist/:id" element={<RequireAuth><PlaylistDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/album/:id" element={<RequireAuth><AlbumDetail onDownloadComplete={addEntry} /></RequireAuth>} />
                         <Route path="/artist/:id" element={<RequireAuth><ArtistPage onDownloadComplete={addEntry} /></RequireAuth>} />

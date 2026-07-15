@@ -49,7 +49,7 @@ async function callSpotify(body: Record<string, unknown>): Promise<any> {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Request failed' }))
-      throw new Error(err.detail || `Spotify function error: ${res.status}`)
+      throw new Error(err.error || err.detail || `Spotify function error: ${res.status}`)
     }
     return res.json()
   } finally {

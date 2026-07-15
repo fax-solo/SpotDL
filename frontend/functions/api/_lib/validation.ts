@@ -11,7 +11,12 @@ export function validate<T>(schema: z.ZodSchema<T>, data: unknown): T {
 
 export const signupSchema = z.object({
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128)
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number'),
   display_name: z.string().max(100).optional(),
   username: z.string().max(100).optional(),
 })

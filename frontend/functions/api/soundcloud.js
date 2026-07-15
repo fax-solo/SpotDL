@@ -1,5 +1,6 @@
 import { fetchWithRetry, scrapeResponse, scrapeError } from './_lib/retry.js'
 import { scrapeLog, errorType } from './_lib/log.js'
+import { checkRateLimit } from './_lib/rate_limit'
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
 const HEADERS = { 'User-Agent': BROWSER_UA }
@@ -64,6 +65,12 @@ async function fetchWithCid(url, cid, retryOnAuth = true) {
 export async function onRequest(context) {
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 })
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:soundcloud:${ip}`, 30)
+  if (!allowed) {
+    return scrapeError('rate_limited', 'Too many requests. Try again later.', 429)
   }
 
   try {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3 } from 'lucide-react'
+import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3, Plus } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { searchSpotify, searchYouTubeTracks, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
 import { usePlayer } from '../hooks/usePlayer'
@@ -8,6 +8,8 @@ import { useToast } from '../components/Toast'
 import { findAudio } from '../lib/sources'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { Capacitor } from '@capacitor/core'
+import { AddToPlaylistModal } from '../components/AddToPlaylistModal'
+import type { PlaylistTrack } from '../hooks/usePlaylists'
 
 function groupTracksByAlbum(tracks: SearchTrack[]): (SearchTrack & { _groupSize?: number })[] {
   const groups = new Map<string, SearchTrack[]>()
@@ -45,6 +47,7 @@ export function SearchPage() {
   const [searchingPlay, setSearchingPlay] = useState(false)
   const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<PlaylistTrack | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const searchReqId = useRef(0)
@@ -308,6 +311,14 @@ export function SearchPage() {
                           </p>
                         )}
                       </div>
+                      {(type === 'tracks') && (
+                        <button
+                          onClick={e => { e.stopPropagation(); setAddToPlaylistTrack({ id: item.url, title: item.title, artist: item.artist, artwork_url: item.artwork_url }) }}
+                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-accent/10 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 text-accent" />
+                        </button>
+                      )}
                       {(type === 'tracks' || type === 'playlists' || type === 'albums') && (
                         <button
                           onClick={e => { e.stopPropagation(); 
@@ -315,7 +326,7 @@ export function SearchPage() {
                             else if (type === 'playlists') handlePlayPlaylist(item)
                             else if (type === 'albums') handlePlayAlbum(item)
                           }}
-                          className="w-11 h-11 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-2 active-scale"
+                          className="w-11 h-11 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-1 active-scale"
                         >
                           {loadingPlayId === item.id ? (
                             <Loader2 className="w-4 h-4 text-white animate-spin" />
@@ -413,6 +424,9 @@ export function SearchPage() {
           </div>
         )}
       </div>
+      {addToPlaylistTrack && (
+        <AddToPlaylistModal track={addToPlaylistTrack} onClose={() => setAddToPlaylistTrack(null)} />
+      )}
     </div>
   )
 }

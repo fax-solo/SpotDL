@@ -178,7 +178,7 @@ describe('downloadAudio', () => {
         artist: 'Test',
         album: 'Test',
         artworkUrl: null,
-      }, undefined, controller.signal),
+      }, undefined, undefined, controller.signal),
     ).rejects.toThrow()
   })
 

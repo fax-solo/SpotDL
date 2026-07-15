@@ -1,8 +1,19 @@
+import { checkRateLimit } from './_lib/rate_limit'
+
 const BASE = 'https://api.jamendo.com/v3.0'
 
 export async function onRequest(context) {
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 })
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:jamendo:${ip}`, 30)
+  if (!allowed) {
+    return new Response(JSON.stringify({ error: 'Too many requests. Try again later.', error_type: 'rate_limited' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 
   try {

@@ -9,6 +9,7 @@ vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: vi.fn(),
   },
+  registerPlugin: vi.fn(() => ({})),
 }))
 
 vi.mock('@capacitor/local-notifications', () => ({

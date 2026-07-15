@@ -1,4 +1,4 @@
-import { Sun, Moon, Music, User, LogIn, UserPlus, UserRound, Search, Download, Clock } from 'lucide-react'
+import { Sun, Moon, Music, User, LogIn, UserPlus, UserRound, Search, Download, Clock, ListMusic } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '../hooks/useTheme'
 import { useAuth } from '../hooks/useAuth'
@@ -7,6 +7,7 @@ import { useState } from 'react'
 
 const NAV_LINKS = [
   { path: '/search', icon: Search, label: 'Search' },
+  { path: '/my-playlists', icon: ListMusic, label: 'Playlists' },
   { path: '/download', icon: Download, label: 'Download' },
   { path: '/history', icon: Clock, label: 'History' },
   { path: '/player', icon: Music, label: 'Player' },

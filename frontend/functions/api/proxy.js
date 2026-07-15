@@ -1,3 +1,5 @@
+import { checkRateLimit } from './_lib/rate_limit'
+
 const DEFAULT_CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Range', 'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Content-Type' }
 
 const ALLOWED_HOST_SUFFIXES = [
@@ -39,6 +41,14 @@ export async function onRequest(context) {
   }
   if (context.request.method !== 'GET') {
     return new Response('Method Not Allowed', { status: 405, headers: cors })
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:proxy:${ip}`, 120)
+  if (!allowed) {
+    return new Response(JSON.stringify({ error: 'Too many requests. Try again later.' }), {
+      status: 429, headers: { 'Content-Type': 'application/json', ...cors },
+    })
   }
 
   const reqUrl = new URL(context.request.url)

@@ -3,23 +3,35 @@ import { validate, signupSchema, loginSchema, googleAuthSchema, guestSchema, upd
 
 describe('signupSchema', () => {
   it('accepts valid signup data', () => {
-    const data = validate(signupSchema, { email: 'a@b.com', password: '123456' })
+    const data = validate(signupSchema, { email: 'a@b.com', password: 'Pass1234' })
     expect(data.email).toBe('a@b.com')
-    expect(data.password).toBe('123456')
+    expect(data.password).toBe('Pass1234')
   })
 
   it('accepts signup with optional fields', () => {
-    const data = validate(signupSchema, { email: 'a@b.com', password: '123456', display_name: 'Test', username: 'test' })
+    const data = validate(signupSchema, { email: 'a@b.com', password: 'Pass1234', display_name: 'Test', username: 'test' })
     expect(data.display_name).toBe('Test')
     expect(data.username).toBe('test')
   })
 
   it('rejects invalid email', () => {
-    expect(() => validate(signupSchema, { email: 'bad', password: '123456' })).toThrow()
+    expect(() => validate(signupSchema, { email: 'bad', password: 'Pass1234' })).toThrow()
   })
 
   it('rejects short password', () => {
-    expect(() => validate(signupSchema, { email: 'a@b.com', password: '12345' })).toThrow()
+    expect(() => validate(signupSchema, { email: 'a@b.com', password: 'Pass12' })).toThrow()
+  })
+
+  it('rejects password without uppercase', () => {
+    expect(() => validate(signupSchema, { email: 'a@b.com', password: 'pass1234' })).toThrow()
+  })
+
+  it('rejects password without lowercase', () => {
+    expect(() => validate(signupSchema, { email: 'a@b.com', password: 'PASS1234' })).toThrow()
+  })
+
+  it('rejects password without number', () => {
+    expect(() => validate(signupSchema, { email: 'a@b.com', password: 'Password' })).toThrow()
   })
 })
 

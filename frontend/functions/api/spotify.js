@@ -1,5 +1,6 @@
 import { fetchWithRetry, scrapeResponse, scrapeError, isFailFast } from './_lib/retry.js'
 import { scrapeLog } from './_lib/log.js'
+import { checkRateLimit } from './_lib/rate_limit'
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
 
@@ -1225,6 +1226,13 @@ export async function onRequest(context) {
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405, headers: CORS })
   }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:spotify:${ip}`, 60)
+  if (!allowed) {
+    return jsonError('Too many requests. Try again later.', 429)
+  }
+
   try {
     const body = await context.request.json()
     if (body.action === 'search') return await handleSearch(context, body.query, body.types || 'track,artist,album,playlist', body.limit || 10)

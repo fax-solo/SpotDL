@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
-import { Download, DownloadCloud, Disc3, ListMusic, Link2, CheckCircle2, XCircle, Loader2, Music, RefreshCw } from 'lucide-react'
+import { Download, DownloadCloud, Disc3, ListMusic, Link2, CheckCircle2, XCircle, Loader2, Music, RefreshCw, Plus } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { ArtworkImage } from './ArtworkImage'
 import { fetchMetadata } from '../lib/api'
@@ -10,6 +10,8 @@ import type { HistoryEntry } from '../hooks/useHistory'
 import { useDownloads } from '../hooks/useDownloads'
 import { getDeezerArl, getDeezerQuality } from '../lib/deezer'
 import { getQualitySettings, setQualitySettings, VARIANT_LABELS, type AudioVariant } from '../lib/qualitySettings'
+import { AddToPlaylistModal } from './AddToPlaylistModal'
+import type { PlaylistTrack } from '../hooks/usePlaylists'
 
 export interface DownloadCardProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -35,6 +37,7 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
   const { queue, addDownload, addMultipleDownloads } = useDownloads()
   const { toast } = useToast()
   const autoDownloaded = useRef(false)
+  const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<PlaylistTrack | null>(null)
 
   // Sync url state when initialUrl changes from share/deep-link
   useEffect(() => {
@@ -190,6 +193,16 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
             </div>
             {/* Download button with progress */}
             <div className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <button
+                  onClick={() => setAddToPlaylistTrack({ id: singleTrack.url, title: singleTrack.title, artist: singleTrack.artist, artwork_url: singleTrack.artwork_url })}
+                  className="text-xs font-medium text-accent hover:text-accent-hover flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add to Playlist
+                </button>
+                <div className="flex-1" />
+              </div>
               <div className="flex gap-1.5 mb-3">
                 {(['normal', 'sped_up', 'slowed_reverb'] as AudioVariant[]).map(v => {
                   const current = getQualitySettings()
@@ -325,12 +338,20 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                         ) : prog && !prog.done ? (
                           <Loader2 className="w-4 h-4 text-accent animate-spin" />
                         ) : (
-                          <button
-                            onClick={() => { handleDownloadSingle(track); toast(`Queued ${track.title}`, 'success') }}
-                            className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors cursor-pointer active:scale-90"
-                          >
-                            <Download className="w-3.5 h-3.5 text-accent" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => { handleDownloadSingle(track); toast(`Queued ${track.title}`, 'success') }}
+                              className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors cursor-pointer active:scale-90"
+                            >
+                              <Download className="w-3.5 h-3.5 text-accent" />
+                            </button>
+                            <button
+                              onClick={() => setAddToPlaylistTrack({ id: track.url, title: track.title, artist: track.artist, artwork_url: track.artwork_url })}
+                              className="w-8 h-8 rounded-lg text-purple-500 hover:bg-purple-500/10 flex items-center justify-center transition-colors cursor-pointer active:scale-90 ml-0.5"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -350,6 +371,9 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
             </div>
           </div>
         )}
+      {addToPlaylistTrack && (
+        <AddToPlaylistModal track={addToPlaylistTrack} onClose={() => setAddToPlaylistTrack(null)} />
+      )}
     </div>
   )
 }

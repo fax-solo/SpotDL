@@ -1,8 +1,10 @@
-import { Clock, Trash2, Download, ChevronDown, ChevronUp, Play } from 'lucide-react'
+import { Clock, Trash2, Download, ChevronDown, ChevronUp, Play, ListMusic } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { Capacitor } from '@capacitor/core'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { ArtworkImage } from './ArtworkImage'
+import { AddToPlaylistModal } from './AddToPlaylistModal'
+import type { PlaylistTrack } from '../hooks/usePlaylists'
 
 interface HistoryProps {
   entries: HistoryEntry[]
@@ -30,12 +32,14 @@ function SwipeableRow({
   onRemove,
   onRedownload,
   onPlay,
+  onAddToPlaylist,
 }: {
   entry: HistoryEntry
   index: number
   onRemove: (id: string) => void
   onRedownload: (entry: HistoryEntry) => void
   onPlay?: (entry: HistoryEntry) => void
+  onAddToPlaylist?: (entry: HistoryEntry) => void
 }) {
   const startX = useRef(0)
   const dragging = useRef(false)
@@ -136,6 +140,15 @@ function SwipeableRow({
           >
             <Download className="w-4 h-4" />
           </button>
+          {onAddToPlaylist && (
+            <button
+              onClick={() => onAddToPlaylist(entry)}
+              className="p-3 rounded-xl text-purple-500 hover:bg-purple-500/10 transition-colors cursor-pointer"
+              aria-label={`Add ${entry.title} to playlist`}
+            >
+              <ListMusic className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={() => {
               if (Capacitor.isNativePlatform()) {
@@ -159,6 +172,7 @@ function SwipeableRow({
 export function History({ entries, onClear, onRemove, onRedownload, onPlay, minimal }: HistoryProps) {
   const [open, setOpen] = useState(minimal ? true : false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<PlaylistTrack | null>(null)
 
   if (entries.length === 0) return null
 
@@ -173,7 +187,7 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-light-border/50 dark:divide-dark-border/50 overscroll-contain">
           {entries.map((entry, i) => (
-            <SwipeableRow key={entry.id} entry={entry} index={i} onRemove={onRemove} onRedownload={onRedownload} onPlay={onPlay} />
+            <SwipeableRow key={entry.id} entry={entry} index={i} onRemove={onRemove} onRedownload={onRedownload} onPlay={onPlay} onAddToPlaylist={e => setAddToPlaylistTrack({ id: e.id, title: e.title, artist: e.artist, artwork_url: e.artworkUrl })} />
           ))}
         </div>
       </div>
@@ -249,10 +263,14 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
                 onRemove={onRemove}
                 onRedownload={onRedownload}
                 onPlay={onPlay}
+                onAddToPlaylist={e => setAddToPlaylistTrack({ id: e.id, title: e.title, artist: e.artist, artwork_url: e.artworkUrl })}
               />
             ))}
-          </div>
-        )}
+      </div>
+    )}
+    {addToPlaylistTrack && (
+      <AddToPlaylistModal track={addToPlaylistTrack} onClose={() => setAddToPlaylistTrack(null)} />
+    )}
     </div>
   )
 }
