@@ -1,3 +1,5 @@
+import { checkRateLimit } from './_lib/rate_limit'
+
 const SPOTIFY_PATTERNS = {
   track: /spotify\.com\/track\/([a-zA-Z0-9]+)/,
   album: /spotify\.com\/album\/([a-zA-Z0-9]+)/,
@@ -7,6 +9,14 @@ const SPOTIFY_PATTERNS = {
 export async function onRequest(context) {
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 })
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `oembed:${ip}`, 60)
+  if (!allowed) {
+    return new Response(JSON.stringify({ error: 'Too many requests. Try again later.' }), {
+      status: 429, headers: { 'Content-Type': 'application/json' },
+    })
   }
 
   try {

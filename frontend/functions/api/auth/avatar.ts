@@ -51,25 +51,31 @@ export const onRequest: RouteHandler = async (context) => {
 
   const ext = blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/png' ? 'png' : 'webp'
   const filename = `${user.id}-${crypto.randomUUID()}.${ext}`
-
   const arrayBuffer = await blob.arrayBuffer()
 
   const r2 = context.env.AVATARS
-  if (!r2) {
-    return error('Avatar storage not configured', 500)
+  if (r2) {
+    await r2.put(filename, arrayBuffer, {
+      httpMetadata: { contentType: blob.type },
+    })
+
+    if (user.avatar_path && !user.avatar_path.startsWith('data:')) {
+      await r2.delete(user.avatar_path).catch(() => {})
+    }
+
+    await context.env.DB.prepare(
+      'UPDATE users SET avatar_path = ? WHERE id = ?'
+    ).bind(filename, user.id).run()
+
+    return json({ avatar_url: `/api/avatars/${filename}` })
   }
 
-  await r2.put(filename, arrayBuffer, {
-    httpMetadata: { contentType: blob.type },
-  })
-
-  if (user.avatar_path) {
-    await r2.delete(user.avatar_path).catch(() => {})
-  }
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+  const dataUrl = `data:${blob.type};base64,${base64}`
 
   await context.env.DB.prepare(
     'UPDATE users SET avatar_path = ? WHERE id = ?'
-  ).bind(filename, user.id).run()
+  ).bind(dataUrl, user.id).run()
 
-  return json({ avatar_url: `/api/avatars/${filename}` })
+  return json({ avatar_url: dataUrl })
 }

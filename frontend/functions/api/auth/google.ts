@@ -1,6 +1,50 @@
 import { json, error, validate, createToken, formatUser, uuid, b64urlDecode } from '../_lib'
 import { googleAuthSchema } from '../_lib/validation'
+import { checkRateLimit } from '../_lib/rate_limit'
 import type { RouteHandler } from '../_lib'
+
+const JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs'
+const GOOGLE_ISS = 'https://accounts.google.com'
+let jwksCache: { keys: JsonWebKey[]; expires: number } | null = null
+
+async function getJwks(): Promise<JsonWebKey[]> {
+  if (jwksCache && Date.now() < jwksCache.expires) return jwksCache.keys
+  const res = await fetch(JWKS_URL)
+  if (!res.ok) throw new Error('Failed to fetch Google JWKS')
+  const { keys } = await res.json() as { keys: JsonWebKey[] }
+  jwksCache = { keys, expires: Date.now() + 3600000 }
+  return keys
+}
+
+async function verifyIdToken(idToken: string, clientId: string): Promise<any> {
+  const parts = idToken.split('.')
+  if (parts.length !== 3) throw new Error('Malformed id_token')
+
+  const header = JSON.parse(b64urlDecode(parts[0]))
+  const payload = JSON.parse(b64urlDecode(parts[1]))
+  const sig = parts[2]
+
+  if (!header.kid) throw new Error('No kid in header')
+  if (payload.aud !== clientId) throw new Error('id_token audience mismatch')
+  if (payload.iss !== GOOGLE_ISS && payload.iss !== 'accounts.google.com') throw new Error('id_token issuer mismatch')
+  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) throw new Error('id_token expired')
+
+  const keys = await getJwks()
+  const jwk = keys.find(k => k.kid === header.kid)
+  if (!jwk) throw new Error('No matching JWK for id_token kid')
+
+  const key = await crypto.subtle.importKey(
+    'jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
+  )
+
+  const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`)
+  const signature = Uint8Array.from(atob(sig.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
+
+  const valid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, data)
+  if (!valid) throw new Error('id_token signature invalid')
+
+  return payload
+}
 
 export const onRequest: RouteHandler = async (context) => {
   if (context.request.method === 'OPTIONS') {
@@ -8,6 +52,12 @@ export const onRequest: RouteHandler = async (context) => {
   }
   if (context.request.method !== 'POST') {
     return error('Method not allowed', 405)
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `auth:google:${ip}`, 10)
+  if (!allowed) {
+    return error('Too many requests. Try again later.', 429)
   }
 
   const clientId = context.env.GOOGLE_CLIENT_ID
@@ -34,10 +84,7 @@ export const onRequest: RouteHandler = async (context) => {
 
   if ('id_token' in data) {
     try {
-      // NOTE: id_token signature is not verified against Google's JWKS.
-      // Full JWKS verification is a larger change and out of scope for this pass.
-      const payload = JSON.parse(b64urlDecode(data.id_token.split('.')[1]))
-      userInfo = payload
+      userInfo = await verifyIdToken(data.id_token, clientId)
     } catch {
       return error('Invalid id_token', 400)
     }
@@ -66,9 +113,7 @@ export const onRequest: RouteHandler = async (context) => {
     }
 
     try {
-      // NOTE: id_token signature is not verified against Google's JWKS.
-      // Full JWKS verification is a larger change and out of scope for this pass.
-      userInfo = JSON.parse(b64urlDecode(tokens.id_token.split('.')[1]))
+      userInfo = await verifyIdToken(tokens.id_token, clientId)
     } catch {
       return error('Invalid id_token from Google', 400)
     }

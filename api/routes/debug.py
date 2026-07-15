@@ -2,19 +2,16 @@ import os
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from shared import DEBUG_MODE, limiter
 from spotify import get_user_token, is_user_authenticated
-from shared import DEBUG_MODE
 
 router = APIRouter(tags=["debug"])
 logger = logging.getLogger(__name__)
-_limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/api/debug/auth")
-@_limiter.limit("5/minute")
+@limiter.limit("5/minute")
 async def debug_auth(request: Request):
     if not DEBUG_MODE:
         raise HTTPException(status_code=404, detail="Not found")

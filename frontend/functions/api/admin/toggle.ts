@@ -34,6 +34,10 @@ export const onRequest: RouteHandler = async (context) => {
     return error('Missing or invalid fields: user_id, is_active', 400)
   }
 
+  if (user_id === admin.id) {
+    return error('Cannot disable your own account', 403)
+  }
+
   const db = context.env.DB
 
   if (!is_active) {
@@ -44,13 +48,6 @@ export const onRequest: RouteHandler = async (context) => {
     if (target.role === 'admin') {
       return error('Cannot disable admin accounts', 403)
     }
-
-    const adminCount = await db.prepare(
-      "SELECT COUNT(*) as cnt FROM users WHERE role = 'admin' AND is_active = 1"
-    ).first() as { cnt: number }
-    if (adminCount.cnt <= 1) {
-      return error('Cannot disable the last active admin', 403)
-    }
   }
 
   const result = await db.prepare(
@@ -60,6 +57,15 @@ export const onRequest: RouteHandler = async (context) => {
   if ((result.meta?.changes ?? 0) === 0) {
     return error('User not found', 404)
   }
+
+  await db.prepare(
+    'INSERT INTO admin_logs (admin_id, action, details, created_at) VALUES (?, ?, ?, ?)'
+  ).bind(
+    admin.id,
+    is_active ? 'enable_user' : 'disable_user',
+    JSON.stringify({ target_user_id: user_id }),
+    new Date().toISOString(),
+  ).run().catch(() => {})
 
   return json({ ok: true })
 }

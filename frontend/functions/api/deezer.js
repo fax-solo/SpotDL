@@ -1,3 +1,7 @@
+import { checkRateLimit } from './_lib/rate_limit'
+import { scrapeResponse, scrapeError } from './_lib/retry'
+import { scrapeLog } from './_lib/log'
+
 const DEEZER_API = 'https://api.deezer.com'
 
 export async function onRequest(context) {
@@ -5,120 +9,114 @@ export async function onRequest(context) {
     return new Response('Method Not Allowed', { status: 405 })
   }
 
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:deezer:${ip}`, 30)
+  if (!allowed) {
+    return scrapeError('rate_limited', 'Too many requests. Try again later.', 429)
+  }
+
   try {
     const { action, query, id } = await context.request.json()
 
     if (action === 'search') return await handleSearch(query)
-    if (action === 'track') return await handleTrack(id)
+    if (action === 'track' || action === 'info') return await handleTrack(id)
     if (action === 'isrc') return await handleIsrc(query)
-    return new Response(JSON.stringify({ error: 'Invalid action' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return scrapeError('invalid_action', 'Invalid action', 400)
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    scrapeLog('deezer', 'error', { message: err.message })
+    return scrapeError('internal_error', err.message, 500)
   }
 }
 
 async function handleSearch(query) {
-  const res = await fetch(
-    `${DEEZER_API}/search?q=${encodeURIComponent(query)}&limit=10&order=RANKING`,
-    { headers: { 'Accept': 'application/json' } },
-  )
-  if (!res.ok) {
-    return new Response(JSON.stringify({ results: [] }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  try {
+    const res = await fetch(
+      `${DEEZER_API}/search?q=${encodeURIComponent(query)}&limit=5&order=RANKING`,
+      { headers: { 'Accept': 'application/json' } },
+    )
+    if (!res.ok) {
+      scrapeLog('deezer', 'search_failed', { query, status: res.status })
+      return scrapeResponse({ results: [] })
+    }
+
+    const data = await res.json()
+    const tracks = data?.data || []
+
+    const results = tracks.map(t => ({
+      url: String(t.id),
+      title: t.title || 'Unknown',
+      artist: t.artist?.name || 'Unknown',
+      duration: String(t.duration || 0),
+      audioUrl: t.preview || null,
+      thumbnail: t.album?.cover_big || t.album?.cover_medium || null,
+      source: 'deezer',
+      isPreview: !!t.preview,
+    }))
+
+    scrapeLog('deezer', 'search_ok', { query, results: results.length })
+    return scrapeResponse({ results })
+  } catch (err) {
+    scrapeLog('deezer', 'search_exception', { query, message: err.message })
+    return scrapeResponse({ results: [] })
   }
-
-  const data = await res.json()
-  const tracks = data?.data || []
-
-  const results = tracks.map(t => ({
-    id: t.id,
-    title: t.title || 'Unknown',
-    artist: t.artist?.name || 'Unknown',
-    album: t.album?.title || 'Unknown',
-    duration: String(t.duration || 0),
-    isrc: t.isrc || null,
-    thumbnail: t.album?.cover_big || t.album?.cover_medium || null,
-    preview: t.preview || null,
-    source: 'deezer',
-  }))
-
-  return new Response(JSON.stringify({ results }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 async function handleTrack(id) {
-  const res = await fetch(`${DEEZER_API}/track/${id}`, {
-    headers: { 'Accept': 'application/json' },
-  })
-  if (!res.ok) {
-    return new Response(JSON.stringify({ error: 'Track not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
+  try {
+    const res = await fetch(`${DEEZER_API}/track/${id}`, {
+      headers: { 'Accept': 'application/json' },
     })
+    if (!res.ok) {
+      scrapeLog('deezer', 'track_not_found', { id, status: res.status })
+      return scrapeError('source_unavailable', 'Track not found', 404)
+    }
+
+    const t = await res.json()
+
+    return scrapeResponse({
+      title: t.title,
+      author: t.artist?.name,
+      duration: String(t.duration || 0),
+      audioUrl: t.preview || null,
+      thumbnail: t.album?.cover_big || null,
+      isPreview: !!t.preview,
+    })
+  } catch (err) {
+    scrapeLog('deezer', 'track_exception', { id, message: err.message })
+    return scrapeError('source_unavailable', 'Deezer track lookup failed', 502)
   }
-
-  const t = await res.json()
-
-  return new Response(JSON.stringify({
-    id: t.id,
-    title: t.title,
-    artist: t.artist?.name,
-    album: t.album?.title,
-    duration: String(t.duration || 0),
-    isrc: t.isrc || null,
-    thumbnail: t.album?.cover_big || null,
-    preview: t.preview || null,
-    source: 'deezer',
-  }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 async function handleIsrc(isrc) {
-  const res = await fetch(
-    `${DEEZER_API}/search?q=isrc:${encodeURIComponent(isrc)}`,
-    { headers: { 'Accept': 'application/json' } },
-  )
-  if (!res.ok) {
-    return new Response(JSON.stringify({ track: null }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+  try {
+    const res = await fetch(
+      `${DEEZER_API}/search?q=isrc:${encodeURIComponent(isrc)}`,
+      { headers: { 'Accept': 'application/json' } },
+    )
+    if (!res.ok) {
+      return scrapeResponse({ track: null })
+    }
+
+    const data = await res.json()
+    const track = data?.data?.[0] || null
+
+    if (!track) {
+      return scrapeResponse({ track: null })
+    }
+
+    return scrapeResponse({
+      track: {
+        id: track.id,
+        title: track.title,
+        artist: track.artist?.name,
+        album: track.album?.title,
+        duration: String(track.duration || 0),
+        isrc: track.isrc || null,
+        thumbnail: track.album?.cover_big || null,
+      },
     })
+  } catch (err) {
+    scrapeLog('deezer', 'isrc_exception', { isrc, message: err.message })
+    return scrapeResponse({ track: null })
   }
-
-  const data = await res.json()
-  const track = data?.data?.[0] || null
-
-  if (!track) {
-    return new Response(JSON.stringify({ track: null }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
-  return new Response(JSON.stringify({
-    track: {
-      id: track.id,
-      title: track.title,
-      artist: track.artist?.name,
-      album: track.album?.title,
-      duration: String(track.duration || 0),
-      isrc: track.isrc || null,
-      thumbnail: track.album?.cover_big || null,
-    },
-  }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }

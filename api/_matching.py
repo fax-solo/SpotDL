@@ -75,6 +75,7 @@ def pick_best_match(
     tracks: list[dict],
     expected_title: str,
     expected_artist: str,
+    expected_duration: float | None = None,
 ) -> dict | None:
     t = normalize(expected_title)
     a = normalize(expected_artist)
@@ -111,12 +112,12 @@ def pick_best_match(
         if a_clean == track_artist_clean:
             score += 1
 
-        expected_dur = track.get("duration")
-        found_dur = track.get("duration")
-        if expected_dur and found_dur and expected_dur > 0 and found_dur > 0:
-            ratio = min(expected_dur, found_dur) / max(expected_dur, found_dur)
-            if ratio >= 0.9:
-                score += 2
+        if expected_duration:
+            found_dur = track.get("duration")
+            if found_dur and expected_duration > 0 and found_dur > 0:
+                ratio = min(expected_duration, found_dur) / max(expected_duration, found_dur)
+                if ratio >= 0.9:
+                    score += 2
 
         if score > best_score:
             best_score = score

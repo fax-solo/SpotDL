@@ -2,6 +2,16 @@ name = "spotify-downloader"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-06-21"
 
+# ============================================================
+# Required environment variables (set in Cloudflare Pages dashboard):
+#   JWT_SECRET        — JWT signing secret
+#   GOOGLE_CLIENT_ID  — Google OAuth client ID for PKCE flow
+#   GOOGLE_CLIENT_SECRET — Google OAuth client secret
+#   ADMIN_USERNAME    — Admin login username (seeded on first deploy)
+#   ADMIN_PASSWORD    — Admin login password
+#   SPOTIFY_MARKET    — Spotify market code (default: EG)
+# ============================================================
+
 # D1 binding kept for FCM push tokens only.
 # Auth, admin, and download logging now live on the Python/FastAPI backend on Render.
 [[d1_databases]]
@@ -9,3 +19,6 @@ binding = "DB"
 database_name = "sinc-db"
 database_id = "9ded8fa5-917b-4f08-9b52-8101c48879c2"
 
+[[r2_buckets]]
+binding = "AVATARS"
+bucket_name = "spotdl-avatars"

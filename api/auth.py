@@ -14,13 +14,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from shared import limiter
 
 from database import get_db, JWT_SECRET
 from models import User, HistoryEntry, DownloadLog, TokenBlacklist, _utcnow
-
-_auth_limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -241,7 +238,7 @@ def _user_response(user: User, token: str) -> dict:
 # ─── Endpoints ───
 
 @router.post("/signup")
-@_auth_limiter.limit("10/minute")
+@limiter.limit("10/minute")
 async def signup(request: Request, body: SignUpRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where(
@@ -272,7 +269,7 @@ async def signup(request: Request, body: SignUpRequest, db: AsyncSession = Depen
 
 
 @router.post("/login")
-@_auth_limiter.limit("20/minute")
+@limiter.limit("20/minute")
 async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where((User.email == body.login) | (User.username == body.login))
@@ -294,7 +291,7 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
 
 
 @router.post("/google")
-@_auth_limiter.limit("10/minute")
+@limiter.limit("10/minute")
 async def google_auth(request: Request, body: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
     import requests as req
 
@@ -403,7 +400,7 @@ async def _save_google_avatar(picture_url: str, ident: str) -> str:
 
 
 @router.post("/guest")
-@_auth_limiter.limit("10/minute")
+@limiter.limit("10/minute")
 async def guest_login(request: Request, body: GuestRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where(User.is_guest == True, User.device_id == body.device_id)
@@ -419,10 +416,9 @@ async def guest_login(request: Request, body: GuestRequest, db: AsyncSession = D
     else:
         result = await db.execute(select(User).where(User.device_id == body.device_id))
         existing = result.scalar_one_or_none()
-        if existing:
+        if existing and existing.is_guest:
             user = existing
             user.last_active = _utcnow()
-            user.is_guest = True
             await db.commit()
             await db.refresh(user)
         else:

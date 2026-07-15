@@ -1,4 +1,5 @@
 import { json, error, getUser } from '../_lib'
+import { checkRateLimit } from '../_lib/rate_limit'
 import type { RouteHandler } from '../_lib'
 
 export const onRequest: RouteHandler = async (context) => {
@@ -7,6 +8,12 @@ export const onRequest: RouteHandler = async (context) => {
   }
   if (context.request.method !== 'POST') {
     return error('Method not allowed', 405)
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `download:log:${ip}`, 120)
+  if (!allowed) {
+    return error('Too many requests. Try again later.', 429)
   }
 
   let body: any

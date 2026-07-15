@@ -3,6 +3,15 @@ interface LyricsResult {
   syncedLyrics: string | null
 }
 
+function abortTimeoutMs(ms: number): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms)
+  }
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), ms)
+  return controller.signal
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -21,15 +30,17 @@ async function fetchGenius(artist: string, title: string): Promise<string | null
 
   for (const url of urls) {
     try {
+      // Uses allorigins CORS proxy (third-party). For production, replace with
+      // a self-hosted proxy or use the CF Pages proxy endpoint instead.
       const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, {
-        signal: AbortSignal.timeout(8000),
+        signal: abortTimeoutMs(8000),
       })
       if (!res.ok) continue
-      const { contents } = await res.json()
-      if (!contents) continue
+      const body = await res.json()
+      const contents = body?.contents
+      if (typeof contents !== 'string') continue
 
-      const html = typeof contents === 'string' ? contents : atob(contents)
-      const divs = html.match(/<div[^>]*data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/gi)
+      const divs = contents.match(/<div[^>]*data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/gi)
       if (!divs) continue
 
       const lyrics = divs
@@ -53,15 +64,15 @@ async function fetchMusixMatch(artist: string, title: string): Promise<string | 
 
   try {
     const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, {
-      signal: AbortSignal.timeout(8000),
+      signal: abortTimeoutMs(8000),
     })
     if (!res.ok) return null
 
-    const { contents } = await res.json()
-    if (!contents) return null
+    const body = await res.json()
+    const contents = body?.contents
+    if (typeof contents !== 'string') return null
 
-    const html = typeof contents === 'string' ? contents : atob(contents)
-    const match = html.match(/<p[^>]*class="mxm-lyrics__content[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
+    const match = contents.match(/<p[^>]*class="mxm-lyrics__content[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
     if (!match) return null
 
     return match[1]

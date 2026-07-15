@@ -428,7 +428,7 @@ async function handleSearch(context, query, types, limit) {
         officialSearch(context, query, type, limit).then(d => ({ type, data: d })).catch(() => ({ type, data: null }))
       ))
       if (officialResults.some(r => r.data?.length > 0)) results.splice(0, results.length, ...officialResults)
-    } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
+    } catch (e) { scrapeLog('spotify', 'wolfx_search_fallback', { query, err: e?.message }) }
   }
 
   const result = { tracks: [], albums: [], artists: [], playlists: [], shows: [], top_artist: null }
@@ -515,7 +515,7 @@ async function officialSearch(context, query, type, limit) {
   const token = await getSpotifyToken(context)
   if (!token) return null
   const res = await fetch(
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}&market=EG`,
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}&market=${getMarket(context)}`,
     { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(5000) }
   )
   if (!res.ok) return null
@@ -550,7 +550,7 @@ async function handleArtist(context, id) {
     wolfxFetch(`/artist/${id}/top-tracks`),
     wolfxFetch(`/artist/${id}/albums?limit=20`),
     officialFetch(context, `/artists/${id}/related-artists`).catch(() => null),
-    officialFetch(context, `/artists/${id}/albums?include_groups=appears_on&limit=10&market=EG`).catch(() => null),
+    officialFetch(context, `/artists/${id}/albums?include_groups=appears_on&limit=10&market=${getMarket(context)}`).catch(() => null),
   ])
 
   const appearsOnAlbums = (appearsOnOfficial?.items || []).map(a => ({
@@ -569,8 +569,8 @@ async function handleArtist(context, id) {
       const official = await officialFetch(context, `/artists/${id}`)
       if (official) {
         const [topTracksOfficial, albumsOfficial] = await Promise.all([
-          officialFetch(context, `/artists/${id}/top-tracks?market=EG`).catch(() => null),
-          officialFetch(context, `/artists/${id}/albums?limit=20&market=EG&include_groups=album,single,compilation`).catch(() => null),
+          officialFetch(context, `/artists/${id}/top-tracks?market=${getMarket(context)}`).catch(() => null),
+          officialFetch(context, `/artists/${id}/albums?limit=20&market=${getMarket(context)}&include_groups=album,single,compilation`).catch(() => null),
         ])
         const albumList = (albumsOfficial?.items || []).map(a => ({
           id: a.id, name: a.name, image: a.images?.[0]?.url || null, year: a.release_date?.slice(0, 4) || null,
@@ -593,9 +593,7 @@ async function handleArtist(context, id) {
           related_artists: relatedArtists,
         })
       }
-    } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
-    try {
-      const embedRes = await fetch(`https://open.spotify.com/embed/artist/${id}`, {
+    } catch (e) { scrapeLog('spotify', 'wolfx_artist_official_fallback', { id, err: e?.message }) } = await fetch(`https://open.spotify.com/embed/artist/${id}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
         signal: abortTimeout(8000),
       })
@@ -626,7 +624,7 @@ async function handleArtist(context, id) {
           }
         }
       }
-    } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
+    } catch (e) { scrapeLog('spotify', 'wolfx_artist_embed_fallback', { id, err: e?.message }) }
     return jsonError('Artist not found', 404)
   }
   const p = profile.artist || profile
@@ -660,6 +658,10 @@ async function handleArtist(context, id) {
 const PARTNER_API = 'https://api-partner.spotify.com/pathfinder/v1/query'
 const WEB_PLAYER = 'https://open.spotify.com'
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+function getMarket(context) {
+  return context?.env?.SPOTIFY_MARKET || 'EG'
+}
 
 const FALLBACK_HASHES = {
   libraryV3: 'a6cb8387bc0f12b34f2a9ac5ed4225d55398d85fea8a865a3e5f84c7882cfedd',
@@ -764,7 +766,7 @@ async function getHashes() {
         const decoder = new TextDecoder()
         const cfg = JSON.parse(decoder.decode(bytes))
         if (cfg.clientVersion) clientVersion = cfg.clientVersion
-      } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
+      } catch (e) { scrapeLog('spotify', 'hash_config_parse', { err: e?.message }) }
     }
     const seen = new Set()
     const bundles = []
@@ -782,7 +784,7 @@ async function getHashes() {
       try {
         const r = await fetch(url, { headers: { 'User-Agent': UA }, signal: abortTimeout(10000) })
         if (r.ok) allJS += await r.text() + '\n'
-      } catch (e) { scrapeLog('spotify', 'wolfx_collection_fallback', { kind, id, err: e?.message }) }
+      } catch (e) { scrapeLog('spotify', 'hash_bundle_fetch', { url, err: e?.message }) }
     }
     const found = {}
     for (const name of Object.keys(FALLBACK_HASHES)) {
@@ -1061,7 +1063,7 @@ async function handleNewReleases(context, limit = 20) {
   const token = await getSpotifyToken(context)
   if (!token) return jsonError('No Spotify token available', 401)
   const res = await fetch(
-    `https://api.spotify.com/v1/browse/new-releases?limit=${limit}&market=EG`,
+    `https://api.spotify.com/v1/browse/new-releases?limit=${limit}&market=${getMarket(context)}`,
     { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(10000) }
   )
   if (!res.ok) return jsonError('Failed to fetch new releases', res.status)
@@ -1120,7 +1122,7 @@ async function handleCategoryPlaylists(context, categoryId, limit = 20) {
   const token = await getSpotifyToken(context)
   if (!token) return jsonError('No Spotify token available', 401)
   const res = await fetch(
-    `https://api.spotify.com/v1/browse/categories/${categoryId}/playlists?limit=${limit}&market=EG`,
+    `https://api.spotify.com/v1/browse/categories/${categoryId}/playlists?limit=${limit}&market=${getMarket(context)}`,
     { headers: { 'Authorization': `Bearer ${token}` }, signal: abortTimeout(10000) }
   )
   if (!res.ok) return jsonError('Failed to fetch category playlists', res.status)
@@ -1164,7 +1166,7 @@ async function handleShow(context, id) {
   if (!token) return jsonError('No Spotify token available', 401)
   const [showData, episodesData] = await Promise.all([
     officialFetch(context, `/shows/${id}`),
-    officialFetch(context, `/shows/${id}/episodes?limit=20&market=EG`),
+    officialFetch(context, `/shows/${id}/episodes?limit=20&market=${getMarket(context)}`),
   ])
   if (!showData) return jsonError('Show not found', 404)
   const show = {
@@ -1208,23 +1210,23 @@ const CORS = {
 function jsonOk(data) {
   return new Response(JSON.stringify(data), {
     status: 200,
-    headers: { 'Content-Type': 'application/json', ...CORS },
+    headers: { 'Content-Type': 'application/json' },
   })
 }
 
 function jsonError(msg, status = 500) {
   return new Response(JSON.stringify({ error: msg }), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
+    headers: { 'Content-Type': 'application/json' },
   })
 }
 
 export async function onRequest(context) {
   if (context.request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS })
+    return new Response(null, { status: 204 })
   }
   if (context.request.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405, headers: CORS })
+    return new Response('Method Not Allowed', { status: 405 })
   }
 
   const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'

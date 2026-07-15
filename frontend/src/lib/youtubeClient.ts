@@ -31,12 +31,21 @@ export function proxyAudioUrl(url: string): string {
   return `${base}?url=${encodeURIComponent(url)}`
 }
 
+function abortTimeout(ms: number): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms)
+  }
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), ms)
+  return controller.signal
+}
+
 async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null> {
   // Skip Piped on native — it's slow and unreliable on mobile networks
   if (isNative()) return null
   try {
     const res = await fetch(`${PIPED_API}/search?q=${encodeURIComponent(query)}&filter=videos`, {
-      signal: AbortSignal.timeout(3000),
+      signal: abortTimeout(3000),
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -67,7 +76,7 @@ async function pipedInfo(videoId: string): Promise<YouTubeInfo | null> {
   const results = await Promise.allSettled(
     PIPED_INSTANCES.map(async (api) => {
       const res = await fetch(`${api}/streams/${videoId}`, {
-        signal: AbortSignal.timeout(5000),
+        signal: abortTimeout(5000),
       })
       if (!res.ok) throw new Error('Not OK')
       const data = await res.json()

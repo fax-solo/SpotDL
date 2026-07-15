@@ -1,4 +1,4 @@
-import { json, error, validate, createToken, formatUser, uuid } from '../_lib'
+import { json, error, validate, createToken, formatUser, uuid, sha256 } from '../_lib'
 import { guestSchema } from '../_lib/validation'
 import { checkRateLimit } from '../_lib/rate_limit'
 import type { RouteHandler } from '../_lib'
@@ -30,9 +30,11 @@ export const onRequest: RouteHandler = async (context) => {
     return error(e.message, 400)
   }
 
+  const deviceHash = await sha256(data.device_id + context.env.JWT_SECRET)
+
   let user = await context.env.DB.prepare(
     'SELECT id, username, email, display_name, avatar_path, role, auth_provider, is_guest, device_id, created_at, last_active, is_active FROM users WHERE is_guest = 1 AND device_id = ?'
-  ).bind(data.device_id).first() as any
+  ).bind(deviceHash).first() as any
 
   if (user) {
     if (!user.is_active) {
@@ -47,7 +49,7 @@ export const onRequest: RouteHandler = async (context) => {
     await context.env.DB.prepare(
       `INSERT INTO users (id, display_name, auth_provider, is_guest, device_id)
        VALUES (?, ?, 'guest', 1, ?)`
-    ).bind(userId, displayName, data.device_id).run()
+    ).bind(userId, displayName, deviceHash).run()
 
     user = await context.env.DB.prepare(
       'SELECT id, username, email, display_name, avatar_path, role, auth_provider, is_guest, device_id, created_at, last_active, is_active FROM users WHERE id = ?'

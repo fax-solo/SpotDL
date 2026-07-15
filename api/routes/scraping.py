@@ -3,12 +3,11 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+
+from shared import limiter
 
 router = APIRouter(tags=["scraping"])
 logger = logging.getLogger(__name__)
-_limiter = Limiter(key_func=get_remote_address)
 
 
 class ScraplingLyricsRequest(BaseModel):
@@ -31,7 +30,7 @@ class ScraplingSoundcloudRequest(BaseModel):
 
 
 @router.post("/api/lyrics")
-@_limiter.limit("30/minute")
+@limiter.limit("30/minute")
 async def scrapling_lyrics(request: Request, body: ScraplingLyricsRequest):
     from scrapling_scraper import fetch_lyrics, is_available
 
@@ -45,7 +44,7 @@ async def scrapling_lyrics(request: Request, body: ScraplingLyricsRequest):
 
 
 @router.post("/api/bandcamp")
-@_limiter.limit("30/minute")
+@limiter.limit("30/minute")
 async def scrapling_bandcamp(request: Request, body: ScraplingBandcampRequest):
     from scrapling_scraper import search_bandcamp, bandcamp_info, is_available
 
@@ -71,7 +70,7 @@ async def scrapling_bandcamp(request: Request, body: ScraplingBandcampRequest):
 
 
 @router.post("/api/soundcloud")
-@_limiter.limit("30/minute")
+@limiter.limit("30/minute")
 async def scrapling_soundcloud(request: Request, body: ScraplingSoundcloudRequest):
     from scrapling_scraper import search_soundcloud, soundcloud_info, is_available
 

@@ -9,7 +9,7 @@ export function StatusBanner({ status, message }: StatusBannerProps) {
   if (status === 'idle') return null
 
   return (
-    <div className="mt-4">
+    <div className="mt-4" role="alert" aria-live="polite">
       {status === 'loading' && (
         <div className="flex items-center gap-3 p-4 rounded-lg bg-accent-subtle border border-accent/30">
           <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />

@@ -9,8 +9,11 @@ interface CacheEntry {
   size?: number
 }
 
+let dbPromise: Promise<IDBDatabase> | null = null
+
 function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result
@@ -22,8 +25,9 @@ function openDB(): Promise<IDBDatabase> {
       }
     }
     request.onsuccess = (event) => resolve((event.target as IDBOpenDBRequest).result)
-    request.onerror = () => reject(request.error)
+    request.onerror = () => { dbPromise = null; reject(request.error) }
   })
+  return dbPromise
 }
 
 async function getStore(mode: IDBTransactionMode, storeName: string = 'metadata') {

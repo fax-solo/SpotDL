@@ -135,7 +135,7 @@ export async function convertAudio(
           const coverData = new Uint8Array(await (await fetch(coverUrl)).arrayBuffer())
           await instance.writeFile(coverName, coverData)
           hasCover = true
-        } catch {}
+        } catch { console.warn('[audio] cover fetch failed') }
       }
 
       const args = ['-i', inputName]

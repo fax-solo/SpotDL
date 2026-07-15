@@ -21,11 +21,11 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from database import init_db
+from shared import limiter
 
 from auth import router as auth_router
 from admin import router as admin_router
@@ -66,7 +66,6 @@ app.include_router(debug_router)
 app.include_router(spotify_auth_router)
 app.include_router(events_router)
 
-limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

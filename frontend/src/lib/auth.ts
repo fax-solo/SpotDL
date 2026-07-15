@@ -251,3 +251,39 @@ export function getStoredUser(): UserProfile | null {
 export function storeUser(user: UserProfile) {
   localStorage.setItem('sinc_user', JSON.stringify(user))
 }
+
+export async function deleteAccount(): Promise<void> {
+  const res = await fetchWithTimeout(apiUrl('/api/auth/account'), {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const err = await parseJson(res).catch(() => ({ detail: 'Account deletion failed' }))
+    throw new Error(err.detail || 'Account deletion failed')
+  }
+}
+
+export async function getYoutubeCookies(): Promise<string> {
+  try {
+    const res = await fetchWithTimeout(apiUrl('/api/settings/youtube-cookies'), {
+      headers: authHeaders(),
+    })
+    if (!res.ok) return ''
+    const data = await parseJson(res)
+    return data.cookies || ''
+  } catch {
+    return ''
+  }
+}
+
+export async function setYoutubeCookies(cookies: string): Promise<void> {
+  const res = await fetchWithTimeout(apiUrl('/api/settings/youtube-cookies'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ cookies }),
+  })
+  if (!res.ok) {
+    const err = await parseJson(res).catch(() => ({ detail: 'Failed to save cookies' }))
+    throw new Error(err.detail || 'Failed to save cookies')
+  }
+}

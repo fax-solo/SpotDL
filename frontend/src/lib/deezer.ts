@@ -34,6 +34,8 @@ export interface DeezerTrack {
   isrc: string | null
   thumbnail: string | null
   preview: string | null
+  audioUrl: string | null
+  isPreview: boolean
   source: string
 }
 

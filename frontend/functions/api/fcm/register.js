@@ -68,9 +68,9 @@ export async function onRequestPost(context) {
 async function getUserIdFromToken(token, env) {
   if (!token) return null
   try {
-    const { verifyToken } = await import('../_lib/auth.js')
-    const payload = await verifyToken(token, env, null)
-    return payload?.userId || null
+    const { verifyToken } = await import('../_lib/auth')
+    const userId = await verifyToken(token, env.JWT_SECRET, env.DB)
+    return userId
   } catch {
     return null
   }

@@ -95,13 +95,23 @@ function runMigrations(db) {
     console.warn('No migration files found')
     return
   }
+  db.exec('CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\')))')
+  const applied = new Set(
+    db.prepare('SELECT name FROM _migrations').all().map(r => r.name)
+  )
   for (const file of files) {
+    const name = path.basename(file)
+    if (applied.has(name)) {
+      console.log(`  ~ ${name} (already applied)`)
+      continue
+    }
     const sql = fs.readFileSync(file, 'utf-8')
     try {
       db.exec(sql)
-      console.log(`  ✓ ${path.basename(file)}`)
+      db.prepare('INSERT INTO _migrations (name) VALUES (?)').run(name)
+      console.log(`  ✓ ${name}`)
     } catch (e) {
-      console.error(`  ✗ ${path.basename(file)}: ${e.message}`)
+      console.error(`  ✗ ${name}: ${e.message}`)
     }
   }
 }

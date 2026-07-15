@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon, User, LogOut, Camera, Shield, Mail, Pencil } from 'lucide-react'
+import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon, User, LogOut, Camera, Shield, Mail, Pencil, Trash2, Globe, Cookie, Database } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
 import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
@@ -10,6 +10,9 @@ import { checkForUpdates, type UpdateCheckResult } from '../lib/checkUpdate'
 import { getDeezerArl, setDeezerArl, clearDeezerArl, getDeezerQuality, setDeezerQuality, type DeezerQuality } from '../lib/deezer'
 import { getQualitySettings, setQualitySettings, type Bitrate, type OutputFormat, type AudioVariant, VARIANT_LABELS } from '../lib/qualitySettings'
 import { getCrossfadeDuration, setCrossfadeDuration } from '../lib/crossfadeSettings'
+import { getYoutubeCookies, setYoutubeCookies } from '../lib/auth'
+import { clearExpired, getCacheSize } from '../lib/dbCache'
+import { clearBlobCache } from '../lib/blobCache'
 
 export function Settings() {
   const navigate = useNavigate()
@@ -41,6 +44,20 @@ export function Settings() {
     checking: false, available: false, latestVersion: null, downloadUrl: null, error: null, currentVersion: APP_VERSION,
   })
 
+  // YouTube Cookies
+  const [ytCookies, setYtCookies] = useState('')
+  const [ytCookiesLoaded, setYtCookiesLoaded] = useState(false)
+  const [ytCookiesSaving, setYtCookiesSaving] = useState(false)
+  const [ytCookiesSaved, setYtCookiesSaved] = useState(false)
+
+  // Cache
+  const [cacheSize, setCacheSize] = useState(0)
+  const [cacheClearing, setCacheClearing] = useState(false)
+
+  // Account deletion
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   const handleCheckUpdate = useCallback(async () => {
     setUpdateState(prev => ({ ...prev, checking: true, error: null }))
     const result = await checkForUpdates()
@@ -57,6 +74,14 @@ export function Settings() {
       setPermStatus(status)
     }
     checkAll()
+  }, [])
+
+  useEffect(() => {
+    getYoutubeCookies().then(c => { setYtCookies(c); setYtCookiesLoaded(true) })
+  }, [])
+
+  useEffect(() => {
+    getCacheSize('blobs').then(s => setCacheSize(s))
   }, [])
 
   const handleTestToken = async () => {

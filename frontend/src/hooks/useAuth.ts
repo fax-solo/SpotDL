@@ -129,4 +129,10 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({ user, isGuest: user.is_guest || false })
     }
   },
+
+  deleteAccount: async () => {
+    await auth.deleteAccount()
+    auth.logout()
+    set({ user: null, isGuest: false })
+  },
 }))

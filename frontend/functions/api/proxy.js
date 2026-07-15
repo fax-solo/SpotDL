@@ -29,7 +29,7 @@ function isAllowedUrl(urlStr) {
 }
 
 function getCors(context) {
-  const allowedOrigin = context.env.ALLOWED_ORIGIN || '*'
+  const allowedOrigin = context.env.ALLOWED_ORIGINS || '*'
   return { ...DEFAULT_CORS, 'Access-Control-Allow-Origin': allowedOrigin }
 }
 

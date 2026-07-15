@@ -222,6 +222,8 @@ def _get_fernet() -> Fernet | None:
             return Fernet(key.encode())
         except Exception:
             logger.warning("Invalid SPOTDL_TOKEN_ENCRYPTION_KEY, storing tokens in plaintext")
+    else:
+        logger.warning("SPOTDL_TOKEN_ENCRYPTION_KEY not set, storing Spotify tokens in plaintext")
     return None
 
 

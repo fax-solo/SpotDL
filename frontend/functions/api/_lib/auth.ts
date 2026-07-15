@@ -132,7 +132,11 @@ export function formatUser(user: any, token?: string): Record<string, unknown> {
     username: user.username,
     email: user.email,
     display_name: user.display_name,
-    avatar_url: user.avatar_path ? `/api/avatars/${user.avatar_path}` : null,
+    avatar_url: user.avatar_path
+      ? user.avatar_path.startsWith('data:')
+        ? user.avatar_path
+        : `/api/avatars/${user.avatar_path}`
+      : null,
     role: user.role,
     auth_provider: user.auth_provider,
     is_guest: Boolean(user.is_guest),

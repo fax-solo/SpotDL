@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import shutil
 import tempfile
@@ -13,6 +14,7 @@ from mutagen.mp4 import MP4, MP4Cover
 
 from cache import metadata_cache
 from _matching import normalize, strip_feat, title_matches
+from spotify import fetch_metadata, parse_url
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,58 @@ SOURCES = [
     {"name": "soundcloud", "prefix": "scsearch1"},
     {"name": "bandcamp", "prefix": "bcsearch1"},
 ]
+
+TOPIC_SOURCES = [
+    {"name": "youtube_music", "prefix": "ytsearch1", "topic": True},
+    {"name": "youtube", "prefix": "ytsearch1", "topic": False},
+]
+
+
+def search_track_topic(artist: str, title: str) -> list[dict]:
+    for src in TOPIC_SOURCES:
+        query = f"{artist} - {title} Topic" if src["topic"] else f"{artist} - {title}"
+        logger.info("search_track_topic: trying %s with '%s'", src["name"], query)
+        results = search_track(query, src["name"], src["prefix"])
+        if results:
+            return results
+    return []
+
+
+def download_track_combined(
+    query_or_url: str,
+    quality: str = "320",
+    output_format: str = "mp3",
+) -> tuple[str, str]:
+    parsed = parse_url(query_or_url)
+    if parsed:
+        meta = fetch_metadata(query_or_url)
+        if parsed[0] != "track" and "tracks" in meta and meta["tracks"]:
+            meta = meta["tracks"][0]
+        title = meta["title"]
+        artist = meta["artist"]
+        album = meta.get("album", "Single")
+        artwork_url = meta.get("artwork_url")
+    else:
+        title = query_or_url
+        artist = ""
+        album = "Single"
+        artwork_url = None
+
+    if artist:
+        topic_results = search_track_topic(artist, title)
+        if topic_results:
+            match = None
+            for entry in topic_results:
+                if title_matches(title, artist, entry.get("title"), entry.get("uploader")):
+                    match = entry
+                    break
+            if not match:
+                match = topic_results[0]
+            return download_track(
+                title, artist, album, artwork_url, match["url"], quality, output_format,
+            )
+
+    return download_track(title, artist, album, artwork_url, quality=quality, output_format=output_format)
 
 
 # All matching/tokenization logic moved to _matching.py

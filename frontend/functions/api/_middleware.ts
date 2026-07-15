@@ -41,9 +41,6 @@ function csrfCheck(request: Request, allowedOrigins?: string): void {
   if (allowed.length === 0) {
     const url = new URL(request.url)
     allowed.push(url.origin)
-    if (requestOrigin !== url.origin) {
-      allowed.push(requestOrigin)
-    }
   }
 
   const normalizedAllowed = allowed.map(normalizeOrigin)
@@ -114,8 +111,13 @@ export const onRequest: RouteHandler = async (context) => {
 
   // If the response is not JSON (e.g., index.html from catch-all redirect),
   // this means no function handled the route. Return a proper API error.
+  // Allow non-JSON responses that are binary/image content types (avatars, proxy).
   if (!isJsonResponse(response)) {
-    return errorJson('Not found', 404)
+    const ct = response.headers.get('content-type') || ''
+    const isImage = ct.startsWith('image/') || ct.startsWith('audio/') || ct === 'application/octet-stream'
+    if (!isImage) {
+      return errorJson('Not found', 404)
+    }
   }
 
   // Add CORS headers to all responses

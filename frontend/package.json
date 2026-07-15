@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cf:deploy": "wrangler pages deploy"
+    "cf:deploy": "wrangler pages deploy dist"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",
@@ -60,7 +60,6 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
-      "sharp",
       "workerd"
     ]
   }

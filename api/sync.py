@@ -19,23 +19,29 @@ _sync_db_lock = threading.Lock()
 
 
 def _load_db() -> dict:
-    with _sync_db_lock:
-        if not os.path.exists(SYNC_DB_PATH):
-            return {"subscriptions": []}
-        try:
-            with open(SYNC_DB_PATH) as f:
-                return json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
-            return {"subscriptions": []}
+    if not os.path.exists(SYNC_DB_PATH):
+        return {"subscriptions": []}
+    try:
+        with open(SYNC_DB_PATH) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {"subscriptions": []}
 
 
 def _save_db(db: dict):
+    parent = os.path.dirname(SYNC_DB_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(SYNC_DB_PATH, "w") as f:
+        json.dump(db, f, indent=2)
+
+
+def _with_write_lock(fn):
     with _sync_db_lock:
-        parent = os.path.dirname(SYNC_DB_PATH)
-        if parent:
-            os.makedirs(parent, exist_ok=True)
-        with open(SYNC_DB_PATH, "w") as f:
-            json.dump(db, f, indent=2)
+        db = _load_db()
+        result = fn(db)
+        _save_db(db)
+    return result
 
 
 def list_subscriptions() -> list[dict]:
@@ -49,55 +55,53 @@ def add_subscription(playlist_url: str, interval: str = "daily") -> dict:
 
     playlist_id = parsed
 
-    db = _load_db()
+    def _do_add(db: dict) -> dict:
+        existing = next((s for s in db["subscriptions"] if s["playlist_id"] == playlist_id), None)
+        if existing:
+            existing["interval"] = interval
+            return existing
 
-    existing = next((s for s in db["subscriptions"] if s["playlist_id"] == playlist_id), None)
-    if existing:
-        existing["interval"] = interval
-        _save_db(db)
-        return existing
+        sub = {
+            "id": str(int(time.time() * 1000)),
+            "playlist_id": playlist_id,
+            "playlist_url": f"https://open.spotify.com/playlist/{playlist_id}",
+            "playlist_name": "",
+            "interval": interval,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_synced_at": None,
+            "synced_tracks": [],
+        }
 
-    sub = {
-        "id": str(int(time.time() * 1000)),
-        "playlist_id": playlist_id,
-        "playlist_url": f"https://open.spotify.com/playlist/{playlist_id}",
-        "playlist_name": "",
-        "interval": interval,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "last_synced_at": None,
-        "synced_tracks": [],
-    }
+        try:
+            meta = fetch_metadata(sub["playlist_url"])
+            sub["playlist_name"] = meta.get("collection_name", "") or ""
+        except Exception as e:
+            logger.warning(f"sync: failed to fetch playlist name for {playlist_id}: {e}")
 
-    try:
-        meta = fetch_metadata(sub["playlist_url"])
-        sub["playlist_name"] = meta.get("collection_name", "") or ""
-    except Exception as e:
-        logger.warning(f"sync: failed to fetch playlist name for {playlist_id}: {e}")
+        db["subscriptions"].append(sub)
+        return sub
 
-    db["subscriptions"].append(sub)
-    _save_db(db)
-    return sub
+    return _with_write_lock(_do_add)
 
 
 def remove_subscription(sub_id: str):
-    db = _load_db()
-    db["subscriptions"] = [s for s in db["subscriptions"] if s["id"] != sub_id]
-    _save_db(db)
+    def _do_remove(db: dict):
+        db["subscriptions"] = [s for s in db["subscriptions"] if s["id"] != sub_id]
+    return _with_write_lock(_do_remove)
 
 
 def update_subscription_interval(sub_id: str, interval: str):
-    db = _load_db()
-    for s in db["subscriptions"]:
-        if s["id"] == sub_id:
-            s["interval"] = interval
-            _save_db(db)
-            return s
-    raise ValueError(f"Subscription {sub_id} not found")
+    def _do_update(db: dict):
+        for s in db["subscriptions"]:
+            if s["id"] == sub_id:
+                s["interval"] = interval
+                return s
+        raise ValueError(f"Subscription {sub_id} not found")
+    return _with_write_lock(_do_update)
 
 
 def run_sync(sub_id: str) -> dict:
-    db = _load_db()
-    sub = next((s for s in db["subscriptions"] if s["id"] == sub_id), None)
+    sub = _load_subscription(sub_id)
     if not sub:
         raise ValueError(f"Subscription {sub_id} not found")
 
@@ -107,14 +111,17 @@ def run_sync(sub_id: str) -> dict:
         raise ValueError("No tracks found in playlist")
 
     playlist_name = meta.get("collection_name", "") or sub["playlist_name"]
-    sub["playlist_name"] = playlist_name
 
     known = set(sub.get("synced_tracks", []))
     new_tracks = [t for t in tracks if t.get("url") not in known]
 
     if not new_tracks:
-        sub["last_synced_at"] = datetime.now(timezone.utc).isoformat()
-        _save_db(db)
+        def _touch(db: dict):
+            for s in db["subscriptions"]:
+                if s["id"] == sub_id:
+                    s["playlist_name"] = playlist_name
+                    s["last_synced_at"] = datetime.now(timezone.utc).isoformat()
+        _with_write_lock(_touch)
         return {"total": len(tracks), "new": 0, "downloaded": 0, "failed": 0, "errors": []}
 
     playlist_dir = _safe_dir(playlist_name) if playlist_name else sub["playlist_id"]
@@ -147,9 +154,15 @@ def run_sync(sub_id: str) -> dict:
             logger.error(f"sync: failed '{track.get('title')}': {e}")
             results.append({"title": track.get("title", "unknown"), "status": "failed", "error": str(e)})
 
-    sub["synced_tracks"] = list(known)
-    sub["last_synced_at"] = datetime.now(timezone.utc).isoformat()
-    _save_db(db)
+    def _save_results(db: dict):
+        for s in db["subscriptions"]:
+            if s["id"] == sub_id:
+                existing_known = set(s.get("synced_tracks", []))
+                existing_known.update(known)
+                s["synced_tracks"] = list(existing_known)
+                s["last_synced_at"] = datetime.now(timezone.utc).isoformat()
+                s["playlist_name"] = playlist_name
+    _with_write_lock(_save_results)
 
     ok_count = sum(1 for r in results if r["status"] == "ok")
     fail_count = sum(1 for r in results if r["status"] == "failed")
@@ -163,6 +176,11 @@ def run_sync(sub_id: str) -> dict:
         "errors": errors,
         "playlist_name": playlist_name,
     }
+
+
+def _load_subscription(sub_id: str) -> dict | None:
+    db = _load_db()
+    return next((s for s in db["subscriptions"] if s["id"] == sub_id), None)
 
 
 def run_all_syncs() -> list[dict]:

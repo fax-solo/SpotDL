@@ -232,11 +232,15 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 try {
                   let lastNotifTime = 0
                   let lastNotifPct = -1
+                  let lastUpdateTime = 0
                   const result = await downloadTrack(item.track, (stage, pct) => {
                     if (get().queue.some(q => q.id === item.id)) {
-                      const actualPct = pct !== undefined ? Math.round(pct * 100) / 100 : null
-                      get()._updateProgress(item.id, { stage, pct: actualPct })
                       const now = Date.now()
+                      const actualPct = pct !== undefined ? Math.round(pct * 100) / 100 : null
+                      if (actualPct === null || actualPct === 100 || now - lastUpdateTime >= 100) {
+                        lastUpdateTime = now
+                        get()._updateProgress(item.id, { stage, pct: actualPct })
+                      }
                       const pctInt = actualPct !== null ? Math.round(actualPct) : -1
                       if (pctInt === 100 || (now - lastNotifTime >= 400 && pctInt !== lastNotifPct)) {
                         lastNotifTime = now

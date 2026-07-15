@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3, Plus } from 'lucide-react'
+import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3, Plus, Star, ArrowRight } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { searchSpotify, searchYouTubeTracks, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
 import { usePlayer } from '../hooks/usePlayer'
@@ -10,6 +10,7 @@ import type { HistoryEntry } from '../hooks/useHistory'
 import { Capacitor } from '@capacitor/core'
 import { AddToPlaylistModal } from '../components/AddToPlaylistModal'
 import type { PlaylistTrack } from '../hooks/usePlaylists'
+import { pickTopResult, type RankableItem } from '../lib/searchRanking'
 
 function groupTracksByAlbum(tracks: SearchTrack[]): (SearchTrack & { _groupSize?: number })[] {
   const groups = new Map<string, SearchTrack[]>()
@@ -47,6 +48,7 @@ export function SearchPage() {
   const [searchingPlay, setSearchingPlay] = useState(false)
   const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [topResult, setTopResult] = useState<RankableItem | null>(null)
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<PlaylistTrack | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
@@ -188,6 +190,7 @@ export function SearchPage() {
                      (r.albums?.length ?? 0) > 0 || (r.playlists?.length ?? 0) > 0 || (r.shows?.length ?? 0) > 0
       if (hasAny) {
         setSearchResults(r)
+        setTopResult(pickTopResult(trimmed, r))
       } else {
         setSearchError('No Spotify results found')
       }
@@ -213,6 +216,7 @@ export function SearchPage() {
   const clearSearch = useCallback(() => {
     setSearchQuery('')
     setSearchResults(null)
+    setTopResult(null)
     setPlayResults(null)
     searchInputRef.current?.focus()
   }, [])
@@ -253,13 +257,117 @@ export function SearchPage() {
       <div className="flex-1 overflow-y-auto">
         {searchResults && (
           <div className="space-y-2 mb-6">
+            {topResult && (() => {
+              const topId = topResult.type === 'track' ? topResult.item.url
+                : topResult.type === 'album' ? topResult.item.id
+                : topResult.type === 'playlist' ? topResult.item.id
+                : topResult.item.name
+              const topTitle = topResult.type === 'track' ? topResult.item.title
+                : topResult.type === 'album' ? topResult.item.name
+                : topResult.type === 'playlist' ? topResult.item.name
+                : topResult.item.name
+              const topArtist = topResult.type === 'track' ? topResult.item.artist
+                : topResult.type === 'album' ? topResult.item.artist
+                : ''
+              const topImage = topResult.type === 'track' ? topResult.item.artwork_url
+                : topResult.type === 'album' ? topResult.item.image
+                : topResult.type === 'playlist' ? topResult.item.image
+                : topResult.item.image
+              return (
+                <div key="top-result" className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Star className="w-4 h-4 text-yellow-500" />
+                    <h2 className="text-sm font-semibold text-light-text dark:text-dark-text">Top Result</h2>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-500/5 via-accent/5 to-yellow-500/5 pointer-events-none" />
+                    <button
+                      onClick={() => {
+                        if (topResult.type === 'track') navigate(`/track/${topResult.item.id}`)
+                        else if (topResult.type === 'album') navigate(`/album/${topResult.item.id}`)
+                        else if (topResult.type === 'playlist') navigate(`/playlist/${topResult.item.id}`)
+                        else if (topResult.type === 'artist') navigate(`/artist/${topResult.item.id}`)
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform relative z-10"
+                    >
+                      <div className={`w-12 h-12 flex-shrink-0 overflow-hidden bg-gradient-to-br from-yellow-500/20 to-accent/20 flex items-center justify-center ${
+                        topResult.type === 'artist' ? 'rounded-full' : 'rounded-lg'
+                      }`}>
+                        {topImage ? (
+                          <ArtworkImage src={topImage} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <Star className="w-6 h-6 text-yellow-500/40" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate">{topTitle}</p>
+                        <p className="text-xs text-light-muted dark:text-dark-muted truncate">
+                          {topResult.type === 'track' && `${topArtist} • Track`}
+                          {topResult.type === 'album' && `${topArtist} • Album`}
+                          {topResult.type === 'playlist' && `${topResult.item.trackCount || 0} tracks • Playlist`}
+                          {topResult.type === 'artist' && 'Artist'}
+                        </p>
+                      </div>
+                      {(topResult.type === 'track' || topResult.type === 'playlist' || topResult.type === 'album') && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (topResult.type === 'track') {
+                              setAddToPlaylistTrack({ id: topResult.item.url, title: topTitle, artist: topArtist || '', artwork_url: topImage })
+                            } else if (topResult.type === 'playlist') {
+                              handlePlayPlaylist(topResult.item)
+                            } else if (topResult.type === 'album') {
+                              handlePlayAlbum(topResult.item)
+                            }
+                          }}
+                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-accent/10 transition-colors cursor-pointer"
+                        >
+                          {topResult.type === 'track' ? <Plus className="w-4 h-4 text-accent" /> : <ArrowRight className="w-4 h-4 text-accent" />}
+                        </button>
+                      )}
+                      {(topResult.type === 'track' || topResult.type === 'playlist' || topResult.type === 'album') && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (topResult.type === 'track') handlePlayTrack(topResult.item)
+                            else if (topResult.type === 'playlist') handlePlayPlaylist(topResult.item)
+                            else if (topResult.type === 'album') handlePlayAlbum(topResult.item)
+                          }}
+                          className="w-11 h-11 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-1 active-scale"
+                        >
+                          {loadingPlayId === topId ? (
+                            <Loader2 className="w-4 h-4 text-white animate-spin" />
+                          ) : (
+                            <Play className="w-4 h-4 text-white ml-0.5" />
+                          )}
+                        </button>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
             {(['artists', 'tracks', 'albums', 'playlists', 'shows'] as const).map(type => {
-              const items = type === 'artists' ? searchResults.artists
+              let items = type === 'artists' ? searchResults.artists
                 : type === 'tracks' ? searchResults.tracks
                 : type === 'albums' ? searchResults.albums
                 : type === 'playlists' ? searchResults.playlists
                 : searchResults.shows
               if (!items?.length) return null
+              if (topResult) {
+                const topType = topResult.type === 'artist' ? 'artists'
+                  : topResult.type === 'track' ? 'tracks'
+                  : topResult.type === 'album' ? 'albums'
+                  : 'playlists'
+                if (type === topType) {
+                  const skipId = topResult.type === 'track' ? topResult.item.url
+                    : topResult.type === 'album' ? topResult.item.id
+                    : topResult.type === 'playlist' ? topResult.item.id
+                    : topResult.item.id
+                  items = items.filter((item: any) => (item.url || item.id) !== skipId)
+                  if (items.length === 0) return null
+                }
+              }
               const icon = type === 'artists' ? Mic2 : type === 'tracks' ? Music : type === 'albums' ? ListMusic : type === 'playlists' ? ListMusic : Podcast
               const Icon = icon
               return (

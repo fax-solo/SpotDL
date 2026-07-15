@@ -34,10 +34,6 @@ const val LOCAL_URL = "http://127.0.0.1:$LOCAL_PORT"
             strings = [Manifest.permission.READ_MEDIA_IMAGES]
         ),
         Permission(
-            alias = "mediaVideo",
-            strings = [Manifest.permission.READ_MEDIA_VIDEO]
-        ),
-        Permission(
             alias = "postNotifications",
             strings = [Manifest.permission.POST_NOTIFICATIONS]
         ),
@@ -125,7 +121,6 @@ class SpotDLPlugin : Plugin() {
         val strings = when (alias) {
             "mediaAudio" -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
             "mediaImages" -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
-            "mediaVideo" -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
             "postNotifications" -> arrayOf(Manifest.permission.POST_NOTIFICATIONS)
             else -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
         }

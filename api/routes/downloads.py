@@ -3,22 +3,19 @@ import shutil
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from database import get_db
 from models import DownloadLog, User
 from auth import get_optional_user
-from shared import _download_semaphore, verify_api_key
+from shared import _download_semaphore, verify_api_key, limiter
 
 router = APIRouter(tags=["downloads"])
 logger = logging.getLogger(__name__)
-_limiter = Limiter(key_func=get_remote_address)
 
 
 class DownloadRequest(BaseModel):
@@ -48,8 +45,45 @@ class LogDownloadRequest(BaseModel):
     source: str | None = Field(default=None, max_length=50)
 
 
+@router.get("/api/download")
+@limiter.limit("10/minute")
+async def download_combined(
+    request: Request,
+    query: str = Query(..., description="Spotify URL or search string"),
+    quality: str = Query("320", pattern="^(128|192|256|320)$"),
+    format: str = Query("mp3", pattern="^(mp3|m4a)$"),
+    _auth=Depends(verify_api_key),
+):
+    from downloader import download_track_combined
+
+    async with _download_semaphore:
+        try:
+            filepath, ext = await asyncio.to_thread(
+                download_track_combined, query, quality, format,
+            )
+        except Exception:
+            logger.exception("Combined download failed")
+            raise HTTPException(status_code=502, detail="Download failed")
+
+    def cleanup():
+        parent = os.path.dirname(filepath)
+        if os.path.isdir(parent):
+            shutil.rmtree(parent, ignore_errors=True)
+
+    safe_title = os.path.splitext(os.path.basename(filepath))[0]
+    filename = f"{safe_title}{ext}"
+    media_type = "audio/mpeg" if ext == ".mp3" else "audio/mp4"
+
+    return FileResponse(
+        path=filepath,
+        media_type=media_type,
+        filename=filename,
+        background=BackgroundTask(cleanup),
+    )
+
+
 @router.post("/api/download/log")
-@_limiter.limit("60/minute")
+@limiter.limit("60/minute")
 async def log_download(
     request: Request,
     body: LogDownloadRequest,
@@ -70,7 +104,7 @@ async def log_download(
 
 
 @router.post("/api/download")
-@_limiter.limit("10/minute")
+@limiter.limit("10/minute")
 async def download(request: Request, body: DownloadRequest, _auth=Depends(verify_api_key)):
     from downloader import download_track
 
@@ -103,7 +137,7 @@ async def download(request: Request, body: DownloadRequest, _auth=Depends(verify
 
 
 @router.post("/api/download/stream")
-@_limiter.limit("10/minute")
+@limiter.limit("10/minute")
 async def download_stream(request: Request, body: DownloadRequest, _auth=Depends(verify_api_key)):
     from downloader import stream_download
 
@@ -127,7 +161,7 @@ async def download_stream(request: Request, body: DownloadRequest, _auth=Depends
 
 
 @router.post("/api/download/deezer")
-@_limiter.limit("10/minute")
+@limiter.limit("10/minute")
 async def deezer_download(request: Request, body: DeezerDownloadRequest, _auth=Depends(verify_api_key)):
     from deezer import DeezerClient, DeezerError
 
