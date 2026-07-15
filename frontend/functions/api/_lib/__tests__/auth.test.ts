@@ -4,10 +4,17 @@ const mockHmacSha256 = vi.fn()
 const mockSha256 = vi.fn()
 const mockB64url = vi.fn()
 
+function b64urlDecode(input: string): string {
+  const base64 = input.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=')
+  return atob(padded)
+}
+
 vi.mock('../crypto', () => ({
   sha256: mockSha256,
   hmacSha256: mockHmacSha256,
   b64url: mockB64url,
+  b64urlDecode,
   uuid: () => 'test-jti-123',
 }))
 
@@ -52,7 +59,7 @@ describe('createToken', () => {
     const token = await createToken('user-1', 'secret')
     const parts = token.split('.')
     expect(parts).toHaveLength(3)
-    const decoded = JSON.parse(atob(parts[1]))
+    const decoded = JSON.parse(b64urlDecode(parts[1]))
     expect(decoded.sub).toBe('user-1')
     expect(decoded.iss).toBe('sinc-api')
     expect(decoded.jti).toBe('test-jti-123')

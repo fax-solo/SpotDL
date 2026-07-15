@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle } from 'lucide-react'
+import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3 } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { searchSpotify, searchYouTubeTracks, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
 import { usePlayer } from '../hooks/usePlayer'
@@ -8,6 +8,33 @@ import { useToast } from '../components/Toast'
 import { findAudio } from '../lib/sources'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { Capacitor } from '@capacitor/core'
+
+function groupTracksByAlbum(tracks: SearchTrack[]): (SearchTrack & { _groupSize?: number })[] {
+  const groups = new Map<string, SearchTrack[]>()
+  const solo: SearchTrack[] = []
+  for (const t of tracks) {
+    const key = t.album_id || `${t.album}:${t.artist}`
+    const found = groups.get(key)
+    if (found) {
+      found.push(t)
+    } else {
+      groups.set(key, [t])
+    }
+  }
+  for (const [, group] of groups) {
+    if (group.length === 1) {
+      solo.push(group[0])
+    }
+  }
+  const deduped: (SearchTrack & { _groupSize?: number })[] = [...solo]
+  for (const [, group] of groups) {
+    if (group.length > 1) {
+      const first = { ...group[0], _groupSize: group.length }
+      deduped.push(first)
+    }
+  }
+  return deduped
+}
 
 export function SearchPage() {
   const navigate = useNavigate()
@@ -238,11 +265,14 @@ export function SearchPage() {
                     <Icon className="w-4 h-4 text-accent" />
                     <h2 className="text-sm font-semibold text-light-text dark:text-dark-text capitalize">{type}</h2>
                   </div>
-                  {items.map((item: any, i: number) => (
+                    {(type === 'tracks' ? groupTracksByAlbum(items as SearchTrack[]) : items).map((item: any, i: number) => {
+                    const isMultiTrack = item._groupSize > 1
+                    return (
                     <button
                       key={item.id || i}
                       onClick={() => navigate(
                         type === 'artists' ? `/artist/${item.id}`
+                        : type === 'tracks' && isMultiTrack ? `/album/${item.album_id}`
                         : type === 'tracks' ? `/track/${item.id}`
                         : type === 'albums' ? `/album/${item.id}`
                         : type === 'playlists' ? `/playlist/${item.id}`
@@ -265,11 +295,18 @@ export function SearchPage() {
                         </p>
                         <p className="text-xs text-light-muted dark:text-dark-muted truncate">
                           {type === 'artists' && `${item.followers?.toLocaleString() || 0} followers${item.genres?.length ? ` • ${item.genres.slice(0, 2).join(', ')}` : ''}`}
-                          {type === 'tracks' && `${item.artist} • ${item.album}`}
+                          {type === 'tracks' && isMultiTrack && `${item.artist} • ${item.album}`}
+                          {type === 'tracks' && !isMultiTrack && `${item.artist} • ${item.album}`}
                           {type === 'albums' && `${item.artist}${item.year ? ` • ${item.year}` : ''}`}
                           {type === 'playlists' && `${item.trackCount || 0} tracks${item.owner ? ` • ${item.owner}` : ''}`}
                           {type === 'shows' && `${item.publisher} • ${item.total_episodes || 0} episodes`}
                         </p>
+                        {type === 'tracks' && isMultiTrack && (
+                          <p className="text-[10px] text-accent mt-0.5 flex items-center gap-1">
+                            <Disc3 className="w-3 h-3" />
+                            {item._groupSize} tracks • tap to view album
+                          </p>
+                        )}
                       </div>
                       {(type === 'tracks' || type === 'playlists' || type === 'albums') && (
                         <button
@@ -288,7 +325,7 @@ export function SearchPage() {
                         </button>
                       )}
                     </button>
-                  ))}
+                  )})}
                 </div>
               )
             })}

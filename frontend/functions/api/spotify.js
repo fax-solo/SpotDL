@@ -82,6 +82,7 @@ async function officialFetch(context, path, retried = false) {
 const _cache = new Map()
 const CACHE_TTL = 30000
 const EMBED_CACHE_TTL = 300000
+const SEARCH_CACHE_TTL = 45000
 
 async function wolfxFetch(path) {
   const cached = _cache.get(path)
@@ -408,6 +409,10 @@ async function enrichTrackArtwork(tracks) {
 }
 
 async function handleSearch(context, query, types, limit) {
+  const searchKey = `search:${query}:${types}:${limit}`
+  const cached = _cache.get(searchKey)
+  if (cached && Date.now() < cached.expires) return jsonOk(cached.data)
+
   const typesArr = types.split(',').map(t => t.trim())
   const searches = typesArr.map(type =>
     wolfxFetch(`/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}`)
@@ -497,6 +502,11 @@ async function handleSearch(context, query, types, limit) {
     }
   }
 
+  _cache.set(searchKey, { data: result, expires: Date.now() + SEARCH_CACHE_TTL })
+  if (_cache.size > 300) {
+    const now = Date.now()
+    for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
+  }
   return jsonOk(result)
 }
 

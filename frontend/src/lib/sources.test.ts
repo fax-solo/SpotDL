@@ -10,6 +10,7 @@ vi.mock('./apiConfig', () => ({
 }))
 
 import { searchYouTube, getVideoInfo } from './youtubeClient'
+import { invalidateCache } from './requestCache'
 
 async function callFunction(name: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/${name}`, {
@@ -127,6 +128,7 @@ describe('titleMatches', () => {
 describe('findAudio', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    invalidateCache()
   })
 
   it('returns result from youtube when it succeeds first', async () => {
@@ -170,6 +172,48 @@ describe('findAudio', () => {
     const result = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
     expect(result.source).toBe('youtube')
     expect(result.info.title).toBe('Expected Title')
+  })
+
+  it('cached resolution short-circuits the network entirely', async () => {
+    vi.mocked(searchYouTube).mockResolvedValue([
+      { videoId: 'abc', title: 'Expected Title', url: 'https://youtube.com/watch?v=abc' },
+    ])
+    vi.mocked(getVideoInfo).mockResolvedValue({
+      title: 'Expected Title', author: 'Expected Artist', duration: '200', audioUrl: 'https://audio.url', thumbnail: null,
+    })
+
+    const { findAudio } = await import('./sources')
+
+    const r1 = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
+    expect(r1.source).toBe('youtube')
+    expect(searchYouTube).toHaveBeenCalledTimes(1)
+
+    vi.mocked(searchYouTube).mockClear()
+
+    const r2 = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
+    expect(r2.source).toBe('youtube')
+    expect(r2.info.audioUrl).toBe('https://audio.url')
+    expect(searchYouTube).not.toHaveBeenCalled()
+  })
+
+  it('cached resolution is bypassed when expectedArtist or expectedTitle is missing', async () => {
+    vi.mocked(searchYouTube).mockResolvedValue([
+      { videoId: 'abc', title: 'Some Song', url: 'https://youtube.com/watch?v=abc' },
+    ])
+    vi.mocked(getVideoInfo).mockResolvedValue({
+      title: 'Some Song', author: 'Artist', duration: '180', audioUrl: 'https://audio.url', thumbnail: null,
+    })
+
+    const { findAudio } = await import('./sources')
+
+    await findAudio('Some Song')
+    expect(searchYouTube).toHaveBeenCalled()
+
+    vi.mocked(searchYouTube).mockClear()
+    vi.mocked(getVideoInfo).mockClear()
+
+    await findAudio('Some Song')
+    expect(searchYouTube).toHaveBeenCalled()
   })
 })
 

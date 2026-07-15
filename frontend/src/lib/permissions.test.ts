@@ -39,7 +39,12 @@ import {
   isNative,
   requiresRuntimePermission,
   ensureNotificationPermission,
+  requestPermissionWithRationale,
+  _resetPermissionFlagsForTest,
+  _setPermissionFlagForTest,
 } from './permissions'
+
+import { checkPermissionNative, requestPermissionNative, shouldShowRationaleNative } from './nativePlugin'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -241,5 +246,64 @@ describe('ensureNotificationPermission', () => {
   it('returns false when not native', async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false)
     expect(await ensureNotificationPermission()).toBe(false)
+  })
+})
+
+describe('requestPermissionWithRationale', () => {
+  beforeEach(() => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
+    _resetPermissionFlagsForTest()
+  })
+
+  it('returns granted when already granted', async () => {
+    vi.mocked(checkPermissionNative).mockResolvedValue(true)
+    const result = await requestPermissionWithRationale('media_audio')
+    expect(result).toBe('granted')
+    expect(requestPermissionNative).not.toHaveBeenCalled()
+  })
+
+  it('first-ever request always calls requestPermission (not permanently_denied)', async () => {
+    vi.mocked(checkPermissionNative).mockResolvedValue(false)
+    vi.mocked(requestPermissionNative).mockResolvedValue(true)
+    const result = await requestPermissionWithRationale('media_audio')
+    expect(result).toBe('granted')
+    expect(requestPermissionNative).toHaveBeenCalledOnce()
+  })
+
+  it('first-ever short-circuits rationale check when shouldShowRationale is false', async () => {
+    vi.mocked(checkPermissionNative).mockResolvedValue(false)
+    vi.mocked(shouldShowRationaleNative).mockResolvedValue(false)
+    vi.mocked(requestPermissionNative).mockResolvedValue(true)
+    const result = await requestPermissionWithRationale('media_audio')
+    expect(result).toBe('granted')
+    expect(requestPermissionNative).toHaveBeenCalledOnce()
+  })
+
+  it('denies after first request if user denies', async () => {
+    vi.mocked(checkPermissionNative).mockResolvedValue(false)
+    vi.mocked(requestPermissionNative).mockResolvedValue(false)
+    const result = await requestPermissionWithRationale('media_audio')
+    expect(result).toBe('denied')
+  })
+
+  it('second request after denial with shouldShowRationale=false resolves to permanently_denied', async () => {
+    _setPermissionFlagForTest('media_audio')
+    vi.mocked(checkPermissionNative).mockResolvedValue(false)
+    vi.mocked(shouldShowRationaleNative).mockResolvedValue(false)
+
+    const result = await requestPermissionWithRationale('media_audio')
+    expect(result).toBe('permanently_denied')
+    expect(requestPermissionNative).not.toHaveBeenCalled()
+  })
+
+  it('second request after denial with shouldShowRationale=true shows dialog again', async () => {
+    _setPermissionFlagForTest('media_audio')
+    vi.mocked(checkPermissionNative).mockResolvedValue(false)
+    vi.mocked(shouldShowRationaleNative).mockResolvedValue(true)
+    vi.mocked(requestPermissionNative).mockResolvedValue(true)
+
+    const result = await requestPermissionWithRationale('media_audio')
+    expect(result).toBe('granted')
+    expect(requestPermissionNative).toHaveBeenCalledOnce()
   })
 })

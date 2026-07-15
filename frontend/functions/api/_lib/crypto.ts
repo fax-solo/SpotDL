@@ -22,6 +22,12 @@ export function b64url(input: string): string {
   return btoa(input).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
 }
 
+export function b64urlDecode(input: string): string {
+  const base64 = input.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=')
+  return atob(padded)
+}
+
 export function uuid(): string {
   return crypto.randomUUID()
 }

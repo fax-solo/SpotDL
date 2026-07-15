@@ -77,9 +77,38 @@ export async function shouldShowRationale(key: string): Promise<boolean> {
   return shouldShowRationaleNative(def.nativeAlias)
 }
 
+const _permissionFlags = new Map<string, boolean>()
+
+function getPermissionFlag(key: string): boolean {
+  if (typeof localStorage !== 'undefined') {
+    return localStorage.getItem(`permission_requested_${key}`) === '1'
+  }
+  return _permissionFlags.get(key) ?? false
+}
+
+function setPermissionFlag(key: string) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(`permission_requested_${key}`, '1')
+  }
+  _permissionFlags.set(key, true)
+}
+
+export function _resetPermissionFlagsForTest() {
+  _permissionFlags.clear()
+}
+export function _setPermissionFlagForTest(key: string) {
+  _permissionFlags.set(key, true)
+}
+
 export async function requestPermissionWithRationale(key: string): Promise<PermissionRationaleResult> {
   const granted = await checkPermission(key)
   if (granted) return 'granted'
+
+  if (!getPermissionFlag(key)) {
+    setPermissionFlag(key)
+    const result = await requestPermission(key)
+    return result ? 'granted' : 'denied'
+  }
 
   const showRationale = await shouldShowRationale(key)
   if (showRationale) {

@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import type { Env } from './index'
-import { sha256, hmacSha256, b64url, uuid } from './crypto'
+import { sha256, hmacSha256, b64url, b64urlDecode, uuid } from './crypto'
 
 export async function createToken(userId: string, secret: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
@@ -28,7 +28,7 @@ export async function verifyToken(token: string, secret: string, db?: D1Database
   const [headerB64, payloadB64, sig] = dotParts
   let payload: any
   try {
-    payload = JSON.parse(atob(payloadB64))
+    payload = JSON.parse(b64urlDecode(payloadB64))
   } catch {
     return null
   }

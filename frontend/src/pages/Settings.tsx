@@ -574,11 +574,6 @@ export function Settings() {
                           onClick={async () => {
                             setRequestingPerm(p.key)
                             try {
-                              const rationale = await shouldShowRationale(p.key)
-                              if (!rationale) {
-                                await openAppSettings()
-                                return
-                              }
                               const result = await requestPermissionWithRationale(p.key)
                               if (result === 'permanently_denied') {
                                 await openAppSettings()

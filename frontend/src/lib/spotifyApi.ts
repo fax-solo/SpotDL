@@ -1,4 +1,5 @@
 import { apiUrl } from './apiConfig'
+import { cachedFetch } from './requestCache'
 
 export interface TrackMeta {
   title: string
@@ -135,7 +136,7 @@ export interface ArtistDetails {
 }
 
 export async function searchSpotify(query: string, types: string = 'track,artist', limit: number = 8): Promise<SearchResults> {
-  return callSpotify({ action: 'search', query, types, limit })
+  return cachedFetch(`search:${query}:${types}`, () => callSpotify({ action: 'search', query, types, limit }), 30000)
 }
 
 export async function fetchArtistDetails(id: string): Promise<ArtistDetails> {
@@ -208,21 +209,23 @@ export interface YouTubeSearchTrack {
 }
 
 export async function searchYouTubeTracks(query: string): Promise<YouTubeSearchTrack[]> {
-  const res = await fetch(apiUrl('/api/youtube'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'search', query }),
-  })
-  if (!res.ok) return []
-  const data = await res.json()
-  const results = data.results || []
-  return results.map((r: any) => ({
-    videoId: r.videoId,
-    title: r.title || 'Unknown',
-    author: r.author || 'Unknown',
-    url: r.url || `https://music.youtube.com/watch?v=${r.videoId}`,
-    thumbnail: r.thumbnail || `https://i.ytimg.com/vi/${r.videoId}/default.jpg`,
-  }))
+  return cachedFetch(`ytsearch:${query}`, async () => {
+    const res = await fetch(apiUrl('/api/youtube'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'search', query }),
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    const results = data.results || []
+    return results.map((r: any) => ({
+      videoId: r.videoId,
+      title: r.title || 'Unknown',
+      author: r.author || 'Unknown',
+      url: r.url || `https://music.youtube.com/watch?v=${r.videoId}`,
+      thumbnail: r.thumbnail || `https://i.ytimg.com/vi/${r.videoId}/default.jpg`,
+    }))
+  }, 30000)
 }
 
 export interface Show {

@@ -1,4 +1,4 @@
-import { json, error, verifyToken } from '../_lib'
+import { json, error, verifyToken, b64urlDecode } from '../_lib'
 import type { RouteHandler } from '../_lib'
 
 export const onRequest: RouteHandler = async (context) => {
@@ -24,7 +24,7 @@ export const onRequest: RouteHandler = async (context) => {
   let jti: string | null = null
   if (parts.length === 3) {
     try {
-      const payload = JSON.parse(atob(parts[1]))
+      const payload = JSON.parse(b64urlDecode(parts[1]))
       jti = payload.jti || null
     } catch {}
   }

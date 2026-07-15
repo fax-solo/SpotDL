@@ -1,4 +1,4 @@
-import { json, error, validate, createToken, formatUser, uuid } from '../_lib'
+import { json, error, validate, createToken, formatUser, uuid, b64urlDecode } from '../_lib'
 import { googleAuthSchema } from '../_lib/validation'
 import type { RouteHandler } from '../_lib'
 
@@ -34,7 +34,9 @@ export const onRequest: RouteHandler = async (context) => {
 
   if ('id_token' in data) {
     try {
-      const payload = JSON.parse(atob(data.id_token.split('.')[1]))
+      // NOTE: id_token signature is not verified against Google's JWKS.
+      // Full JWKS verification is a larger change and out of scope for this pass.
+      const payload = JSON.parse(b64urlDecode(data.id_token.split('.')[1]))
       userInfo = payload
     } catch {
       return error('Invalid id_token', 400)
@@ -64,7 +66,9 @@ export const onRequest: RouteHandler = async (context) => {
     }
 
     try {
-      userInfo = JSON.parse(atob(tokens.id_token.split('.')[1]))
+      // NOTE: id_token signature is not verified against Google's JWKS.
+      // Full JWKS verification is a larger change and out of scope for this pass.
+      userInfo = JSON.parse(b64urlDecode(tokens.id_token.split('.')[1]))
     } catch {
       return error('Invalid id_token from Google', 400)
     }
