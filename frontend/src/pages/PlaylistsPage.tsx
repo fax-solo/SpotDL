@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ListMusic, Plus, Trash2, Pencil, ArrowLeft, Music, Play, Download } from 'lucide-react'
+import { ListMusic, Plus, Trash2, Pencil, ArrowLeft, Music, Play } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { usePlaylists, type Playlist } from '../hooks/usePlaylists'
 import { usePlayer } from '../hooks/usePlayer'
@@ -9,10 +8,9 @@ import type { HistoryEntry } from '../hooks/useHistory'
 import { useToast } from '../components/Toast'
 
 export function PlaylistsPage() {
-  const navigate = useNavigate()
   const { play } = usePlayer()
   const { toast } = useToast()
-  const { playlists, createPlaylist, deletePlaylist, renamePlaylist, removeTrackFromPlaylist, addTrackToPlaylist } = usePlaylists()
+  const { playlists, createPlaylist, deletePlaylist, renamePlaylist, removeTrackFromPlaylist } = usePlaylists()
   const [selected, setSelected] = useState<Playlist | null>(null)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
