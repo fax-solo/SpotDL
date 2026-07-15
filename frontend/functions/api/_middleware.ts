@@ -1,5 +1,4 @@
-import type { PagesFunction } from '@cloudflare/workers-types'
-import type { Env } from './_lib'
+import type { RouteHandler, Env } from './_lib'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 const AUTH_ERRORS = new Set([
@@ -55,7 +54,7 @@ function isJsonResponse(res: Response): boolean {
   return ct.includes('application/json')
 }
 
-export const onRequest: PagesFunction<Env> = async (context) => {
+export const onRequest: RouteHandler = async (context) => {
   const origin = context.request.headers.get('Origin') || ''
 
   // Handle preflight

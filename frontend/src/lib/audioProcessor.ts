@@ -1,5 +1,17 @@
 import type { FFmpeg } from '@ffmpeg/ffmpeg'
-import type { QualitySettings } from './qualitySettings'
+import type { QualitySettings, AudioVariant } from './qualitySettings'
+
+const SPED_UP_TEMPO = 1.25
+const SLOWED_TEMPO = 0.85
+const SLOWED_REVERB_DELAY = '0.8:0.9:1000:0.3'
+
+function audioFilterArgs(variant?: AudioVariant): string[] {
+  if (!variant || variant === 'normal') return []
+  if (variant === 'sped_up') {
+    return ['-af', `atempo=${SPED_UP_TEMPO}`]
+  }
+  return ['-af', `atempo=${SLOWED_TEMPO},aecho=${SLOWED_REVERB_DELAY}`]
+}
 
 type FfmpegInstance = FFmpeg & {
   on?: (event: string, cb: (...args: unknown[]) => void) => void
@@ -106,14 +118,16 @@ export async function convertAudio(
       : await fetchWithProgress(audioUrl, onDownloadProgress)
     await instance.writeFile(inputName, data)
 
-    if (quality.format === 'mp3') {
-      await instance.exec([
-        '-i', inputName,
-        '-c:a', 'libmp3lame',
-        '-b:a', `${quality.bitrate}k`,
-        '-id3v2_version', '3',
-        '-y', outputName,
-      ])
+      const filterArgs = audioFilterArgs(quality.variant)
+      if (quality.format === 'mp3') {
+        await instance.exec([
+          '-i', inputName,
+          ...filterArgs,
+          '-c:a', 'libmp3lame',
+          '-b:a', `${quality.bitrate}k`,
+          '-id3v2_version', '3',
+          '-y', outputName,
+        ])
     } else {
       let hasCover = false
       if (coverUrl) {
@@ -135,6 +149,7 @@ export async function convertAudio(
         args.push('-map', '1:v', '-disposition:v', 'attached_pic')
       }
       args.push(
+        ...filterArgs,
         '-c:a', 'aac',
         '-b:a', `${quality.bitrate}k`,
         '-movflags', '+faststart',

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 
-const { mockFFmpegCtor, mockID3WriterModule } = vi.hoisted(() => {
+const { mockFFmpegCtor, mockFFmpegInstance, mockID3WriterModule } = vi.hoisted(() => {
+  let lastInstance: { exec: ReturnType<typeof vi.fn> } | null = null
   class MockFFmpeg {
     load = vi.fn().mockResolvedValue(undefined)
     writeFile = vi.fn().mockResolvedValue(undefined)
@@ -9,6 +10,9 @@ const { mockFFmpegCtor, mockID3WriterModule } = vi.hoisted(() => {
     exec = vi.fn().mockResolvedValue(undefined)
     on = vi.fn()
     off = vi.fn()
+    constructor() {
+      lastInstance = this
+    }
   }
 
   const mockID3WriterModule = {
@@ -20,7 +24,11 @@ const { mockFFmpegCtor, mockID3WriterModule } = vi.hoisted(() => {
     set default(v) { this._ctor = v },
   }
 
-  return { mockFFmpegCtor: MockFFmpeg, mockID3WriterModule }
+  return {
+    mockFFmpegCtor: MockFFmpeg,
+    mockFFmpegInstance: { get exec() { return lastInstance?.exec || vi.fn() } },
+    mockID3WriterModule,
+  }
 })
 
 vi.mock('@ffmpeg/ffmpeg', () => ({ FFmpeg: mockFFmpegCtor }))
@@ -35,11 +43,17 @@ import { convertAudio, writeId3Tags, downloadAudio } from './audioProcessor'
 
 const defaultQuality = { bitrate: '320' as const, format: 'mp3' as const }
 
+const normalQuality = { bitrate: '320' as const, format: 'mp3' as const, variant: 'normal' as const }
+const spedUpQuality = { bitrate: '320' as const, format: 'mp3' as const, variant: 'sped_up' as const }
+const slowedReverbQuality = { bitrate: '320' as const, format: 'mp3' as const, variant: 'slowed_reverb' as const }
+
 describe('convertAudio', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
+      headers: { get: vi.fn().mockReturnValue(null) },
+      body: null,
       arrayBuffer: () => Promise.resolve(new Uint8Array([0x00, 0x01, 0x02]).buffer),
     }))
   })
@@ -65,6 +79,36 @@ describe('convertAudio', () => {
       'https://example.com/audio.mp3',
       expect.objectContaining({ signal: controller.signal }),
     )
+  })
+
+  it('passes no -af filter for normal variant', async () => {
+    vi.clearAllMocks()
+    await convertAudio('https://example.com/audio.mp3', normalQuality)
+    expect(mockFFmpegInstance.exec).toHaveBeenCalled()
+    const args = mockFFmpegInstance.exec.mock.calls[0]?.[0] as string[]
+    expect(args).not.toContain('-af')
+  })
+
+  it('passes atempo=1.25 for sped_up variant', async () => {
+    vi.clearAllMocks()
+    await convertAudio('https://example.com/audio.mp3', spedUpQuality)
+    expect(mockFFmpegInstance.exec).toHaveBeenCalled()
+    const args = mockFFmpegInstance.exec.mock.calls[0]?.[0] as string[]
+    expect(args).toContain('-af')
+    const afIndex = args.indexOf('-af')
+    expect(args[afIndex + 1]).toBe('atempo=1.25')
+  })
+
+  it('passes atempo=0.85,aecho for slowed_reverb variant', async () => {
+    vi.clearAllMocks()
+    await convertAudio('https://example.com/audio.mp3', slowedReverbQuality)
+    expect(mockFFmpegInstance.exec).toHaveBeenCalled()
+    const args = mockFFmpegInstance.exec.mock.calls[0]?.[0] as string[]
+    expect(args).toContain('-af')
+    const afIndex = args.indexOf('-af')
+    const filterStr = args[afIndex + 1]
+    expect(filterStr).toContain('atempo=0.85')
+    expect(filterStr).toContain('aecho=')
   })
 })
 
@@ -107,6 +151,8 @@ describe('downloadAudio', () => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
+      headers: { get: vi.fn().mockReturnValue(null) },
+      body: null,
       arrayBuffer: () => Promise.resolve(new Uint8Array([0x00, 0x01, 0x02]).buffer),
       blob: () => Promise.resolve(new Blob(['fake-image-data'], { type: 'image/jpeg' })),
     }))

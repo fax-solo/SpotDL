@@ -7,7 +7,7 @@ import { cachedFetch } from './requestCache'
 import { isNativeSpotDLAvailable, nativeFetchMetadata, nativeDownloadTrack } from './nativePlugin'
 import { cacheMetadata, getCachedMetadata } from './dbCache'
 import { getDeezerArl, getDeezerQuality } from './deezer'
-import { getQualitySettings } from './qualitySettings'
+import { getQualitySettings, VARIANT_FILENAME_SUFFIXES } from './qualitySettings'
 
 export type { TrackMeta, CollectionMeta }
 export type { YouTubeSearchResult, YouTubeInfo } from './youtubeClient'
@@ -217,7 +217,8 @@ export async function downloadTrack(
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
   const quality = getQualitySettings()
   const ext = quality.format === 'm4a' ? '.m4a' : '.mp3'
-  const filename = `${safe(meta.artist)} - ${safe(meta.title)}${ext}`
+  const variantSuffix = VARIANT_FILENAME_SUFFIXES[quality.variant || 'normal']
+  const filename = `${safe(meta.artist)} - ${safe(meta.title)}${variantSuffix}${ext}`
 
   // Try native plugin first (Android only)
   if (await nativeAvailable() && meta.url) {
@@ -326,7 +327,7 @@ export async function downloadTrack(
       const blob = await downloadAudio(
         info.audioUrl,
         {
-          title: meta.title,
+          title: meta.title + variantSuffix,
           artist: meta.artist,
           album: meta.album,
           artworkUrl: meta.artwork_url,

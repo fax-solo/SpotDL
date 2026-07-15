@@ -438,6 +438,36 @@ export function AdminDashboard() {
             </div>
           </div>
 
+          {stats.downloads_by_source && Object.keys(stats.downloads_by_source).length > 0 && (
+            <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Music className="w-4 h-4 text-accent" />
+                <h3 className="text-sm font-semibold text-light-text dark:text-dark-text">Downloads by Source</h3>
+              </div>
+              <div className="space-y-2.5">
+                {Object.entries(stats.downloads_by_source)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([source, count], _, arr) => {
+                    const total = arr.reduce((s, [, c]) => s + c, 0)
+                    const pct = (count / Math.max(total, 1)) * 100
+                    const colors = ['bg-blue-500', 'bg-red-500', 'bg-emerald-500', 'bg-amber-500', 'bg-purple-500']
+                    const color = colors[arr.findIndex(([s]) => s === source) % colors.length]
+                    return (
+                      <div key={source}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-light-muted dark:text-dark-muted capitalize">{source}</span>
+                          <span className="text-light-text dark:text-dark-text font-medium tabular-nums">{count}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-light-surface-2 dark:bg-dark-surface-2 overflow-hidden">
+                          <div ref={el => { if (el) el.style.width = `${pct}%` }} className={`h-full rounded-full ${color} transition-all`} />
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

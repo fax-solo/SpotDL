@@ -1,10 +1,15 @@
-import type { PagesFunction } from '@cloudflare/workers-types'
-
 interface Env {
   AVATARS?: R2Bucket
 }
 
-export const onRequest: PagesFunction<Env> = async (context) => {
+type RouteHandler = (context: {
+  request: Request
+  env: Env
+  params: Record<string, string>
+  data: Record<string, unknown>
+}) => Response | Promise<Response>
+
+export const onRequest: RouteHandler = async (context) => {
   const filename = context.params.filename as string
   if (!filename) {
     return new Response('Not found', { status: 404 })

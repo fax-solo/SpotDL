@@ -8,7 +8,7 @@ import { RUNTIME_PERMISSIONS, MANIFEST_PERMISSIONS, requestPermission, checkPerm
 import { APP_VERSION, GITHUB_REPO } from '../lib/version'
 import { checkForUpdates, type UpdateCheckResult } from '../lib/checkUpdate'
 import { getDeezerArl, setDeezerArl, clearDeezerArl, getDeezerQuality, setDeezerQuality, type DeezerQuality } from '../lib/deezer'
-import { getQualitySettings, setQualitySettings, type Bitrate, type OutputFormat } from '../lib/qualitySettings'
+import { getQualitySettings, setQualitySettings, type Bitrate, type OutputFormat, type AudioVariant, VARIANT_LABELS } from '../lib/qualitySettings'
 import { getCrossfadeDuration, setCrossfadeDuration } from '../lib/crossfadeSettings'
 
 export function Settings() {
@@ -497,6 +497,28 @@ export function Settings() {
                     }`}
                   >
                     {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-2">Variant</p>
+              <div className="flex gap-2">
+                {(['normal', 'sped_up', 'slowed_reverb'] as AudioVariant[]).map(v => (
+                  <button
+                    key={v}
+                    onClick={() => {
+                      const next = { ...dlQuality, variant: v }
+                      setDlQuality(next)
+                      setQualitySettings(next)
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      (dlQuality.variant || 'normal') === v
+                        ? 'bg-accent text-white'
+                        : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+                    }`}
+                  >
+                    {VARIANT_LABELS[v]}
                   </button>
                 ))}
               </div>

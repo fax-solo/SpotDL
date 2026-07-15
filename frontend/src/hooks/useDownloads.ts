@@ -4,7 +4,7 @@ import type { TrackMeta } from '../lib/api'
 import { downloadFile } from '../lib/capacitorBridge'
 import { storeBlob } from '../lib/blobCache'
 import type { HistoryEntry } from './useHistory'
-import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendBatchCompleteNotification, ensureNotificationPermission } from '../lib/notifications'
+import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendDownloadProgressNotification, sendBatchCompleteNotification, ensureNotificationPermission } from '../lib/notifications'
 import { startDownloadForeground, updateDownloadForeground, stopDownloadForeground } from '../lib/nativePlugin'
 import { Capacitor } from '@capacitor/core'
 import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
@@ -13,7 +13,7 @@ import { logDownload } from '../lib/auth'
 
 let processing = false
 
-const CONCURRENT_DOWNLOADS = Math.min(Math.max(parseInt(import.meta.env.VITE_CONCURRENT_DOWNLOADS || '4', 10), 1), 10)
+const CONCURRENT_DOWNLOADS = Math.min(Math.max(parseInt(import.meta.env.VITE_CONCURRENT_DOWNLOADS || '3', 10), 1), 10)
 
 interface RateLimitState {
   consecutiveErrors: number
@@ -247,6 +247,14 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                           actualPct ?? undefined,
                           stage,
                         )
+                        if (actualPct !== null && actualPct > 0 && actualPct < 100) {
+                          sendDownloadProgressNotification({
+                            downloadId: item.id,
+                            title: item.track.title,
+                            artist: item.track.artist,
+                            pct: actualPct,
+                          })
+                        }
                       }
                     }
                   }, controller.signal)

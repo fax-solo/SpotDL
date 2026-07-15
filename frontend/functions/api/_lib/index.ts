@@ -1,7 +1,6 @@
-import type { PagesFunction } from '@cloudflare/workers-types'
-
 export interface Env {
   DB: D1Database
+  AVATARS?: R2Bucket
   JWT_SECRET: string
   ADMIN_USERNAME: string
   ADMIN_PASSWORD: string
@@ -10,7 +9,12 @@ export interface Env {
   ALLOWED_ORIGINS?: string
 }
 
-export type RouteHandler = PagesFunction<Env>
+export type RouteHandler = (context: {
+  request: Request
+  env: Env
+  params: Record<string, string>
+  data: Record<string, unknown>
+}) => Response | Promise<Response>
 
 export { json, error } from './response'
 export { sha256, b64urlDecode, uuid } from './crypto'

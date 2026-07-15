@@ -35,6 +35,24 @@ export const onRequest: RouteHandler = async (context) => {
   }
 
   const db = context.env.DB
+
+  if (!is_active) {
+    const target = await db.prepare(
+      'SELECT role FROM users WHERE id = ?'
+    ).bind(user_id).first() as { role: string } | null
+    if (!target) return error('User not found', 404)
+    if (target.role === 'admin') {
+      return error('Cannot disable admin accounts', 403)
+    }
+
+    const adminCount = await db.prepare(
+      "SELECT COUNT(*) as cnt FROM users WHERE role = 'admin' AND is_active = 1"
+    ).first() as { cnt: number }
+    if (adminCount.cnt <= 1) {
+      return error('Cannot disable the last active admin', 403)
+    }
+  }
+
   const result = await db.prepare(
     'UPDATE users SET is_active = ? WHERE id = ?'
   ).bind(is_active ? 1 : 0, user_id).run()

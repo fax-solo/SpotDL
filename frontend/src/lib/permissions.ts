@@ -52,11 +52,6 @@ export async function requestPermission(key: string): Promise<boolean> {
 export async function checkPermission(key: string): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
 
-  const def = RUNTIME_PERMISSIONS.find(p => p.key === key)
-  if (def?.nativeAlias) {
-    return checkPermissionNative(def.nativeAlias)
-  }
-
   if (key === 'notifications') {
     try {
       const mod = await import('@capacitor/local-notifications')
@@ -65,6 +60,11 @@ export async function checkPermission(key: string): Promise<boolean> {
     } catch {
       return false
     }
+  }
+
+  const def = RUNTIME_PERMISSIONS.find(p => p.key === key)
+  if (def?.nativeAlias) {
+    return checkPermissionNative(def.nativeAlias)
   }
 
   return true
@@ -95,9 +95,20 @@ function setPermissionFlag(key: string) {
 
 export function _resetPermissionFlagsForTest() {
   _permissionFlags.clear()
+  if (typeof localStorage !== 'undefined') {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i)
+      if (k?.startsWith('permission_requested_')) {
+        localStorage.removeItem(k)
+      }
+    }
+  }
 }
 export function _setPermissionFlagForTest(key: string) {
   _permissionFlags.set(key, true)
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(`permission_requested_${key}`, '1')
+  }
 }
 
 export async function requestPermissionWithRationale(key: string): Promise<PermissionRationaleResult> {

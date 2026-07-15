@@ -9,6 +9,7 @@ import { useToast } from './Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { useDownloads } from '../hooks/useDownloads'
 import { getDeezerArl, getDeezerQuality } from '../lib/deezer'
+import { getQualitySettings, setQualitySettings, VARIANT_LABELS, type AudioVariant } from '../lib/qualitySettings'
 
 export interface DownloadCardProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -189,6 +190,25 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
             </div>
             {/* Download button with progress */}
             <div className="p-4">
+              <div className="flex gap-1.5 mb-3">
+                {(['normal', 'sped_up', 'slowed_reverb'] as AudioVariant[]).map(v => {
+                  const current = getQualitySettings()
+                  const active = (current.variant || 'normal') === v
+                  return (
+                    <button
+                      key={v}
+                      onClick={() => setQualitySettings({ ...current, variant: v })}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
+                        active
+                          ? 'bg-accent text-white'
+                          : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted'
+                      }`}
+                    >
+                      {VARIANT_LABELS[v]}
+                    </button>
+                  )
+                })}
+              </div>
               <button
                 onClick={() => handleDownloadSingle(singleTrack)}
                 disabled={!!singleDownloading}
