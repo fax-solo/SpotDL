@@ -140,9 +140,8 @@ export function requiresRuntimePermission(key: string): boolean {
 
 export async function ensureNotificationPermission(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
-  const granted = await checkPermission('notifications')
-  if (granted) return true
-  return requestPermission('notifications')
+  const result = await requestPermissionWithRationale('notifications')
+  return result === 'granted'
 }
 
 export { openAppSettings }

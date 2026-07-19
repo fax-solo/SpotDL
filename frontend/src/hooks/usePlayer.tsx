@@ -639,18 +639,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           const t = audioRef.current.currentTime
           const d = audioRef.current.duration
           syncMediaSessionPosition(t, d)
+
           const currentLyricLine = getCurrentLyricLine(syncedLinesRef.current, t)
-          if (currentLyricLine !== lastLyricLineRef.current) {
-            lastLyricLineRef.current = currentLyricLine
-            updateMediaForeground(
-              currentTrackRef.current.title,
-              currentTrackRef.current.artist,
-              currentTrackRef.current.artworkUrl ?? undefined,
-              t,
-              d,
-              currentLyricLine ?? undefined,
-            )
-          }
+          lastLyricLineRef.current = currentLyricLine
+
+          updateMediaForeground(
+            currentTrackRef.current.title,
+            currentTrackRef.current.artist,
+            currentTrackRef.current.artworkUrl ?? undefined,
+            t,
+            d,
+            currentLyricLine ?? undefined,
+          )
         }
       }, 1000)
       positionSyncRef.current = interval as unknown as number

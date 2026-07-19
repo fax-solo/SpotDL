@@ -16,13 +16,7 @@ const FAKE_VIDEO_ID = 'abc123def45'
 describe('proxyAudioUrl', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('returns original URL when not on native', () => {
-    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false)
-    expect(proxyAudioUrl('https://example.com/audio')).toBe('https://example.com/audio')
-  })
-
-  it('wraps URL via proxy when on native', () => {
-    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
+  it('wraps URL via proxy on all platforms', () => {
     const result = proxyAudioUrl('https://example.com/audio')
     expect(result).toContain('/api/proxy')
     expect(result).toContain(encodeURIComponent('https://example.com/audio'))

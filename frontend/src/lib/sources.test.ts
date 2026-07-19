@@ -9,7 +9,13 @@ vi.mock('./apiConfig', () => ({
   apiUrl: vi.fn((path: string) => path),
 }))
 
+vi.mock('./deezer', () => ({
+  searchDeezer: vi.fn(),
+  getDeezerTrack: vi.fn(),
+}))
+
 import { searchYouTube, getVideoInfo } from './youtubeClient'
+import { searchDeezer } from './deezer'
 import { invalidateCache } from './requestCache'
 
 async function callFunction(name: string, body: Record<string, unknown>) {
@@ -216,6 +222,36 @@ describe('findAudio', () => {
     expect(searchYouTube).toHaveBeenCalled()
   })
 })
+
+  it('prefers a full-length match over a Deezer preview', async () => {
+    vi.mocked(searchYouTube).mockResolvedValue([
+      { videoId: 'full1', title: 'Test Song', url: 'https://youtube.com/watch?v=full1' },
+    ])
+    vi.mocked(getVideoInfo).mockResolvedValue({
+      title: 'Test Song', author: 'Test Artist', duration: '240', audioUrl: 'https://audio.youtube/full', thumbnail: null,
+    })
+
+    const { findAudio } = await import('./sources')
+
+    const result = await findAudio('Test Query', 'Test Song', 'Test Artist')
+    expect(result.source).toBe('youtube')
+    expect(result.isPreview).toBeUndefined()
+    expect(result.info.audioUrl).toBe('https://audio.youtube/full')
+  })
+
+  it('falls back to Deezer preview when no full source works', async () => {
+    vi.mocked(searchYouTube).mockResolvedValue([])
+    vi.mocked(searchDeezer).mockResolvedValue([
+      { id: 456, title: 'Preview Song', artist: 'Preview Artist', album: 'Album', duration: '30', isrc: null, thumbnail: null, preview: 'https://audio.deezer/preview', audioUrl: null, isPreview: true, source: 'deezer' },
+    ])
+
+    const { findAudio } = await import('./sources')
+
+    const result = await findAudio('Search Query', 'Preview Song', 'Preview Artist')
+    expect(result.isPreview).toBe(true)
+    expect(result.source).toBe('deezer')
+    expect(result.info.audioUrl).toBe('https://audio.deezer/preview')
+  })
 
 describe('findAudioFromUrl', () => {
   beforeEach(() => {

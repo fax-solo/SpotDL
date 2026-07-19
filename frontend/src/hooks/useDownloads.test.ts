@@ -25,6 +25,8 @@ vi.mock('../lib/nativePlugin', () => ({
   startDownloadForeground: vi.fn(),
   updateDownloadForeground: vi.fn(),
   stopDownloadForeground: vi.fn(),
+  nativeSendCompleteNotification: vi.fn(),
+  nativeSendErrorNotification: vi.fn(),
 }))
 
 vi.mock('@capacitor/core', () => ({

@@ -5,7 +5,7 @@ import { downloadFile } from '../lib/capacitorBridge'
 import { storeBlob } from '../lib/blobCache'
 import type { HistoryEntry } from './useHistory'
 import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendDownloadProgressNotification, cancelDownloadProgressNotification, sendBatchCompleteNotification, ensureNotificationPermission } from '../lib/notifications'
-import { startDownloadForeground, updateDownloadForeground, stopDownloadForeground } from '../lib/nativePlugin'
+import { startDownloadForeground, updateDownloadForeground, stopDownloadForeground, nativeSendCompleteNotification, nativeSendErrorNotification } from '../lib/nativePlugin'
 import { Capacitor } from '@capacitor/core'
 import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
 import { getDownloadLyrics } from '../lib/lyricsSettings'
@@ -181,8 +181,10 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 saveQueue(updated)
               })
           } catch {}
-          await ensureNotificationPermission()
-          startDownloadForeground()
+          const notifGranted = await ensureNotificationPermission()
+          if (notifGranted) {
+            startDownloadForeground()
+          }
         }
 
         while (true) {
@@ -277,6 +279,9 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 logDownload(item.track.title, item.track.artist).catch(() => {})
 
                 cancelDownloadProgressNotification(item.id)
+                if (Capacitor.isNativePlatform()) {
+                  nativeSendCompleteNotification(item.track.title, item.track.artist)
+                }
                 sendDownloadCompleteNotification({
                   title: item.track.title,
                   artist: item.track.artist,
@@ -307,6 +312,9 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   error: message,
                 })
                 cancelDownloadProgressNotification(item.id)
+                if (Capacitor.isNativePlatform()) {
+                  nativeSendErrorNotification(item.track.title, item.track.artist, message)
+                }
                 sendDownloadErrorNotification({
                   title: item.track.title,
                   artist: item.track.artist,

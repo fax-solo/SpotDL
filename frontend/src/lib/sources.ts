@@ -256,6 +256,7 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
     ]
 
     let bestCandidate: SourceCandidate | null = null
+    let bestPreviewCandidate: SourceCandidate | null = null
 
     const results = await Promise.allSettled(
       sources.map(source =>
@@ -268,16 +269,27 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
     for (const settled of results) {
       if (settled.status !== 'fulfilled' || !settled.value.result) continue
       const { result } = settled.value
+      if (result.isPreview) {
+        if (!bestPreviewCandidate || result.score > bestPreviewCandidate.score) {
+          bestPreviewCandidate = result
+        }
+        continue
+      }
       if (result.score >= 0.6) {
-        return { info: result.info, source: result.source, ...(result.isPreview !== undefined ? { isPreview: result.isPreview } : {}) }
+        return { info: result.info, source: result.source }
       }
       if (!bestCandidate || result.score > bestCandidate.score) {
         bestCandidate = result
       }
     }
 
-    if (bestCandidate) {
-      return { info: bestCandidate.info, source: bestCandidate.source, ...(bestCandidate.isPreview !== undefined ? { isPreview: bestCandidate.isPreview } : {}) }
+    const chosen = bestCandidate || bestPreviewCandidate
+    if (chosen) {
+      return {
+        info: chosen.info,
+        source: chosen.source,
+        ...(chosen.isPreview ? { isPreview: true } : {}),
+      }
     }
     const lastError = results.find(r => r.status === 'rejected')?.reason
     if (lastError instanceof Error) throw lastError

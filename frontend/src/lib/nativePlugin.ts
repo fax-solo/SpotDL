@@ -35,6 +35,8 @@ interface SpotDLPlugin {
   startDownloadForeground(options: { title?: string; count?: number }): Promise<{}>
   updateDownloadForeground(options: { title?: string; count?: number; progress?: number; stage?: string }): Promise<{}>
   stopDownloadForeground(): Promise<{}>
+  sendCompleteNotification(options: { title: string; artist: string }): Promise<{}>
+  sendErrorNotification(options: { title: string; artist: string; error?: string }): Promise<{}>
   startMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string; position?: number; duration?: number; currentLyricLine?: string }): Promise<{}>
   updateMediaForeground(options: { title?: string; artist?: string; artworkUrl?: string; position?: number; duration?: number; currentLyricLine?: string }): Promise<{}>
   stopMediaForeground(): Promise<{}>
@@ -91,6 +93,24 @@ export async function stopDownloadForeground(): Promise<void> {
     await SpotDL.stopDownloadForeground()
   } catch (e) {
     console.warn('[native] Failed to stop download foreground:', e)
+  }
+}
+
+export async function nativeSendCompleteNotification(title: string, artist: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.sendCompleteNotification({ title, artist })
+  } catch (e) {
+    console.warn('[native] Failed to send complete notification:', e)
+  }
+}
+
+export async function nativeSendErrorNotification(title: string, artist: string, error?: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await SpotDL.sendErrorNotification({ title, artist, error })
+  } catch (e) {
+    console.warn('[native] Failed to send error notification:', e)
   }
 }
 

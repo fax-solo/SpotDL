@@ -227,7 +227,7 @@ export async function downloadTrack(
   const quality = getQualitySettings()
   const ext = quality.format === 'm4a' ? '.m4a' : '.mp3'
   const variantSuffix = VARIANT_FILENAME_SUFFIXES[quality.variant || 'normal']
-  const filename = `${safe(meta.artist)} - ${safe(meta.title)}${variantSuffix}${ext}`
+  let filename = `${safe(meta.artist)} - ${safe(meta.title)}${variantSuffix}${ext}`
 
   // Try native plugin first (Android only)
   if (await nativeAvailable() && meta.url) {
@@ -333,6 +333,11 @@ export async function downloadTrack(
 
       if (!info.audioUrl) {
         throw new Error(`No downloadable audio found on ${source}`)
+      }
+
+      if (result.isPreview) {
+        filename = `${safe(meta.artist)} - ${safe(meta.title)}${variantSuffix} (Preview)${ext}`
+        onProgress?.('Only a 30-second preview is available for this track', 0)
       }
 
       signal?.throwIfAborted()
