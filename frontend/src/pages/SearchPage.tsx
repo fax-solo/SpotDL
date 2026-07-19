@@ -364,7 +364,7 @@ export function SearchPage() {
                     : topResult.type === 'album' ? topResult.item.id
                     : topResult.type === 'playlist' ? topResult.item.id
                     : topResult.item.id
-                  items = items.filter((item: any) => (item.url || item.id) !== skipId)
+                  items = items.filter((item: any) => (item.url || item.id) !== skipId) as typeof items
                   if (items.length === 0) return null
                 }
               }

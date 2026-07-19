@@ -5,7 +5,7 @@ const CHECK_INTERVAL = 30000
 
 export function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(true)
-  const checkRef = useRef<ReturnType<typeof setInterval>>()
+  const checkRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
   useEffect(() => {
     const check = async () => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon, User, LogOut, Camera, Shield, Mail, Pencil, Trash2, Globe, Cookie, Database } from 'lucide-react'
+import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon, User, LogOut, Camera, Shield, Mail, Pencil, Trash2, Cookie, Database } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
 import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
@@ -13,11 +13,13 @@ import { getCrossfadeDuration, setCrossfadeDuration } from '../lib/crossfadeSett
 import { getYoutubeCookies, setYoutubeCookies } from '../lib/auth'
 import { clearExpired, getCacheSize } from '../lib/dbCache'
 import { clearBlobCache } from '../lib/blobCache'
+import { useToast } from '../components/Toast'
 
 export function Settings() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { user, isGuest, logout, updateProfile, uploadAvatar, deleteAccount } = useAuth()
+  const { toast } = useToast()
 
   const [profileName, setProfileName] = useState(user?.display_name || '')
   const [profileNameEditing, setProfileNameEditing] = useState(false)

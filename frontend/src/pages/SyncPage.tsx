@@ -28,7 +28,7 @@ export function SyncPage() {
   const [subs, setSubs] = useState<Subscription[]>([])
   const [loading, setLoading] = useState(true)
   const [url, setUrl] = useState('')
-  const [interval, setInterval] = useState('daily')
+  const [syncInterval, setSyncInterval] = useState('daily')
   const [adding, setAdding] = useState(false)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [syncingAll, setSyncingAll] = useState(false)
@@ -43,7 +43,7 @@ export function SyncPage() {
   }
 
   // Auto-scheduler: poll every 60s and trigger sync for due subscriptions
-  const autoSyncTimer = useRef<ReturnType<typeof setInterval>>()
+  const autoSyncTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   useEffect(() => {
     if (subs.length === 0) return
     const check = async () => {
@@ -100,7 +100,7 @@ export function SyncPage() {
       const res = await fetch(apiUrl('/api/sync/subscribe'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), interval }),
+        body: JSON.stringify({ url: url.trim(), interval: syncInterval }),
       })
       if (res.ok) {
         toast('Playlist subscribed', 'success')
@@ -246,9 +246,9 @@ export function SyncPage() {
             {['manual', 'hourly', 'daily', 'weekly'].map(i => (
               <button
                 key={i}
-                onClick={() => setInterval(i)}
+                onClick={() => setSyncInterval(i)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer capitalize ${
-                  interval === i
+                  syncInterval === i
                     ? 'bg-accent text-white'
                     : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
                 }`}
