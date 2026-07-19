@@ -23,8 +23,13 @@ function normalizeOrigin(o: string): string {
   return `https://${s}`
 }
 
+function isAuthPath(url: string): boolean {
+  try { return new URL(url).pathname.startsWith('/api/auth/') } catch { return false }
+}
+
 function csrfCheck(request: Request, allowedOrigins?: string): void {
   if (SAFE_METHODS.has(request.method)) return
+  if (isAuthPath(request.url)) return
   let requestOrigin: string | null = null
 
   const origin = request.headers.get('Origin')

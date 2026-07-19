@@ -65,7 +65,7 @@ export function ArtworkImage({ src, alt, className, iconSize = 16, loading = 'la
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const fetchRef = useRef<AbortController | null>(null)
+  const blobUrlRef = useRef<string | null>(null)
 
   const optimizedSrc = useMemo(
     () => optimizeImageUrl(src, Math.max(iconSize * 2, 64)),
@@ -73,19 +73,14 @@ export function ArtworkImage({ src, alt, className, iconSize = 16, loading = 'la
   )
 
   useEffect(() => {
-    fetchRef.current?.abort()
-    setBlobUrl(null)
-    setLoaded(false)
-    setFailed(false)
-
     const url = optimizedSrc
+
     if (!url) {
       setLoaded(true)
       return
     }
 
     const ctrl = new AbortController()
-    fetchRef.current = ctrl
 
     const tryFetch = async (urls: string[], attempt = 0): Promise<void> => {
       if (ctrl.signal.aborted) return
@@ -95,9 +90,11 @@ export function ArtworkImage({ src, alt, className, iconSize = 16, loading = 'la
         return
       }
       try {
-        const blobUrl = await fetchWithCache(currentUrl, ctrl.signal)
+        const newBlobUrl = await fetchWithCache(currentUrl, ctrl.signal)
         if (!ctrl.signal.aborted) {
-          setBlobUrl(blobUrl)
+          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
+          blobUrlRef.current = newBlobUrl
+          setBlobUrl(newBlobUrl)
         }
       } catch {
         if (ctrl.signal.aborted) return
@@ -112,16 +109,14 @@ export function ArtworkImage({ src, alt, className, iconSize = 16, loading = 'la
 
     tryFetch([url])
 
-    return () => { ctrl.abort() }
-  }, [optimizedSrc])
-
-  useEffect(() => {
     return () => {
-      if (blobUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(blobUrl)
+      ctrl.abort()
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
       }
     }
-  }, [blobUrl])
+  }, [optimizedSrc])
 
   if (!src || failed) {
     return (

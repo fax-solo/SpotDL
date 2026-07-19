@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3, Plus, Star, ArrowRight, Headphones, Radio } from 'lucide-react'
+import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3, Plus, Star, ArrowRight, Headphones, Radio, Download } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
 import { searchSpotify, searchYouTubeTracks, searchDeezer, searchSoundCloud, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
 import { usePlayer } from '../hooks/usePlayer'
@@ -159,6 +159,10 @@ export function SearchPage() {
       setLoadingPlayId(null)
     }
   }, [loadingPlayId, play, toast])
+
+  const handleDownloadTrack = useCallback((item: SearchTrack) => {
+    navigate('/download', { state: { url: item.url } })
+  }, [navigate])
 
   useEffect(() => {
     setTimeout(() => { searchInputRef.current?.focus() }, 100)
@@ -429,8 +433,9 @@ export function SearchPage() {
                         </p>
                         <p className="text-xs text-light-muted dark:text-dark-muted truncate">
                           {type === 'artists' && `${item.followers?.toLocaleString() || 0} followers${item.genres?.length ? ` • ${item.genres.slice(0, 2).join(', ')}` : ''}`}
-                          {type === 'tracks' && isMultiTrack && `${item.artist} • ${item.album}`}
-                          {type === 'tracks' && !isMultiTrack && `${item.artist} • ${item.album}`}
+                          {type === 'tracks' && (
+                            <><span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/10 text-green-500 mr-1.5">Spotify</span>{item.artist} • {item.album}</>
+                          )}
                           {type === 'albums' && `${item.artist}${item.year ? ` • ${item.year}` : ''}`}
                           {type === 'playlists' && `${item.trackCount || 0} tracks${item.owner ? ` • ${item.owner}` : ''}`}
                           {type === 'shows' && `${item.publisher} • ${item.total_episodes || 0} episodes`}
@@ -451,20 +456,28 @@ export function SearchPage() {
                         </button>
                       )}
                       {(type === 'tracks' || type === 'playlists' || type === 'albums') && (
-                        <button
-                          onClick={e => { e.stopPropagation(); 
-                            if (type === 'tracks') handlePlayTrack(item)
-                            else if (type === 'playlists') handlePlayPlaylist(item)
-                            else if (type === 'albums') handlePlayAlbum(item)
-                          }}
-                          className="w-11 h-11 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-1 active-scale"
-                        >
-                          {loadingPlayId === item.id ? (
-                            <Loader2 className="w-4 h-4 text-white animate-spin" />
-                          ) : (
-                            <Play className="w-4 h-4 text-white ml-0.5" />
-                          )}
-                        </button>
+                        <>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDownloadTrack(item) }}
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-accent/10 transition-colors cursor-pointer"
+                          >
+                            <Download className="w-4 h-4 text-accent" />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); 
+                              if (type === 'tracks') handlePlayTrack(item)
+                              else if (type === 'playlists') handlePlayPlaylist(item)
+                              else if (type === 'albums') handlePlayAlbum(item)
+                            }}
+                            className="w-11 h-11 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-1 active-scale"
+                          >
+                            {loadingPlayId === item.id ? (
+                              <Loader2 className="w-4 h-4 text-white animate-spin" />
+                            ) : (
+                              <Play className="w-4 h-4 text-white ml-0.5" />
+                            )}
+                          </button>
+                        </>
                       )}
                     </button>
                   )})}
@@ -493,8 +506,8 @@ export function SearchPage() {
               const source = (r._source as string) || 'youtube'
               const isYt = source === 'youtube'
               const isDeezer = source === 'deezer'
-              const bgColor = isYt ? 'bg-red-500/10' : isDeezer ? 'bg-blue-500/10' : 'bg-orange-500/10'
-              const textColor = isYt ? 'text-red-500' : isDeezer ? 'text-blue-500' : 'text-orange-500'
+              const badgeBg = isYt ? 'bg-red-500/10 text-red-500' : isDeezer ? 'bg-blue-500/10 text-blue-500' : 'bg-orange-500/10 text-orange-500'
+              const thumbBg = isYt ? 'bg-red-500/10' : isDeezer ? 'bg-blue-500/10' : 'bg-orange-500/10'
               const icon = isYt ? <Play className="w-5 h-5 text-red-400/40" />
                 : isDeezer ? <Headphones className="w-5 h-5 text-blue-400/40" />
                 : <Radio className="w-5 h-5 text-orange-400/40" />
@@ -506,19 +519,32 @@ export function SearchPage() {
                   onClick={() => detailUrl ? navigate(detailUrl, { state: { title: r.title, thumbnail: r.thumbnail, url: r.url, author: r.author } }) : navigate('/download', { state: { url: r.url } })}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
                 >
-                  <div className={`w-10 h-10 rounded-lg ${bgColor} flex-shrink-0 overflow-hidden flex items-center justify-center`}>
+                  <div className={`w-10 h-10 rounded-lg ${thumbBg} flex-shrink-0 overflow-hidden flex items-center justify-center`}>
                     {r.thumbnail ? <ArtworkImage src={r.thumbnail} alt="" className="w-full h-full object-cover" /> : icon}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">{r.title}</p>
-                    <p className="text-xs text-light-muted dark:text-dark-muted truncate">{label} • {r.author || r.artist || 'Tap for details'}</p>
+                    <p className="text-xs text-light-muted dark:text-dark-muted truncate">
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${badgeBg} mr-1.5`}>{label}</span>
+                      {r.author || r.artist || 'Tap for details'}
+                    </p>
                   </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); navigate('/download', { state: { url: r.url } }) }}
-                    className={`px-3 py-1.5 text-xs ${bgColor} ${textColor} rounded-lg hover:opacity-80 transition-colors cursor-pointer shrink-0`}
-                  >
-                    Download
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={e => { e.stopPropagation(); navigate('/download', { state: { url: r.url } }) }}
+                      className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-accent/10 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-accent" />
+                    </button>
+                    {detailUrl && (
+                      <button
+                        onClick={e => { e.stopPropagation(); navigate(detailUrl, { state: { title: r.title, thumbnail: r.thumbnail, url: r.url, author: r.author } }) }}
+                        className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-accent/10 transition-colors cursor-pointer"
+                      >
+                        <ArrowRight className="w-4 h-4 text-accent" />
+                      </button>
+                    )}
+                  </div>
                 </button>
               )
             })}
