@@ -202,9 +202,15 @@ async function isServerAvailable(signal?: AbortSignal): Promise<boolean> {
 
 const MIN_BLOB_SIZE = 10240 // 10 KB — reject anything below as invalid
 
-function validateBlob(blob: Blob): void {
+function validateBlob(blob: Blob, durationMs?: number): void {
   if (blob.size < MIN_BLOB_SIZE) {
     throw new Error(`Downloaded file too small (${blob.size} bytes), likely invalid`)
+  }
+  if (durationMs && durationMs > 0) {
+    const estMinBytes = (durationMs / 1000) * 128 * 1000 / 8 * 0.3 // 30% of expected size at 128kbps
+    if (blob.size < estMinBytes) {
+      throw new Error(`Downloaded file too short for expected duration (${blob.size} bytes, expected ≥${Math.round(estMinBytes)}), likely a preview clip`)
+    }
   }
 }
 
@@ -255,12 +261,13 @@ export async function downloadTrack(
           artwork_url: meta.artwork_url,
           quality: dzQuality,
           isrc: meta.isrc || undefined,
+          duration_ms: meta.duration_ms || undefined,
         }),
         signal,
       })
       if (deezerRes.ok) {
         const blob = await deezerRes.blob()
-        validateBlob(blob)
+        validateBlob(blob, meta.duration_ms)
         onProgress?.('Done', 100)
         const dzExt = dzQuality === 'FLAC' ? '.flac' : ext
         return { blob, filename: filename.replace(ext, dzExt) }
@@ -292,7 +299,7 @@ export async function downloadTrack(
       })
       if (res.ok) {
         const blob = await res.blob()
-        validateBlob(blob)
+        validateBlob(blob, meta.duration_ms)
         onProgress?.('Done', 100)
         return { blob, filename }
       }

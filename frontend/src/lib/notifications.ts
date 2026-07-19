@@ -264,34 +264,6 @@ export async function sendBatchCompleteNotification(params: {
   }
 }
 
-export async function sendBackgroundPlaybackNotification(params: {
-  title: string
-  artist: string
-  artworkUrl?: string | null
-}): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return
-  const granted = await ensureNotificationPermission()
-  if (!granted) return
-  const ln = await getLN()
-  if (!ln) return
-  try {
-    await ln.schedule({
-      notifications: [{
-        id: 9999,
-        title: params.title,
-        body: `${params.artist} • Playing`,
-        smallIcon: 'ic_stat_icon',
-        iconColor: '#10B981',
-        actionTypeId: 'MEDIA_ACTIONS',
-        channelId: 'spotdl_media',
-        schedule: { at: new Date() },
-      }],
-    })
-  } catch {
-    // quietly ignore - this is best-effort
-  }
-}
-
 export async function cancelBackgroundPlaybackNotification(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   const ln = await getLN()

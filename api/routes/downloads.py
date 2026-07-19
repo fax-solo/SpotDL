@@ -36,6 +36,7 @@ class DeezerDownloadRequest(BaseModel):
     artwork_url: str | None = Field(default=None, max_length=2000)
     quality: str = Field(default="FLAC", pattern="^(FLAC|MP3)$", max_length=4)
     isrc: str | None = Field(default=None, max_length=50)
+    duration_ms: int | None = Field(default=None, ge=0)
 
 
 class LogDownloadRequest(BaseModel):
@@ -180,6 +181,7 @@ async def deezer_download(request: Request, body: DeezerDownloadRequest, _auth=D
                 artwork_url=body.artwork_url,
                 quality=body.quality,
                 isrc=body.isrc,
+                duration_ms=body.duration_ms,
             )
 
             def cleanup():

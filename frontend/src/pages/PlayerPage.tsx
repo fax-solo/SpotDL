@@ -3,6 +3,7 @@ import { Music, Play, Pause, SkipBack, SkipForward, Volume2, Shuffle, Repeat, Li
 import { usePlayer } from '../hooks/usePlayer'
 import { useNavigate } from 'react-router-dom'
 import { LyricsView } from '../components/LyricsView'
+import { ArtworkImage } from '../components/ArtworkImage'
 
 type Tab = 'now-playing' | 'lyrics' | 'queue'
 
@@ -79,7 +80,7 @@ export function PlayerPage() {
       {/* Artwork backdrop */}
       {currentTrack.artworkUrl && (
         <div className="fixed inset-0 -z-10">
-          <img src={currentTrack.artworkUrl} alt="" className="w-full h-full object-cover opacity-30 blur-3xl scale-110" />
+          <ArtworkImage src={currentTrack.artworkUrl} alt="" className="w-full h-full opacity-30 blur-3xl scale-110" />
           <div className="absolute inset-0 bg-white/60 dark:bg-black/60" />
         </div>
       )}
@@ -108,13 +109,12 @@ export function PlayerPage() {
           <div className="flex flex-col px-6 pt-6 pb-8">
             {/* Artwork */}
             <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl mb-6 bg-gradient-to-br from-accent/10 to-purple-500/10">
-              {currentTrack.artworkUrl ? (
-                <img src={currentTrack.artworkUrl} alt={currentTrack.album || ''} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Music className="w-24 h-24 text-light-muted dark:text-dark-muted" />
-                </div>
-              )}
+              <ArtworkImage
+                src={currentTrack.artworkUrl}
+                alt={currentTrack.album || ''}
+                className="w-full h-full"
+                iconSize={96}
+              />
             </div>
 
             {/* Track info */}
@@ -267,13 +267,12 @@ export function PlayerPage() {
                     <div className="cursor-grab active:cursor-grabbing text-light-muted/40 dark:text-dark-muted/40 hover:text-light-muted dark:hover:text-dark-muted flex-shrink-0">
                       <GripVertical className="w-4 h-4" />
                     </div>
-                    {t.artworkUrl ? (
-                      <img src={t.artworkUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                        <Music className="w-4 h-4 text-light-muted dark:text-dark-muted" />
-                      </div>
-                    )}
+                    <ArtworkImage
+                      src={t.artworkUrl}
+                      alt=""
+                      className="w-10 h-10 rounded-lg flex-shrink-0"
+                      iconSize={16}
+                    />
                     <div className="flex-1 min-w-0">
                       <p className={`truncate text-sm ${i === queueIndex ? 'text-accent' : ''}`}>{t.title}</p>
                       <p className="truncate text-xs text-light-muted dark:text-dark-muted">{t.artist}</p>

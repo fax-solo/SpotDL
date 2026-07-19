@@ -30,7 +30,7 @@ import {
   cancelDownloadProgressNotification,
   sendAppUpdateNotification,
   sendBatchCompleteNotification,
-  sendBackgroundPlaybackNotification,
+
   cancelBackgroundPlaybackNotification,
 } from './notifications'
 
@@ -151,31 +151,6 @@ describe('sendBatchCompleteNotification', () => {
     const notification = mockSchedule.mock.calls[0][0].notifications[0]
     expect(notification.body).toContain('8 downloaded')
     expect(notification.body).toContain('2 failed')
-  })
-})
-
-describe('sendBackgroundPlaybackNotification', () => {
-  beforeEach(() => {
-    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
-    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
-  })
-
-  it('sends playback notification with fixed id 9999', async () => {
-    mockSchedule.mockResolvedValue({ notifications: [{ id: 9999 }] })
-    await sendBackgroundPlaybackNotification({
-      title: 'Playing Now',
-      artist: 'The Artist',
-    })
-    const notification = mockSchedule.mock.calls[0][0].notifications[0]
-    expect(notification.id).toBe(9999)
-    expect(notification.body).toContain('Playing')
-  })
-
-  it('handles errors silently', async () => {
-    mockSchedule.mockRejectedValue(new Error('fail'))
-    await expect(
-      sendBackgroundPlaybackNotification({ title: 'x', artist: 'y' })
-    ).resolves.toBeUndefined()
   })
 })
 

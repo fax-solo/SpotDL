@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Capacitor } from '@capacitor/core'
 import type { HistoryEntry } from './useHistory'
-import { cancelBackgroundPlaybackNotification } from '../lib/notifications'
 import { stopMediaForeground } from '../lib/nativePlugin'
 
 export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying: boolean) {
@@ -44,12 +43,10 @@ export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying:
     if (isPlaying) {
       acquireWakeLock()
     } else {
-      cancelBackgroundPlaybackNotification()
       releaseWakeLock()
     }
 
     return () => {
-      cancelBackgroundPlaybackNotification()
     }
   }, [isPlaying])
 
@@ -73,7 +70,6 @@ export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying:
     if (!Capacitor.isNativePlatform() || !currentTrack || !isPlaying) return
 
     const handleBeforeUnload = () => {
-      cancelBackgroundPlaybackNotification()
       stopMediaForeground()
     }
     window.addEventListener('beforeunload', handleBeforeUnload)

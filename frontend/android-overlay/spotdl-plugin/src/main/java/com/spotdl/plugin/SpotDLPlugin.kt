@@ -384,17 +384,36 @@ class SpotDLPlugin : Plugin() {
 
         Thread {
             try {
-                val conn = java.net.URL("$LOCAL_URL/download/process").openConnection() as java.net.HttpURLConnection
+                val conn = java.net.URL("$LOCAL_URL/download").openConnection() as java.net.HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.connectTimeout = 30000
-                conn.readTimeout = 60000
+                conn.readTimeout = 120000
 
                 val requestBody = """{"url": "$url"}"""
                 conn.outputStream.use { it.write(requestBody.toByteArray()) }
 
-                val bytes = conn.inputStream.readBytes()
+                val responseBytes = conn.inputStream.readBytes()
+                val responseStr = String(responseBytes, Charsets.UTF_8)
+                val responseJson = org.json.JSONObject(responseStr)
+
+                if (responseJson.has("error")) {
+                    throw Exception(responseJson.getString("error"))
+                }
+
+                val filesArray = responseJson.getJSONArray("files")
+                if (filesArray.length() == 0) {
+                    throw Exception("No files downloaded")
+                }
+
+                val sourcePath = filesArray.getString(0)
+                val sourceFile = java.io.File(sourcePath)
+                if (!sourceFile.exists()) {
+                    throw Exception("Downloaded file not found: $sourcePath")
+                }
+
+                val bytes = sourceFile.readBytes()
                 val ctx = context
                 val filePath: String
 
@@ -416,6 +435,11 @@ class SpotDLPlugin : Plugin() {
                     val file = java.io.File(musicDir, filename)
                     file.writeBytes(bytes)
                     filePath = file.absolutePath
+                }
+
+                val outputDir = responseJson.optString("output_dir", "")
+                if (outputDir.isNotEmpty()) {
+                    java.io.File(outputDir).deleteRecursively()
                 }
 
                 activity.runOnUiThread {

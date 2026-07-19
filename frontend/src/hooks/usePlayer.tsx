@@ -355,9 +355,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         await fadeVolume(audio, 0, volume, crossfadeMs / 2)
       }
       setMediaSession(track)
-      await ensureNotificationPermission()
-      const initialLine = syncedLinesRef.current.length > 0 ? syncedLinesRef.current[0].text : undefined
-      startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined, 0, audio.duration, initialLine)
+      if (await ensureNotificationPermission()) {
+        const initialLine = syncedLinesRef.current.length > 0 ? syncedLinesRef.current[0].text : undefined
+        startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined, 0, audio.duration, initialLine)
+      }
     } catch {
       audio.volume = volume
       setIsPlaying(false)
@@ -370,7 +371,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       title: track.title,
       artist: track.artist,
       album: track.album,
-      artwork: track.artworkUrl ? [{ src: track.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : []
+      artwork: track.artworkUrl ? [{ src: track.artworkUrl }] : []
     })
   }, [])
 

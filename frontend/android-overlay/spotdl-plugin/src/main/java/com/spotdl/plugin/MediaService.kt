@@ -25,6 +25,7 @@ import java.util.concurrent.Executors
 
 class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
     private var mediaSession: MediaSession? = null
+    @Volatile
     private var cachedArtwork: Bitmap? = null
     private val executor = Executors.newSingleThreadExecutor()
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -191,11 +192,14 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
         executor.submit {
             try {
                 val connection = URL(url).openConnection()
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
                 connection.connectTimeout = 5000
                 connection.readTimeout = 5000
-                val bitmap = BitmapFactory.decodeStream(connection.getInputStream())
+                val bytes = connection.getInputStream().readBytes()
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 if (bitmap != null) {
                     cachedArtwork = bitmap
+                    updatePlaybackState(isCurrentlyPlaying)
                     val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     notificationManager.notify(NOTIFICATION_ID, createNotification(
                         currentTitle ?: "Track",
@@ -264,6 +268,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setSilent(true)
             .setShowWhen(false)
 
@@ -338,10 +343,12 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
 
     private fun createChannel() {
         val channel = NotificationChannel(
-            CHANNEL_ID, "Music Playback", NotificationManager.IMPORTANCE_LOW,
+            CHANNEL_ID, "Music Playback", NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
             description = "Shows currently playing track with lock screen controls"
             setShowBadge(false)
+            enableVibration(false)
+            setSound(null, null)
         }
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)

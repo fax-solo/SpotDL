@@ -126,6 +126,7 @@ class DeezerClient:
         artwork_url: str | None,
         quality: str = "FLAC",
         isrc: str | None = None,
+        duration_ms: int | None = None,
     ) -> tuple[str, str]:
         track = None
         if isrc:
@@ -137,7 +138,7 @@ class DeezerClient:
 
         deezer_id = track["id"]
         logger.info(f"deezer: matched '{title}' -> Deezer ID {deezer_id} ({track.get('title')} - {track.get('artist', {}).get('name', '')})")
-        return self.download_track(deezer_id, title, artist, album, artwork_url, quality)
+        return self.download_track(deezer_id, title, artist, album, artwork_url, quality, duration_ms)
 
     def download_track(
         self,
@@ -147,6 +148,7 @@ class DeezerClient:
         album: str,
         artwork_url: str | None,
         quality: str = "FLAC",
+        duration_ms: int | None = None,
     ) -> tuple[str, str]:
         info = self.get_download_info(deezer_id)
         download_url = info["url"]
@@ -169,6 +171,21 @@ class DeezerClient:
                 raise DeezerError(f"Download failed: {resp.status_code}")
 
             _decrypt_stream(resp, encrypted_path)
+
+            if duration_ms and duration_ms > 0:
+                try:
+                    from mutagen.mp3 import MP3 as MP3Tag
+                    audio_check = MP3Tag(encrypted_path)
+                    actual_duration = int(audio_check.info.length * 1000)
+                    if actual_duration < duration_ms * 0.5:
+                        raise DeezerError(
+                            f"Downloaded audio too short ({actual_duration}ms vs expected {duration_ms}ms) — "
+                            "likely a free-tier preview clip. Use a premium Deezer ARL."
+                        )
+                except Exception as e:
+                    if isinstance(e, DeezerError):
+                        raise
+                    logger.warning(f"deezer: could not validate duration for {title}: {e}")
 
             if is_flac and _is_flac_file(encrypted_path):
                 _tag_flac(encrypted_path, output_path, title, artist, album, artwork_url)
