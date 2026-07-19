@@ -197,7 +197,6 @@ async function handleInfo(trackUrl) {
           }
         }
       }
-    }
 
     scrapeLog('soundcloud', 'info_ok', { path, has_audio: !!audioUrl })
     return scrapeResponse({
