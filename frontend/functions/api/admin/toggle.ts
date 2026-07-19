@@ -65,7 +65,7 @@ export const onRequest: RouteHandler = async (context) => {
     is_active ? 'enable_user' : 'disable_user',
     JSON.stringify({ target_user_id: user_id }),
     new Date().toISOString(),
-  ).run().catch(() => {})
+  ).run().catch(e => console.error('admin_log insert failed', e))
 
   return json({ ok: true })
 }

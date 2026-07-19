@@ -141,15 +141,20 @@ async def download(request: Request, body: DownloadRequest, _auth=Depends(verify
 @limiter.limit("10/minute")
 async def download_stream(request: Request, body: DownloadRequest, _auth=Depends(verify_api_key)):
     from downloader import stream_download
+    import asyncio
 
     async def generate():
         async with _download_semaphore:
-            buffer = b""
-            async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url, body.quality or "320", body.format or "mp3"):
-                if isinstance(chunk, str):
-                    yield chunk.encode()
-                else:
-                    buffer += chunk
+            try:
+                async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url, body.quality or "320", body.format or "mp3"):
+                    if await request.is_disconnected():
+                        raise asyncio.CancelledError()
+                    if isinstance(chunk, str):
+                        yield chunk.encode()
+                    else:
+                        yield chunk
+            except asyncio.CancelledError:
+                pass
 
     return StreamingResponse(
         generate(),
@@ -166,46 +171,48 @@ async def download_stream(request: Request, body: DownloadRequest, _auth=Depends
 async def deezer_download(request: Request, body: DeezerDownloadRequest, _auth=Depends(verify_api_key)):
     from deezer import DeezerClient, DeezerError
 
+    client: DeezerClient | None = None
     try:
         client = DeezerClient(body.arl)
-    except DeezerError as e:
+    except DeezerError:
         raise HTTPException(status_code=401, detail="Deezer authentication failed")
 
-    async with _download_semaphore:
-        try:
-            filepath, ext = await asyncio.to_thread(
-                client.search_and_download,
-                title=body.title,
-                artist=body.artist,
-                album=body.album,
-                artwork_url=body.artwork_url,
-                quality=body.quality,
-                isrc=body.isrc,
-                duration_ms=body.duration_ms,
-            )
+    try:
+        async with _download_semaphore:
+            try:
+                filepath, ext = await asyncio.to_thread(
+                    client.search_and_download,
+                    title=body.title,
+                    artist=body.artist,
+                    album=body.album,
+                    artwork_url=body.artwork_url,
+                    quality=body.quality,
+                    isrc=body.isrc,
+                    duration_ms=body.duration_ms,
+                )
 
-            def cleanup():
-                import shutil
-                parent = os.path.dirname(filepath)
-                if os.path.isdir(parent):
-                    shutil.rmtree(parent, ignore_errors=True)
+                def cleanup():
+                    parent = os.path.dirname(filepath)
+                    if os.path.isdir(parent):
+                        shutil.rmtree(parent, ignore_errors=True)
 
-            safe_artist = body.artist.replace("/", "_").replace("\\", "_")
-            safe_title = body.title.replace("/", "_").replace("\\", "_")
-            filename = f"{safe_artist} - {safe_title}{ext}"
-            media_type = "audio/flac" if ext == ".flac" else "audio/mpeg"
+                safe_artist = body.artist.replace("/", "_").replace("\\", "_")
+                safe_title = body.title.replace("/", "_").replace("\\", "_")
+                filename = f"{safe_artist} - {safe_title}{ext}"
+                media_type = "audio/flac" if ext == ".flac" else "audio/mpeg"
 
-            return FileResponse(
-                path=filepath,
-                media_type=media_type,
-                filename=filename,
-                background=BackgroundTask(cleanup),
-            )
+                return FileResponse(
+                    path=filepath,
+                    media_type=media_type,
+                    filename=filename,
+                    background=BackgroundTask(cleanup),
+                )
 
-        except DeezerError as e:
-            raise HTTPException(status_code=502, detail=str(e))
-        except Exception:
-            logger.exception("Deezer download failed")
-            raise HTTPException(status_code=502, detail="Deezer download failed")
-        finally:
+            except DeezerError as e:
+                raise HTTPException(status_code=502, detail=str(e))
+            except Exception:
+                logger.exception("Deezer download failed")
+                raise HTTPException(status_code=502, detail="Deezer download failed")
+    finally:
+        if client:
             client.close()

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { getAudioSrc } from '../lib/capacitorBridge'
-import { findAudio } from '../lib/sources'
+import { findAudio, preResolveAudio } from '../lib/sources'
 import { getCrossfadeDuration } from '../lib/crossfadeSettings'
 import type { HistoryEntry } from './useHistory'
 import { useBackgroundAudio } from './useBackgroundAudio'
@@ -94,8 +94,11 @@ function fadeVolume(audio: HTMLAudioElement, from: number, to: number, duration:
 function shuffleArray<T>(arr: T[]): T[] {
   const copy = [...arr]
   for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]]
+    const j = Math.floor(Math.random() * (i + 1))
+    const a = copy[i]!
+    const b = copy[j]!
+    copy[i] = b
+    copy[j] = a
   }
   return copy
 }
@@ -178,11 +181,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
 
       if (rpt === 'one') {
-        playTrack(q[idx], q, idx)
+        const current = q[idx]
+        if (current) playTrack(current, q, idx)
         return
       }
 
-      let nextIdx: number
+      let nextIdx: number | undefined
       if (shf && sOrder.length > 1) {
         const currentPos = sOrder.indexOf(idx)
         const nextPos = currentPos + 1
@@ -226,7 +230,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      playTrack(q[nextIdx], q, nextIdx)
+      if (nextIdx === undefined) return
+      const nextTrack = q[nextIdx]
+      if (nextTrack) playTrack(nextTrack, q, nextIdx)
     }
 
     const onError = () => {
@@ -235,7 +241,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (idx < 0 || idx >= q.length) return
       const nextIdx = idx + 1
       if (nextIdx < q.length) {
-        playTrack(q[nextIdx], q, nextIdx)
+        const nextTrack = q[nextIdx]
+        if (nextTrack) playTrack(nextTrack, q, nextIdx)
       } else {
         setIsPlaying(false)
         stopMediaForeground()
@@ -283,6 +290,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [repeatMode])
 
   const playTrack = useCallback(async (track: HistoryEntry, q: HistoryEntry[], idx: number) => {
+    const trackAtIdx = q[idx]
+    if (!trackAtIdx) return
     const prev = currentTrackRef.current
     const audio = audioRef.current
     if (!audio) return
@@ -356,8 +365,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       setMediaSession(track)
       if (await ensureNotificationPermission()) {
-        const initialLine = syncedLinesRef.current.length > 0 ? syncedLinesRef.current[0].text : undefined
-        startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined, 0, audio.duration, initialLine)
+        const initialLine = syncedLinesRef.current[0]?.text
+      startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined, 0, audio.duration, initialLine)
+        }
+      // Preload next track in queue
+      const nextIdx = idx + 1
+      const nextTrack = q[nextIdx]
+      if (nextTrack?.title) {
+        preResolveAudio(nextTrack.title, nextTrack.artist || '', undefined).catch(() => {})
       }
     } catch {
       audio.volume = volume
@@ -390,10 +405,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return [currentIdx, ...shuffled]
   }, [])
 
-  const play = useCallback((track: HistoryEntry, q?: HistoryEntry[]) => {
+    const play = useCallback((track: HistoryEntry, q?: HistoryEntry[]) => {
     const qFinal = q || [track]
     const idx = qFinal.findIndex(t => t.id === track.id)
     const queueIdx = idx >= 0 ? idx : 0
+    const firstTrack = qFinal[queueIdx]
+    if (!firstTrack) return Promise.resolve()
 
     if (shuffleRef.current && qFinal.length > 1) {
       const order = buildShuffleOrder(qFinal, queueIdx)
@@ -402,7 +419,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setShuffleOrder([])
     }
 
-    return playTrack(qFinal[queueIdx], qFinal, queueIdx)
+    return playTrack(firstTrack, qFinal, queueIdx)
   }, [playTrack, buildShuffleOrder])
 
   const pause = useCallback(() => {
@@ -435,7 +452,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const idx = queueIndexRef.current
     const sOrder = shuffleOrderRef.current
 
-    let nextIdx: number
+    let nextIdx: number | undefined
     if (shf && sOrder.length > 1) {
       const currentPos = sOrder.indexOf(idx)
       if (currentPos < sOrder.length - 1) {
@@ -448,7 +465,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (nextIdx >= q.length) return
     }
 
-    playTrack(q[nextIdx], q, nextIdx)
+    if (nextIdx === undefined) return
+    const nextTrack = q[nextIdx]
+    if (nextTrack) playTrack(nextTrack, q, nextIdx)
   }, [playTrack])
 
   const prev = useCallback(() => {
@@ -463,7 +482,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const idx = queueIndexRef.current
     const sOrder = shuffleOrderRef.current
 
-    let prevIdx: number
+    let prevIdx: number | undefined
     if (shf && sOrder.length > 1) {
       const currentPos = sOrder.indexOf(idx)
       if (currentPos > 0) {
@@ -476,7 +495,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (prevIdx < 0) return
     }
 
-    playTrack(q[prevIdx], q, prevIdx)
+    if (prevIdx === undefined) return
+    const prevTrack = q[prevIdx]
+    if (prevTrack) playTrack(prevTrack, q, prevIdx)
   }, [playTrack])
 
   const seek = useCallback((time: number) => {
@@ -544,6 +565,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= prev.length || toIndex >= prev.length) return prev
       const next = [...prev]
       const [moved] = next.splice(fromIndex, 1)
+      if (!moved) return prev
       next.splice(toIndex, 0, moved)
       let adjustedIdx = queueIndexRef.current
       if (fromIndex === adjustedIdx) {
@@ -644,15 +666,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useBackgroundAudio(currentTrack, isPlaying)
 
   useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play', resume)
-      navigator.mediaSession.setActionHandler('pause', pause)
-      navigator.mediaSession.setActionHandler('previoustrack', prev)
-      navigator.mediaSession.setActionHandler('nexttrack', next)
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime != null) seek(details.seekTime)
-      })
-      navigator.mediaSession.setActionHandler('stop', pause)
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.setActionHandler('play', resume)
+    navigator.mediaSession.setActionHandler('pause', pause)
+    navigator.mediaSession.setActionHandler('previoustrack', prev)
+    navigator.mediaSession.setActionHandler('nexttrack', next)
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (details.seekTime != null) seek(details.seekTime)
+    })
+    navigator.mediaSession.setActionHandler('stop', pause)
+    return () => {
+      navigator.mediaSession.setActionHandler('play', null)
+      navigator.mediaSession.setActionHandler('pause', null)
+      navigator.mediaSession.setActionHandler('previoustrack', null)
+      navigator.mediaSession.setActionHandler('nexttrack', null)
+      navigator.mediaSession.setActionHandler('seekto', null)
+      navigator.mediaSession.setActionHandler('stop', null)
     }
   }, [resume, pause, prev, next, seek])
 

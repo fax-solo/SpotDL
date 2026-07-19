@@ -3,8 +3,10 @@ function abortTimeout(ms) {
     return AbortSignal.timeout(ms)
   }
   const controller = new AbortController()
-  setTimeout(() => controller.abort(), ms)
-  return controller.signal
+  const timer = setTimeout(() => controller.abort(), ms)
+  const signal = controller.signal
+  signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
+  return signal
 }
 
 const RETRYABLE_CODES = new Set([429, 403, 502, 503, 504])

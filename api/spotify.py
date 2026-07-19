@@ -21,8 +21,11 @@ if _env_path.exists():
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from cryptography.fernet import Fernet
+from shared import requests_retry_session
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
+
+_session = requests_retry_session()
 
 URL_PATTERNS = {
     "track": re.compile(r"spotify\.com/track/([a-zA-Z0-9]+)"),
@@ -41,7 +44,7 @@ def parse_url(url: str) -> tuple[str, str] | None:
 
 def _fetch_embed_data(kind: str, spotify_id: str) -> dict:
     url = f"https://open.spotify.com/embed/{kind}/{spotify_id}"
-    resp = requests.get(url, headers=HEADERS, timeout=15)
+    resp = _session.get(url, headers=HEADERS, timeout=15)
     resp.raise_for_status()
     html = resp.text
 
@@ -228,8 +231,9 @@ def _get_fernet() -> Fernet | None:
 
 
 def _save_token_store() -> None:
-    TOKEN_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    data = json.dumps(_user_auth)
+    with _token_lock:
+        TOKEN_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        data = json.dumps(_user_auth)
     fernet = _get_fernet()
     if fernet:
         data = fernet.encrypt(data.encode()).decode()
@@ -248,9 +252,10 @@ def _load_token_store() -> None:
                     logger.warning("token_store decryption failed, ignoring")
                     return
             d = json.loads(raw)
-            _user_auth["access_token"] = d.get("access_token")
-            _user_auth["refresh_token"] = d.get("refresh_token")
-            _user_auth["expires_at"] = d.get("expires_at", 0)
+            with _token_lock:
+                _user_auth["access_token"] = d.get("access_token")
+                _user_auth["refresh_token"] = d.get("refresh_token")
+                _user_auth["expires_at"] = d.get("expires_at", 0)
         except Exception:
             logger.warning("token_store.json corrupted, ignoring")
             TOKEN_STORE_PATH.unlink(missing_ok=True)
@@ -284,7 +289,7 @@ def handle_spotify_callback(code: str, redirect_uri: str | None = None) -> dict:
         "http://localhost:8000/api/auth/spotify/callback",
     )
 
-    resp = requests.post(
+    resp = _session.post(
         "https://accounts.spotify.com/api/token",
         data={
             "grant_type": "authorization_code",
@@ -298,9 +303,10 @@ def handle_spotify_callback(code: str, redirect_uri: str | None = None) -> dict:
     resp.raise_for_status()
     data = resp.json()
 
-    _user_auth["access_token"] = data["access_token"]
-    _user_auth["refresh_token"] = data.get("refresh_token", "")
-    _user_auth["expires_at"] = time.time() + data["expires_in"]
+    with _token_lock:
+        _user_auth["access_token"] = data["access_token"]
+        _user_auth["refresh_token"] = data.get("refresh_token", "")
+        _user_auth["expires_at"] = time.time() + data["expires_in"]
     _save_token_store()
 
     return data
@@ -334,7 +340,7 @@ def _refresh_user_token() -> None:
     client_id = os.environ.get("SPOTIFY_CLIENT_ID")
     client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
 
-    resp = requests.post(
+    resp = _session.post(
         "https://accounts.spotify.com/api/token",
         data={
             "grant_type": "refresh_token",
@@ -355,9 +361,8 @@ def _refresh_user_token() -> None:
 
 
 def is_user_authenticated() -> bool:
-    if not _user_auth["access_token"]:
-        return False
-    return True
+    with _token_lock:
+        return bool(_user_auth["access_token"])
 
 
 def _get_spotify_token() -> str | None:
@@ -374,7 +379,7 @@ def _get_spotify_token() -> str | None:
     }
     data = {"grant_type": "client_credentials"}
 
-    resp = requests.post("https://accounts.spotify.com/api/token", headers=headers, data=data, timeout=10)
+    resp = _session.post("https://accounts.spotify.com/api/token", headers=headers, data=data, timeout=10)
     if resp.status_code == 200:
         return resp.json().get("access_token")
     else:
@@ -388,7 +393,7 @@ def _get_spotify_token() -> str | None:
 
 def _fetch_official_track(track_id: str, token: str) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(f"https://api.spotify.com/v1/tracks/{track_id}", headers=headers, timeout=10)
+    resp = _session.get(f"https://api.spotify.com/v1/tracks/{track_id}", headers=headers, timeout=10)
     resp.raise_for_status()
     data = resp.json()
 
@@ -419,7 +424,7 @@ def _extract_track_artwork(track: dict) -> str | None:
 def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
 
-    coll_resp = requests.get(f"https://api.spotify.com/v1/{kind}s/{collection_id}", headers=headers, timeout=10)
+    coll_resp = _session.get(f"https://api.spotify.com/v1/{kind}s/{collection_id}", headers=headers, timeout=10)
     coll_resp.raise_for_status()
     coll_data = coll_resp.json()
 
@@ -433,7 +438,7 @@ def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dic
     max_limit = 50 if kind == "album" else 100
     url = f"https://api.spotify.com/v1/{kind}s/{collection_id}/tracks?limit={max_limit}"
     while url:
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = _session.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         data = resp.json()
 

@@ -32,7 +32,7 @@ export function AddToPlaylistModal({ track, onClose }: AddToPlaylistModalProps) 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Add to playlist" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40" />
       <div
         className="relative w-full sm:max-w-sm bg-white dark:bg-dark-surface rounded-t-2xl sm:rounded-2xl p-5 pb-8 max-h-[70vh] overflow-y-auto"

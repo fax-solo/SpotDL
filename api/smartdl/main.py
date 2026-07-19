@@ -104,9 +104,7 @@ async def download_process(
     if meta.cover_art_url:
         cover_data = await asyncio.to_thread(_download_cover, meta.cover_art_url)
 
-    filepath, ext, tmpdir = await asyncio.to_thread(
-        download_audio, meta.artist, meta.title, quality,
-    )
+    filepath, ext, tmpdir = await download_audio(meta.artist, meta.title, quality)
 
     await asyncio.to_thread(
         tag_mp3, filepath, meta.title, meta.artist, meta.album, cover_data,

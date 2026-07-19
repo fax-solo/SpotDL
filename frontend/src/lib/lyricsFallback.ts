@@ -75,7 +75,7 @@ async function fetchMusixMatch(artist: string, title: string): Promise<string | 
     const match = contents.match(/<p[^>]*class="mxm-lyrics__content[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
     if (!match) return null
 
-    return match[1]
+    return match[1]!
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<[^>]+>/g, '')
       .trim()

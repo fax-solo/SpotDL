@@ -18,7 +18,8 @@ export function clearDeezerArl(): void {
 export type DeezerQuality = 'FLAC' | 'MP3'
 
 export function getDeezerQuality(): DeezerQuality {
-  return (localStorage.getItem(DEEZER_QUALITY_KEY) as DeezerQuality) || 'FLAC'
+  const val = localStorage.getItem(DEEZER_QUALITY_KEY)
+  return VALID_QUALITIES.includes(val as string) ? (val as DeezerQuality) : 'FLAC'
 }
 
 export function setDeezerQuality(quality: DeezerQuality): void {
@@ -39,13 +40,19 @@ export interface DeezerTrack {
   source: string
 }
 
+const VALID_QUALITIES = ['FLAC', 'MP3']
+const DEEZER_ERROR_PREFIX = '[deezer]'
+
 async function callFunction(body: Record<string, unknown>) {
   const res = await fetch(apiUrl('/api/deezer'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) return null
+  if (!res.ok) {
+    console.warn(`${DEEZER_ERROR_PREFIX} HTTP ${res.status}:`, body.action)
+    return null
+  }
   return res.json()
 }
 

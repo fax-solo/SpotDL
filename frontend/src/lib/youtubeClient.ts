@@ -2,7 +2,6 @@ import { Capacitor } from '@capacitor/core'
 import { apiUrl } from './apiConfig'
 
 const FUNCTIONS_BASE = () => apiUrl('/api/youtube')
-const PIPED_API = 'https://pipedapi.kavin.rocks'
 
 export interface YouTubeSearchResult {
   videoId: string
@@ -43,8 +42,9 @@ function abortTimeout(ms: number): AbortSignal {
 async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null> {
   // Skip Piped on native — it's slow and unreliable on mobile networks
   if (isNative()) return null
-  try {
-    const res = await fetch(`${PIPED_API}/search?q=${encodeURIComponent(query)}&filter=videos`, {
+
+  async function tryInstance(api: string): Promise<YouTubeSearchResult[] | null> {
+    const res = await fetch(`${api}/search?q=${encodeURIComponent(query)}&filter=videos`, {
       signal: abortTimeout(3000),
     })
     if (!res.ok) return null
@@ -61,9 +61,13 @@ async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null>
       }))
       .filter((r: YouTubeSearchResult) => r.videoId)
     return results.length > 0 ? results : null
-  } catch {
-    return null
   }
+
+  const settled = await Promise.allSettled(PIPED_INSTANCES.map(tryInstance))
+  for (const r of settled) {
+    if (r.status === 'fulfilled' && r.value) return r.value
+  }
+  return null
 }
 
 const PIPED_INSTANCES = [
@@ -155,7 +159,7 @@ function extractVideoId(url: string): string | null {
   ]
   for (const pattern of patterns) {
     const m = pattern.exec(url)
-    if (m) return m[1]
+    if (m) return m[1] ?? null
   }
   return null
 }

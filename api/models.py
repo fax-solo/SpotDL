@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Float, ForeignKey, BigInteger, BigInteger
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Float, ForeignKey, BigInteger
 from sqlalchemy.orm import relationship
 from database import Base
 
 
 def _utcnow():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc)
 
 
 def _uuid():

@@ -24,7 +24,8 @@ function extractColors(url: string): Promise<string[]> {
       const ctx = canvas.getContext('2d')
       if (!ctx) { resolve([]); return }
       ctx.drawImage(img, 0, 0, 1, 1)
-      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+      const d = ctx.getImageData(0, 0, 1, 1).data
+      const r = d[0] ?? 0, g = d[1] ?? 0, b = d[2] ?? 0
       resolve([`rgb(${r},${g},${b})`, `rgb(${Math.min(r + 40, 255)},${Math.min(g + 30, 255)},${Math.min(b + 50, 255)})`])
     }
     img.onerror = () => resolve([])

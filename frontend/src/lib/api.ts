@@ -1,6 +1,6 @@
 import { isAuthenticated } from './spotifyAuth'
 import type { TrackMeta, CollectionMeta } from './spotifyApi'
-import { findAudio, findAudioFromUrl } from './sources'
+import { findAudio, findAudioFromUrl, stashPreResolvedAudio } from './sources'
 import { downloadAudio } from './audioProcessor'
 import { apiUrl } from './apiConfig'
 import { cachedFetch } from './requestCache'
@@ -42,7 +42,7 @@ const SPOTIFY_PATTERNS: Record<string, RegExp> = {
 export function parseSpotifyUrl(url: string): { type: string; id: string } | null {
   for (const [type, pattern] of Object.entries(SPOTIFY_PATTERNS)) {
     const m = pattern.exec(url)
-    if (m) return { type, id: m[1] }
+    if (m) return { type, id: m[1]! }
   }
   return null
 }
@@ -92,11 +92,11 @@ export async function fetchMetadata(url: string): Promise<TrackMeta | Collection
     try {
       const tracks = await nativeFetchMetadata(url)
       if (tracks.length === 1) {
-        const t = tracks[0]
-        return { title: t.title, artist: t.artist, album: t.album, artwork_url: t.artworkUrl, url: t.url, type: 'track' }
+        const t = tracks[0]!
+        return { title: t.title, artist: t.artist, album: t.album, artwork_url: t.artworkUrl!, url: t.url!, type: 'track' }
       }
       if (tracks.length > 1) {
-        const first = tracks[0]
+        const first = tracks[0]!
         const collectionType = url.includes('/album/') ? 'album' : 'playlist'
         return {
           collection_name: first.album,
@@ -263,7 +263,7 @@ export async function downloadTrack(
           isrc: meta.isrc || undefined,
           duration_ms: meta.duration_ms || undefined,
         }),
-        signal,
+        ...(signal ? { signal } : {}),
       })
       if (deezerRes.ok) {
         const blob = await deezerRes.blob()
@@ -295,7 +295,7 @@ export async function downloadTrack(
           quality: quality.bitrate,
           format: quality.format,
         }),
-        signal,
+        ...(signal ? { signal } : {}),
       })
       if (res.ok) {
         const blob = await res.blob()
@@ -323,8 +323,12 @@ export async function downloadTrack(
       onProgress?.(`Searching (attempt ${attempt + 1})...`)
       signal?.throwIfAborted()
 
-      const { info, source } = await findAudio(query, meta.title, meta.artist, meta.duration_ms, meta.isrc)
+      const result = await findAudio(query, meta.title, meta.artist, meta.duration_ms, meta.isrc)
+      const { info, source } = result
       lastSource = source
+      if (meta.title && meta.artist) {
+        stashPreResolvedAudio(meta.title, meta.artist, result)
+      }
 
       if (!info.audioUrl) {
         throw new Error(`No downloadable audio found on ${source}`)

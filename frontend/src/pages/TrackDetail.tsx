@@ -9,6 +9,7 @@ import { usePlayer } from '../hooks/usePlayer'
 import { findAudio } from '../lib/sources'
 import { useToast } from '../components/Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
+import { uuid } from '../lib/uuid'
 
 interface TrackDetailProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -79,13 +80,13 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
       const query = `${track.artist} ${track.title}`
       const { info } = await findAudio(query, track.title, track.artist)
       play({
-        id: crypto.randomUUID(),
+        id: uuid(),
         title: track.title,
         artist: track.artist,
         album: track.album,
         artworkUrl: track.artwork_url,
         filePath: null,
-        streamUrl: info.audioUrl || undefined,
+        ...(info.audioUrl ? { streamUrl: info.audioUrl } : {}),
         timestamp: Date.now(),
       })
     } catch (err: any) {

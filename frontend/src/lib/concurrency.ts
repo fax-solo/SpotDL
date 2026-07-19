@@ -17,10 +17,10 @@ export async function mapConcurrent<T, R>(
       }
 
       const i = next++
-      const item = items[i]
+      const item = items[i]!
 
       try {
-        results[i] = await fn(item, i)
+        results[i] = (await fn(item, i)) as R
         activeErrors = Math.max(0, activeErrors - 1)
       } catch (err) {
         activeErrors++

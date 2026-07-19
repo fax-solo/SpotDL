@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { uuid } from '../lib/uuid'
 
 export interface PlaylistTrack {
   id: string
@@ -45,7 +46,7 @@ export function usePlaylists() {
 
   const createPlaylist = useCallback((name: string) => {
     const playlist: Playlist = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       name,
       tracks: [],
       createdAt: Date.now(),
@@ -104,6 +105,7 @@ export function usePlaylists() {
         if (p.id !== playlistId) return p
         const tracks = [...p.tracks]
         const [moved] = tracks.splice(fromIndex, 1)
+        if (!moved) return p
         tracks.splice(toIndex, 0, moved)
         return { ...p, tracks, updatedAt: Date.now() }
       })

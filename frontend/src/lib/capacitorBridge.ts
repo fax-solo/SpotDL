@@ -44,7 +44,7 @@ function blobToBase64(blob: Blob): Promise<string> {
     const reader = new FileReader()
     reader.onloadend = () => {
       const result = reader.result as string
-      resolve(result.split(',')[1])
+      resolve(result.split(',')[1] ?? '')
     }
     reader.onerror = reject
     reader.readAsDataURL(blob)

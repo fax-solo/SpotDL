@@ -5,6 +5,7 @@ import time
 import threading
 import logging
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from downloader import download_track
@@ -32,8 +33,12 @@ def _save_db(db: dict):
     parent = os.path.dirname(SYNC_DB_PATH)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    with open(SYNC_DB_PATH, "w") as f:
+    tmp = SYNC_DB_PATH + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(db, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, SYNC_DB_PATH)
 
 
 def _with_write_lock(fn):
@@ -113,6 +118,7 @@ def run_sync(sub_id: str) -> dict:
     playlist_name = meta.get("collection_name", "") or sub["playlist_name"]
 
     known = set(sub.get("synced_tracks", []))
+    _known_lock = threading.Lock()
     new_tracks = [t for t in tracks if t.get("url") not in known]
 
     if not new_tracks:
@@ -128,9 +134,10 @@ def run_sync(sub_id: str) -> dict:
     track_dir = os.path.join(SYNC_DOWNLOAD_DIR, playlist_dir)
     os.makedirs(track_dir, exist_ok=True)
 
-    results = []
+    results: list[dict] = []
+    SYNC_CONCURRENCY = int(os.environ.get("SYNC_CONCURRENCY", "2"))
 
-    for track in new_tracks:
+    def _download_one(track: dict) -> dict:
         try:
             filepath, ext = download_track(
                 track["title"],
@@ -146,13 +153,19 @@ def run_sync(sub_id: str) -> dict:
 
             shutil.move(filepath, dest)
 
-            known.add(track["url"])
-            results.append({"title": track["title"], "status": "ok"})
+            with _known_lock:
+                known.add(track["url"])
             logger.info(f"sync: downloaded '{track['title']}' to {dest}")
+            return {"title": track["title"], "status": "ok"}
 
         except Exception as e:
             logger.error(f"sync: failed '{track.get('title')}': {e}")
-            results.append({"title": track.get("title", "unknown"), "status": "failed", "error": str(e)})
+            return {"title": track.get("title", "unknown"), "status": "failed", "error": str(e)}
+
+    with ThreadPoolExecutor(max_workers=SYNC_CONCURRENCY) as executor:
+        futures = {executor.submit(_download_one, t): t for t in new_tracks}
+        for future in as_completed(futures):
+            results.append(future.result())
 
     def _save_results(db: dict):
         for s in db["subscriptions"]:

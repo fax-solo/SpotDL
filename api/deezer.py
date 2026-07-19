@@ -11,6 +11,7 @@ from mutagen.flac import FLAC as FLACTag, Picture
 from mutagen.mp4 import MP4, MP4Cover
 
 from _matching import normalize, strip_feat, word_overlap, pick_best_match
+from shared import requests_retry_session
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,8 @@ BLOWFISH_KEY = b"g4el58wc0zvf9na1"
 GROUP_SIZE = 2048 * 1803
 STEP_SIZE = 2048
 
+_tag_session = requests_retry_session()
+
 
 class DeezerError(Exception):
     pass
@@ -28,7 +31,7 @@ class DeezerError(Exception):
 class DeezerClient:
     def __init__(self, arl: str):
         self.arl = arl
-        self.session = requests.Session()
+        self.session = requests_retry_session()
         self.session.cookies.set("arl", arl, domain=".deezer.com")
         self.api_token = None
         self.user_id = None
@@ -270,7 +273,7 @@ def _tag_flac(src: str, dst: str, title: str, artist: str, album: str, artwork_u
 
     if artwork_url:
         try:
-            resp = requests.get(artwork_url, timeout=10)
+            resp = _tag_session.get(artwork_url, timeout=10)
             if resp.status_code == 200:
                 pic = Picture()
                 pic.type = 3
@@ -302,7 +305,7 @@ def _tag_mp3(src: str, dst: str, title: str, artist: str, album: str, artwork_ur
 
     if artwork_url:
         try:
-            resp = requests.get(artwork_url, timeout=10)
+            resp = _tag_session.get(artwork_url, timeout=10)
             if resp.status_code == 200:
                 audio["APIC"] = APIC(
                     encoding=3,

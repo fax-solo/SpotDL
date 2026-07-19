@@ -125,7 +125,9 @@ async function handleInfo(trackUrl) {
             thumbnail: data?.artThumbnailURL || data?.artFullsizeURL || extractOgImage(html),
           })
         }
-      } catch {}
+      } catch (e) {
+        scrapeLog('bandcamp', 'info_parse_tralbum_failed', { url: trackUrl, message: e.message })
+      }
     }
 
     const audioUrlOg = extractOgAudio(html)

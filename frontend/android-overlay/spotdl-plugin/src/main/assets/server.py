@@ -1,15 +1,19 @@
 """Local HTTP server for native song downloads, runs inside the app."""
 import json
 import os
-import subprocess
 import sys
 import tempfile
-import uuid
+import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 HOST = "127.0.0.1"
 PORT = 9182
+MAX_CONTENT_LENGTH = 1 * 1024 * 1024  # 1MB
+MAX_CONCURRENT_DOWNLOADS = 2
+STALE_TEMP_AGE = 3600  # 1 hour
+CLEANUP_INTERVAL = 300  # 5 minutes
 
 HOME_DIR = os.environ.get("SPOTDL_HOME", "/data/data/com.spotdl.app/files")
 FFMPEG_PATH = os.environ.get("FFMPEG_PATH", "")
@@ -19,6 +23,27 @@ YDL_OPTS = {
     "extract_flat": False,
     "ignoreerrors": True,
 }
+
+_orphaned_dirs: set[str] = set()
+_download_sem = threading.Semaphore(MAX_CONCURRENT_DOWNLOADS)
+
+
+def _cleanup_orphaned_dirs():
+    while True:
+        time.sleep(CLEANUP_INTERVAL)
+        cutoff = time.time() - STALE_TEMP_AGE
+        dirs = list(_orphaned_dirs)
+        for d in dirs:
+            try:
+                if os.path.isdir(d) and os.path.getmtime(d) < cutoff:
+                    import shutil
+                    shutil.rmtree(d, ignore_errors=True)
+                    _orphaned_dirs.discard(d)
+            except (OSError, ValueError):
+                pass
+
+
+threading.Thread(target=_cleanup_orphaned_dirs, daemon=True).start()
 
 
 def fetch_metadata(url):
@@ -57,7 +82,7 @@ def fetch_metadata(url):
 
     import ytmusicapi
     ym = ytmusicapi.YTMusic()
-    search = ym.search(url.replace("https://open.spotify.com/", "").split("?")[0].split("/")[-1])
+    ym.search(url.replace("https://open.spotify.com/", "").split("?")[0].split("/")[-1])
     return []
 
 
@@ -97,9 +122,23 @@ def download_track(url, output_dir):
 class RequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
-        length = int(self.headers.get("Content-Length", 0))
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw_length)
+        except (ValueError, TypeError):
+            self._err("invalid Content-Length", 400)
+            return
+
+        if length > MAX_CONTENT_LENGTH:
+            self._err(f"request too large ({length} > {MAX_CONTENT_LENGTH} bytes)", 413)
+            return
+
         body = self.rfile.read(length) if length else b"{}"
-        data = json.loads(body) if body else {}
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self._err("invalid JSON body", 400)
+            return
 
         if parsed.path == "/metadata":
             try:
@@ -110,15 +149,25 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._err(str(e))
 
         elif parsed.path == "/download":
+            acquired = _download_sem.acquire(timeout=300)
+            if not acquired:
+                self._err("server busy, try again later", 503)
+                return
             try:
                 url = data.get("url", "")
                 track_output = tempfile.mkdtemp(dir=HOME_DIR)
-                download_track(url, track_output)
-                files = os.listdir(track_output)
-                result = {"files": [os.path.join(track_output, f) for f in files], "output_dir": track_output}
-                self._ok(result)
+                try:
+                    download_track(url, track_output)
+                    files = os.listdir(track_output)
+                    result = {"files": [os.path.join(track_output, f) for f in files], "output_dir": track_output}
+                    self._ok(result)
+                except Exception:
+                    _orphaned_dirs.add(track_output)
+                    raise
             except Exception as e:
                 self._err(str(e))
+            finally:
+                _download_sem.release()
 
         elif parsed.path == "/health":
             self._ok({"status": "ok"})

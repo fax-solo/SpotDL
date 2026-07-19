@@ -12,6 +12,7 @@ import { normalize } from '../lib/sources/matching'
 import { useHistory, type HistoryEntry } from '../hooks/useHistory'
 import { useDownloads } from '../hooks/useDownloads'
 import { apiUrl } from '../lib/apiConfig'
+import { uuid } from '../lib/uuid'
 
 interface AlbumDetailProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -25,8 +26,8 @@ function isTrackDownloaded(track: TrackMeta, entries: HistoryEntry[]): boolean {
   )
 }
 
-function TrackArtwork({ track, className, loading }: { track: TrackMeta; className: string; loading?: 'lazy' | 'eager' }) {
-  return <ArtworkImage src={track.artwork_url} alt={track.album} className={className} loading={loading} />
+function TrackArtwork({ track, className, loading: loadingProp }: { track: TrackMeta; className: string; loading?: 'lazy' | 'eager' }) {
+  return <ArtworkImage src={track.artwork_url} alt={track.album} className={className} {...(loadingProp !== undefined ? { loading: loadingProp } : {})} />
 }
 
 
@@ -124,13 +125,13 @@ export function AlbumDetail(_props: AlbumDetailProps) {
       const query = `${track.artist} ${track.title}`
       const { info } = await findAudio(query, track.title, track.artist)
       play({
-        id: crypto.randomUUID(),
+        id: uuid(),
         title: track.title,
         artist: track.artist,
         album: track.album || collection?.collection_name || 'Unknown',
         artworkUrl: track.artwork_url || collection?.collection_artwork || null,
         filePath: null,
-        streamUrl: info.audioUrl || undefined,
+        ...(info.audioUrl ? { streamUrl: info.audioUrl } : {}),
         timestamp: Date.now(),
       })
     } catch {

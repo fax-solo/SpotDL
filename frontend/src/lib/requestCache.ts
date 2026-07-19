@@ -20,6 +20,8 @@ function evictIfNeeded() {
   }
 }
 
+const pendingDedup = new Map<string, Promise<unknown>>()
+
 export async function cachedFetch<T>(
   key: string,
   fetcher: () => Promise<T>,
@@ -30,20 +32,20 @@ export async function cachedFetch<T>(
     return existing.data as T
   }
 
-  const dbCached = await getCachedMetadata<T>(key)
+  const inflight = pendingDedup.get(key) as Promise<T> | undefined
+  if (inflight) return inflight
+
+  const netPromise = fetcher()
+  pendingDedup.set(key, netPromise.finally(() => pendingDedup.delete(key)))
+
+  const [dbCached] = await Promise.all([getCachedMetadata<T>(key), netPromise])
   if (dbCached !== null) {
     memoryCache.set(key, { data: dbCached, ts: Date.now() })
+    netPromise.then(data => cacheMetadata(key, data).catch(() => {}))
     return dbCached
   }
 
-  const dedupKey = `__dedup_${key}`
-  const inflight = (memoryCache.get(dedupKey)?.data as Promise<T> | undefined)
-  if (inflight) return inflight
-
-  const promise = fetcher().finally(() => memoryCache.delete(dedupKey))
-  memoryCache.set(dedupKey, { data: promise, ts: Date.now() })
-
-  const data = await promise
+  const data = await netPromise
   memoryCache.set(key, { data, ts: Date.now() })
   cacheMetadata(key, data).catch(() => {})
   evictIfNeeded()

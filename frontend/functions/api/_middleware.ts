@@ -18,20 +18,34 @@ function getAllowedOrigins(env: Env): string[] {
 }
 
 function normalizeOrigin(o: string): string {
-  return o.includes('://') ? o : `https://${o}`
+  const s = o.trim()
+  if (s.startsWith('https://') || s.startsWith('http://')) return s
+  return `https://${s}`
 }
 
 function csrfCheck(request: Request, allowedOrigins?: string): void {
   if (SAFE_METHODS.has(request.method)) return
-  const origin = request.headers.get('Origin')
-  if (!origin || origin === 'null') return
-
   let requestOrigin: string | null = null
-  try {
-    requestOrigin = new URL(origin).origin
-  } catch {
-    throw new Error('CSRF: Invalid origin header')
+
+  const origin = request.headers.get('Origin')
+  const referer = request.headers.get('Referer')
+
+  if (origin && origin !== 'null') {
+    try {
+      requestOrigin = new URL(origin).origin
+    } catch {
+      throw new Error('CSRF: Invalid origin header')
+    }
+  } else if (referer) {
+    try {
+      requestOrigin = new URL(referer).origin
+    } catch {
+      throw new Error('CSRF: Invalid referer header')
+    }
+  } else {
+    throw new Error('CSRF: Missing origin or referer header')
   }
+
   if (!requestOrigin) throw new Error('CSRF: Invalid origin header')
 
   const allowed: string[] = allowedOrigins
@@ -61,17 +75,24 @@ function isJsonResponse(res: Response): boolean {
   return ct.includes('application/json')
 }
 
-function corsHeaders(env: Env, origin: string): Record<string, string> {
+function corsOriginValue(env: Env, origin: string): string {
   const allowed = getAllowedOrigins(env)
-  const corsOrigin = allowed.length > 0 && origin
-    ? (allowed.some(a => origin === normalizeOrigin(a)) ? origin : 'null')
-    : origin || '*'
-  return {
-    'Access-Control-Allow-Origin': corsOrigin,
+  if (allowed.length > 0) {
+    if (origin && allowed.some(a => origin === normalizeOrigin(a))) return origin
+    return ''
+  }
+  return origin || ''
+}
+
+function corsHeaders(env: Env, origin: string): Record<string, string> {
+  const co = corsOriginValue(env, origin)
+  const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': ALLOWED_METHODS,
     'Access-Control-Allow-Headers': ALLOWED_HEADERS,
     'Vary': 'Origin',
   }
+  if (co) headers['Access-Control-Allow-Origin'] = co
+  return headers
 }
 
 export const onRequest: RouteHandler = async (context) => {
@@ -109,13 +130,12 @@ export const onRequest: RouteHandler = async (context) => {
     return errorJson(msg, 400)
   }
 
-  // If the response is not JSON (e.g., index.html from catch-all redirect),
-  // this means no function handled the route. Return a proper API error.
-  // Allow non-JSON responses that are binary/image content types (avatars, proxy).
+  // If the response is not JSON and not a binary/stream type, and the
+  // response came from an unhandled route (no Content-Type), return 404.
   if (!isJsonResponse(response)) {
     const ct = response.headers.get('content-type') || ''
-    const isImage = ct.startsWith('image/') || ct.startsWith('audio/') || ct === 'application/octet-stream'
-    if (!isImage) {
+    const isBinary = ct.startsWith('image/') || ct.startsWith('audio/') || ct === 'application/octet-stream'
+    if (!isBinary && !ct) {
       return errorJson('Not found', 404)
     }
   }

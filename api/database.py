@@ -2,16 +2,32 @@ import os
 import json
 import secrets
 import bcrypt
+import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+
+logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(DATA_DIR, 'sinc.db')}")
-_ASYNC_DATABASE_URL = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://", 1)
 
-engine = create_async_engine(_ASYNC_DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+def _make_async_url(url: str) -> str:
+    if url.startswith("sqlite://"):
+        return url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+    if url.startswith("postgresql://"):
+        if "+" not in url:
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
+    if url.startswith("mysql://") and "+" not in url:
+        return url.replace("mysql://", "mysql+aiomysql://", 1)
+    return url
+
+_ASYNC_DATABASE_URL = _make_async_url(DATABASE_URL)
+_connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite://") else {}
+
+engine = create_async_engine(_ASYNC_DATABASE_URL, echo=False, connect_args=_connect_args)
 SessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 SECRETS_FILE = os.path.join(DATA_DIR, "secrets.json")
@@ -22,13 +38,18 @@ else:
     _stored = {}
     os.makedirs(os.path.dirname(SECRETS_FILE), exist_ok=True)
 
-JWT_SECRET = os.environ.get("JWT_SECRET") or _stored.get("jwt_secret") or secrets.token_hex(32)
-if not os.environ.get("JWT_SECRET"):
-    print("WARNING: JWT_SECRET not set via environment. Using file-based fallback. Set JWT_SECRET env var in production.")
+JWT_SECRET = os.environ.get("JWT_SECRET") or _stored.get("jwt_secret")
+if not JWT_SECRET:
+    JWT_SECRET = secrets.token_hex(32)
+    print("WARNING: JWT_SECRET not set. Auto-generated (changes on restart, invalidates all tokens). Set JWT_SECRET env var in production.")
 if "jwt_secret" not in _stored:
     _stored["jwt_secret"] = JWT_SECRET
-    with open(SECRETS_FILE, "w") as f:
+    tmp = SECRETS_FILE + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(_stored, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, SECRETS_FILE)
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
@@ -70,13 +91,17 @@ async def _seed_admin():
                     existing.role = "admin"
                     await db.commit()
         except Exception as e:
-            print(f"Admin seed: {e}")
+            logger.warning("Admin seed failed: %s", e)
 
 
 async def init_db():
-    async with engine.connect() as conn:
-        await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
-        await conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
+    try:
+        async with engine.connect() as conn:
+            await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+            await conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
+            await conn.exec_driver_sql("PRAGMA busy_timeout=5000")
+    except Exception:
+        pass
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _seed_admin()

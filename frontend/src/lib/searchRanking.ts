@@ -28,21 +28,43 @@ export function pickTopResult(query: string, results: {
   artists?: SearchArtist[]
 }): RankableItem | null {
   const candidates: { item: RankableItem; score: number }[] = []
+
+  // Artists: text score * popularity multiplier
+  for (const ar of results.artists ?? []) {
+    let score = textScore(query, ar.name)
+    if (score > 0) {
+      const popBonus = ar.followers > 1000000 ? 30 : ar.followers > 100000 ? 20 : ar.followers > 10000 ? 10 : 0
+      score += popBonus
+    }
+    candidates.push({ item: { type: 'artist', item: ar }, score })
+  }
+
+  // Tracks: text score + popularity bonus
   for (const t of results.tracks ?? []) {
     let score = textScore(query, t.title, t.artist)
-    if (score > 0) score += 5
+    if (score > 0) {
+      score += 5 + (t.duration_ms ? 3 : 0) // has duration = more complete
+    }
     candidates.push({ item: { type: 'track', item: t }, score })
   }
+
+  // Albums: text score
   for (const a of results.albums ?? []) {
     candidates.push({ item: { type: 'album', item: a }, score: textScore(query, a.name, a.artist) })
   }
+
+  // Playlists: text score + trackCount bonus
   for (const p of results.playlists ?? []) {
-    candidates.push({ item: { type: 'playlist', item: p }, score: textScore(query, p.name) })
+    let score = textScore(query, p.name)
+    if (score > 0) {
+      const popBonus = p.trackCount > 100 ? 15 : p.trackCount > 50 ? 10 : p.trackCount > 10 ? 5 : 0
+      score += popBonus
+    }
+    candidates.push({ item: { type: 'playlist', item: p }, score })
   }
-  for (const ar of results.artists ?? []) {
-    candidates.push({ item: { type: 'artist', item: ar }, score: textScore(query, ar.name) })
-  }
+
   if (candidates.length === 0) return null
   candidates.sort((a, b) => b.score - a.score)
-  return candidates[0].score >= 40 ? candidates[0].item : null
+  const top = candidates[0]
+  return top && top.score >= 40 ? top.item : null
 }

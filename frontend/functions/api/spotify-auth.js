@@ -6,12 +6,12 @@ function randomHex(bytes) {
 const STATE_TTL_MS = 10 * 60 * 1000
 
 export async function onRequest(context) {
-  const CLIENT_ID = context.env.VITE_SPOTIFY_CLIENT_ID || context.env.SPOTIFY_CLIENT_ID
+  const CLIENT_ID = context.env.SPOTIFY_CLIENT_ID || context.env.VITE_SPOTIFY_CLIENT_ID
   const CLIENT_SECRET = context.env.SPOTIFY_CLIENT_SECRET || ''
   const DB = context.env.DB
 
   if (!CLIENT_ID) {
-    console.error('Missing VITE_SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_ID environment variable')
+    console.error('Missing SPOTIFY_CLIENT_ID environment variable')
   }
 
   const url = new URL(context.request.url)
@@ -109,27 +109,43 @@ export async function onRequest(context) {
       })
     }
 
-    if (state && DB) {
-      try {
-        const stored = await DB.prepare(
-          'SELECT created_at FROM oauth_state WHERE state = ?'
-        ).bind(state).first()
-        if (!stored) {
-          return new Response(JSON.stringify({ error: 'Invalid state parameter — possible CSRF' }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-          })
-        }
-        if (Date.now() - stored.created_at > STATE_TTL_MS) {
-          return new Response(JSON.stringify({ error: 'State parameter expired' }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-          })
-        }
-        await DB.prepare('DELETE FROM oauth_state WHERE state = ?').bind(state).run()
-      } catch (e) {
-        console.warn('State verification failed:', e.message)
+    if (!state) {
+      return new Response(JSON.stringify({ error: 'Missing state parameter' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      })
+    }
+
+    if (!DB) {
+      return new Response(JSON.stringify({ error: 'Database unavailable for state verification' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      })
+    }
+
+    try {
+      const stored = await DB.prepare(
+        'SELECT created_at FROM oauth_state WHERE state = ?'
+      ).bind(state).first()
+      if (!stored) {
+        return new Response(JSON.stringify({ error: 'Invalid state parameter — possible CSRF' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        })
       }
+      if (Date.now() - stored.created_at > STATE_TTL_MS) {
+        return new Response(JSON.stringify({ error: 'State parameter expired' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        })
+      }
+      await DB.prepare('DELETE FROM oauth_state WHERE state = ?').bind(state).run()
+    } catch (e) {
+      console.warn('State verification failed:', e.message)
+      return new Response(JSON.stringify({ error: 'State verification failed' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      })
     }
 
     if (!CLIENT_SECRET) {

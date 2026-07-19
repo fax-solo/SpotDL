@@ -37,11 +37,14 @@ describe('searchYouTube', () => {
   })
 
   it('returns search results from Cloudflare Function', async () => {
+    const pipedEmpty = {
+      ok: true,
+      json: () => Promise.resolve({ items: [] }),
+    }
     vi.mocked(fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ items: [] }),
-      })
+      .mockResolvedValueOnce(pipedEmpty)
+      .mockResolvedValueOnce(pipedEmpty)
+      .mockResolvedValueOnce(pipedEmpty)
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
@@ -57,15 +60,18 @@ describe('searchYouTube', () => {
   })
 
   it('tries Piped API first on web', async () => {
+    const pipedResult = {
+      ok: true,
+      json: () => Promise.resolve({
+        items: [
+          { url: `/watch?v=${FAKE_VIDEO_ID}`, title: 'Piped Result', thumbnail: 'thumb.jpg' },
+        ],
+      }),
+    }
     vi.mocked(fetch)
-      .mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { url: `/watch?v=${FAKE_VIDEO_ID}`, title: 'Piped Result', thumbnail: 'thumb.jpg' },
-          ],
-        }),
-      })
+      .mockResolvedValueOnce(pipedResult)
+      .mockResolvedValueOnce(pipedResult)
+      .mockResolvedValueOnce(pipedResult)
 
     await searchYouTube('test')
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringContaining('pipedapi'), expect.anything())
@@ -73,7 +79,10 @@ describe('searchYouTube', () => {
 
   it('throws on total failure', async () => {
     vi.mocked(fetch)
-      .mockRejectedValue(new Error('Network error'))
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockRejectedValueOnce(new Error('Network error'))
 
     await expect(searchYouTube('test')).rejects.toThrow()
   })
@@ -94,10 +103,14 @@ describe('getVideoInfo', () => {
       audioStreams: [{ url: 'https://audio.piped/stream', bitrate: 128000 }],
       thumbnailUrl: 'thumb.jpg',
     }
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(pipedResult),
-    })
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(pipedResult),
+      })
+      .mockRejectedValueOnce(new Error('Piped instance 2 fail'))
+      .mockRejectedValueOnce(new Error('Piped instance 3 fail'))
+      .mockRejectedValueOnce(new Error('CF function fail'))
 
     const info = await getVideoInfo(`https://youtube.com/watch?v=${FAKE_VIDEO_ID}`)
     expect(info.title).toBe('Piped Video')
@@ -125,7 +138,8 @@ describe('getVideoInfo', () => {
   })
 
   it('throws when both sources fail', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('Network error'))
+    vi.mocked(fetch)
+      .mockRejectedValue(new Error('Network error'))
     await expect(getVideoInfo(`https://youtube.com/watch?v=${FAKE_VIDEO_ID}`)).rejects.toThrow('Failed to get video info')
   })
 })

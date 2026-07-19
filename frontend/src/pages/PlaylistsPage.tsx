@@ -6,6 +6,7 @@ import { usePlayer } from '../hooks/usePlayer'
 import { findAudio } from '../lib/sources'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { useToast } from '../components/Toast'
+import { uuid } from '../lib/uuid'
 
 export function PlaylistsPage() {
   const { play } = usePlayer()
@@ -37,13 +38,13 @@ export function PlaylistsPage() {
       const query = `${track.artist} ${track.title}`
       const { info } = await findAudio(query, track.title, track.artist)
       const entry: HistoryEntry = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         title: track.title,
         artist: track.artist,
         album: '',
         artworkUrl: track.artwork_url,
         filePath: null,
-        streamUrl: info.audioUrl || undefined,
+        ...(info.audioUrl ? { streamUrl: info.audioUrl } : {}),
         timestamp: Date.now(),
       }
       play(entry)

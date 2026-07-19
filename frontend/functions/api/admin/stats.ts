@@ -24,7 +24,7 @@ export const onRequest: RouteHandler = async (context) => {
 
   const db = context.env.DB
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().replace('T', 'T')
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().replace('T', ' ').split('.')[0]
 
   const count = async (sql: string, ...params: any[]) => {
     const row: any = await db.prepare(sql).bind(...params).first()
@@ -54,8 +54,8 @@ export const onRequest: RouteHandler = async (context) => {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
-    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().replace('T', 'T')
-    const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).toISOString().replace('T', 'T')
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().replace('T', ' ').split('.')[0]
+    const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).toISOString().replace('T', ' ').split('.')[0]
     const c = await count(
       'SELECT COUNT(*) as count FROM download_logs WHERE timestamp >= ? AND timestamp < ?',
       dayStart, dayEnd

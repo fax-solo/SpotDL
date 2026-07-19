@@ -31,7 +31,7 @@ function stripNoise(s: string): string {
 }
 
 export function normalize(s: string): string {
-  return s.toLowerCase().replace(BRACKET_CONTENT, '').replace(NON_WORD, '').trim()
+  return stripNoise(s).trim()
 }
 
 function tokenize(s: string): Set<string> {
@@ -51,7 +51,6 @@ function splitMultiArtist(s: string): string[] {
 }
 
 function tokenJaccard(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 && b.size === 0) return 1
   const common = wordIntersection(a, b)
   const union = a.size + b.size - common
   return union > 0 ? common / union : 0
@@ -114,8 +113,9 @@ export function matchScore(options: MatchOptions): number {
       else if (common > 0) titleAuthorScore = 1
     }
 
-    if (faNorm === normalize(ea)) authorScore = 3
-    else if (faNorm.includes(normalize(ea)) && normalize(ea).length >= 3) authorScore = Math.max(authorScore, 2.5)
+    const normEa = normalize(ea)
+    if (faNorm === normEa) authorScore = 3
+    else if (normEa.length >= 3 && (faNorm.includes(normEa) || normEa.includes(faNorm))) authorScore = Math.max(authorScore, 2.5)
 
     score += Math.max(authorScore, titleAuthorScore)
   }

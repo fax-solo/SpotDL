@@ -20,15 +20,19 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
   const scrollTop = useRef(0)
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    if (!touch) return
     scrollTop.current = containerRef.current?.scrollTop ?? 0
     if (scrollTop.current > 0) return
-    startY.current = e.touches[0].clientY
+    startY.current = touch.clientY
     setPulling(true)
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!pulling || refreshing) return
-    const diff = e.touches[0].clientY - startY.current
+    const touch = e.touches[0]
+    if (!touch) return
+    const diff = touch.clientY - startY.current
     if (diff <= 0) return
     scrollTop.current = containerRef.current?.scrollTop ?? 0
     if (scrollTop.current > 0) return

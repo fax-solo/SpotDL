@@ -1,7 +1,27 @@
 const WINDOW_MS = 60_000
 const MAX_REQUESTS = 20
 
+let _schemaEnsured = false
+
+async function ensureSchema(db: D1Database): Promise<void> {
+  if (_schemaEnsured) return
+  try {
+    await db.prepare(
+      `CREATE TABLE IF NOT EXISTS rate_limits (
+        key TEXT NOT NULL,
+        window_start INTEGER NOT NULL,
+        count INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (key, window_start)
+      )`
+    ).run()
+    _schemaEnsured = true
+  } catch {
+    // Table may already exist or DB is read-only
+  }
+}
+
 export async function checkRateLimit(db: D1Database, key: string, maxRequests = MAX_REQUESTS, windowMs = WINDOW_MS): Promise<{ allowed: boolean; remaining: number }> {
+  await ensureSchema(db)
   const now = Date.now()
   const windowStart = Math.floor(now / windowMs) * windowMs
 

@@ -1,4 +1,5 @@
 import { checkRateLimit } from './_lib/rate_limit'
+import { scrapeLog } from './_lib/log'
 
 const BASE = 'https://api.jamendo.com/v3.0'
 
@@ -48,6 +49,7 @@ async function handleSearch(context, query) {
     { headers: { 'Accept': 'application/json' } }
   )
   if (!res.ok) {
+    scrapeLog('jamendo', 'search_failed', { query, status: res.status })
     return new Response(JSON.stringify({ results: [] }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -87,6 +89,7 @@ async function handleInfo(context, trackId) {
     { headers: { 'Accept': 'application/json' } }
   )
   if (!res.ok) {
+    scrapeLog('jamendo', 'info_failed', { trackId, status: res.status })
     return new Response(JSON.stringify({ error: 'Jamendo API error' }), {
       status: 502,
       headers: { 'Content-Type': 'application/json' },

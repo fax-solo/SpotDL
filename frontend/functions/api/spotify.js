@@ -11,8 +11,10 @@ function abortTimeout(ms) {
     return AbortSignal.timeout(ms)
   }
   const controller = new AbortController()
-  setTimeout(() => controller.abort(), ms)
-  return controller.signal
+  const timer = setTimeout(() => controller.abort(), ms)
+  const signal = controller.signal
+  signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
+  return signal
 }
 
 const WOLFX_API = 'https://spotify.xwolf.space/api'
@@ -46,7 +48,7 @@ let _tokenCache = { token: null, expiresAt: 0 }
 
 async function getSpotifyToken(context) {
   if (_tokenCache.token && Date.now() < _tokenCache.expiresAt - 60000) return _tokenCache.token
-  const clientId = context.env.VITE_SPOTIFY_CLIENT_ID
+  const clientId = context.env.SPOTIFY_CLIENT_ID || context.env.VITE_SPOTIFY_CLIENT_ID
   const clientSecret = context.env.SPOTIFY_CLIENT_SECRET
   if (!clientId || !clientSecret) return null
   const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -122,13 +124,20 @@ function cacheKey(kind, id, summary) {
 function getCachedResponse(kind, id, summary) {
   const key = cacheKey(kind, id, summary)
   const entry = _cache.get(key)
-  if (entry && Date.now() < entry.expires) return entry.data
+  if (entry && Date.now() < entry.expires) {
+    if (entry._type === 'buildable') {
+      if (entry.result && typeof entry.result.buildResponse === 'function') {
+        return entry.result.buildResponse()
+      }
+    }
+    return jsonOk(entry.data)
+  }
   return null
 }
 
-function setCachedResponse(kind, id, summary, data) {
+function setCachedResponse(kind, id, summary, entry) {
   const key = cacheKey(kind, id, summary)
-  _cache.set(key, { data, expires: Date.now() + EMBED_CACHE_TTL })
+  _cache.set(key, { ...entry, expires: Date.now() + EMBED_CACHE_TTL })
   if (_cache.size > 300) {
     const now = Date.now()
     for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
@@ -222,7 +231,9 @@ async function fillTrackArtwork(tracks, ids, collectionArtwork, context) {
         }
       }
     }
-  } catch {}
+  } catch (e) {
+    scrapeLog('spotify', 'fill_track_artwork_api_failed', { ids: ids.length, err: e?.message })
+  }
 
   {
     const todo = stillMissing().slice(0, 30)
@@ -323,39 +334,39 @@ async function handleEmbedScrape(context, url, summary) {
 async function handleEmbeddedEntity(context, kind, id, entity, summary) {
   const result = buildEmbedResult(kind, id, entity, summary)
 
-  if (result && typeof result.buildResponse === 'function') {
-    if (result.noArtworkIds.length > 0 && !summary && kind !== 'album') {
-      await fillTrackArtwork(result.tracks, result.noArtworkIds, result.collectionArtwork, context)
-    }
-    const resp = result.buildResponse()
-    setCachedResponse(kind, id, summary, resp)
-    return resp
+  if (result.noArtworkIds && result.noArtworkIds.length > 0 && !summary && kind !== 'album') {
+    await fillTrackArtwork(result.tracks, result.noArtworkIds, result.collectionArtwork, context)
   }
-
-  setCachedResponse(kind, id, summary, result)
-  return result
+  setCachedResponse(kind, id, summary, { _type: 'buildable', result })
+  return result.buildResponse()
 }
 
 function buildEmbedResult(kind, id, entity, summary) {
   if (summary && kind !== 'track') {
-    return jsonOk({
-      id, name: entity.title || 'Unknown', image: extractImage(entity),
-      track_count: (entity.trackList || []).length,
-      owner: entity.ownerName || entity.subtitle || 'Spotify',
-      description: entity.description || '',
-    })
+    return {
+      _data: {
+        id, name: entity.title || 'Unknown', image: extractImage(entity),
+        track_count: (entity.trackList || []).length,
+        owner: entity.ownerName || entity.subtitle || 'Spotify',
+        description: entity.description || '',
+      },
+      buildResponse() { return jsonOk(this._data) },
+    }
   }
 
   if (kind === 'track') {
     const artistName = entity.artists ? entity.artists.map(a => a.name).join(', ') : entity.subtitle || 'Unknown Artist'
-    return jsonOk({
-      type: 'track', title: entity.title || 'Unknown Track', artist: artistName,
-      artist_id: entity.artists?.[0]?.uri?.split(':')[2] || null,
-      album: (entity.albumOfTrack || entity.album)?.name || 'Single',
-      album_id: (entity.albumOfTrack || entity.album)?.uri?.split(':')[2] || null,
-      artwork_url: extractImage(entity),
-      url: `https://open.spotify.com/track/${id}`,
-    })
+    return {
+      _data: {
+        type: 'track', title: entity.title || 'Unknown Track', artist: artistName,
+        artist_id: entity.artists?.[0]?.uri?.split(':')[2] || null,
+        album: (entity.albumOfTrack || entity.album)?.name || 'Single',
+        album_id: (entity.albumOfTrack || entity.album)?.uri?.split(':')[2] || null,
+        artwork_url: extractImage(entity),
+        url: `https://open.spotify.com/track/${id}`,
+      },
+      buildResponse() { return jsonOk(this._data) },
+    }
   }
 
   const trackList = entity.trackList || []
@@ -448,7 +459,7 @@ async function handleSearch(context, query, types, limit) {
         url: t.url || `https://open.spotify.com/track/${t.id}`,
         duration_ms: t.duration_ms || t.duration || 0,
       }))
-      enrichTrackArtwork(result.tracks).catch(() => {})
+      enrichTrackArtwork(result.tracks).catch(e => scrapeLog('spotify', 'search_enrich_artwork_failed', { err: e?.message }))
     } else if (type === 'artist') {
       result.artists = items.map(a => ({
         id: a.id, name: a.name,
@@ -658,7 +669,7 @@ async function handleArtist(context, id) {
     artist_id: t.artist_id || null, album_id: t.album_id || null, artwork_url: t.thumbnail || t.artwork_url || t.album?.images?.[0]?.url || null,
     url: `https://open.spotify.com/track/${t.id}`, duration_ms: t.duration_ms || 0,
   }))
-  enrichTrackArtwork(topTracksArr).catch(() => {})
+  await enrichTrackArtwork(topTracksArr).catch(e => scrapeLog('spotify', 'top_tracks_enrich_artwork_failed', { err: e?.message }))
   return jsonOk({
     id, name: p.name || 'Unknown', image: p.image || p.thumbnail || null,
     genres: p.genres || [], followers: p.followers || 0, popularity: p.popularity || 0,
@@ -709,18 +720,31 @@ function base32(buf) {
   return r
 }
 
-const FALLBACK_SECRET = { v: 61, s: [44,55,47,42,70,40,34,114,76,74,50,111,120,97,75,76,94,102,43,69,49,120,118,80,64,78] }
+let secretCache = { v: 0, s: [], ts: 0 }
 
-let secretCache = { ...FALLBACK_SECRET, ts: 0 }
+function envFallbackSecret(env) {
+  const raw = env?.SPOTIFY_PARTNER_SECRET
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
 
-async function refreshSecrets() {
+async function refreshSecrets(env) {
   try {
     const r = await fetch('https://code.thetadev.de/ThetaDev/spotify-secrets/raw/branch/main/secrets/secretDict.json', { signal: abortTimeout(5000) })
-    if (!r.ok) return
+    if (!r.ok) {
+      const fallback = envFallbackSecret(env)
+      if (fallback) secretCache = { ...fallback, ts: Date.now() }
+      return
+    }
     const d = await r.json()
-    const vs = Object.keys(d).map(Number).sort((a, b) => b - a)
-    if (vs.length) secretCache = { v: vs[0], s: d[vs[0]], ts: Date.now() }
-  } catch {}
+    const vs = Object.keys(d).map(Number).filter(Number.isFinite).sort((a, b) => b - a)
+    if (vs.length > 0 && Array.isArray(d[vs[0]])) {
+      secretCache = { v: vs[0], s: d[vs[0]], ts: Date.now() }
+    }
+  } catch {
+    const fallback = envFallbackSecret(env)
+    if (fallback) secretCache = { ...fallback, ts: Date.now() }
+  }
 }
 
 function writeBigInt64BE(buf, val) {
@@ -751,10 +775,10 @@ async function makeTOTP() {
 let _partnerTokenCache = null
 let _partnerTokenExpires = 0
 
-async function getPartnerToken() {
+async function getPartnerToken(env?: any) {
   const now = Date.now()
   if (_partnerTokenCache && now < _partnerTokenExpires) return _partnerTokenCache
-  if (!secretCache.ts) await refreshSecrets()
+  if (!secretCache.ts) await refreshSecrets(env)
   const { totp, version } = await makeTOTP()
   const url = `${WEB_PLAYER}/api/token?reason=init&productType=web-player&totp=${totp}&totpVer=${version}&totpServer=${totp}`
   const r = await fetch(url, { headers: { 'User-Agent': UA }, signal: abortTimeout(10000) })
@@ -820,7 +844,7 @@ async function getHashes() {
   } catch { return FALLBACK_HASHES }
 }
 
-async function partnerQuery(operationName, variables, accessToken) {
+async function partnerQuery(operationName, variables, accessToken, env) {
   const hashes = await getHashes()
   const hash = hashes[operationName]
   if (!hash) throw new Error(`Unknown operation: ${operationName}`)
@@ -850,7 +874,7 @@ async function partnerQuery(operationName, variables, accessToken) {
       _partnerTokenExpires = 0
       hashCache = null
       hashCacheTime = 0
-      const td = await getPartnerToken()
+      const td = await getPartnerToken(env)
       accessToken = td.accessToken
       continue
     }
@@ -1060,7 +1084,8 @@ async function handleOfficialCollection(context, kind, id) {
 }
 
 async function handleTestCredentials(context) {
-  const hasId = !!context.env.VITE_SPOTIFY_CLIENT_ID
+  const clientId = context.env.SPOTIFY_CLIENT_ID || context.env.VITE_SPOTIFY_CLIENT_ID
+  const hasId = !!clientId
   const hasSecret = !!context.env.SPOTIFY_CLIENT_SECRET
   if (!hasId || !hasSecret) {
     return jsonOk({ ok: false, hasId, hasSecret, error: 'Missing env vars' })
@@ -1069,7 +1094,7 @@ async function handleTestCredentials(context) {
     const res = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {
-        'Authorization': 'Basic ' + btoa(context.env.VITE_SPOTIFY_CLIENT_ID + ':' + context.env.SPOTIFY_CLIENT_SECRET),
+        'Authorization': 'Basic ' + btoa(clientId + ':' + context.env.SPOTIFY_CLIENT_SECRET),
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: 'grant_type=client_credentials',
@@ -1295,14 +1320,14 @@ export async function onRequest(context) {
 
     // Partner API actions (merged from spotify-partner.js)
     if (body.action === 'get-token') {
-      const token = await getPartnerToken()
+      const token = await getPartnerToken(context.env)
       return jsonOk(token)
     }
     if (body.action === 'query') {
       const { operationName, variables, playerToken } = body
       let token = playerToken
-      if (!token) { const td = await getPartnerToken(); token = td.accessToken }
-      const result = await partnerQuery(operationName, variables, token)
+      if (!token) { const td = await getPartnerToken(context.env); token = td.accessToken }
+      const result = await partnerQuery(operationName, variables, token, context.env)
       return jsonOk(result)
     }
     if (body.action === 'user-library') {
@@ -1311,39 +1336,39 @@ export async function onRequest(context) {
       const result = await partnerQuery('libraryV3', {
         filters: [], order: null, textFilter: '', features: ['LIKED_SONGS', 'YOUR_EPISODES', 'PRERELEASES'],
         limit: 50, offset: 0, flatten: false, expandedFolders: [], folderUri: null, includeFoldersWhenFlattening: true,
-      }, token)
+      }, token, context.env)
       return jsonOk(result)
     }
     if (body.action === 'saved-tracks') {
       const token = body.playerToken || body.oauthToken
       if (!token) return jsonError('Missing token', 400)
-      const result = await partnerQuery('fetchLibraryTracks', { offset: body.offset || 0, limit: body.limit || 50 }, token)
+      const result = await partnerQuery('fetchLibraryTracks', { offset: body.offset || 0, limit: body.limit || 50 }, token, context.env)
       return jsonOk(result)
     }
     if (body.action === 'partner-search') {
       const { query: searchTerm, limit, offset, playerToken } = body
       let token = playerToken
-      if (!token) { const td = await getPartnerToken(); token = td.accessToken }
+      if (!token) { const td = await getPartnerToken(context.env); token = td.accessToken }
       const result = await partnerQuery('searchDesktop', {
         searchTerm, offset: offset || 0, limit: limit || 10, numberOfTopResults: 5,
         includeAudiobooks: true, includeArtistHasConcertsField: false, includePreReleases: true, includeLocalConcertsField: false,
-      }, token)
+      }, token, context.env)
       return jsonOk(result)
     }
     if (body.action === 'partner-playlist') {
       const { playlistId, limit, offset, playerToken } = body
       let token = playerToken
-      if (!token) { const td = await getPartnerToken(); token = td.accessToken }
+      if (!token) { const td = await getPartnerToken(context.env); token = td.accessToken }
       const result = await partnerQuery('fetchPlaylist', {
         uri: `spotify:playlist:${playlistId}`, offset: offset || 0, limit: limit || 100, enableWatchFeedEntrypoint: false,
-      }, token)
+      }, token, context.env)
       return jsonOk(result)
     }
     if (body.action === 'partner-track') {
       const { trackId, playerToken } = body
       let token = playerToken
-      if (!token) { const td = await getPartnerToken(); token = td.accessToken }
-      const result = await partnerQuery('getTrack', { uri: `spotify:track:${trackId}` }, token)
+      if (!token) { const td = await getPartnerToken(context.env); token = td.accessToken }
+      const result = await partnerQuery('getTrack', { uri: `spotify:track:${trackId}` }, token, context.env)
       return jsonOk(result)
     }
     if (body.action === 'test-token') {

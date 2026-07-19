@@ -13,6 +13,7 @@ import java.io.IOException
 import java.lang.reflect.Field
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class SpotDLCore {
     private var initialized = false
@@ -27,6 +28,8 @@ class SpotDLCore {
     private var envPythonHome: String = ""
     private var ffmpegBinPath: String = ""
     private var envSslCertFile: String = ""
+
+    private var shutdownHook: Thread? = null
 
     val isInitialized: Boolean get() = initialized
     val isServerRunning: Boolean get() = serverProcess?.isAlive == true
@@ -47,6 +50,12 @@ class SpotDLCore {
         val binariesDir = File(context.applicationInfo.nativeLibraryDir)
         homeDir = baseDir
 
+        val usableSpace = File(context.noBackupFilesDir).usableSpace
+        val minRequired = 100L * 1024 * 1024
+        if (usableSpace < minRequired) {
+            throw IOException("Insufficient disk space: ${usableSpace / 1024 / 1024}MB free, need at least ${minRequired / 1024 / 1024}MB")
+        }
+
         pythonPath = File(binariesDir, BINARIES_PYTHON)
         pythonDir = File(packagesDir, PYTHON_DIR_NAME)
         ffmpegDir = File(packagesDir, FFMPEG_DIR_NAME)
@@ -62,11 +71,31 @@ class SpotDLCore {
             extractZipAsset(context, "python", pythonDir)
             extractZipAsset(context, "ffmpeg", ffmpegDir)
             extractServerScript(context, baseDir)
+            registerShutdownHook()
             initialized = true
             Log.i(LOG_TAG, "SpotDLCore initialized successfully")
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Failed to initialize SpotDLCore", e)
             throw RuntimeException("Failed to initialize SpotDL", e)
+        }
+    }
+
+    private fun registerShutdownHook() {
+        if (shutdownHook != null) return
+        val hook = Thread {
+            val proc = serverProcess
+            if (proc?.isAlive == true) {
+                Log.i(LOG_TAG, "Shutdown hook: killing server process")
+                proc.destroy()
+                try { proc.waitFor(3, TimeUnit.SECONDS) } catch (_: Exception) {}
+                if (proc.isAlive) proc.destroyForcibly()
+            }
+        }
+        shutdownHook = hook
+        try {
+            Runtime.getRuntime().addShutdownHook(hook)
+        } catch (_: IllegalStateException) {
+            // VM already shutting down
         }
     }
 
@@ -151,6 +180,7 @@ class SpotDLCore {
         }
     }
 
+    @Synchronized
     fun startServer(context: Context) {
         if (serverProcess?.isAlive == true) return
 
@@ -174,8 +204,8 @@ class SpotDLCore {
 
         Log.i(LOG_TAG, "Starting Python server: ${command.joinToString(" ")}")
 
+        val proc = pb.start()
         try {
-            val proc = pb.start()
             serverProcess = proc
 
             val latch = CountDownLatch(1)
@@ -200,9 +230,12 @@ class SpotDLCore {
                 val exit = proc.exitValue()
                 throw RuntimeException("Server exited with code $exit")
             }
-            Log.i(LOG_TAG, "Python server started on port $LOCAL_PORT") // LOCAL_PORT defined in SpotDLPlugin.kt
+            Log.i(LOG_TAG, "Python server started on port 9182")
         } catch (e: Exception) {
             serverProcess = null
+            proc.destroy()
+            try { proc.waitFor(1, TimeUnit.SECONDS) } catch (_: Exception) {}
+            if (proc.isAlive) proc.destroyForcibly()
             throw RuntimeException("Failed to start server", e)
         }
     }
@@ -210,12 +243,6 @@ class SpotDLCore {
     fun stopServer() {
         serverProcess?.let {
             if (it.isAlive) {
-                val pid = getPid(it)
-                if (pid > 0) {
-                    try {
-                        Runtime.getRuntime().exec(arrayOf("kill", "-9", "-$pid")).waitFor()
-                    } catch (_: Exception) {}
-                }
                 it.destroy()
                 try { it.waitFor(3, TimeUnit.SECONDS) } catch (_: Exception) {}
                 if (it.isAlive) it.destroyForcibly()

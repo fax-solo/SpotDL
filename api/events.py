@@ -1,31 +1,68 @@
 import asyncio
 import json
 import logging
+import time
 from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
-_subscribers: dict[str, list[asyncio.Queue]] = {}
+
+_MAX_QUEUE_SIZE = 100
 
 
-def subscribe(event_pattern: str) -> asyncio.Queue:
-    q: asyncio.Queue = asyncio.Queue()
-    _subscribers.setdefault(event_pattern, []).append(q)
-    return q
+class _Subscriber:
+    __slots__ = ("queue", "last_get")
+    def __init__(self):
+        self.queue: asyncio.Queue = asyncio.Queue(maxsize=_MAX_QUEUE_SIZE)
+        self.last_get: float = time.time()
+
+    def touch(self):
+        self.last_get = time.time()
 
 
-def unsubscribe(event_pattern: str, q: asyncio.Queue):
-    if event_pattern in _subscribers:
-        _subscribers[event_pattern].remove(q)
-        if not _subscribers[event_pattern]:
-            del _subscribers[event_pattern]
+_subscribers: dict[str, list[_Subscriber]] = {}
+_cleanup_interval: int = 300
+
+
+def subscribe(event_pattern: str) -> _Subscriber:
+    sub = _Subscriber()
+    _subscribers.setdefault(event_pattern, []).append(sub)
+    return sub
+
+
+def unsubscribe(event_pattern: str | list[str], sub: _Subscriber):
+    patterns = event_pattern if isinstance(event_pattern, list) else [event_pattern]
+    for p in patterns:
+        if p in _subscribers:
+            try:
+                _subscribers[p].remove(sub)
+            except ValueError:
+                pass
+            if not _subscribers[p]:
+                del _subscribers[p]
+
+
+def _cleanup_stale_queues():
+    """Remove subscriber queues that haven't been read in over 2 minutes."""
+    now = time.time()
+    for pattern, subs in list(_subscribers.items()):
+        alive = [s for s in subs if now - s.last_get < 120]
+        if alive:
+            _subscribers[pattern] = alive
+        else:
+            del _subscribers[pattern]
 
 
 async def publish(event: str, data: dict):
-    for pattern, queues in list(_subscribers.items()):
+    for pattern, subs in list(_subscribers.items()):
         if _match_pattern(event, pattern):
-            for q in queues:
-                await q.put({"event": event, "data": data})
+            for sub in subs:
+                try:
+                    sub.queue.put_nowait({"event": event, "data": data})
+                except asyncio.QueueFull:
+                    pass
+                except Exception:
+                    pass
 
 
 def _match_pattern(event: str, pattern: str) -> bool:
@@ -38,15 +75,16 @@ async def event_stream(
     event_filter: str | None = None,
 ) -> AsyncGenerator[str, None]:
     patterns = [event_filter] if event_filter else ["*"]
-    queues = [subscribe(p) for p in patterns]
+    subs = [subscribe(p) for p in patterns]
     try:
         while True:
-            for q in queues:
+            for sub in subs:
                 try:
-                    data = await asyncio.wait_for(q.get(), timeout=30)
+                    data = await asyncio.wait_for(sub.queue.get(), timeout=30)
+                    sub.touch()
                     yield f"data: {json.dumps(data)}\n\n"
                 except asyncio.TimeoutError:
                     yield ": keepalive\n\n"
     finally:
-        for p, q in zip(patterns, queues):
-            unsubscribe(p, q)
+        for p, sub in zip(patterns, subs):
+            unsubscribe(p, sub)

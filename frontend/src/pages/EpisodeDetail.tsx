@@ -9,6 +9,7 @@ import { fetchEpisode, type Episode } from '../lib/spotifyApi'
 import { usePlayer } from '../hooks/usePlayer'
 import { useToast } from '../components/Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
+import { uuid } from '../lib/uuid'
 
 interface EpisodeDetailProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -88,7 +89,7 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
     setPlaying(true)
     try {
       play({
-        id: crypto.randomUUID(),
+        id: uuid(),
         title: episode.title,
         artist: episode.show?.publisher || episode.show?.name || 'Unknown',
         album: episode.show?.name || 'Podcast',

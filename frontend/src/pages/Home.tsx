@@ -61,10 +61,12 @@ export function Home() {
   const loadRecommendations = useCallback(async () => {
     if (entries.length === 0) return
     const lastEntry = entries[0]
+    if (!lastEntry) return
     try {
       const res = await searchSpotify(`${lastEntry.artist} ${lastEntry.title}`, 'track', 1)
-      if (res.tracks?.[0]?.artist_id) {
-        const tracks = await fetchRecommendations([res.tracks[0].artist_id], [], [], 10)
+      const firstTrack = res.tracks?.[0]
+      if (firstTrack?.artist_id) {
+        const tracks = await fetchRecommendations([firstTrack.artist_id], [], [], 10)
         setRecommendations(tracks)
       }
     } catch { setRecommendations([]) }

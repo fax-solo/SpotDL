@@ -1,16 +1,26 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3, Plus, Star, ArrowRight } from 'lucide-react'
+import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3, Plus, Star, ArrowRight, Headphones, Radio } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
-import { searchSpotify, searchYouTubeTracks, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
+import { searchSpotify, searchYouTubeTracks, searchDeezer, searchSoundCloud, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
 import { usePlayer } from '../hooks/usePlayer'
 import { useToast } from '../components/Toast'
-import { findAudio } from '../lib/sources'
+import { findAudio, preResolveAudio } from '../lib/sources'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { Capacitor } from '@capacitor/core'
 import { AddToPlaylistModal } from '../components/AddToPlaylistModal'
 import type { PlaylistTrack } from '../hooks/usePlaylists'
 import { pickTopResult, type RankableItem } from '../lib/searchRanking'
+import { uuid } from '../lib/uuid'
+
+const SEARCH_TIMEOUT = 8000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Search timed out')), ms)),
+  ])
+}
 
 function groupTracksByAlbum(tracks: SearchTrack[]): (SearchTrack & { _groupSize?: number })[] {
   const groups = new Map<string, SearchTrack[]>()
@@ -26,13 +36,13 @@ function groupTracksByAlbum(tracks: SearchTrack[]): (SearchTrack & { _groupSize?
   }
   for (const [, group] of groups) {
     if (group.length === 1) {
-      solo.push(group[0])
+      solo.push(group[0]!)
     }
   }
   const deduped: (SearchTrack & { _groupSize?: number })[] = [...solo]
   for (const [, group] of groups) {
     if (group.length > 1) {
-      const first = { ...group[0], _groupSize: group.length }
+      const first = { ...group[0]!, _groupSize: group.length }
       deduped.push(first)
     }
   }
@@ -45,7 +55,6 @@ export function SearchPage() {
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null)
   const [youtubeResults, setPlayResults] = useState<any[] | null>(null)
-  const [searchingPlay, setSearchingPlay] = useState(false)
   const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [topResult, setTopResult] = useState<RankableItem | null>(null)
@@ -64,13 +73,13 @@ export function SearchPage() {
       const query = `${item.artist} ${item.title}`
       const { info } = await findAudio(query, item.title, item.artist)
       const entry: HistoryEntry = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         title: item.title,
         artist: item.artist,
         album: item.album,
         artworkUrl: item.artwork_url,
         filePath: null,
-        streamUrl: info.audioUrl || undefined,
+        ...(info.audioUrl ? { streamUrl: info.audioUrl } : {}),
         timestamp: Date.now(),
       }
       play(entry)
@@ -91,22 +100,24 @@ export function SearchPage() {
         return
       }
       const entries: HistoryEntry[] = data.tracks.map(t => ({
-        id: crypto.randomUUID(),
+        id: uuid(),
         title: t.title,
         artist: t.artist,
         album: t.album || item.name,
         artworkUrl: t.artwork_url || item.image,
         filePath: null,
-        streamUrl: undefined,
         timestamp: Date.now(),
       }))
       const firstTrack = data.tracks[0]
-      try {
-        const query = `${firstTrack.artist} ${firstTrack.title}`
-        const { info } = await findAudio(query, firstTrack.title, firstTrack.artist)
-        entries[0].streamUrl = info.audioUrl || undefined
-      } catch {}
-      play(entries[0], entries)
+      if (firstTrack) {
+        try {
+          const query = `${firstTrack.artist} ${firstTrack.title}`
+          const { info } = await findAudio(query, firstTrack.title, firstTrack.artist)
+          if (info.audioUrl) entries[0] = { ...entries[0]!, streamUrl: info.audioUrl }
+        } catch {}
+      }
+      const head = entries[0]
+      if (head) play(head, entries)
     } catch {
       toast('Could not load playlist', 'error')
     } finally {
@@ -124,22 +135,24 @@ export function SearchPage() {
         return
       }
       const entries: HistoryEntry[] = data.tracks.map(t => ({
-        id: crypto.randomUUID(),
+        id: uuid(),
         title: t.title,
         artist: t.artist,
         album: t.album || item.name,
         artworkUrl: t.artwork_url || item.image,
         filePath: null,
-        streamUrl: undefined,
         timestamp: Date.now(),
       }))
       const firstTrack = data.tracks[0]
-      try {
-        const query = `${firstTrack.artist} ${firstTrack.title}`
-        const { info } = await findAudio(query, firstTrack.title, firstTrack.artist)
-        entries[0].streamUrl = info.audioUrl || undefined
-      } catch {}
-      play(entries[0], entries)
+      if (firstTrack) {
+        try {
+          const query = `${firstTrack.artist} ${firstTrack.title}`
+          const { info } = await findAudio(query, firstTrack.title, firstTrack.artist)
+          if (info.audioUrl) entries[0] = { ...entries[0]!, streamUrl: info.audioUrl }
+        } catch {}
+      }
+      const head = entries[0]
+      if (head) play(head, entries)
     } catch {
       toast('Could not load album', 'error')
     } finally {
@@ -156,53 +169,63 @@ export function SearchPage() {
     if (!trimmed) { setSearchResults(null); setPlayResults(null); return }
 
     setSearching(true)
-    setSearchingPlay(true)
-    setSearchResults(null)
-    setPlayResults(null)
     setSearchError(null)
+    // Keep old results visible while searching (optimistic UI), only clear play results
+    // setSearchResults(null) — don't clear, let old results stay until new ones arrive
+    setPlayResults(null)
 
     const reqId = ++searchReqId.current
 
     const hasArabic = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(trimmed)
 
-    // Always run both in parallel — if Spotify fails, YouTube results still show
     const spotifyPromise = hasArabic
       ? searchSpotify(trimmed, 'track,artist,album,show,playlist', 8)
-        .catch((err: unknown) => {
-          console.warn('[search] Spotify search for Arabic query failed:', err)
-          return null as unknown as SearchResults
-        })
+        .catch(() => null as unknown as SearchResults)
       : searchSpotify(trimmed, 'track,artist,album,show,playlist', 8)
 
-    const [spotifyResult, youtubeResult] = await Promise.allSettled([
-      spotifyPromise,
-      searchYouTubeTracks(trimmed),
-    ])
+    const sources = [
+      { key: 'spotify', promise: withTimeout(spotifyPromise, SEARCH_TIMEOUT) },
+      { key: 'youtube', promise: withTimeout(searchYouTubeTracks(trimmed).catch(() => []), SEARCH_TIMEOUT) },
+      { key: 'deezer', promise: withTimeout(searchDeezer(trimmed).catch(() => []), SEARCH_TIMEOUT) },
+      { key: 'soundcloud', promise: withTimeout(searchSoundCloud(trimmed).catch(() => []), SEARCH_TIMEOUT) },
+    ]
 
+    let anyPlayResults = false
+
+    for (const { key, promise } of sources) {
+      promise.then((data: any) => {
+        if (reqId !== searchReqId.current) return
+        if (key === 'spotify' && data) {
+          const r = data as SearchResults
+          const hasAny = (r.tracks?.length ?? 0) > 0 || (r.artists?.length ?? 0) > 0 ||
+                         (r.albums?.length ?? 0) > 0 || (r.playlists?.length ?? 0) > 0 || (r.shows?.length ?? 0) > 0
+          if (hasAny) {
+            setSearchResults(r)
+            const top = pickTopResult(trimmed, r)
+            setTopResult(top)
+            if (top?.type === 'track') {
+              preResolveAudio(top.item.title, top.item.artist).catch(() => {})
+            }
+          } else if (!hasArabic && !searchResults) {
+            setSearchError('No Spotify results found')
+          }
+        } else if (key === 'youtube' && Array.isArray(data) && data.length > 0) {
+          anyPlayResults = true
+          setPlayResults(data)
+        } else if (key === 'deezer' && Array.isArray(data) && data.length > 0) {
+          anyPlayResults = true
+          setPlayResults(prev => prev ? [...prev, ...data.map((d: any) => ({ ...d, _source: 'deezer' }))] : data.map((d: any) => ({ ...d, _source: 'deezer' })))
+        } else if (key === 'soundcloud' && Array.isArray(data) && data.length > 0) {
+          anyPlayResults = true
+          setPlayResults(prev => prev ? [...prev, ...data.map((d: any) => ({ ...d, _source: 'soundcloud' }))] : data.map((d: any) => ({ ...d, _source: 'soundcloud' })))
+        }
+      }).catch(() => {})
+    }
+
+    await Promise.allSettled(sources.map(s => s.promise))
     if (reqId !== searchReqId.current) return
-
     setSearching(false)
-    setSearchingPlay(false)
-
-    if (spotifyResult.status === 'fulfilled' && spotifyResult.value) {
-      const r = spotifyResult.value
-      const hasAny = (r.tracks?.length ?? 0) > 0 || (r.artists?.length ?? 0) > 0 ||
-                     (r.albums?.length ?? 0) > 0 || (r.playlists?.length ?? 0) > 0 || (r.shows?.length ?? 0) > 0
-      if (hasAny) {
-        setSearchResults(r)
-        setTopResult(pickTopResult(trimmed, r))
-      } else {
-        setSearchError('No Spotify results found')
-      }
-    } else if (spotifyResult.status === 'rejected') {
-      setSearchError('Spotify search unavailable')
-    } else if (hasArabic && spotifyResult.status === 'fulfilled' && !spotifyResult.value) {
-      // Arabic search returned empty — the API likely doesn't support it
-    }
-
-    if (youtubeResult.status === 'fulfilled' && youtubeResult.value.length > 0) {
-      setPlayResults(youtubeResult.value)
-    }
+    if (!anyPlayResults) setPlayResults([])
   }, [])
 
   useEffect(() => {
@@ -459,58 +482,64 @@ export function SearchPage() {
           <div className="space-y-1 mb-6">
             <div className="flex items-center gap-2 mb-2">
               <Play className="w-4 h-4 text-red-500" />
-              <h2 className="text-sm font-semibold text-light-text dark:text-dark-text">YouTube Results</h2>
+              <h2 className="text-sm font-semibold text-light-text dark:text-dark-text">More Results</h2>
               {/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(searchQuery.trim()) && !searchResults && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 ml-auto">
                   Spotify search unavailable for this language
                 </span>
               )}
             </div>
-            {youtubeResults.map((r, _i) => (
-              <button
-                key={r.videoId}
-                onClick={() => navigate(`/yt-track/${r.videoId}`, { state: { title: r.title, thumbnail: r.thumbnail, url: r.url, author: r.author } })}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
-              >
-                <div className="w-10 h-10 rounded-lg bg-red-500/10 flex-shrink-0 overflow-hidden flex items-center justify-center">
-                  {r.thumbnail ? <ArtworkImage src={r.thumbnail} alt="" className="w-full h-full object-cover" /> : <Play className="w-5 h-5 text-red-400/40" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">{r.title}</p>
-                  <p className="text-xs text-light-muted dark:text-dark-muted truncate">YouTube • {r.author || 'Tap for details'}</p>
-                </div>
+            {youtubeResults.map((r, _i) => {
+              const source = (r._source as string) || 'youtube'
+              const isYt = source === 'youtube'
+              const isDeezer = source === 'deezer'
+              const bgColor = isYt ? 'bg-red-500/10' : isDeezer ? 'bg-blue-500/10' : 'bg-orange-500/10'
+              const textColor = isYt ? 'text-red-500' : isDeezer ? 'text-blue-500' : 'text-orange-500'
+              const icon = isYt ? <Play className="w-5 h-5 text-red-400/40" />
+                : isDeezer ? <Headphones className="w-5 h-5 text-blue-400/40" />
+                : <Radio className="w-5 h-5 text-orange-400/40" />
+              const label = isYt ? 'YouTube' : isDeezer ? 'Deezer' : 'SoundCloud'
+              const detailUrl = isYt ? `/yt-track/${r.videoId}` : null
+              return (
                 <button
-                  onClick={e => { e.stopPropagation(); navigate('/download', { state: { url: r.url } }) }}
-                  className="px-3 py-1.5 text-xs bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors cursor-pointer shrink-0"
+                  key={r.videoId || r.url}
+                  onClick={() => detailUrl ? navigate(detailUrl, { state: { title: r.title, thumbnail: r.thumbnail, url: r.url, author: r.author } }) : navigate('/download', { state: { url: r.url } })}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
                 >
-                  Download
+                  <div className={`w-10 h-10 rounded-lg ${bgColor} flex-shrink-0 overflow-hidden flex items-center justify-center`}>
+                    {r.thumbnail ? <ArtworkImage src={r.thumbnail} alt="" className="w-full h-full object-cover" /> : icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">{r.title}</p>
+                    <p className="text-xs text-light-muted dark:text-dark-muted truncate">{label} • {r.author || r.artist || 'Tap for details'}</p>
+                  </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); navigate('/download', { state: { url: r.url } }) }}
+                    className={`px-3 py-1.5 text-xs ${bgColor} ${textColor} rounded-lg hover:opacity-80 transition-colors cursor-pointer shrink-0`}
+                  >
+                    Download
+                  </button>
                 </button>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {searchingPlay && (
-          <div className="flex items-center justify-center py-4 gap-2">
-            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs text-light-muted dark:text-dark-muted">Searching YouTube...</span>
+              )
+            })}
           </div>
         )}
 
         {searching && (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center justify-center py-4">
+            <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            {searchResults && <span className="ml-2 text-xs text-light-muted dark:text-dark-muted">Refreshing results...</span>}
           </div>
         )}
 
-        {!searchQuery && !searching && !searchResults && !youtubeResults && (
+        {!searchQuery && !searching && !searchResults && !(youtubeResults && youtubeResults.length > 0) && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Search className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
             <p className="text-light-muted dark:text-dark-muted text-sm">Start typing to search</p>
           </div>
         )}
 
-        {searchQuery && !searching && !searchingPlay && !youtubeResults && searchError && !searchResults && (
+        {searchQuery && !searching && !(youtubeResults && youtubeResults.length > 0) && searchError && !searchResults && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
             <p className="text-light-text dark:text-dark-text text-sm font-medium">Search failed</p>
@@ -524,7 +553,7 @@ export function SearchPage() {
           </div>
         )}
 
-        {searchQuery && !searching && !searchingPlay && !youtubeResults && !searchResults && !searchError && (
+        {searchQuery && !searching && !(youtubeResults && youtubeResults.length > 0) && !searchResults && !searchError && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Music className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
             <p className="text-light-muted dark:text-dark-muted text-sm font-medium">No results found</p>

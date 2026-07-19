@@ -112,7 +112,11 @@ def _verify_legacy_token(parts: list[str]) -> tuple[str, str | None] | None:
     check = hashlib.sha256((check_data + JWT_SECRET).encode()).hexdigest()
     if not secrets.compare_digest(sig, check):
         return None
-    if int(expiry_ts) < datetime.now(timezone.utc).timestamp():
+    try:
+        expiry = int(expiry_ts)
+    except (ValueError, TypeError):
+        return None
+    if expiry < datetime.now(timezone.utc).timestamp():
         return None
     return user_id, jti
 
@@ -240,6 +244,8 @@ def _user_response(user: User, token: str) -> dict:
 @router.post("/signup")
 @limiter.limit("10/minute")
 async def signup(request: Request, body: SignUpRequest, db: AsyncSession = Depends(get_db)):
+    from sqlalchemy.exc import IntegrityError
+
     result = await db.execute(
         select(User).where(
             (User.email == body.email) | ((User.username != None) & (User.username == body.username))
@@ -261,7 +267,11 @@ async def signup(request: Request, body: SignUpRequest, db: AsyncSession = Depen
         auth_provider="email",
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Email or username already registered")
     await db.refresh(user)
 
     token = _create_token(user.id)
@@ -504,7 +514,10 @@ async def upload_avatar(
     if file.content_type and not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
 
-    ext = os.path.splitext(file.filename or "avatar.jpg")[1] or ".jpg"
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+    ext = (os.path.splitext(file.filename or "avatar.jpg")[1] or ".jpg").lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid file extension: {ext}")
     filename = f"{user.id}_{uuid.uuid4().hex[:8]}{ext}"
     path = os.path.join(AVATAR_DIR, filename)
 

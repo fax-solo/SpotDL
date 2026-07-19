@@ -105,7 +105,7 @@ export function LocalMusicPage() {
       try {
         const lyrics = await fetchLyricsWithFallback(track.name, 'Local file')
         if (lyrics.plainLyrics || lyrics.syncedLyrics) {
-          updateEntryLyrics(track.name, 'Local file', lyrics.plainLyrics, lyrics.syncedLyrics)
+          updateEntryLyrics(`local-${track.path}`, lyrics.plainLyrics, lyrics.syncedLyrics)
           success++
         } else {
           failed++

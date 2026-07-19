@@ -32,13 +32,17 @@ function SwipeableToast({ toast: t, onDismiss }: { toast: ToastItem; onDismiss: 
   const toastRef = useRef<HTMLDivElement>(null)
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX
+    const touch = e.touches[0]
+    if (!touch) return
+    startX.current = touch.clientX
     currentX.current = 0
     setDragging(true)
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const diff = e.touches[0].clientX - startX.current
+    const touch = e.touches[0]
+    if (!touch) return
+    const diff = touch.clientX - startX.current
     if (Math.abs(diff) > Math.abs(0)) {
       currentX.current = diff
       setOffsetX(diff)

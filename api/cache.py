@@ -42,7 +42,9 @@ def set_cache(key: str, data: dict):
     with _cache_lock:
         try:
             _ensure_cache_dir()
-            path.write_text(json.dumps({"_cached_at": time.time(), "data": data}))
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"_cached_at": time.time(), "data": data}))
+            tmp.rename(path)
         except OSError as e:
             logger.debug(f"Cache write error for {key}: {e}")
 

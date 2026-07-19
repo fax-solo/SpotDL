@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import time
+import stat
 import shutil
 import tempfile
 import logging
@@ -12,9 +14,12 @@ import requests
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, error as MutagenError
 from mutagen.mp4 import MP4, MP4Cover
 
-from cache import metadata_cache
+from cache import get_cache, set_cache
 from _matching import normalize, strip_feat, title_matches
+from shared import requests_retry_session, source_is_open, get_circuit_breaker, metrics
 from spotify import fetch_metadata, parse_url
+
+_cover_session = requests_retry_session()
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,7 @@ def _get_base_opts() -> dict:
         "source_address": "0.0.0.0",
         "extractor_retries": 3,
         "retries": 5,
+        "socket_timeout": 30,
         "throttled_rate": "100K",
         "concurrent_fragments": 5,
         "fragment_retries": 10,
@@ -53,6 +59,9 @@ TOPIC_SOURCES = [
 
 def search_track_topic(artist: str, title: str) -> list[dict]:
     for src in TOPIC_SOURCES:
+        if source_is_open(src["name"]):
+            logger.info("search_track_topic: skip %s (circuit open)", src["name"])
+            continue
         query = f"{artist} - {title} Topic" if src["topic"] else f"{artist} - {title}"
         logger.info("search_track_topic: trying %s with '%s'", src["name"], query)
         results = search_track(query, src["name"], src["prefix"])
@@ -89,11 +98,11 @@ def download_track_combined(
                 if title_matches(title, artist, entry.get("title"), entry.get("uploader")):
                     match = entry
                     break
-            if not match:
-                match = topic_results[0]
-            return download_track(
-                title, artist, album, artwork_url, match["url"], quality, output_format,
-            )
+            if match:
+                return download_track(
+                    title, artist, album, artwork_url, match["url"], quality, output_format,
+                )
+            logger.info("download_track_combined: no topic match found, falling through to regular search")
 
     return download_track(title, artist, album, artwork_url, quality=quality, output_format=output_format)
 
@@ -107,15 +116,22 @@ def search_track(query: str, source: str, prefix: str) -> list[dict]:
     Search for a track and return entries with full metadata (title, uploader, url).
     Uses extract_flat=False to get full info in one call, avoiding a second API round-trip.
     """
+    cb = get_circuit_breaker(source)
+    if cb.is_open():
+        logger.info("search_track: skip %s (circuit open)", source)
+        return []
+
     opts = {
         **_get_base_opts(),
         "extract_flat": False,
         "default_search": prefix,
     }
+    t0 = time.time()
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(f"{prefix}:{query}", download=False)
             if not info or "entries" not in info or not info["entries"]:
+                metrics.record(f"search.{source}", time.time() - t0)
                 return []
             entries = []
             for entry in info["entries"]:
@@ -128,14 +144,37 @@ def search_track(query: str, source: str, prefix: str) -> list[dict]:
                             "uploader": entry.get("uploader") or entry.get("channel") or entry.get("creator"),
                         })
             logger.info(f"search_track: {source} found {len(entries)} result(s) for '{query}'")
+            cb.record_success()
+            metrics.record(f"search.{source}.ok", time.time() - t0)
             return entries
     except Exception as e:
         logger.warning(f"search_track: {source} failed for '{query}': {e}")
+        cb.record_failure()
+        metrics.inc(f"search.{source}.error")
+        metrics.record(f"search.{source}.error", time.time() - t0)
         return []
 
 
 def _safe(s: str) -> str:
     return re.sub(r'[^\w\-_., ]', "_", s)
+
+
+class _ProgressTracker:
+    def __init__(self):
+        self.progress: dict[str, str | float | None] = {"status": "starting", "pct": 0, "speed": None, "eta": None}
+
+    def hook(self, d: dict):
+        status = d.get("status", "")
+        if status == "downloading":
+            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+            downloaded = d.get("downloaded_bytes", 0)
+            self.progress["status"] = "downloading"
+            self.progress["pct"] = round(downloaded / total * 100, 1) if total else 0
+            self.progress["speed"] = d.get("speed")
+            self.progress["eta"] = d.get("eta")
+        elif status == "finished":
+            self.progress["status"] = "processing"
+            self.progress["pct"] = 100
 
 
 async def stream_download(
@@ -147,46 +186,84 @@ async def stream_download(
     quality: str = "320",
     output_format: str = "mp3",
 ) -> AsyncGenerator[str, None]:
-    try:
-        filepath, ext = await asyncio.to_thread(download_track, title, artist, album, artwork_url, source_url, quality, output_format)
-        yield json.dumps({"type": "complete", "filepath": filepath, "ext": ext}) + "\n"
+    tracker = _ProgressTracker()
 
+    def _run():
+        return _download_with_progress(tracker, title, artist, album, artwork_url, source_url, quality, output_format)
+
+    task = asyncio.create_task(asyncio.to_thread(_run))
+
+    filepath: str | None = None
+    tmpdir: str | None = None
+
+    try:
+        last_pct = -1
+        while not task.done():
+            p = tracker.progress
+            status = p.get("status", "starting")
+            pct = p.get("pct", 0)
+            if pct != last_pct and status in ("downloading", "processing", "starting"):
+                line = {"type": "progress", "status": status, "pct": pct}
+                speed = p.get("speed")
+                eta = p.get("eta")
+                if speed is not None:
+                    line["speed"] = round(speed / 1024, 1) if speed else 0
+                if eta is not None:
+                    line["eta"] = int(eta)
+                yield json.dumps(line) + "\n"
+                last_pct = pct
+            await asyncio.sleep(0.25)
+
+        filepath, ext = task.result()
+        tmpdir = os.path.dirname(filepath) if filepath else None
+        yield json.dumps({"type": "complete", "filepath": filepath, "ext": ext}) + "\n"
         with open(filepath, "rb") as f:
             while True:
                 chunk = f.read(65536)
                 if not chunk:
                     break
                 yield chunk
+    except GeneratorExit:
+        task.cancel()
+        raise
+    except asyncio.CancelledError:
+        task.cancel()
+        raise
     except Exception as e:
         yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+    finally:
+        if tmpdir and os.path.isdir(tmpdir):
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def download_track(
+def _resolve_urls(title: str, artist: str, source_url: str | None) -> list[tuple[str, str]]:
+    if source_url and not source_url.startswith("https://open.spotify.com"):
+        return [(source_url, "direct")]
+    query = f"{artist} {title}"
+    track_urls = []
+    for src in SOURCES:
+        entries = search_track(query, src["name"], src["prefix"])
+        for entry in entries:
+            if title_matches(title, artist, entry.get("title"), entry.get("uploader")):
+                track_urls.append((entry["url"], src["name"]))
+                break
+        if track_urls:
+            break
+    if not track_urls:
+        raise RuntimeError(f"No track found on any source for '{title}' by {artist}")
+    return track_urls
+
+
+def _do_download(
+    track_urls: list[tuple[str, str]],
     title: str,
     artist: str,
     album: str,
     artwork_url: str | None,
-    source_url: str | None = None,
-    quality: str = "320",
-    output_format: str = "mp3",
+    quality: str,
+    output_format: str,
+    tracker: _ProgressTracker | None = None,
 ) -> tuple[str, str]:
-    if source_url and not source_url.startswith("https://open.spotify.com"):
-        track_urls = [(source_url, "direct")]
-    else:
-        query = f"{artist} {title}"
-        track_urls = []
-        for src in SOURCES:
-            entries = search_track(query, src["name"], src["prefix"])
-            for entry in entries:
-                if title_matches(title, artist, entry.get("title"), entry.get("uploader")):
-                    track_urls.append((entry["url"], src["name"]))
-                    break
-            if track_urls:
-                break
-
-        if not track_urls:
-            raise RuntimeError(f"No track found on any source for '{title}' by {artist}")
-
     ffmpeg_available = _find_ffmpeg()
     last_error: Exception | None = None
 
@@ -217,12 +294,16 @@ def download_track(
             if "youtube.com" in track_url or "youtu.be" in track_url:
                 opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
 
+            if tracker:
+                opts["progress_hooks"] = [tracker.hook]
+
             logger.info(f"download_track: trying {source_name}: {track_url}")
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([track_url])
 
             files = [f for f in os.listdir(tmpdir) if not f.endswith('.part')]
             if not files:
+                get_circuit_breaker(source_name).record_failure()
                 continue
 
             files.sort()
@@ -237,15 +318,15 @@ def download_track(
                 _tag_m4a(filepath, title, artist, album, artwork_url)
 
             logger.info(f"download_track: SUCCESS from {source_name}: {track_url}")
+            get_circuit_breaker(source_name).record_success()
             return filepath, ext
 
         except yt_dlp.DownloadError as e:
             last_error = e
+            get_circuit_breaker(source_name).record_failure()
             if "DRM" in str(e):
                 logger.warning(f"download_track: {source_name} {track_url} is DRM protected, trying next...")
                 continue
-            raise
-        except Exception as e:
             raise
         finally:
             if tmpdir and os.path.isdir(tmpdir):
@@ -256,6 +337,24 @@ def download_track(
         f"Tried {len(track_urls)} source(s). "
         f"{'Last error: ' + str(last_error) if last_error else ''}"
     )
+
+
+def download_track(
+    title: str,
+    artist: str,
+    album: str,
+    artwork_url: str | None,
+    source_url: str | None = None,
+    quality: str = "320",
+    output_format: str = "mp3",
+) -> tuple[str, str]:
+    track_urls = _resolve_urls(title, artist, source_url)
+    return _do_download(track_urls, title, artist, album, artwork_url, quality, output_format)
+
+
+def _download_with_progress(tracker: _ProgressTracker, title, artist, album, artwork_url, source_url, quality, output_format):
+    track_urls = _resolve_urls(title, artist, source_url)
+    return _do_download(track_urls, title, artist, album, artwork_url, quality, output_format, tracker)
 
 
 def _tag_mp3(path: str, title: str, artist: str, album: str, artwork_url: str | None):
@@ -286,7 +385,7 @@ def _tag_m4a(path: str, title: str, artist: str, album: str, artwork_url: str | 
 
 def _embed_cover(audio, artwork_url: str, fmt: str):
     try:
-        resp = requests.get(artwork_url, timeout=10)
+        resp = _cover_session.get(artwork_url, timeout=10)
         if resp.status_code == 200:
             if fmt == "mp3":
                 audio["APIC"] = APIC(

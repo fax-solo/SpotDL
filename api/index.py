@@ -4,6 +4,7 @@ import time
 import json
 import logging
 import uuid
+import asyncio
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
@@ -25,7 +26,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from database import init_db
-from shared import limiter
+from shared import limiter, metrics
 
 from auth import router as auth_router
 from admin import router as admin_router
@@ -37,6 +38,7 @@ from routes.scraping import router as scraping_router
 from routes.debug import router as debug_router
 from routes.spotify_auth import router as spotify_auth_router
 from routes.events import router as events_router
+from routes.metrics import router as metrics_router
 
 
 @asynccontextmanager
@@ -46,6 +48,11 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized")
     yield
     logger.info("Shutting down Sinc API")
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    for t in tasks:
+        t.cancel()
+    if tasks:
+        await asyncio.wait(tasks, timeout=5)
 
 
 app = FastAPI(title="Sinc API", version="2.0.0", lifespan=lifespan)
@@ -65,6 +72,7 @@ app.include_router(scraping_router)
 app.include_router(debug_router)
 app.include_router(spotify_auth_router)
 app.include_router(events_router)
+app.include_router(metrics_router)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -77,6 +85,8 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         elapsed_ms = int((time.time() - start) * 1000)
         response.headers["X-Request-Id"] = req_id
         response.headers["X-Response-Time-Ms"] = str(elapsed_ms)
+        metrics.inc(f"http.{response.status_code}", 1)
+        metrics.record(f"http.{request.method}.{request.url.path}", time.time() - start)
         logger.info("%s %s %s %dms", request.method, request.url.path, response.status_code, elapsed_ms)
         return response
 
@@ -100,13 +110,26 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         if request.method not in self.SAFE_METHODS:
+            request_origin = None
             origin = request.headers.get("Origin")
+            referer = request.headers.get("Referer")
+
             if origin and origin != "null":
                 try:
                     origin_parsed = urlparse(origin)
                     request_origin = f"{origin_parsed.scheme}://{origin_parsed.netloc}".lower()
                 except Exception:
                     return JSONResponse(status_code=403, content={"detail": "Invalid Origin header"})
+            elif referer:
+                try:
+                    ref_parsed = urlparse(referer)
+                    request_origin = f"{ref_parsed.scheme}://{ref_parsed.netloc}".lower()
+                except Exception:
+                    return JSONResponse(status_code=403, content={"detail": "Invalid Referer header"})
+            else:
+                return JSONResponse(status_code=403, content={"detail": "CSRF: Missing origin or referer"})
+
+            if request_origin:
                 allowed = [o.lower() for o in _cors_origins]
                 if not any(request_origin == o for o in allowed):
                     return JSONResponse(status_code=403, content={"detail": "CSRF: Invalid origin"})

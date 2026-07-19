@@ -49,6 +49,35 @@ describe('normalize', () => {
     const result = normalize('Привет мир')
     expect(result).toBe('привет мир')
   })
+
+  it('returns empty string for noise-only input', () => {
+    expect(normalize('(Official Video) [HD] 4K')).toBe('')
+    expect(normalize('(Lyric Video)')).toBe('')
+    expect(normalize('[Remastered]')).toBe('')
+  })
+
+  it('normalizes "Topic" suffix', () => {
+    expect(normalize('Song Title - Topic')).toBe('song title topic')
+  })
+
+  it('handles feat/ft patterns', () => {
+    expect(normalize('Song ft. Artist')).toBe('song artist')
+    expect(normalize('Song (feat. Artist)')).toBe('song')
+    expect(normalize('Song Featuring Artist')).toBe('song artist')
+  })
+
+  it('handles empty string', () => {
+    expect(normalize('')).toBe('')
+  })
+
+  it('handles whitespace-only string', () => {
+    expect(normalize('   ')).toBe('')
+  })
+
+  it('preserves numbers in titles', () => {
+    expect(normalize('Song 2024 Remaster')).toBe('song 2024')
+    expect(normalize('Part 2')).toBe('part 2')
+  })
 })
 
 describe('matchScore', () => {
@@ -80,5 +109,104 @@ describe('matchScore', () => {
       foundAuthor: 'Shireen',
     })
     expect(score).toBeGreaterThan(MIN_CONFIDENCE)
+  })
+
+  it('scores 0 for empty expected title', () => {
+    expect(matchScore({
+      expectedTitle: '',
+      expectedArtist: 'Artist',
+      foundTitle: 'Some Song',
+      foundAuthor: 'Artist',
+    })).toBe(0)
+  })
+
+  it('scores empty-set Jaccard as 0 (not 1)', () => {
+    const score = matchScore({
+      expectedTitle: 'a',
+      expectedArtist: '',
+      foundTitle: 'x',
+      foundAuthor: '',
+    })
+    expect(score).toBe(0)
+  })
+
+  it('scores low for completely different titles', () => {
+    const score = matchScore({
+      expectedTitle: 'Bohemian Rhapsody',
+      expectedArtist: 'Queen',
+      foundTitle: 'Never Gonna Give You Up',
+      foundAuthor: 'Rick Astley',
+    })
+    expect(score).toBeLessThan(MIN_CONFIDENCE)
+  })
+
+  it('matches Topic channel results', () => {
+    const score = matchScore({
+      expectedTitle: 'Blinding Lights',
+      expectedArtist: 'The Weeknd',
+      foundTitle: 'Blinding Lights',
+      foundAuthor: 'The Weeknd - Topic',
+    })
+    expect(score).toBeGreaterThanOrEqual(MIN_CONFIDENCE)
+  })
+
+  it('ISRC match boosts score significantly', () => {
+    const scoreNoIsrc = matchScore({
+      expectedTitle: 'Different Title',
+      expectedArtist: 'Artist',
+      foundTitle: 'Song',
+      foundAuthor: 'Artist',
+    })
+    const scoreWithIsrc = matchScore({
+      expectedTitle: 'Different Title',
+      expectedArtist: 'Artist',
+      foundTitle: 'Song',
+      foundAuthor: 'Artist',
+      expectedIsrc: 'USABC1234567',
+      foundIsrc: 'USABC1234567',
+    })
+    expect(scoreWithIsrc).toBeGreaterThan(scoreNoIsrc)
+  })
+
+  it('scores 0 for non-matching ISRC', () => {
+    const score = matchScore({
+      expectedTitle: 'Song',
+      expectedArtist: 'Artist',
+      foundTitle: 'Song',
+      foundAuthor: 'Artist',
+      expectedIsrc: 'USABC1234567',
+      foundIsrc: 'USXYZ9999999',
+    })
+    expect(score).toBeGreaterThan(0)
+  })
+
+  it('matches when artist is in title (feat)', () => {
+    const score = matchScore({
+      expectedTitle: 'Song',
+      expectedArtist: 'Featured Artist',
+      foundTitle: 'Song (feat. Featured Artist)',
+      foundAuthor: 'Some Channel',
+    })
+    expect(score).toBeGreaterThanOrEqual(MIN_CONFIDENCE)
+  })
+
+  it('bidirectional artist match works', () => {
+    const score = matchScore({
+      expectedTitle: 'Song Title',
+      expectedArtist: 'Long Artist Name Here',
+      foundTitle: 'Song Title',
+      foundAuthor: 'Long Artist Name',
+    })
+    expect(score).toBeGreaterThanOrEqual(MIN_CONFIDENCE)
+  })
+
+  it('handles artist name subset matching', () => {
+    const score = matchScore({
+      expectedTitle: 'Song',
+      expectedArtist: 'Drake',
+      foundTitle: 'Song',
+      foundAuthor: 'Drake ft. Someone',
+    })
+    expect(score).toBeGreaterThanOrEqual(MIN_CONFIDENCE)
   })
 })

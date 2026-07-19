@@ -11,10 +11,11 @@ export function parseLRC(lrc: string): SyncedLine[] {
   for (const line of lines) {
     const match = timeRegex.exec(line)
     if (!match) continue
-    const minutes = parseInt(match[1], 10)
-    const seconds = parseInt(match[2], 10)
-    const frac = parseInt(match[3], 10)
-    const time = minutes * 60 + seconds + frac / (match[3].length === 3 ? 1000 : 100)
+    const minutes = parseInt(match[1]!, 10)
+    const seconds = parseInt(match[2]!, 10)
+    const frac = parseInt(match[3]!, 10)
+    const ms = match[3]!
+    const time = minutes * 60 + seconds + frac / (ms.length === 3 ? 1000 : 100)
     const text = line.replace(timeRegex, '').trim()
     if (text) {
       result.push({ time, text })
@@ -27,13 +28,15 @@ export function parseLRC(lrc: string): SyncedLine[] {
 
 export function findCurrentLine(lines: SyncedLine[], currentTime: number): number {
   if (lines.length === 0) return -1
-  if (currentTime < lines[0].time) return -1
+  if (!lines[0] || currentTime < lines[0].time) return -1
 
   let lo = 0
   let hi = lines.length - 1
   while (lo < hi) {
     const mid = (lo + hi + 1) >>> 1
-    if (lines[mid].time <= currentTime) {
+    const line = lines[mid]
+    if (!line) break
+    if (line.time <= currentTime) {
       lo = mid
     } else {
       hi = mid - 1
@@ -45,5 +48,5 @@ export function findCurrentLine(lines: SyncedLine[], currentTime: number): numbe
 export function getCurrentLyricLine(lines: SyncedLine[], currentTime: number): string | null {
   const idx = findCurrentLine(lines, currentTime)
   if (idx < 0 || idx >= lines.length) return null
-  return lines[idx].text
+  return lines[idx]?.text ?? null
 }

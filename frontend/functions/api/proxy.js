@@ -28,9 +28,24 @@ function isAllowedUrl(urlStr) {
   }
 }
 
+function getAllowedOrigins(env) {
+  return env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : []
+}
+function normalizeOrigin(o) {
+  const s = o.trim()
+  if (s.startsWith('https://') || s.startsWith('http://')) return s
+  return 'https://' + s
+}
 function getCors(context) {
-  const allowedOrigin = context.env.ALLOWED_ORIGINS || '*'
-  return { ...DEFAULT_CORS, 'Access-Control-Allow-Origin': allowedOrigin }
+  const requestOrigin = context.request.headers.get('Origin') || ''
+  const allowed = getAllowedOrigins(context.env)
+  const corsOrigin = allowed.length > 0
+    ? (allowed.some(a => requestOrigin === normalizeOrigin(a)) ? requestOrigin : '')
+    : '*'
+  const headers = { ...DEFAULT_CORS, 'Vary': 'Origin' }
+  if (corsOrigin) headers['Access-Control-Allow-Origin'] = corsOrigin
+  else delete headers['Access-Control-Allow-Origin']
+  return headers
 }
 
 export async function onRequest(context) {
@@ -76,11 +91,19 @@ export async function onRequest(context) {
   }
 
   try {
+    const upstreamHost = new URL(decodedUrl).hostname.toLowerCase()
+    const referer = upstreamHost.includes('googlevideo') || upstreamHost.includes('ytimg')
+      ? 'https://www.youtube.com/'
+      : upstreamHost.includes('mzstatic')
+        ? 'https://music.apple.com/'
+        : upstreamHost.includes('scdn')
+          ? 'https://open.spotify.com/'
+          : ''
     const upstream = await fetch(decodedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://www.youtube.com/',
-        'Range': context.request.headers.get('Range') || 'bytes=0-',
+        'Referer': referer,
+        'Range': context.request.headers.get('Range') || '',
       },
       signal: AbortSignal.timeout(30000),
     })

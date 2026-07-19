@@ -17,14 +17,18 @@ export function SwipeNavigator({ children, paths, currentPath, enabled }: SwipeN
   if (!enabled) return <>{children}</>
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    const touch = e.touches[0]
+    if (!touch) return
+    touchStart.current = { x: touch.clientX, y: touch.clientY }
   }
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart.current) return
 
-    const dx = e.changedTouches[0].clientX - touchStart.current.x
-    const dy = e.changedTouches[0].clientY - touchStart.current.y
+    const touch = e.changedTouches[0]
+    if (!touch) return
+    const dx = touch.clientX - touchStart.current.x
+    const dy = touch.clientY - touchStart.current.y
     touchStart.current = null
 
     if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return
@@ -32,10 +36,12 @@ export function SwipeNavigator({ children, paths, currentPath, enabled }: SwipeN
     const currentIdx = paths.indexOf(currentPath)
     if (currentIdx === -1) return
 
-    if (dx < 0 && currentIdx < paths.length - 1) {
-      navigate(paths[currentIdx + 1])
-    } else if (dx > 0 && currentIdx > 0) {
-      navigate(paths[currentIdx - 1])
+    const next = paths[currentIdx + 1]
+    const prev = paths[currentIdx - 1]
+    if (dx < 0 && currentIdx < paths.length - 1 && next) {
+      navigate(next)
+    } else if (dx > 0 && currentIdx > 0 && prev) {
+      navigate(prev)
     }
   }
 

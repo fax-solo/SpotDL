@@ -36,10 +36,11 @@ export async function verifyToken(token: string, secret: string, db?: D1Database
   const expected = await hmacSha256(`${headerB64}.${payloadB64}`, secret)
   if (sig !== expected) return null
 
-  const exp = payload.exp
-  if (exp && exp < Math.floor(Date.now() / 1000)) return null
+  if (typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) return null
 
-  const jti: string | undefined = payload.jti
+  if (!payload.jti) return null
+
+  const jti: string = payload.jti
   if (jti && db) {
     const blacklisted = await db.prepare(
       'SELECT 1 FROM token_blacklist WHERE jti = ?'

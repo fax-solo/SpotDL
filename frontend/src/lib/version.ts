@@ -4,7 +4,7 @@ export const GITHUB_REPO = 'fax-solo/SpotDL'
 export function parseVersion(v: string): { major: number; minor: number; patch: number } | null {
   const parts = v.replace(/^v/i, '').split('.').map(Number)
   if (parts.length !== 3 || parts.some(isNaN)) return null
-  return { major: parts[0], minor: parts[1], patch: parts[2] }
+  return { major: parts[0]!, minor: parts[1]!, patch: parts[2]! }
 }
 
 export function isNewerVersion(latest: string, current: string): boolean {

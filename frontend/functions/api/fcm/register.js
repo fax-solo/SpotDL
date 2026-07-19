@@ -9,31 +9,14 @@
  *
  * Requires D1 binding named "DB" and FCM_VAPID_KEY secret.
  */
-export async function onRequestPost(context) {
+export async function onRequest(context) {
   const { request, env } = context
 
-  const origin = request.headers.get('Origin') || ''
-  const allowedOrigins = env.ALLOWED_ORIGINS
-    ? env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-    : ['']
-
-  if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Max-Age': '86400',
-        'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : '',
-        'Vary': 'Origin',
-      },
-    })
+  if (request.method !== 'POST') {
+    return new Response('Method Not Allowed', { status: 405 })
   }
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : '',
-    'Vary': 'Origin',
-  }
+  const headers = { 'Content-Type': 'application/json' }
 
   try {
     const { token: pushToken } = await request.json()
@@ -52,12 +35,14 @@ export async function onRequestPost(context) {
     }
 
     // Store token in D1
-    if (env.DB) {
-      await env.DB.prepare(
-        `INSERT OR REPLACE INTO push_tokens (user_id, token, updated_at)
-         VALUES (?, ?, datetime('now'))`
-      ).bind(userId, pushToken).run()
+    if (!env.DB) {
+      console.warn('FCM register: DB binding not available')
+      return new Response(JSON.stringify({ error: 'Service unavailable' }), { status: 503, headers })
     }
+    await env.DB.prepare(
+      `INSERT OR REPLACE INTO push_tokens (user_id, token, updated_at)
+       VALUES (?, ?, datetime('now'))`
+    ).bind(userId, pushToken).run()
 
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers })
   } catch (err) {

@@ -1,6 +1,5 @@
 import { searchYouTube, getVideoInfo } from './youtubeClient'
 import { getDeezerTrack, searchDeezer } from './deezer'
-import { searchJamendo, jamendoInfo } from './jamendo'
 import { apiUrl } from './apiConfig'
 import { matchScore, MIN_CONFIDENCE } from './sources/matching'
 import { cachedFetch } from './requestCache'
@@ -63,28 +62,6 @@ async function soundcloudInfo(url: string): Promise<SourceInfo | null> {
   return null
 }
 
-async function searchBandcamp(query: string): Promise<SourceSearchResult[]> {
-  const data = await callFunction('bandcamp', { action: 'search', query })
-  return data?.results || []
-}
-
-async function bandcampInfo(url: string): Promise<SourceInfo | null> {
-  const data = await callFunction('bandcamp', { action: 'info', url })
-  if (data?.audioUrl) return data
-  return null
-}
-
-async function searchJamendoSource(query: string): Promise<SourceSearchResult[]> {
-  const results = await searchJamendo(query)
-  return results.map(r => ({ ...r, source: 'jamendo' }))
-}
-
-async function jamendoSourceInfo(url: string): Promise<SourceInfo | null> {
-  const data = await jamendoInfo(url)
-  if (data?.audioUrl) return data
-  return null
-}
-
 async function searchDeezerSource(query: string): Promise<SourceSearchResult[]> {
   const results = await searchDeezer(query)
   return results.map(r => ({
@@ -103,7 +80,7 @@ async function deezerSourceInfo(url: string): Promise<SourceInfo | null> {
   const match = url.match(/deezer\.com\/track\/(\d+)/)
   let id: number | null = null
   if (match) {
-    id = parseInt(match[1])
+    id = parseInt(match[1]!)
   } else {
     id = parseInt(url)
     if (isNaN(id)) return null
@@ -145,11 +122,9 @@ function stripQueryNoise(s: string): string {
 }
 
 const SEARCH_QUERIES = [
-  (artist: string, title: string) => artist ? `${artist} ${title}` : title,
   (artist: string, title: string) => artist ? `${artist} - ${title}` : title,
-  (artist: string, title: string) => artist ? `${artist} - ${title} Topic` : title,
+  (artist: string, title: string) => artist ? `${artist} ${title}` : title,
   (_artist: string, title: string) => title,
-  (artist: string, title: string) => artist ? `${title} ${artist}` : title,
 ]
 
 async function delay(ms: number) {
@@ -186,7 +161,7 @@ async function trySource(
     const resolveInfo = async (result: SourceSearchResult): Promise<{ info: SourceInfo; result: SourceSearchResult } | null> => {
       let info: SourceInfo | null = null
       if (result.audioUrl) {
-        info = { title: result.title, author: result.artist || '', duration: result.duration || '0', audioUrl: result.audioUrl, thumbnail: result.thumbnail || null, isPreview: result.isPreview }
+        info = { title: result.title, author: result.artist || '', duration: result.duration || '0', audioUrl: result.audioUrl, thumbnail: result.thumbnail || null, ...(result.isPreview !== undefined ? { isPreview: result.isPreview } : {}) }
       } else {
         try {
           const fetched = await source.info(result.url)
@@ -210,12 +185,12 @@ async function trySource(
         foundTitle: info.title,
         foundAuthor: info.author,
         foundDuration: info.duration,
-        expectedDuration,
-        expectedIsrc,
+        ...(expectedDuration !== undefined ? { expectedDuration } : {}),
+        ...(expectedIsrc !== undefined ? { expectedIsrc } : {}),
         foundIsrc: info.isrc || result.isrc || null,
       })
       if (score >= MIN_CONFIDENCE) {
-        return { info, source: source.name, score, isPreview: info.isPreview }
+        return { info, source: source.name, score, ...(info.isPreview !== undefined ? { isPreview: info.isPreview } : {}) }
       }
     }
 
@@ -229,12 +204,12 @@ async function trySource(
         foundTitle: info.title,
         foundAuthor: info.author,
         foundDuration: info.duration,
-        expectedDuration,
-        expectedIsrc,
+        ...(expectedDuration !== undefined ? { expectedDuration } : {}),
+        ...(expectedIsrc !== undefined ? { expectedIsrc } : {}),
         foundIsrc: info.isrc || result.isrc || null,
       })
       if (score >= MIN_CONFIDENCE) {
-        return { info, source: source.name, score, isPreview: info.isPreview }
+        return { info, source: source.name, score, ...(info.isPreview !== undefined ? { isPreview: info.isPreview } : {}) }
       }
     }
   }
@@ -253,54 +228,95 @@ async function trySource(
   return null
 }
 
+async function searchJamendo(query: string): Promise<SourceSearchResult[]> {
+  const data = await callFunction('jamendo', { action: 'search', query })
+  return data?.results || []
+}
+
+async function jamendoInfo(trackId: string): Promise<SourceInfo | null> {
+  const data = await callFunction('jamendo', { action: 'info', url: trackId })
+  if (data?.audioUrl) return data
+  return null
+}
+
 export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string, expectedDuration?: string | number | null, expectedIsrc?: string | null): Promise<SourceResult> {
+  if (expectedTitle && expectedArtist) {
+    const cached = getPreResolvedAudio(expectedTitle, expectedArtist)
+    if (cached) return cached
+  }
+
   const doSearch = async (): Promise<SourceResult> => {
+    const queries = [...new Set(SEARCH_QUERIES.map(fn => fn(expectedArtist || '', expectedTitle || query).trim()).filter(Boolean))]
+
     const sources: SourceModule[] = [
       { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
       { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
-      { name: 'bandcamp', search: searchBandcamp, info: bandcampInfo },
-      { name: 'jamendo', search: searchJamendoSource, info: jamendoSourceInfo },
+      { name: 'jamendo', search: searchJamendo, info: jamendoInfo },
       { name: 'deezer', search: searchDeezerSource, info: deezerSourceInfo },
     ]
 
-    const queries = [...new Set(SEARCH_QUERIES.map(fn => fn(expectedArtist || '', expectedTitle || query).trim()).filter(Boolean))]
+    let bestCandidate: SourceCandidate | null = null
 
     const results = await Promise.allSettled(
       sources.map(source =>
         trySource(source, queries, expectedTitle, expectedArtist, expectedDuration, expectedIsrc)
-          .then(candidate => ({ source: source.name, candidate }))
+          .then(result => ({ source, result }))
+          .catch(err => { throw err })
       )
     )
 
-    const allCandidates: SourceCandidate[] = []
-    let lastSourceError: SourceError | null = null
-
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value.candidate) {
-        if (r.value.candidate.score >= 0.6) {
-          return { info: r.value.candidate.info, source: r.value.candidate.source, isPreview: r.value.candidate.isPreview }
-        }
-        allCandidates.push(r.value.candidate)
-      } else if (r.status === 'rejected' && r.reason instanceof SourceError) {
-        lastSourceError = r.reason
+    for (const settled of results) {
+      if (settled.status !== 'fulfilled' || !settled.value.result) continue
+      const { result } = settled.value
+      if (result.score >= 0.6) {
+        return { info: result.info, source: result.source, ...(result.isPreview !== undefined ? { isPreview: result.isPreview } : {}) }
+      }
+      if (!bestCandidate || result.score > bestCandidate.score) {
+        bestCandidate = result
       }
     }
 
-    if (allCandidates.length > 0) {
-      allCandidates.sort((a, b) => b.score - a.score)
-      const best = allCandidates[0]
-      return { info: best.info, source: best.source, isPreview: best.isPreview }
+    if (bestCandidate) {
+      return { info: bestCandidate.info, source: bestCandidate.source, ...(bestCandidate.isPreview !== undefined ? { isPreview: bestCandidate.isPreview } : {}) }
     }
-
-    if (lastSourceError) throw lastSourceError
+    const lastError = results.find(r => r.status === 'rejected')?.reason
+    if (lastError instanceof Error) throw lastError
     throw new Error('No audio found on any source. Try a direct YouTube or SoundCloud URL.')
   }
 
   if (expectedArtist && expectedTitle) {
-    return cachedFetch(`resolved:${expectedArtist}:${expectedTitle}`, doSearch, 4 * 60 * 60 * 1000)
+    return cachedFetch(`resolved:${expectedArtist}:${expectedTitle}`, doSearch, 10 * 60 * 1000)
   }
 
   return doSearch()
+}
+
+let _preResolveCache = new Map<string, SourceResult>()
+
+export async function preResolveAudio(title: string, artist: string, knownUrl?: string): Promise<void> {
+  const key = `${artist}:${title}`
+  if (_preResolveCache.has(key)) return
+  try {
+    const result = knownUrl
+      ? await findAudioFromUrl(knownUrl)
+      : await findAudio(`${artist} ${title}`, title, artist)
+    _preResolveCache.set(key, result)
+    if (_preResolveCache.size > 100) _preResolveCache.clear()
+  } catch {}
+}
+
+export function getPreResolvedAudio(title: string, artist: string): SourceResult | undefined {
+  return _preResolveCache.get(`${artist}:${title}`)
+}
+
+export function stashPreResolvedAudio(title: string, artist: string, result: SourceResult) {
+  const key = `${artist}:${title}`
+  _preResolveCache.set(key, result)
+  if (_preResolveCache.size > 100) _preResolveCache.clear()
+}
+
+export function clearPreResolvedAudio() {
+  _preResolveCache.clear()
 }
 
 export async function findAudioFromUrl(url: string): Promise<SourceResult> {
@@ -317,8 +333,8 @@ export async function findAudioFromUrl(url: string): Promise<SourceResult> {
   }
 
   if (url.includes('bandcamp.com')) {
-    const info = await bandcampInfo(url)
-    if (info?.audioUrl) return { info, source: 'bandcamp' }
+    const data = await callFunction('bandcamp', { action: 'info', url })
+    if (data?.audioUrl) return { info: data, source: 'bandcamp' }
     throw new Error('No audio found for this Bandcamp page')
   }
 

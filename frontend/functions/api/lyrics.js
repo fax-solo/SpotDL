@@ -30,12 +30,19 @@ function titleMatches(expectedTitle, expectedArtist, result) {
 }
 
 async function fetchLrcLib(url) {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'SpotDL/1.0 (github.com/user/spotdl)', 'Lrclib-Client': 'SpotDL/1.0' },
-  })
-  if (res.status === 404) return null
-  if (!res.ok) throw new Error(`LRCLIB returned ${res.status}`)
-  return res.json()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 8000)
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'SpotDL/1.0 (github.com/user/spotdl)', 'Lrclib-Client': 'SpotDL/1.0' },
+      signal: controller.signal,
+    })
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error(`LRCLIB returned ${res.status}`)
+    return res.json()
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export async function onRequest(context) {

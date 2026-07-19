@@ -10,6 +10,7 @@ import { findAudio } from '../lib/sources'
 import { useToast } from '../components/Toast'
 import { useDownloads } from '../hooks/useDownloads'
 import type { HistoryEntry } from '../hooks/useHistory'
+import { uuid } from '../lib/uuid'
 
 interface ArtistPageProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
@@ -67,9 +68,9 @@ export function ArtistPage(_props: ArtistPageProps) {
   const toTrackMeta = (track: SearchTrack): TrackMeta => ({
     title: track.title,
     artist: track.artist,
-    artist_id: track.artist_id,
+    ...(track.artist_id !== undefined ? { artist_id: track.artist_id } : {}),
     album: track.album,
-    album_id: track.album_id,
+    ...(track.album_id !== undefined ? { album_id: track.album_id } : {}),
     artwork_url: track.artwork_url,
     url: track.url,
     type: 'track',
@@ -113,13 +114,13 @@ export function ArtistPage(_props: ArtistPageProps) {
       const query = `${track.artist} ${track.title}`
       const { info } = await findAudio(query, track.title, track.artist)
       play({
-        id: crypto.randomUUID(),
+        id: uuid(),
         title: track.title,
         artist: track.artist,
         album: track.album || 'Unknown',
         artworkUrl: track.artwork_url || null,
         filePath: null,
-        streamUrl: info.audioUrl || undefined,
+        ...(info.audioUrl ? { streamUrl: info.audioUrl } : {}),
         timestamp: Date.now(),
       })
     } catch {

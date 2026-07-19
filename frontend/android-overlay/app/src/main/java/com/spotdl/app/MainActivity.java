@@ -8,6 +8,8 @@ import android.view.WindowManager;
 import com.getcapacitor.BridgeActivity;
 import androidx.activity.EdgeToEdge;
 
+import org.json.JSONArray;
+
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -40,11 +42,16 @@ public class MainActivity extends BridgeActivity {
 
     private void forwardToJs(final String event, final String data) {
         bridge.getWebView().post(() -> {
-            String escaped = data.replace("\\", "\\\\").replace("'", "\\'");
-            bridge.getWebView().evaluateJavascript(
-                "window.dispatchEvent(new CustomEvent('" + event + "', { detail: '" + escaped + "' }))",
-                null
-            );
+            try {
+                String escapedEvent = new JSONArray().put(event).toString();
+                escapedEvent = escapedEvent.substring(1, escapedEvent.length() - 1);
+                String escapedData = new JSONArray().put(data).toString();
+                escapedData = escapedData.substring(1, escapedData.length() - 1);
+                bridge.getWebView().evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent(" + escapedEvent + ", { detail: " + escapedData + " }))",
+                    null
+                );
+            } catch (Exception ignored) {}
         });
     }
 }

@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
+import java.util.concurrent.atomic.AtomicInteger
 
 class DownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
@@ -24,8 +25,15 @@ class DownloadService : Service() {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Downloading..."
                 val count = intent.getIntExtra(EXTRA_COUNT, 1)
                 try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                            return START_NOT_STICKY
+                        }
+                    }
                     startForeground(NOTIFICATION_ID, createProgressNotification(title, count, null, null))
-                } catch (e: SecurityException) {
+                } catch (e: Exception) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }
@@ -44,25 +52,31 @@ class DownloadService : Service() {
             }
         }
 
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val restartIntent = Intent(this, DownloadService::class.java).apply {
-            action = ACTION_START
-            putExtra(EXTRA_TITLE, "Downloading...")
-            putExtra(EXTRA_COUNT, 1)
+        val prefs = getSharedPreferences(BootReceiver.PREFS_NAME, Context.MODE_PRIVATE)
+        val hasPending = prefs.getBoolean(BootReceiver.PREFS_HAS_PENDING_DOWNLOADS, false)
+        if (hasPending) {
+            val title = prefs.getString(BootReceiver.PREFS_DOWNLOAD_TITLE, "Downloading...") ?: "Downloading..."
+            val count = prefs.getInt(BootReceiver.PREFS_DOWNLOAD_COUNT, 1)
+            val restartIntent = Intent(this, DownloadService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_TITLE, title)
+                putExtra(EXTRA_COUNT, count)
+            }
+            val pendingIntent = PendingIntent.getService(
+                this, 0, restartIntent,
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarm.set(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                SystemClock.elapsedRealtime() + 5000,
+                pendingIntent
+            )
         }
-        val pendingIntent = PendingIntent.getService(
-            this, 0, restartIntent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarm.set(
-            AlarmManager.ELAPSED_REALTIME,
-            SystemClock.elapsedRealtime() + 1000,
-            pendingIntent
-        )
         super.onTaskRemoved(rootIntent)
     }
 
@@ -127,7 +141,7 @@ class DownloadService : Service() {
             .setSilent(false)
             .build()
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        manager.notify(NOTIFICATION_ID_COMPLETE + notifIdCounter.getAndIncrement(), notification)
     }
 
     fun sendErrorNotification(trackTitle: String, trackArtist: String, errorMsg: String?) {
@@ -142,7 +156,7 @@ class DownloadService : Service() {
             .setVibrate(longArrayOf(0, 200, 100, 200))
             .build()
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        manager.notify(NOTIFICATION_ID_ERROR + notifIdCounter.getAndIncrement(), notification)
     }
 
     private fun createProgressChannel() {
@@ -182,10 +196,13 @@ class DownloadService : Service() {
     }
 
     companion object {
+        private val notifIdCounter = AtomicInteger(0)
         const val CHANNEL_PROGRESS = "spotdl_downloads_progress"
         const val CHANNEL_COMPLETE = "spotdl_downloads_complete"
         const val CHANNEL_ERROR = "spotdl_downloads_error"
         const val NOTIFICATION_ID = 1001
+        const val NOTIFICATION_ID_COMPLETE = 2000
+        const val NOTIFICATION_ID_ERROR = 3000
         const val ACTION_START = "com.spotdl.plugin.DOWNLOAD_START"
         const val ACTION_UPDATE = "com.spotdl.plugin.DOWNLOAD_UPDATE"
         const val ACTION_STOP = "com.spotdl.plugin.DOWNLOAD_STOP"

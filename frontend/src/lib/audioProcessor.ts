@@ -39,7 +39,7 @@ async function fetchWithProgress(
   onDownloadProgress?: (pct: number | null) => void,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const response = await fetch(url, { signal })
+  const response = await fetch(url, signal ? { signal } : {})
   if (!response.ok) throw new Error(`HTTP ${response.status} fetching audio`)
   const contentLength = response.headers.get('Content-Length')
   const total = contentLength ? parseInt(contentLength, 10) : null
@@ -103,14 +103,31 @@ export async function convertAudio(
     onProgress?.(Math.round(Math.min(ratio, 1) * 100))
   }
 
-  if (onProgress) {
-    instance.on?.('progress', progressHandler)
-  }
+    if (onProgress) {
+      instance.on?.('progress', progressHandler)
+    }
 
-  const inputName = 'input'
-  const coverName = 'cover.jpg'
-  const ext = quality.format === 'm4a' ? 'm4a' : 'mp3'
-  const outputName = `output.${ext}`
+    const tag = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    const inputName = `input_${tag}`
+    const coverName = `cover_${tag}.jpg`
+    const ext = quality.format === 'm4a' ? 'm4a' : 'mp3'
+    const outputName = `output_${tag}.${ext}`
+
+
+  async function execWithSignal(args: string[]): Promise<void> {
+    if (signal) {
+      await Promise.race([
+        instance.exec(args),
+        new Promise<void>((_, reject) => {
+          const onAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+          if (signal.aborted) { onAbort(); return }
+          signal.addEventListener('abort', onAbort, { once: true })
+        }),
+      ])
+    } else {
+      await instance.exec(args)
+    }
+  }
 
   try {
     const data = signal
@@ -118,16 +135,16 @@ export async function convertAudio(
       : await fetchWithProgress(audioUrl, onDownloadProgress)
     await instance.writeFile(inputName, data)
 
-      const filterArgs = audioFilterArgs(quality.variant)
-      if (quality.format === 'mp3') {
-        await instance.exec([
-          '-i', inputName,
-          ...filterArgs,
-          '-c:a', 'libmp3lame',
-          '-b:a', `${quality.bitrate}k`,
-          '-id3v2_version', '3',
-          '-y', outputName,
-        ])
+    const filterArgs = audioFilterArgs(quality.variant)
+    if (quality.format === 'mp3') {
+      await execWithSignal([
+        '-i', inputName,
+        ...filterArgs,
+        '-c:a', 'libmp3lame',
+        '-b:a', `${quality.bitrate}k`,
+        '-id3v2_version', '3',
+        '-y', outputName,
+      ])
     } else {
       let hasCover = false
       if (coverUrl) {
@@ -142,9 +159,7 @@ export async function convertAudio(
       if (hasCover) {
         args.push('-i', coverName)
       }
-      args.push(
-        '-map', hasCover ? '0:a' : '0:a',
-      )
+      args.push('-map', '0:a')
       if (hasCover) {
         args.push('-map', '1:v', '-disposition:v', 'attached_pic')
       }
@@ -155,7 +170,7 @@ export async function convertAudio(
         '-movflags', '+faststart',
         '-y', outputName,
       )
-      await instance.exec(args)
+      await execWithSignal(args)
     }
 
     const outData = await instance.readFile(outputName) as Uint8Array

@@ -150,7 +150,6 @@ export async function sendDownloadErrorNotification(params: {
         iconColor: '#EF4444',
         actionTypeId: 'DOWNLOAD_ACTIONS',
         channelId: 'spotdl_downloads_error',
-        sound: undefined,
       }],
     })
   } catch (err) {
@@ -188,7 +187,6 @@ export async function sendDownloadProgressNotification(params: {
         smallIcon: 'ic_stat_icon',
         iconColor: '#3B82F6',
         channelId: 'spotdl_downloads_progress',
-        sound: undefined,
       }],
     })
   } catch {
@@ -256,7 +254,6 @@ export async function sendBatchCompleteNotification(params: {
         iconColor: '#10B981',
         actionTypeId: 'DOWNLOAD_ACTIONS',
         channelId: 'spotdl_downloads_complete',
-        sound: undefined,
       }],
     })
   } catch (err) {

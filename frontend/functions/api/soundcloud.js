@@ -39,32 +39,37 @@ function invalidateClientId() {
 
 async function fetchWithCid(url, cid, retryOnAuth = true) {
   const fullUrl = url.includes('?') ? `${url}&client_id=${cid}` : `${url}?client_id=${cid}`
-  try {
-    const res = await fetchWithRetry(fullUrl, { headers: HEADERS }, {
-      retries: 2,
-      baseDelay: 1000,
-      timeout: 10000,
-      onRetry: ({ attempt, status, delay }) => {
-        scrapeLog('soundcloud', 'retry', { url: fullUrl.slice(0, 100), attempt, status, delay })
-      },
-    })
-    return res
-  } catch (err) {
-    if (retryOnAuth && err instanceof Response && (err.status === 401 || err.status === 403)) {
-      scrapeLog('soundcloud', 'auth_error_refetching_client_id', { status: err.status })
-      invalidateClientId()
-      const newCid = await getClientId()
-      if (newCid && newCid !== cid) {
-        return fetchWithCid(url, newCid, false)
-      }
+  const res = await fetchWithRetry(fullUrl, { headers: HEADERS }, {
+    retries: 2,
+    baseDelay: 1000,
+    timeout: 10000,
+    onRetry: ({ attempt, status, delay }) => {
+      scrapeLog('soundcloud', 'retry', { url: fullUrl.slice(0, 100), attempt, status, delay })
+    },
+  })
+  if (retryOnAuth && (res.status === 401 || res.status === 403)) {
+    scrapeLog('soundcloud', 'auth_error_refetching_client_id', { status: res.status })
+    invalidateClientId()
+    const newCid = await getClientId()
+    if (newCid && newCid !== cid) {
+      return fetchWithCid(url, newCid, false)
     }
-    throw err
   }
+  return res
+}
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
 }
 
 export async function onRequest(context) {
+  if (context.request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS })
+  }
   if (context.request.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 })
+    return new Response('Method Not Allowed', { status: 405, headers: CORS })
   }
 
   const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
@@ -164,7 +169,9 @@ async function handleInfo(trackUrl) {
         if (dlRes.status >= 300 && dlRes.status < 400) {
           audioUrl = dlRes.headers.get('location')
         }
-      } catch {}
+      } catch (e) {
+        scrapeLog('soundcloud', 'download_url_fetch_failed', { path, message: e.message })
+      }
     }
 
     if (!audioUrl && track.media?.transcodings) {
@@ -185,7 +192,10 @@ async function handleInfo(trackUrl) {
             const streamData = await streamRes.json()
             audioUrl = streamData?.url || null
           }
-        } catch {}
+          } catch (e) {
+            scrapeLog('soundcloud', 'stream_url_fetch_failed', { path, message: e.message })
+          }
+        }
       }
     }
 

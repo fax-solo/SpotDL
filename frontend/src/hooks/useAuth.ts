@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { UserProfile } from '../lib/auth'
 import * as auth from '../lib/auth'
+import { uuid } from '../lib/uuid'
 
 interface AuthState {
   user: UserProfile | null
@@ -22,7 +23,7 @@ interface AuthState {
 function getDeviceId(): string {
   let id = localStorage.getItem('sinc_device_id')
   if (!id) {
-    id = crypto.randomUUID()
+    id = uuid()
     localStorage.setItem('sinc_device_id', id)
   }
   return id

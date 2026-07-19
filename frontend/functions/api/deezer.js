@@ -94,6 +94,7 @@ async function handleIsrc(isrc) {
       { headers: { 'Accept': 'application/json' } },
     )
     if (!res.ok) {
+      scrapeLog('deezer', 'isrc_failed', { isrc, status: res.status })
       return scrapeResponse({ track: null })
     }
 

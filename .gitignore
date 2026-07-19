@@ -4,6 +4,7 @@ frontend/android/
 api/__pycache__/
 api/venv/
 api/.env
+frontend/.env
 api/data/
 *.pyc
 .DS_Store

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import * as historyDb from '../lib/historyDb'
 import { useAuth } from './useAuth'
+import { uuid } from '../lib/uuid'
 
 export interface HistoryEntry {
   id: string
@@ -73,13 +74,19 @@ export function useHistory() {
     })
   }, [userId])
 
-  const addEntry = useCallback((entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => {
+  const addEntry = useCallback((entry: Omit<HistoryEntry, 'id' | 'timestamp'> & { id?: string }) => {
     const uid = userId
     setEntries(prev => {
       const newEntry: HistoryEntry = {
-        ...entry,
-        id: crypto.randomUUID(),
-        filePath: entry.filePath || null,
+        id: entry.id ?? uuid(),
+        title: entry.title ?? '',
+        artist: entry.artist ?? '',
+        album: entry.album ?? '',
+        artworkUrl: entry.artworkUrl ?? null,
+        filePath: entry.filePath ?? null,
+        streamUrl: entry.streamUrl ?? null,
+        plainLyrics: entry.plainLyrics ?? null,
+        syncedLyrics: entry.syncedLyrics ?? null,
         timestamp: Date.now(),
       }
       const next = [newEntry, ...prev].slice(0, MAX_ENTRIES)
@@ -118,14 +125,14 @@ export function useHistory() {
     })
   }, [userId])
 
-  const updateEntryLyrics = useCallback((title: string, artist: string, plainLyrics: string | null, syncedLyrics: string | null) => {
+  const updateEntryLyrics = useCallback((id: string, plainLyrics: string | null, syncedLyrics: string | null) => {
     setEntries(prev => {
-      const idx = prev.findIndex(e => e.title === title && e.artist === artist)
+      const idx = prev.findIndex(e => e.id === id)
       if (idx === -1) return prev
       const next = [...prev]
-      next[idx] = { ...next[idx], plainLyrics, syncedLyrics }
+      next[idx] = { ...next[idx]!, plainLyrics, syncedLyrics }
       saveToLocal(next, userId)
-      historyDb.updateEntry(next[idx].id, { plainLyrics, syncedLyrics }, userId).catch(() => {})
+      historyDb.updateEntry(id, { plainLyrics, syncedLyrics }, userId).catch(() => {})
       return next
     })
   }, [userId])

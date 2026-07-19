@@ -25,14 +25,26 @@ export function useOnlineStatus() {
       if (navigator.onLine) check()
     }
 
+    const onVisible = () => {
+      clearInterval(checkRef.current)
+      if (document.visibilityState === 'visible') {
+        check()
+        checkRef.current = setInterval(check, CHECK_INTERVAL)
+      } else {
+        checkRef.current = undefined
+      }
+    }
+
     check()
     window.addEventListener('online', update)
     window.addEventListener('offline', update)
+    document.addEventListener('visibilitychange', onVisible)
     checkRef.current = setInterval(check, CHECK_INTERVAL)
 
     return () => {
       window.removeEventListener('online', update)
       window.removeEventListener('offline', update)
+      document.removeEventListener('visibilitychange', onVisible)
       clearInterval(checkRef.current)
     }
   }, [])

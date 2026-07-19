@@ -79,7 +79,7 @@ export async function startDownloadForeground(title: string = 'Downloading...', 
 export async function updateDownloadForeground(title: string, count: number, progress?: number, stage?: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.updateDownloadForeground({ title, count, progress, stage })
+    await SpotDL.updateDownloadForeground({ title, count, ...(progress !== undefined ? { progress } : {}), ...(stage !== undefined ? { stage } : {}) })
   } catch (e) {
     console.warn('[native] Failed to update download foreground:', e)
   }
@@ -97,7 +97,13 @@ export async function stopDownloadForeground(): Promise<void> {
 export async function startMediaForeground(title: string = 'Playing', artist: string = '', artworkUrl?: string, position?: number, duration?: number, currentLyricLine?: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.startMediaForeground({ title, artist, artworkUrl, position, duration, currentLyricLine })
+    await SpotDL.startMediaForeground({
+      title, artist,
+      ...(artworkUrl !== undefined ? { artworkUrl } : {}),
+      ...(position !== undefined ? { position } : {}),
+      ...(duration !== undefined ? { duration } : {}),
+      ...(currentLyricLine !== undefined ? { currentLyricLine } : {}),
+    })
   } catch (e) {
     console.warn('[native] Failed to start media foreground:', e)
   }
@@ -106,7 +112,13 @@ export async function startMediaForeground(title: string = 'Playing', artist: st
 export async function updateMediaForeground(title: string, artist: string, artworkUrl?: string, position?: number, duration?: number, currentLyricLine?: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.updateMediaForeground({ title, artist, artworkUrl, position, duration, currentLyricLine })
+    await SpotDL.updateMediaForeground({
+      title, artist,
+      ...(artworkUrl !== undefined ? { artworkUrl } : {}),
+      ...(position !== undefined ? { position } : {}),
+      ...(duration !== undefined ? { duration } : {}),
+      ...(currentLyricLine !== undefined ? { currentLyricLine } : {}),
+    })
   } catch (e) {
     console.warn('[native] Failed to update media foreground:', e)
   }

@@ -4,7 +4,6 @@ interface BottomSheetProps {
   open: boolean
   onClose: () => void
   children: ReactNode
-  snapPoints?: string[]
   title?: string
 }
 
@@ -14,15 +13,19 @@ export function BottomSheet({ open, onClose, children, title }: BottomSheetProps
   const dragging = useRef(false)
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    if (!touch) return
     if (e.currentTarget.scrollTop === 0) {
-      startY.current = e.touches[0].clientY
+      startY.current = touch.clientY
       dragging.current = true
     }
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!dragging.current) return
-    const diff = e.touches[0].clientY - startY.current
+    const touch = e.touches[0]
+    if (!touch) return
+    const diff = touch.clientY - startY.current
     if (diff > 0) {
       setSheetY(diff * 0.6)
     }
@@ -37,21 +40,22 @@ export function BottomSheet({ open, onClose, children, title }: BottomSheetProps
   }, [sheetY, onClose])
 
   useEffect(() => {
-    if (open) {
-      setSheetY(0)
-    }
-  }, [open])
+    if (open) setSheetY(0)
+    const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    if (open) document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [open, onClose])
 
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-[80] flex items-end">
+        <div className="fixed inset-0 z-[80] flex items-end" role="dialog" aria-modal="true" aria-label={title || "Bottom sheet"}>
           <div
             className="absolute inset-0 bg-black/50"
             onClick={onClose}
           />
           <div
-            ref={el => { if (el) el.style.transform = `translateY(${sheetY}px)` }}
+            style={{ transform: `translateY(${sheetY}px)` }}
             className="relative w-full max-h-[85vh] bg-white dark:bg-dark-surface rounded-t-2xl overflow-hidden shadow-xl"
           >
             <div

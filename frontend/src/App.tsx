@@ -21,6 +21,7 @@ import { useAuth } from './hooks/useAuth'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 import { fetchLyricsWithFallback } from './lib/fetchLyricsWithFallback'
+import { uuid } from './lib/uuid'
 import { initSentry } from './lib/sentry'
 import { checkForUpdate, promptUpdate } from './lib/autoUpdate'
 import { registerForPushNotifications, sendPushTokenToServer } from './lib/pushNotifications'
@@ -186,10 +187,11 @@ function AppContent() {
 
   useEffect(() => {
     const handleDownload = (e: Event) => {
-      const detail = (e as CustomEvent).detail
+      const detail = (e as CustomEvent).detail as (Record<string, unknown> & { id?: string }) | undefined
       if (!detail) return
 
-      addEntry(detail)
+      const entryId = detail.id ?? uuid()
+      addEntry({ ...detail, id: entryId } as never)
 
       if (Capacitor.isNativePlatform()) {
         import('@capacitor/haptics').then(({ Haptics, NotificationType }) => {
@@ -198,10 +200,10 @@ function AppContent() {
       }
 
       if (!detail.plainLyrics && !detail.syncedLyrics) {
-        fetchLyricsWithFallback(detail.title, detail.artist, detail.album, detail.duration)
+        fetchLyricsWithFallback(detail.title as string, detail.artist as string, detail.album as string, detail.duration as number | undefined)
           .then(lyrics => {
             if (lyrics.plainLyrics || lyrics.syncedLyrics) {
-              updateEntryLyrics(detail.title, detail.artist, lyrics.plainLyrics, lyrics.syncedLyrics)
+              updateEntryLyrics(entryId, lyrics.plainLyrics, lyrics.syncedLyrics)
             }
           })
           .catch(() => {})

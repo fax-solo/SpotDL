@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, LogIn, User } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { uuid } from '../lib/uuid'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -73,7 +74,7 @@ export function LoginPage() {
       return
     }
 
-    const codeVerifier = crypto.randomUUID() + crypto.randomUUID()
+    const codeVerifier = uuid() + uuid()
     const codeChallenge = await generateCodeChallenge(codeVerifier)
     sessionStorage.setItem('google_code_verifier', codeVerifier)
 

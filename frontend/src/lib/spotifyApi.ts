@@ -208,6 +208,66 @@ export interface YouTubeSearchTrack {
   thumbnail?: string | null
 }
 
+export interface DeezerSearchTrack {
+  id: number
+  title: string
+  artist: string
+  duration: number
+  url: string
+  thumbnail: string | null
+}
+
+export async function searchDeezer(query: string): Promise<DeezerSearchTrack[]> {
+  return cachedFetch(`dzsearch:${query}`, async () => {
+    const res = await fetch(apiUrl('/api/deezer'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'search', query }),
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    const results = data.results || []
+    return results.map((r: any) => ({
+      id: r.id,
+      title: r.title || 'Unknown',
+      artist: r.artist || 'Unknown',
+      duration: r.duration || 0,
+      url: `https://deezer.com/track/${r.id}`,
+      thumbnail: r.thumbnail || null,
+    }))
+  }, 60000)
+}
+
+export interface SoundCloudSearchTrack {
+  id?: string
+  title: string
+  artist: string
+  duration: number
+  url: string
+  thumbnail: string | null
+}
+
+export async function searchSoundCloud(query: string): Promise<SoundCloudSearchTrack[]> {
+  return cachedFetch(`scsearch:${query}`, async () => {
+    const res = await fetch(apiUrl('/api/soundcloud'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'search', query }),
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    const results = data.results || []
+    return results.map((r: any) => ({
+      id: r.id,
+      title: r.title || 'Unknown',
+      artist: r.artist || 'Unknown',
+      duration: r.duration || 0,
+      url: r.url || '',
+      thumbnail: r.thumbnail || null,
+    }))
+  }, 60000)
+}
+
 export async function searchYouTubeTracks(query: string): Promise<YouTubeSearchTrack[]> {
   return cachedFetch(`ytsearch:${query}`, async () => {
     const res = await fetch(apiUrl('/api/youtube'), {

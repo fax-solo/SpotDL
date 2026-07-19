@@ -11,33 +11,7 @@ import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
 import { getDownloadLyrics } from '../lib/lyricsSettings'
 import { logDownload } from '../lib/auth'
 
-let processing = false
-
 const CONCURRENT_DOWNLOADS = Math.min(Math.max(parseInt(import.meta.env.VITE_CONCURRENT_DOWNLOADS || '3', 10), 1), 10)
-
-interface RateLimitState {
-  consecutiveErrors: number
-  backoffUntil: number
-}
-
-const rateLimit: RateLimitState = { consecutiveErrors: 0, backoffUntil: 0 }
-
-function getBackoffDelay(): number {
-  if (Date.now() < rateLimit.backoffUntil) {
-    return rateLimit.backoffUntil - Date.now()
-  }
-  return 0
-}
-
-function recordError() {
-  rateLimit.consecutiveErrors++
-  const delay = Math.min(1000 * Math.pow(2, rateLimit.consecutiveErrors), 30000)
-  rateLimit.backoffUntil = Date.now() + delay
-}
-
-function recordSuccess() {
-  rateLimit.consecutiveErrors = Math.max(0, rateLimit.consecutiveErrors - 1)
-}
 
 export interface DownloadProgress {
   id: string
@@ -46,7 +20,7 @@ export interface DownloadProgress {
   pct: number | null
   done: boolean
   failed: boolean
-  error?: string
+  error?: string | undefined
 }
 
 interface DownloadsState {
@@ -162,7 +136,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     controllers.forEach(c => c.abort())
     set({ queue: [], abortControllers: new Map(), isProcessing: false })
     saveQueue([])
-    processing = false
     stopDownloadForeground()
   },
 
@@ -185,8 +158,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
   },
 
   _processQueue: () => {
-    if (processing) return
-    processing = true
+    if (get().isProcessing) return
+    set({ isProcessing: true })
 
     const run = async () => {
       let taskId: string | undefined
@@ -212,11 +185,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
         }
 
         while (true) {
-          const backoff = getBackoffDelay()
-          if (backoff > 0) {
-            await new Promise(r => setTimeout(r, backoff))
-          }
-
           const state = get()
           const pending = state.queue.filter((q) => !q.done && !q.failed && q.stage === 'Waiting...')
           if (pending.length === 0) break
@@ -225,11 +193,14 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           batch.forEach((item) => get()._updateProgress(item.id, { stage: 'Starting...' }))
 
           const controllers = get().abortControllers
+          const DOWNLOAD_TIMEOUT = 5 * 60 * 1000
           await Promise.all(
             batch.map(async (item) => {
               const controller = new AbortController()
               controllers.set(item.id, controller)
               set({ abortControllers: new Map(controllers) })
+
+              const timeoutId = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT)
 
                 try {
                   let lastNotifTime = 0
@@ -265,7 +236,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                     }
                   }, controller.signal)
 
-                recordSuccess()
+                clearTimeout(timeoutId)
 
                 let filePath: string | null = result.nativeFilePath ?? null
                 if (!filePath && result.blob.size > 0) {
@@ -320,7 +291,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   }),
                 )
               } catch (err) {
-                recordError()
                 console.error('[downloads] download failed:', err)
                 controllers.delete(item.id)
                 set({ abortControllers: new Map(controllers) })
@@ -341,7 +311,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           )
         }
       } finally {
-        processing = false
+        set({ isProcessing: false })
 
         const finalState = get()
         const completed = finalState.queue.filter(q => q.done)
@@ -370,6 +340,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       }
     }
 
-    run().catch(() => { processing = false })
+      run().catch(() => { set({ isProcessing: false }) })
   },
 }))
+
+

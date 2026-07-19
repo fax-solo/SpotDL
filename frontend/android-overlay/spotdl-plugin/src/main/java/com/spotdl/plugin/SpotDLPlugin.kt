@@ -1,5 +1,6 @@
 package com.spotdl.plugin
 
+import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
@@ -21,6 +22,15 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.PermissionState
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.getcapacitor.annotation.Permission
+import org.json.JSONObject
+import java.io.BufferedInputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.lang.ref.WeakReference
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.UUID
 
 const val LOCAL_PORT = 9182
 const val LOCAL_URL = "http://127.0.0.1:$LOCAL_PORT"
@@ -49,14 +59,21 @@ const val LOCAL_URL = "http://127.0.0.1:$LOCAL_PORT"
 class SpotDLPlugin : Plugin() {
     private val core = SpotDLCore()
     private var mediaButtonReceiver: BroadcastReceiver? = null
+    private val saveExecutor = Executors.newFixedThreadPool(2)
+    private val activeSaves = ConcurrentHashMap<String, Future<*>>()
+    private var activityRef = WeakReference<Activity>(null)
 
     override fun load() {
         super.load()
+        activityRef = WeakReference(activity)
         registerMediaButtonReceiver()
     }
 
     override fun handleOnDestroy() {
         unregisterMediaButtonReceiver()
+        activeSaves.values.forEach { it.cancel(true) }
+        activeSaves.clear()
+        saveExecutor.shutdownNow()
         core.stopServer()
     }
 
@@ -125,7 +142,7 @@ class SpotDLPlugin : Plugin() {
             "mediaAudio" -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
             "mediaImages" -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
             "postNotifications" -> arrayOf(Manifest.permission.POST_NOTIFICATIONS)
-            else -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+            else -> return@PluginMethod call.resolve(JSObject().apply { put("show", false) })
         }
         val show = strings.any { activity.shouldShowRequestPermissionRationale(it) }
         call.resolve(JSObject().apply { put("show", show) })
@@ -228,13 +245,17 @@ class SpotDLPlugin : Plugin() {
 
     @PluginMethod
     fun initialize(call: PluginCall) {
-        try {
-            val ctx = context
-            core.init(ctx)
-            core.startServer(ctx)
-            call.resolve()
-        } catch (e: Exception) {
-            call.reject("Failed to initialize SpotDL", e)
+        val ctx = context
+        saveExecutor.submit {
+            try {
+                core.init(ctx)
+                core.startServer(ctx)
+                activityRef.get()?.runOnUiThread { call.resolve() }
+                    ?: call.reject("Activity destroyed during init")
+            } catch (e: Exception) {
+                activityRef.get()?.runOnUiThread { call.reject("Failed to initialize SpotDL", e) }
+                    ?: call.reject("Activity destroyed during init")
+            }
         }
     }
 
@@ -334,40 +355,45 @@ class SpotDLPlugin : Plugin() {
 
     @PluginMethod
     fun scanLocalMusic(call: PluginCall) {
-        try {
-            val ctx = context
-            val uri = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-            val projection = arrayOf(
-                android.provider.MediaStore.Audio.Media._ID,
-                android.provider.MediaStore.Audio.Media.TITLE,
-                android.provider.MediaStore.Audio.Media.ARTIST,
-                android.provider.MediaStore.Audio.Media.ALBUM,
-                android.provider.MediaStore.Audio.Media.DATA,
-                android.provider.MediaStore.Audio.Media.SIZE,
-                android.provider.MediaStore.Audio.Media.DATE_MODIFIED,
-            )
-            val selection = "${android.provider.MediaStore.Audio.Media.IS_MUSIC} != 0"
-            val cursor = ctx.contentResolver.query(uri, projection, selection, null, null)
-            val tracks = org.json.JSONArray()
-            cursor?.use {
-                while (it.moveToNext()) {
-                    val path = it.getString(4) ?: ""
-                    if (path.isEmpty()) continue
-                    val track = JSObject().apply {
-                        put("id", it.getLong(0))
-                        put("title", it.getString(1) ?: "Unknown")
-                        put("artist", it.getString(2) ?: "Unknown")
-                        put("album", it.getString(3) ?: "Unknown")
-                        put("path", path)
-                        put("size", it.getLong(5))
-                        put("mtime", it.getLong(6))
+        val ctx = context
+        saveExecutor.submit {
+            try {
+                val uri = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                val projection = arrayOf(
+                    android.provider.MediaStore.Audio.Media._ID,
+                    android.provider.MediaStore.Audio.Media.TITLE,
+                    android.provider.MediaStore.Audio.Media.ARTIST,
+                    android.provider.MediaStore.Audio.Media.ALBUM,
+                    android.provider.MediaStore.Audio.Media.DATA,
+                    android.provider.MediaStore.Audio.Media.SIZE,
+                    android.provider.MediaStore.Audio.Media.DATE_MODIFIED,
+                )
+                val selection = "${android.provider.MediaStore.Audio.Media.IS_MUSIC} != 0"
+                val cursor = ctx.contentResolver.query(uri, projection, selection, null, null)
+                val tracks = org.json.JSONArray()
+                cursor?.use {
+                    while (it.moveToNext()) {
+                        val path = it.getString(4) ?: ""
+                        if (path.isEmpty()) continue
+                        val track = JSObject().apply {
+                            put("id", it.getLong(0))
+                            put("title", it.getString(1) ?: "Unknown")
+                            put("artist", it.getString(2) ?: "Unknown")
+                            put("album", it.getString(3) ?: "Unknown")
+                            put("path", path)
+                            put("size", it.getLong(5))
+                            put("mtime", it.getLong(6))
+                        }
+                        tracks.put(track)
                     }
-                    tracks.put(track)
                 }
+                activityRef.get()?.runOnUiThread {
+                    call.resolve(JSObject().apply { put("tracks", tracks) })
+                } ?: call.reject("Activity destroyed")
+            } catch (e: Exception) {
+                activityRef.get()?.runOnUiThread { call.reject("Failed to scan local music", e) }
+                    ?: call.reject("Activity destroyed")
             }
-            call.resolve(JSObject().apply { put("tracks", tracks) })
-        } catch (e: Exception) {
-            call.reject("Failed to scan local music", e)
         }
     }
 
@@ -382,7 +408,9 @@ class SpotDLPlugin : Plugin() {
             return
         }
 
-        Thread {
+        val taskId = UUID.randomUUID().toString()
+        val future = saveExecutor.submit<Unit> {
+            val act = activityRef.get()
             try {
                 val conn = java.net.URL("$LOCAL_URL/download").openConnection() as java.net.HttpURLConnection
                 conn.requestMethod = "POST"
@@ -391,7 +419,7 @@ class SpotDLPlugin : Plugin() {
                 conn.connectTimeout = 30000
                 conn.readTimeout = 120000
 
-                val requestBody = """{"url": "$url"}"""
+                val requestBody = JSONObject().apply { put("url", url) }.toString()
                 conn.outputStream.use { it.write(requestBody.toByteArray()) }
 
                 val responseBytes = conn.inputStream.readBytes()
@@ -413,7 +441,7 @@ class SpotDLPlugin : Plugin() {
                     throw Exception("Downloaded file not found: $sourcePath")
                 }
 
-                val bytes = sourceFile.readBytes()
+                val bufSize = 8192
                 val ctx = context
                 val filePath: String
 
@@ -426,30 +454,52 @@ class SpotDLPlugin : Plugin() {
                     }
                     val uri = ctx.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
                         ?: throw Exception("Failed to create MediaStore entry")
-                    ctx.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-                        ?: throw Exception("Failed to write to MediaStore entry")
+                    val os = ctx.contentResolver.openOutputStream(uri)
+                        ?: throw Exception("Failed to open MediaStore output stream")
+                    os.use { out ->
+                        BufferedInputStream(sourceFile.inputStream()).use { `in` ->
+                            val buffer = ByteArray(bufSize)
+                            var read: Int
+                            while (`in`.read(buffer).also { read = it } != -1) {
+                                if (Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException("Save cancelled")
+                                out.write(buffer, 0, read)
+                            }
+                        }
+                    }
                     filePath = uri.toString()
                 } else {
                     val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
                     musicDir.mkdirs()
                     val file = java.io.File(musicDir, filename)
-                    file.writeBytes(bytes)
+                    BufferedInputStream(sourceFile.inputStream()).use { `in` ->
+                        FileOutputStream(file).use { out ->
+                            val buffer = ByteArray(bufSize)
+                            var read: Int
+                            while (`in`.read(buffer).also { read = it } != -1) {
+                                if (Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException("Save cancelled")
+                                out.write(buffer, 0, read)
+                            }
+                        }
+                    }
                     filePath = file.absolutePath
                 }
 
                 val outputDir = responseJson.optString("output_dir", "")
                 if (outputDir.isNotEmpty()) {
-                    java.io.File(outputDir).deleteRecursively()
+                    try { java.io.File(outputDir).deleteRecursively() } catch (_: Exception) {}
                 }
 
-                activity.runOnUiThread {
-                    call.resolve(JSObject().apply { put("filePath", filePath) })
-                }
+                activeSaves.remove(taskId)
+                act?.runOnUiThread { call.resolve(JSObject().apply { put("filePath", filePath) }) }
+                    ?: call.reject("Activity destroyed during save")
+            } catch (e: java.io.InterruptedIOException) {
+                call.reject("Save cancelled")
             } catch (e: Exception) {
-                activity.runOnUiThread {
-                    call.reject("Failed to save to music library", e)
-                }
+                activeSaves.remove(taskId)
+                act?.runOnUiThread { call.reject("Failed to save to music library", e) }
+                    ?: call.reject("Activity destroyed during save")
             }
-        }.start()
+        }
+        activeSaves[taskId] = future
     }
 }

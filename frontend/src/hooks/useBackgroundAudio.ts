@@ -47,6 +47,7 @@ export function useBackgroundAudio(currentTrack: HistoryEntry | null, isPlaying:
     }
 
     return () => {
+      releaseWakeLock()
     }
   }, [isPlaying])
 

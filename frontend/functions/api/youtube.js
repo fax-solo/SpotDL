@@ -21,12 +21,8 @@ const _infoCache = new Map()
 const _rateLimitedClients = new Map()
 const RATE_LIMIT_COOLDOWN = 60000
 
-let _clientIndex = 0
-
 function getNextStartIndex() {
-  const idx = _clientIndex
-  _clientIndex = (idx + 1) % CLIENTS.length
-  return idx
+  return crypto.getRandomValues(new Uint8Array(1))[0] % CLIENTS.length
 }
 
 function isClientRateLimited(name) {
@@ -36,7 +32,7 @@ function isClientRateLimited(name) {
 
 function markClientRateLimited(name) {
   _rateLimitedClients.set(name, Date.now() + RATE_LIMIT_COOLDOWN)
-  if (_rateLimitedClients.size > 20) {
+  if (_rateLimitedClients.size > CLIENTS.length * 2) {
     const now = Date.now()
     for (const [k, v] of _rateLimitedClients) {
       if (now >= v) _rateLimitedClients.delete(k)
@@ -62,7 +58,12 @@ function setCache(map, key, data, ttl = CACHE_TTL) {
   map.set(key, { data, expires: Date.now() + ttl })
   if (map.size > 100) {
     const now = Date.now()
-    for (const [k, v] of map) { if (now >= v.expires) map.delete(k) }
+    let deleted = 0
+    for (const [k, v] of map) { if (now >= v.expires) { map.delete(k); deleted++ } }
+    if (deleted === 0 && map.size > 100) {
+      const oldest = [...map.entries()].sort((a, b) => a[1].expires - b[1].expires)[0]
+      if (oldest) map.delete(oldest[0])
+    }
   }
 }
 
@@ -108,7 +109,7 @@ async function tryClientSequentially(clients, endpoint, body, logPrefix) {
     }
     if (result.error === 'not_found') {
       scrapeLog('youtube', `${logPrefix}_not_found`, { client: client.name })
-      return null
+      continue
     }
     if (result.error === 'client_failed') {
       scrapeLog('youtube', `${logPrefix}_failed`, { client: client.name, status: result.status })
@@ -348,7 +349,7 @@ export async function onRequest(context) {
     if (action === 'info') return await handleInfo(url, key)
     return scrapeError('invalid_action', 'Invalid action', 400)
   } catch (err) {
-    scrapeLog('youtube', 'error', { message: err.message })
+    scrapeLog('youtube', 'error', { message: err.message?.substring(0, 200)?.replace(/key=[^&\s]+/gi, 'key=REDACTED') })
     return scrapeError('internal_error', err.message, 500)
   }
 }

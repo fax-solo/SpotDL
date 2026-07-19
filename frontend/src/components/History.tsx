@@ -48,12 +48,16 @@ function SwipeableRow({
   const threshold = 80
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX
+    const touch = e.touches[0]
+    if (!touch) return
+    startX.current = touch.clientX
     dragging.current = true
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const diff = startX.current - e.touches[0].clientX
+    const touch = e.touches[0]
+    if (!touch) return
+    const diff = startX.current - touch.clientX
     if (diff > 0) setOffsetX(Math.min(diff, 120))
     else setOffsetX(Math.max(diff, -20))
   }, [])
@@ -187,7 +191,7 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-light-border/50 dark:divide-dark-border/50 overscroll-contain">
           {entries.map((entry, i) => (
-            <SwipeableRow key={entry.id} entry={entry} index={i} onRemove={onRemove} onRedownload={onRedownload} onPlay={onPlay} onAddToPlaylist={e => setAddToPlaylistTrack({ id: e.id, title: e.title, artist: e.artist, artwork_url: e.artworkUrl })} />
+            <SwipeableRow key={entry.id} entry={entry} index={i} onRemove={onRemove} onRedownload={onRedownload} {...(onPlay ? { onPlay } : {})} onAddToPlaylist={e => setAddToPlaylistTrack({ id: e.id, title: e.title, artist: e.artist, artwork_url: e.artworkUrl })} />
           ))}
         </div>
       </div>
@@ -262,7 +266,7 @@ export function History({ entries, onClear, onRemove, onRedownload, onPlay, mini
                 index={i}
                 onRemove={onRemove}
                 onRedownload={onRedownload}
-                onPlay={onPlay}
+                {...(onPlay ? { onPlay } : {})}
                 onAddToPlaylist={e => setAddToPlaylistTrack({ id: e.id, title: e.title, artist: e.artist, artwork_url: e.artworkUrl })}
               />
             ))}

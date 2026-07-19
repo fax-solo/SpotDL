@@ -19,7 +19,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
-import android.support.v4.media.session.MediaSessionCompat
+import androidx.media.session.MediaSessionCompat
 import java.net.URL
 import java.util.concurrent.Executors
 
@@ -81,6 +81,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
 
     override fun onCreate() {
         super.onCreate()
+        createChannel()
         mediaSession = MediaSession(this, "spotdl_media_session").apply {
             setCallback(object : MediaSession.Callback() {
                 override fun onPlay() { broadcastMediaAction(MEDIA_ACTION_PLAY) }
@@ -103,6 +104,8 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
     override fun onDestroy() {
         abandonAudioFocus()
         executor.shutdownNow()
+        cachedArtwork?.recycle()
+        cachedArtwork = null
         mediaSession?.isActive = false
         mediaSession?.release()
         mediaSession = null
@@ -116,6 +119,11 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
 
         when (action) {
             ACTION_PLAY -> {
+                if (intent == null) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Playing"
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
                 val artworkUrl = intent.getStringExtra(EXTRA_ARTWORK_URL)
@@ -129,8 +137,15 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 loadArtwork(artworkUrl)
                 updatePlaybackState(true)
                 try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                            return START_NOT_STICKY
+                        }
+                    }
                     startForeground(NOTIFICATION_ID, createNotification(title, artist))
-                } catch (e: SecurityException) {
+                } catch (e: Exception) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }
@@ -162,30 +177,33 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
             }
         }
 
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val restartIntent = Intent(this, MediaService::class.java).apply {
-            action = ACTION_PLAY
-            putExtra(EXTRA_TITLE, currentTitle ?: "Playing")
-            putExtra(EXTRA_ARTIST, currentArtist ?: "")
+        if (isCurrentlyPlaying) {
+            val restartIntent = Intent(this, MediaService::class.java).apply {
+                action = ACTION_PLAY
+                putExtra(EXTRA_TITLE, currentTitle ?: "Playing")
+                putExtra(EXTRA_ARTIST, currentArtist ?: "")
+            }
+            val pendingIntent = PendingIntent.getService(
+                this, 0, restartIntent,
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarm.set(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                SystemClock.elapsedRealtime() + 5000,
+                pendingIntent
+            )
         }
-        val pendingIntent = PendingIntent.getService(
-            this, 0, restartIntent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarm.set(
-            AlarmManager.ELAPSED_REALTIME,
-            SystemClock.elapsedRealtime() + 1000,
-            pendingIntent
-        )
         super.onTaskRemoved(rootIntent)
     }
 
     private fun loadArtwork(url: String?) {
         if (url == null || url.isEmpty()) {
+            cachedArtwork?.recycle()
             cachedArtwork = null
             return
         }
@@ -195,9 +213,18 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
                 connection.connectTimeout = 5000
                 connection.readTimeout = 5000
-                val bytes = connection.getInputStream().readBytes()
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val input = connection.getInputStream()
+                val bytes = input.use { it.readBytes() }
+                val opts = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                val maxSize = 512
+                opts.inSampleSize = maxOf(1, (maxOf(opts.outWidth, opts.outHeight) + maxSize - 1) / maxSize)
+                opts.inJustDecodeBounds = false
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
                 if (bitmap != null) {
+                    cachedArtwork?.recycle()
                     cachedArtwork = bitmap
                     updatePlaybackState(isCurrentlyPlaying)
                     val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -207,7 +234,6 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                     ))
                 }
             } catch (_: Exception) {
-                // artwork loading is best-effort
             }
         }
     }
@@ -249,8 +275,6 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
     }
 
     private fun createNotification(title: String, artist: String): Notification {
-        createChannel()
-
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
