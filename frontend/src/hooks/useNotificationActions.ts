@@ -74,40 +74,35 @@ export function useNotificationActions() {
       try {
         const ln = await getLN()
         if (!ln) return
-        const handler = await (ln as any).addListener('localNotificationActionPerformed', (data: any) => {
+        const handler = await (ln as any).addListener('localNotificationActionPerformed', async (data: any) => {
           const { actionId, notification } = data
           const extra = notification?.extra || {}
 
           if (actionId === 'retry' && extra.downloadId) {
             navigate('/download')
             retryTrack(extra.downloadId)
+            return
           }
 
           if (actionId === 'play' && extra.filePath) {
             navigate('/player')
+            return
           }
 
           if (actionId === 'next') {
             navigate('/player')
+            return
           }
 
-          if (actionId === 'install' && extra.downloadUrl) {
+          if (actionId === 'install') {
+            const url = extra.downloadUrl || `https://github.com/${GITHUB_REPO}/releases/latest`
             try {
               const { Browser } = await import('@capacitor/browser')
-              await Browser.open({ url: extra.downloadUrl, windowName: '_blank' })
+              await Browser.open({ url, windowName: '_blank' })
             } catch {
-              window.open(extra.downloadUrl, '_blank')
+              window.open(url, '_blank')
             }
-          }
-
-          if (actionId === 'install' && !extra.downloadUrl) {
-            const releasesUrl = `https://github.com/${GITHUB_REPO}/releases/latest`
-            try {
-              const { Browser } = await import('@capacitor/browser')
-              await Browser.open({ url: releasesUrl, windowName: '_blank' })
-            } catch {
-              window.open(releasesUrl, '_blank')
-            }
+            return
           }
         })
         unlisten = handler.remove

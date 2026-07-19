@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Music, Play, Pause, SkipBack, SkipForward, Volume2, Shuffle, Repeat, ListMusic, Mic2, Disc3, GripVertical, X, ChevronUp } from 'lucide-react'
+import { Music, Play, Pause, SkipBack, SkipForward, Volume2, Shuffle, Repeat, ListMusic, Mic2, Disc3, GripVertical, X } from 'lucide-react'
 import { usePlayer } from '../hooks/usePlayer'
 import { useNavigate } from 'react-router-dom'
 import { LyricsView } from '../components/LyricsView'
