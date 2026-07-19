@@ -47,10 +47,10 @@ class SpotDLCore {
 
         val baseDir = File(context.noBackupFilesDir, LIBRARY_NAME).apply { mkdirs() }
         val packagesDir = File(baseDir, PACKAGES_ROOT).apply { mkdirs() }
-        val binariesDir = File(context.applicationInfo.nativeLibraryDir)
+        val binariesDir = File(context.applicationInfo.nativeLibraryDir!!)
         homeDir = baseDir
 
-        val usableSpace = File(context.noBackupFilesDir).usableSpace
+        val usableSpace = context.noBackupFilesDir!!.usableSpace
         val minRequired = 100L * 1024 * 1024
         if (usableSpace < minRequired) {
             throw IOException("Insufficient disk space: ${usableSpace / 1024 / 1024}MB free, need at least ${minRequired / 1024 / 1024}MB")
@@ -192,7 +192,7 @@ class SpotDLCore {
         pb.environment().apply {
             put("LD_LIBRARY_PATH", envLdLibraryPath)
             put("SSL_CERT_FILE", envSslCertFile)
-            put("PATH", (System.getenv("PATH") ?: "/system/bin") + ":" + File(context.applicationInfo.nativeLibraryDir).absolutePath)
+            put("PATH", (System.getenv("PATH") ?: "/system/bin") + ":" + File(context.applicationInfo.nativeLibraryDir!!).absolutePath)
             put("PYTHONHOME", envPythonHome)
             put("HOME", homeDir.absolutePath)
             put("FFMPEG_PATH", ffmpegBinPath)

@@ -142,7 +142,7 @@ class SpotDLPlugin : Plugin() {
             "mediaAudio" -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
             "mediaImages" -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
             "postNotifications" -> arrayOf(Manifest.permission.POST_NOTIFICATIONS)
-            else -> return@PluginMethod call.resolve(JSObject().apply { put("show", false) })
+            else -> return call.resolve(JSObject().apply { put("show", false) })
         }
         val show = strings.any { activity.shouldShowRequestPermissionRationale(it) }
         call.resolve(JSObject().apply { put("show", show) })
