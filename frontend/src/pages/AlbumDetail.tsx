@@ -8,6 +8,7 @@ import { SkeletonRow } from '../components/SkeletonRow'
 import { usePlayer } from '../hooks/usePlayer'
 import { findAudio } from '../lib/sources'
 import { useToast } from '../components/Toast'
+import { normalize } from '../lib/sources/matching'
 import { useHistory, type HistoryEntry } from '../hooks/useHistory'
 import { useDownloads } from '../hooks/useDownloads'
 import { apiUrl } from '../lib/apiConfig'
@@ -16,15 +17,11 @@ interface AlbumDetailProps {
   onDownloadComplete: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
 }
 
-function norm(s: string): string {
-  return s.toLowerCase().replace(/[^\w\s]/g, '').trim()
-}
-
 function isTrackDownloaded(track: TrackMeta, entries: HistoryEntry[]): boolean {
-  const trackTitle = norm(track.title)
-  const trackArtist = norm(track.artist)
+  const trackTitle = normalize(track.title)
+  const trackArtist = normalize(track.artist)
   return entries.some(e =>
-    norm(e.title) === trackTitle && norm(e.artist) === trackArtist
+    normalize(e.title) === trackTitle && normalize(e.artist) === trackArtist
   )
 }
 

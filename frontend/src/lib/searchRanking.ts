@@ -1,3 +1,4 @@
+import { normalize } from './sources/matching'
 import type { SearchTrack, SearchAlbum, PlaylistSummary, SearchArtist } from './spotifyApi'
 
 export type RankableItem =
@@ -5,10 +6,6 @@ export type RankableItem =
   | { type: 'album'; item: SearchAlbum }
   | { type: 'playlist'; item: PlaylistSummary }
   | { type: 'artist'; item: SearchArtist }
-
-function normalize(s: string): string {
-  return s.toLowerCase().trim().replace(/[^\w\s]/g, '')
-}
 
 export function textScore(query: string, title: string, artist?: string): number {
   const q = normalize(query)

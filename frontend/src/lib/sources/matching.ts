@@ -12,7 +12,7 @@ export interface MatchOptions {
 export const MIN_CONFIDENCE = 0.3
 
 const BRACKET_CONTENT = /\([^)]*\)|\[[^\]]*\]|<[^>]*>/g
-const NON_WORD = /[^\w\s]/g
+const NON_WORD = /[^\p{L}\p{N}\s]/gu
 const MULTI_SPACE = /\s+/g
 const LEADING_TRAILING = /^\s+|\s+$/g
 
@@ -30,7 +30,7 @@ function stripNoise(s: string): string {
     .toLowerCase()
 }
 
-function normalize(s: string): string {
+export function normalize(s: string): string {
   return s.toLowerCase().replace(BRACKET_CONTENT, '').replace(NON_WORD, '').trim()
 }
 

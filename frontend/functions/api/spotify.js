@@ -28,7 +28,7 @@ function hasArabic(text) {
 }
 
 function normalizeText(text) {
-  return text.toLowerCase().replace(/[^\w\s]/g, '').trim()
+  return text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').trim()
 }
 
 function isArtistMatch(query, artistName) {
@@ -916,6 +916,50 @@ function setCachedMetadata(kind, id, data) {
   }
 }
 
+// Artwork fallback: search Deezer for artwork by title + artist
+async function deezerArtwork(title, artist) {
+  if (!title && !artist) return null
+  const query = [artist, title].filter(Boolean).join(' ')
+  try {
+    const res = await fetch(
+      `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=3&order=RANKING`,
+      { headers: { 'Accept': 'application/json' }, signal: abortTimeout(5000) },
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    const track = data?.data?.[0]
+    if (!track) return null
+    const artwork = track.album?.cover_big || track.album?.cover_medium || null
+    if (artwork) scrapeLog('spotify', 'deezer_artwork', { title, artist, found: true })
+    return artwork
+  } catch {
+    return null
+  }
+}
+
+// Artwork fallback: search iTunes for artwork by title + artist
+async function itunesArtwork(title, artist) {
+  if (!title && !artist) return null
+  const query = [artist, title].filter(Boolean).join(' ')
+  try {
+    const res = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=3`,
+      { headers: { 'Accept': 'application/json' }, signal: abortTimeout(5000) },
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    const track = data?.results?.find(t => t.kind === 'song')
+    if (!track) return null
+    const artwork = track.artworkUrl100
+      ? track.artworkUrl100.replace('100x100', '600x600')
+      : null
+    if (artwork) scrapeLog('spotify', 'itunes_artwork', { title, artist, found: true })
+    return artwork
+  } catch {
+    return null
+  }
+}
+
 // Handle track by racing multiple fast sources in parallel
 async function handleTrack(context, id) {
   const cached = getCachedMetadata('track', id)
@@ -934,9 +978,16 @@ async function handleTrack(context, id) {
   }
   if (fastResult) {
     // Try oEmbed as backup — it may have artwork even if WolfX/Official didn't
+    let artwork = null
     const oembed = await oEmbedTrack(context, id)
     if (oembed && oembed.artwork_url) {
-      const merged = { ...fastResult, artwork_url: oembed.artwork_url }
+      artwork = oembed.artwork_url
+    } else {
+      artwork = await deezerArtwork(fastResult.title, fastResult.artist)
+        || await itunesArtwork(fastResult.title, fastResult.artist)
+    }
+    if (artwork) {
+      const merged = { ...fastResult, artwork_url: artwork }
       setCachedMetadata('track', id, merged)
       return jsonOk(merged)
     }
@@ -947,6 +998,10 @@ async function handleTrack(context, id) {
   // Fallback: oEmbed (fast but may lack artwork)
   const oembedResult = await oEmbedTrack(context, id)
   if (oembedResult) {
+    if (!oembedResult.artwork_url) {
+      oembedResult.artwork_url = await deezerArtwork(oembedResult.title, oembedResult.artist)
+        || await itunesArtwork(oembedResult.title, oembedResult.artist)
+    }
     setCachedMetadata('track', id, oembedResult)
     return jsonOk(oembedResult)
   }
