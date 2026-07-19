@@ -33,6 +33,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
     private var totalDuration: Long = 0
     private var currentTitle: String? = null
     private var currentArtist: String? = null
+    private var currentLyricLine: String? = null
     private var isCurrentlyPlaying: Boolean = false
 
     override fun onAudioFocusChange(focusChange: Int) {
@@ -121,6 +122,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 totalDuration = (intent.getDoubleExtra(EXTRA_DURATION, 0.0) * 1000).toLong()
                 currentTitle = title
                 currentArtist = artist
+                currentLyricLine = if (intent.hasExtra(EXTRA_LINE)) intent.getStringExtra(EXTRA_LINE) else null
                 isCurrentlyPlaying = true
                 requestAudioFocus()
                 loadArtwork(artworkUrl)
@@ -140,6 +142,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 totalDuration = (intent.getDoubleExtra(EXTRA_DURATION, totalDuration / 1000.0) * 1000).toLong()
                 currentTitle = title
                 currentArtist = artist
+                currentLyricLine = if (intent.hasExtra(EXTRA_LINE)) intent.getStringExtra(EXTRA_LINE) else null
                 isCurrentlyPlaying = true
                 loadArtwork(artworkUrl)
                 updatePlaybackState(true)
@@ -211,6 +214,11 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, currentTitle ?: "")
                 .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, currentArtist ?: "")
                 .putLong(android.media.MediaMetadata.METADATA_KEY_DURATION, totalDuration)
+            currentLyricLine?.let { line ->
+                if (line.isNotEmpty()) {
+                    metadataBuilder.putString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, line)
+                }
+            }
             cachedArtwork?.let { bm ->
                 metadataBuilder.putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, bm)
             }
@@ -258,6 +266,12 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
             .setShowWhen(false)
+
+        currentLyricLine?.let { line ->
+            if (line.isNotEmpty()) {
+                builder.setSubText(line)
+            }
+        }
 
         if (totalDuration > 0) {
             builder.setProgress(
@@ -344,6 +358,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
         const val EXTRA_ARTWORK_URL = "artworkUrl"
         const val EXTRA_POSITION = "position"
         const val EXTRA_DURATION = "duration"
+        const val EXTRA_LINE = "currentLyricLine"
 
         const val MEDIA_ACTION_PLAY = "com.spotdl.plugin.MEDIA_BTN_PLAY"
         const val MEDIA_ACTION_PAUSE = "com.spotdl.plugin.MEDIA_BTN_PAUSE"
@@ -352,7 +367,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
         const val MEDIA_ACTION_STOP = "com.spotdl.plugin.MEDIA_BTN_STOP"
         const val MEDIA_ACTION_SEEK = "com.spotdl.plugin.MEDIA_BTN_SEEK"
 
-        fun start(context: Context, title: String = "Playing", artist: String = "", artworkUrl: String? = null, position: Double = 0.0, duration: Double = 0.0) {
+        fun start(context: Context, title: String = "Playing", artist: String = "", artworkUrl: String? = null, position: Double = 0.0, duration: Double = 0.0, currentLyricLine: String? = null) {
             val intent = Intent(context, MediaService::class.java).apply {
                 action = ACTION_PLAY
                 putExtra(EXTRA_TITLE, title)
@@ -360,6 +375,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 putExtra(EXTRA_POSITION, position)
                 putExtra(EXTRA_DURATION, duration)
                 if (artworkUrl != null) putExtra(EXTRA_ARTWORK_URL, artworkUrl)
+                if (currentLyricLine != null) putExtra(EXTRA_LINE, currentLyricLine)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -368,7 +384,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
             }
         }
 
-        fun update(context: Context, title: String, artist: String, artworkUrl: String? = null, position: Double = 0.0, duration: Double = 0.0) {
+        fun update(context: Context, title: String, artist: String, artworkUrl: String? = null, position: Double = 0.0, duration: Double = 0.0, currentLyricLine: String? = null) {
             context.startService(Intent(context, MediaService::class.java).apply {
                 action = ACTION_UPDATE
                 putExtra(EXTRA_TITLE, title)
@@ -376,6 +392,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 putExtra(EXTRA_POSITION, position)
                 putExtra(EXTRA_DURATION, duration)
                 if (artworkUrl != null) putExtra(EXTRA_ARTWORK_URL, artworkUrl)
+                if (currentLyricLine != null) putExtra(EXTRA_LINE, currentLyricLine)
             })
         }
 

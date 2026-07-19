@@ -294,7 +294,8 @@ class SpotDLPlugin : Plugin() {
             val artworkUrl = call.getString("artworkUrl")
             val position = if (call.getData().has("position")) call.getDouble("position", 0.0) ?: 0.0 else 0.0
             val duration = if (call.getData().has("duration")) call.getDouble("duration", 0.0) ?: 0.0 else 0.0
-            MediaService.start(ctx, title, artist, artworkUrl, position, duration)
+            val currentLyricLine = call.getString("currentLyricLine")
+            MediaService.start(ctx, title, artist, artworkUrl, position, duration, currentLyricLine)
             call.resolve()
         } catch (e: Exception) {
             call.reject("Failed to start media foreground", e)
@@ -310,7 +311,8 @@ class SpotDLPlugin : Plugin() {
             val artworkUrl = call.getString("artworkUrl")
             val position = if (call.getData().has("position")) call.getDouble("position", 0.0) ?: 0.0 else 0.0
             val duration = if (call.getData().has("duration")) call.getDouble("duration", 0.0) ?: 0.0 else 0.0
-            MediaService.update(ctx, title, artist, artworkUrl, position, duration)
+            val currentLyricLine = call.getString("currentLyricLine")
+            MediaService.update(ctx, title, artist, artworkUrl, position, duration, currentLyricLine)
             call.resolve()
         } catch (e: Exception) {
             call.reject("Failed to update media foreground", e)

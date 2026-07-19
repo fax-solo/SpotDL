@@ -7,6 +7,8 @@ import type { HistoryEntry } from './useHistory'
 import { useBackgroundAudio } from './useBackgroundAudio'
 import { ensureNotificationPermission } from '../lib/notifications'
 import { startMediaForeground, stopMediaForeground, updateMediaForeground } from '../lib/nativePlugin'
+import { parseLRC, getCurrentLyricLine } from '../lib/lyricsUtil'
+import type { SyncedLine } from '../lib/lyricsUtil'
 
 type RepeatMode = 'none' | 'one' | 'all'
 export type SleepTimerMode = 'off' | 'countdown' | 'endOfTrack' | 'endOfQueue'
@@ -127,6 +129,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const repeatRef = useRef(repeatMode)
   const shuffleOrderRef = useRef<number[]>([])
   const sleepTimerRef = useRef(sleepTimer)
+  const syncedLinesRef = useRef<SyncedLine[]>([])
+  const lastLyricLineRef = useRef<string | null>(null)
 
   useEffect(() => { queueRef.current = queue }, [queue])
   useEffect(() => { queueIndexRef.current = queueIndex }, [queueIndex])
@@ -265,6 +269,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [shuffle])
 
   useEffect(() => {
+    if (currentTrack?.syncedLyrics) {
+      syncedLinesRef.current = parseLRC(currentTrack.syncedLyrics)
+    } else {
+      syncedLinesRef.current = []
+    }
+    lastLyricLineRef.current = null
+  }, [currentTrack])
+
+  useEffect(() => {
     localStorage.setItem(REPEAT_KEY, repeatMode)
   }, [repeatMode])
 
@@ -342,7 +355,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       setMediaSession(track)
       await ensureNotificationPermission()
-      startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined, 0, audio.duration)
+      const initialLine = syncedLinesRef.current.length > 0 ? syncedLinesRef.current[0].text : undefined
+      startMediaForeground(track.title, track.artist, track.artworkUrl ?? undefined, 0, audio.duration, initialLine)
     } catch {
       audio.volume = volume
       setIsPlaying(false)
@@ -400,12 +414,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setIsPlaying(true)
       const audio = audioRef.current
       if (audio && currentTrackRef.current) {
+        const line = getCurrentLyricLine(syncedLinesRef.current, audio.currentTime)
         startMediaForeground(
           currentTrackRef.current.title,
           currentTrackRef.current.artist,
           currentTrackRef.current.artworkUrl ?? undefined,
           audio.currentTime,
           audio.duration,
+          line ?? undefined,
         )
       }
     }).catch(() => {})
@@ -576,12 +592,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           const t = audioRef.current.currentTime
           const d = audioRef.current.duration
           syncMediaSessionPosition(t, d)
+          const currentLyricLine = getCurrentLyricLine(syncedLinesRef.current, t)
+          if (currentLyricLine !== lastLyricLineRef.current) {
+            lastLyricLineRef.current = currentLyricLine
+          }
           updateMediaForeground(
             currentTrackRef.current.title,
             currentTrackRef.current.artist,
             currentTrackRef.current.artworkUrl ?? undefined,
             t,
             d,
+            currentLyricLine ?? undefined,
           )
         }
       }, 5000)

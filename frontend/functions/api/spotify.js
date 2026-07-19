@@ -593,38 +593,42 @@ async function handleArtist(context, id) {
           related_artists: relatedArtists,
         })
       }
-    } catch (e) { scrapeLog('spotify', 'wolfx_artist_official_fallback', { id, err: e?.message }) } = await fetch(`https://open.spotify.com/embed/artist/${id}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
-        signal: abortTimeout(8000),
-      })
-      if (embedRes.ok) {
-        const html = await embedRes.text()
-        const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.+?)<\/script>/)
-        if (match) {
-          const data = JSON.parse(match[1])
-          const entity = data?.props?.pageProps?.state?.data?.entity
-          if (entity && entity.title) {
-            const tracks = (entity.trackList || []).map(t => ({
-              id: t.uri?.split(':')[2] || '',
-              title: t.title || 'Unknown',
-              album: extractTrackAlbum(t) || 'Single',
-              artist: t.subtitle || entity.title,
-              artist_id: id,
-              album_id: null,
-              artwork_url: extractTrackImage(t) || extractImage(entity),
-              url: t.uri ? `https://open.spotify.com/track/${t.uri.split(':')[2]}` : '',
-              duration_ms: 0,
-            }))
-            return jsonOk({
-              id, name: entity.title, image: extractImage(entity),
-              genres: [], followers: 0, popularity: 0,
-              top_tracks: tracks, albums: [], latest_release: null,
-              featuring: [], related_artists: [],
-            })
+    } catch (e) {
+      scrapeLog('spotify', 'wolfx_artist_official_fallback', { id, err: e?.message })
+      try {
+        const embedRes = await fetch(`https://open.spotify.com/embed/artist/${id}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
+          signal: abortTimeout(8000),
+        })
+        if (embedRes.ok) {
+          const html = await embedRes.text()
+          const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.+?)<\/script>/)
+          if (match) {
+            const data = JSON.parse(match[1])
+            const entity = data?.props?.pageProps?.state?.data?.entity
+            if (entity && entity.title) {
+              const tracks = (entity.trackList || []).map(t => ({
+                id: t.uri?.split(':')[2] || '',
+                title: t.title || 'Unknown',
+                album: extractTrackAlbum(t) || 'Single',
+                artist: t.subtitle || entity.title,
+                artist_id: id,
+                album_id: null,
+                artwork_url: extractTrackImage(t) || extractImage(entity),
+                url: t.uri ? `https://open.spotify.com/track/${t.uri.split(':')[2]}` : '',
+                duration_ms: 0,
+              }))
+              return jsonOk({
+                id, name: entity.title, image: extractImage(entity),
+                genres: [], followers: 0, popularity: 0,
+                top_tracks: tracks, albums: [], latest_release: null,
+                featuring: [], related_artists: [],
+              })
+            }
           }
         }
-      }
-    } catch (e) { scrapeLog('spotify', 'wolfx_artist_embed_fallback', { id, err: e?.message }) }
+      } catch (e) { scrapeLog('spotify', 'wolfx_artist_embed_fallback', { id, err: e?.message }) }
+    }
     return jsonError('Artist not found', 404)
   }
   const p = profile.artist || profile

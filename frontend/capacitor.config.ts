@@ -5,7 +5,6 @@ const config: CapacitorConfig = {
   appName: 'Sinc',
   webDir: 'dist',
   android: {
-    allowMixedContent: true,
     cleartextNavigation: ['127.0.0.1', 'localhost'],
   },
   plugins: {
