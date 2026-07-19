@@ -108,7 +108,7 @@ export async function nativeSendCompleteNotification(title: string, artist: stri
 export async function nativeSendErrorNotification(title: string, artist: string, error?: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await SpotDL.sendErrorNotification({ title, artist, error })
+    await SpotDL.sendErrorNotification({ title, artist, ...(error !== undefined ? { error } : {}) })
   } catch (e) {
     console.warn('[native] Failed to send error notification:', e)
   }
