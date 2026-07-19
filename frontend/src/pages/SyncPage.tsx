@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiUrl } from '../lib/apiConfig'
 import { useToast } from '../components/Toast'
-import { RefreshCw, Plus, Trash2, CheckCircle2, AlertTriangle, Clock, Loader2, Music, ListMusic } from 'lucide-react'
+import { RefreshCw, Plus, Trash2, CheckCircle2, AlertTriangle, Clock, Loader2, Music, ListMusic, TimerOff } from 'lucide-react'
 
 interface Subscription {
   id: string
@@ -33,7 +33,48 @@ export function SyncPage() {
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [syncingAll, setSyncingAll] = useState(false)
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
+  const [nextAutoSync, setNextAutoSync] = useState<string | null>(null)
   const { toast } = useToast()
+
+  const INTERVAL_MS: Record<string, number> = {
+    hourly: 60 * 60 * 1000,
+    daily: 24 * 60 * 60 * 1000,
+    weekly: 7 * 24 * 60 * 60 * 1000,
+  }
+
+  // Auto-scheduler: poll every 60s and trigger sync for due subscriptions
+  const autoSyncTimer = useRef<ReturnType<typeof setInterval>>()
+  useEffect(() => {
+    if (subs.length === 0) return
+    const check = async () => {
+      for (const sub of subs) {
+        if (sub.interval === 'manual') continue
+        const intervalMs = INTERVAL_MS[sub.interval]
+        if (!intervalMs) continue
+        if (!sub.last_synced_at) {
+          // Never synced — show it's due
+          setNextAutoSync('due')
+          continue
+        }
+        const elapsed = Date.now() - new Date(sub.last_synced_at).getTime()
+        if (elapsed >= intervalMs) {
+          setNextAutoSync(`syncing ${sub.playlist_name || sub.playlist_id.slice(0, 8)}...`)
+          try {
+            await fetch(apiUrl(`/api/sync/run/${sub.id}`), { method: 'POST' })
+          } catch {}
+          await fetchSubs()
+          setNextAutoSync(null)
+        } else {
+          const remaining = intervalMs - elapsed
+          const mins = Math.ceil(remaining / 60000)
+          setNextAutoSync(`~${mins}min`)
+        }
+      }
+    }
+    check()
+    autoSyncTimer.current = setInterval(check, 60000)
+    return () => clearInterval(autoSyncTimer.current)
+  }, [subs.length])
 
   const fetchSubs = useCallback(async () => {
     try {
@@ -150,14 +191,28 @@ export function SyncPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Playlist Sync</h1>
           {subs.length > 0 && (
-            <button
-              onClick={handleSyncAll}
-              disabled={syncingAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-xs font-medium cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncingAll ? 'animate-spin' : ''}`} />
-              Sync All
-            </button>
+            <div className="flex items-center gap-2">
+              {nextAutoSync && (
+                <span className="flex items-center gap-1 text-xs text-light-muted dark:text-dark-muted">
+                  {nextAutoSync.startsWith('syncing') ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : nextAutoSync === 'due' ? (
+                    <TimerOff className="w-3 h-3 text-amber-500" />
+                  ) : (
+                    <Clock className="w-3 h-3" />
+                  )}
+                  {nextAutoSync === 'due' ? 'Sync overdue' : nextAutoSync}
+                </span>
+              )}
+              <button
+                onClick={handleSyncAll}
+                disabled={syncingAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-xs font-medium cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingAll ? 'animate-spin' : ''}`} />
+                Sync All
+              </button>
+            </div>
           )}
         </div>
         <p className="text-sm text-light-muted dark:text-dark-muted mt-1">

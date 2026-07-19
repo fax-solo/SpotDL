@@ -17,6 +17,7 @@ interface AuthState {
   updateProfile: (displayName: string) => Promise<void>
   uploadAvatar: (file: File) => Promise<string>
   refreshUser: () => Promise<void>
+  deleteAccount: () => Promise<void>
 }
 
 function getDeviceId(): string {

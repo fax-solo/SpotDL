@@ -17,7 +17,7 @@ import { clearBlobCache } from '../lib/blobCache'
 export function Settings() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { user, isGuest, logout, updateProfile, uploadAvatar } = useAuth()
+  const { user, isGuest, logout, updateProfile, uploadAvatar, deleteAccount } = useAuth()
 
   const [profileName, setProfileName] = useState(user?.display_name || '')
   const [profileNameEditing, setProfileNameEditing] = useState(false)
@@ -717,6 +717,157 @@ export function Settings() {
             <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
+
+      {/* YouTube Cookies */}
+      {ytCookiesLoaded && (
+        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+          <div className="p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Cookie className="w-5 h-5 text-accent" />
+              <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">YouTube Cookies</h2>
+              {ytCookiesSaved && (
+                <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">Saved</span>
+              )}
+            </div>
+            <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+              Paste your YouTube cookies (Netscape format) to bypass geo-restrictions and age verification when downloading from YouTube.
+            </p>
+            <textarea
+              value={ytCookies}
+              onChange={e => { setYtCookies(e.target.value); setYtCookiesSaved(false) }}
+              placeholder="# Netscape HTTP Cookie File&#10;.youtube.com\tTRUE\t/\tTRUE\t1735689600\tSOCS\tCAI..."
+              rows={5}
+              aria-label="YouTube cookies"
+              spellCheck={false}
+              className="w-full px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow font-mono text-xs resize-y"
+            />
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={async () => {
+                  setYtCookiesSaving(true)
+                  try {
+                    await setYoutubeCookies(ytCookies.trim())
+                    setYtCookiesSaved(true)
+                    toast('YouTube cookies saved', 'success')
+                  } catch (e: any) {
+                    toast(e.message || 'Failed to save', 'error')
+                  } finally {
+                    setYtCookiesSaving(false)
+                  }
+                }}
+                disabled={ytCookiesSaving}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+              >
+                {ytCookiesSaving ? 'Saving...' : 'Save Cookies'}
+              </button>
+              {ytCookies.trim() && (
+                <button
+                  onClick={() => { setYtCookies(''); setYoutubeCookies(''); setYtCookiesSaved(false) }}
+                  className="py-2.5 px-4 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cache */}
+      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+        <div className="p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <Database className="w-5 h-5 text-accent" />
+            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Cache</h2>
+            {cacheSize > 0 && (
+              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/20">{cacheSize} blobs</span>
+            )}
+          </div>
+          <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+            Clear cached metadata, artwork, and downloaded blobs to free up storage.
+          </p>
+          <button
+            onClick={async () => {
+              setCacheClearing(true)
+              try {
+                await clearExpired('metadata', 0)
+                await clearExpired('artwork', 0)
+                await clearExpired('blobs', 0)
+                await clearBlobCache()
+                setCacheSize(0)
+                toast('Cache cleared', 'success')
+              } catch {
+                toast('Failed to clear cache', 'error')
+              } finally {
+                setCacheClearing(false)
+              }
+            }}
+            disabled={cacheClearing}
+            className="w-full py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+          >
+            {cacheClearing ? 'Clearing...' : 'Clear All Cache'}
+          </button>
+        </div>
+      </div>
+
+      {/* Account Deletion */}
+      {!isGuest && (
+        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-red-500/20 overflow-hidden">
+          <div className="p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 className="w-5 h-5 text-red-500" />
+              <h2 className="text-lg font-semibold text-red-500">Delete Account</h2>
+            </div>
+            <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+              Permanently delete your account and all associated data (history, downloads, settings). This cannot be undone.
+            </p>
+            {confirmDelete ? (
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <p className="text-xs text-red-500 font-medium">
+                    Are you sure? This will permanently delete your account, listening history, download logs, and push notification tokens.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      setDeleting(true)
+                      try {
+                        await deleteAccount()
+                        toast('Account permanently deleted', 'success')
+                        navigate('/')
+                      } catch (e: any) {
+                        toast(e.message || 'Account deletion failed', 'error')
+                      } finally {
+                        setDeleting(false)
+                        setConfirmDelete(false)
+                      }
+                    }}
+                    disabled={deleting}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+                  >
+                    {deleting ? 'Deleting...' : 'Yes, Delete My Account'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={deleting}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-light-text dark:text-dark-text hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="w-full py-2.5 px-4 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
+              >
+                Delete My Account
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
         <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
           <div className="p-5">

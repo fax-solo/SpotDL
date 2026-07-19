@@ -57,4 +57,11 @@ export async function getBlobFromCache(filePath: string): Promise<Blob | null> {
   return getCachedBlob(id)
 }
 
+export function clearBlobCache() {
+  for (const [key, entry] of memoryCache) {
+    URL.revokeObjectURL(entry.url)
+  }
+  memoryCache.clear()
+}
+
 
