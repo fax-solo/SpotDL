@@ -775,7 +775,7 @@ async function makeTOTP() {
 let _partnerTokenCache = null
 let _partnerTokenExpires = 0
 
-async function getPartnerToken(env?: any) {
+async function getPartnerToken(env) {
   const now = Date.now()
   if (_partnerTokenCache && now < _partnerTokenExpires) return _partnerTokenCache
   if (!secretCache.ts) await refreshSecrets(env)
