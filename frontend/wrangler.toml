@@ -19,6 +19,8 @@ binding = "DB"
 database_name = "sinc-db"
 database_id = "9ded8fa5-917b-4f08-9b52-8101c48879c2"
 
-[[r2_buckets]]
-binding = "AVATARS"
-bucket_name = "spotdl-avatars"
+# R2 bucket for avatar uploads — enable R2 in Cloudflare Dashboard and create
+# a bucket named "spotdl-avatars", then uncomment:
+# [[r2_buckets]]
+# binding = "AVATARS"
+# bucket_name = "spotdl-avatars"
