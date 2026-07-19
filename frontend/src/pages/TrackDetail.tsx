@@ -37,6 +37,16 @@ export function TrackDetail({ onDownloadComplete }: TrackDetailProps) {
     setError(null)
     try {
       const data = await fetchTrackDetails(trackId)
+      if (!data.artwork_url && data.title && data.artist) {
+        const timeout = (ms: number) => new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+        Promise.race([
+          findAudio(`${data.artist} ${data.title}`, data.title, data.artist, data.duration_ms, undefined)
+            .then(({ info }) => {
+              if (info.thumbnail) setTrack(prev => prev ? { ...prev, artwork_url: info.thumbnail } : prev)
+            }),
+          timeout(4000),
+        ]).catch(() => {})
+      }
       setTrack(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load track')

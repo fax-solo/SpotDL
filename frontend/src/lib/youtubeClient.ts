@@ -23,9 +23,8 @@ function isNative() {
   return Capacitor.isNativePlatform()
 }
 
-/** On native, route an audio URL through the Cloudflare proxy to avoid CORS */
+/** Route an audio URL through the Cloudflare proxy to avoid browser CORS restrictions */
 export function proxyAudioUrl(url: string): string {
-  if (!isNative()) return url
   const base = apiUrl('/api/proxy')
   return `${base}?url=${encodeURIComponent(url)}`
 }

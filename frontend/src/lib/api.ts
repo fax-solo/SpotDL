@@ -219,6 +219,7 @@ export async function downloadTrack(
   onProgress?: (stage: string, pct?: number) => void,
   signal?: AbortSignal,
   retries = 2,
+  lyrics?: string | null,
 ): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
   requireOnline()
   ensureNotificationPermission()
@@ -337,14 +338,18 @@ export async function downloadTrack(
       signal?.throwIfAborted()
       onProgress?.(`Downloading...`, 0)
 
+      const dlMeta: {
+        title: string; artist: string; album: string; artworkUrl: string | null; lyrics?: string | null
+      } = {
+        title: meta.title + variantSuffix,
+        artist: meta.artist,
+        album: meta.album,
+        artworkUrl: meta.artwork_url || info.thumbnail || null,
+      }
+      if (lyrics) dlMeta.lyrics = lyrics
       const blob = await downloadAudio(
         info.audioUrl,
-        {
-          title: meta.title + variantSuffix,
-          artist: meta.artist,
-          album: meta.album,
-          artworkUrl: meta.artwork_url,
-        },
+        dlMeta,
         (pct) => onProgress?.(`Converting...`, pct),
         (pct) => onProgress?.(`Downloading...`, pct !== null ? Math.round(pct * 100) : undefined),
         signal,

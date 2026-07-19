@@ -11,6 +11,7 @@ import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
 import { getDownloadLyrics } from '../lib/lyricsSettings'
 import { logDownload } from '../lib/auth'
 
+
 const CONCURRENT_DOWNLOADS = Math.min(Math.max(parseInt(import.meta.env.VITE_CONCURRENT_DOWNLOADS || '3', 10), 1), 10)
 
 export interface DownloadProgress {
@@ -206,35 +207,58 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   let lastNotifTime = 0
                   let lastNotifPct = -1
                   let lastUpdateTime = 0
-                  const result = await downloadTrack(item.track, (stage, pct) => {
-                    if (get().queue.some(q => q.id === item.id)) {
-                      const now = Date.now()
-                      const actualPct = pct !== undefined ? Math.round(pct * 100) / 100 : null
-                      if (actualPct === null || actualPct === 100 || now - lastUpdateTime >= 100) {
-                        lastUpdateTime = now
-                        get()._updateProgress(item.id, { stage, pct: actualPct })
-                      }
-                      const pctInt = actualPct !== null ? Math.round(actualPct) : -1
-                      if (pctInt === 100 || (now - lastNotifTime >= 400 && pctInt !== lastNotifPct)) {
-                        lastNotifTime = now
-                        lastNotifPct = pctInt
-                        updateDownloadForeground(
-                          `${item.track.artist} - ${item.track.title}`,
-                          get().queue.filter(q => !q.done && !q.failed).length,
-                          actualPct ?? undefined,
-                          stage,
-                        )
-                        if (actualPct !== null && actualPct > 0 && actualPct < 100) {
-                          sendDownloadProgressNotification({
-                            downloadId: item.id,
-                            title: item.track.title,
-                            artist: item.track.artist,
-                            pct: actualPct,
-                          })
+
+                  let plainLyrics: string | null = null
+                  let syncedLyrics: string | null = null
+                  if (getDownloadLyrics()) {
+                    try {
+                      const lyrics = await fetchLyricsWithFallback(
+                        item.track.title,
+                        item.track.artist,
+                        item.track.album,
+                        item.track.duration_ms ? item.track.duration_ms / 1000 : undefined,
+                        AbortSignal.timeout(10000),
+                      )
+                      plainLyrics = lyrics.plainLyrics
+                      syncedLyrics = lyrics.syncedLyrics
+                    } catch {}
+                  }
+
+                  const result = await downloadTrack(
+                    item.track,
+                    (stage, pct) => {
+                      if (get().queue.some(q => q.id === item.id)) {
+                        const now = Date.now()
+                        const actualPct = pct !== undefined ? Math.round(pct * 100) / 100 : null
+                        if (actualPct === null || actualPct === 100 || now - lastUpdateTime >= 100) {
+                          lastUpdateTime = now
+                          get()._updateProgress(item.id, { stage, pct: actualPct })
+                        }
+                        const pctInt = actualPct !== null ? Math.round(actualPct) : -1
+                        if (pctInt === 100 || (now - lastNotifTime >= 400 && pctInt !== lastNotifPct)) {
+                          lastNotifTime = now
+                          lastNotifPct = pctInt
+                          updateDownloadForeground(
+                            `${item.track.artist} - ${item.track.title}`,
+                            get().queue.filter(q => !q.done && !q.failed).length,
+                            actualPct ?? undefined,
+                            stage,
+                          )
+                          if (actualPct !== null && actualPct > 0 && actualPct < 100) {
+                            sendDownloadProgressNotification({
+                              downloadId: item.id,
+                              title: item.track.title,
+                              artist: item.track.artist,
+                              pct: actualPct,
+                            })
+                          }
                         }
                       }
-                    }
-                  }, controller.signal)
+                    },
+                    controller.signal,
+                    undefined,
+                    plainLyrics || undefined,
+                  )
 
                 clearTimeout(timeoutId)
 
@@ -251,24 +275,6 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
 
                 logDownload(item.track.title, item.track.artist).catch(() => {})
-
-                let plainLyrics: string | null = null
-                let syncedLyrics: string | null = null
-                if (getDownloadLyrics()) {
-                  try {
-                    const lyrics = await fetchLyricsWithFallback(
-                      item.track.title,
-                      item.track.artist,
-                      item.track.album,
-                      item.track.duration_ms ? item.track.duration_ms / 1000 : undefined,
-                      AbortSignal.timeout(10000),
-                    )
-                    plainLyrics = lyrics.plainLyrics
-                    syncedLyrics = lyrics.syncedLyrics
-                  } catch {
-                    // lyrics are best-effort
-                  }
-                }
 
                 cancelDownloadProgressNotification(item.id)
                 sendDownloadCompleteNotification({

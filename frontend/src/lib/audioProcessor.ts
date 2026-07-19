@@ -192,6 +192,7 @@ export async function writeId3Tags(
     artist: string
     album: string
     artworkUrl: string | null
+    lyrics?: string | null
   }
 ): Promise<Blob> {
   const { default: ID3Writer } = await import('browser-id3-writer')
@@ -204,6 +205,13 @@ export async function writeId3Tags(
     description: 'Downloaded by Sinc',
     text: 'sinc.app',
   })
+
+  if (metadata.lyrics) {
+    writer.setFrame('USLT', {
+      description: '',
+      lyrics: metadata.lyrics,
+    })
+  }
 
   if (metadata.artworkUrl) {
     try {
@@ -232,6 +240,7 @@ export async function downloadAudio(
     artist: string
     album: string
     artworkUrl: string | null
+    lyrics?: string | null
   },
   onProgress?: (pct: number) => void,
   onDownloadProgress?: (pct: number | null) => void,
@@ -256,3 +265,4 @@ export async function downloadAudio(
 
   return new Blob([audioData], { type: 'audio/mp4' })
 }
+
