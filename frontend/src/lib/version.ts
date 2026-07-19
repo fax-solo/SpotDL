@@ -1,14 +1,10 @@
-export const APP_VERSION: string = '1.17.0'
+export const APP_VERSION: string = '1.17.1'
 export const GITHUB_REPO = 'fax-solo/SpotDL'
 
 export function parseVersion(v: string): { major: number; minor: number; patch: number } | null {
   const match = v.replace(/^v/i, '').match(/^(\d+)\.(\d+)\.(\d+)$/)
   if (!match) return null
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-  }
+  return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) }
 }
 
 export function isNewerVersion(latest: string, current: string): boolean {
