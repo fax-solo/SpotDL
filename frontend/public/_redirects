@@ -1,7 +1,5 @@
 # Auth login/signup/logout/me/profile handled by CF Functions directly
-# FastAPI-only auth sub-routes (avatar, history, spotify) proxied to Render
-/api/auth/avatar https://sinc-api.onrender.com/api/auth/avatar 200
-/api/auth/avatar/ https://sinc-api.onrender.com/api/auth/avatar/ 200
+# FastAPI-only auth sub-routes (history, spotify) proxied to Render
 /api/auth/history* https://sinc-api.onrender.com/api/auth/history$1 200
 /api/auth/spotify/* https://sinc-api.onrender.com/api/auth/spotify/:splat 200
 # Admin handled by CF Functions — do not proxy

@@ -172,10 +172,10 @@ describe('formatUser', () => {
     expect(result.is_guest).toBe(false)
   })
 
-  it('formats user with token', () => {
+  it('formats user with token, returning null for r2-based avatar_path', () => {
     const user = { id: '1', username: 'test', email: 'a@b.com', display_name: 'Test', avatar_path: 'avatar.jpg', role: 'user', auth_provider: 'email', is_guest: 0, created_at: '2024-01-01', last_active: '2024-01-01' }
     const result = formatUser(user, 'mytoken')
     expect(result.token).toBe('mytoken')
-    expect((result as any).user.avatar_url).toBe('/api/avatars/avatar.jpg')
+    expect((result as any).user.avatar_url).toBeNull()
   })
 })

@@ -8,6 +8,7 @@ import { ToastProvider, useToast } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { BottomSheet } from './components/BottomSheet'
+import { PermissionRationaleSheet } from './components/PermissionRationaleSheet'
 import { useTheme } from './hooks/useTheme'
 import { useMaterialYou } from './hooks/useMaterialYou'
 import { useHistory } from './hooks/useHistory'
@@ -23,7 +24,8 @@ import { fetchLyricsWithFallback } from './lib/fetchLyricsWithFallback'
 import { initSentry } from './lib/sentry'
 import { checkForUpdate, promptUpdate } from './lib/autoUpdate'
 import { registerForPushNotifications, sendPushTokenToServer } from './lib/pushNotifications'
-import { createNotificationChannels } from './lib/notifications'
+import { createNotificationChannels, sendAppUpdateNotification } from './lib/notifications'
+import { RUNTIME_PERMISSIONS, checkPermission, requestPermission, shouldShowRationale } from './lib/permissions'
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })))
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
@@ -126,6 +128,37 @@ function AppContent() {
       return () => clearTimeout(timer)
     }, [])
 
+
+  const [permSheetOpen, setPermSheetOpen] = useState(false)
+  const [permPermanentlyDenied, setPermPermanentlyDenied] = useState(false)
+  const [permDismissed, setPermDismissed] = useState(false)
+  const notifPermission = RUNTIME_PERMISSIONS.find(p => p.key === 'notifications')
+
+  useEffect(() => {
+    if (!isNative || permDismissed) return
+    const checkNotif = async () => {
+      const granted = await checkPermission('notifications')
+      if (granted) return
+      const educated = localStorage.getItem('permission_rationale_shown') === '1'
+      if (educated) return
+      setPermSheetOpen(true)
+    }
+    checkNotif()
+  }, [isNative, permDismissed])
+
+  const handlePermRationaleClose = useCallback(async () => {
+    setPermSheetOpen(false)
+    localStorage.setItem('permission_rationale_shown', '1')
+    setPermDismissed(true)
+    const granted = await requestPermission('notifications')
+    if (!granted) {
+      const showRationale = await shouldShowRationale('notifications')
+      if (!showRationale) {
+        setPermPermanentlyDenied(true)
+        setPermSheetOpen(true)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (isNative || location.pathname !== '/') {
@@ -329,6 +362,12 @@ function AppContent() {
       </ErrorBoundary>
       {showBottomBar && <BottomBar />}
       <DownloadOverlay />
+      <PermissionRationaleSheet
+        open={permSheetOpen}
+        onClose={handlePermRationaleClose}
+        permission={notifPermission ?? null}
+        permanentlyDenied={permPermanentlyDenied}
+      />
     </div>
   )
 }
@@ -370,6 +409,16 @@ function App() {
         const release = await checkForUpdate()
         if (release) {
           setUpdateInfo({ tag_name: release.tag_name, body: release.body })
+          const latestVersion = release.tag_name.replace(/^v/i, '')
+          const lastNotified = localStorage.getItem('lastNotifiedUpdateVersion')
+          if (lastNotified !== latestVersion) {
+            localStorage.setItem('lastNotifiedUpdateVersion', latestVersion)
+            if (Capacitor.isNativePlatform()) {
+              const apkAsset = release.assets.find((a: any) => a.name.endsWith('.apk'))
+              const downloadUrl = apkAsset?.browser_download_url || release.html_url
+              sendAppUpdateNotification({ version: latestVersion, downloadUrl }).catch(() => {})
+            }
+          }
         }
       } catch {
         // auto-update check is best-effort

@@ -54,6 +54,7 @@ interface PlayerContextValue extends PlayerState {
   addToQueue: (track: HistoryEntry) => void
   removeFromQueue: (index: number) => void
   playNext: (track: HistoryEntry) => void
+  reorderQueue: (fromIndex: number, toIndex: number) => void
   setSleepTimer: (mode: SleepTimerMode, minutes?: number) => void
 }
 
@@ -537,6 +538,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     })
   }, [buildShuffleOrder])
 
+  const reorderQueue = useCallback((fromIndex: number, toIndex: number) => {
+    setQueue(prev => {
+      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= prev.length || toIndex >= prev.length) return prev
+      const next = [...prev]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      let adjustedIdx = queueIndexRef.current
+      if (fromIndex === adjustedIdx) {
+        adjustedIdx = toIndex
+      } else {
+        if (fromIndex < adjustedIdx && toIndex >= adjustedIdx) adjustedIdx--
+        if (fromIndex > adjustedIdx && toIndex <= adjustedIdx) adjustedIdx++
+      }
+      if (shuffleRef.current) {
+        const order = buildShuffleOrder(next, adjustedIdx)
+        setShuffleOrder(order)
+      }
+      queueIndexRef.current = adjustedIdx
+      setQueueIndex(adjustedIdx)
+      return next
+    })
+  }, [buildShuffleOrder])
+
   const playNext = useCallback((track: HistoryEntry) => {
     setQueue(prev => {
       const next = [...prev]
@@ -595,17 +619,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           const currentLyricLine = getCurrentLyricLine(syncedLinesRef.current, t)
           if (currentLyricLine !== lastLyricLineRef.current) {
             lastLyricLineRef.current = currentLyricLine
+            updateMediaForeground(
+              currentTrackRef.current.title,
+              currentTrackRef.current.artist,
+              currentTrackRef.current.artworkUrl ?? undefined,
+              t,
+              d,
+              currentLyricLine ?? undefined,
+            )
           }
-          updateMediaForeground(
-            currentTrackRef.current.title,
-            currentTrackRef.current.artist,
-            currentTrackRef.current.artworkUrl ?? undefined,
-            t,
-            d,
-            currentLyricLine ?? undefined,
-          )
         }
-      }, 5000)
+      }, 1000)
       positionSyncRef.current = interval as unknown as number
       return () => clearInterval(interval)
     } else {
@@ -659,7 +683,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       currentTrack, queue, queueIndex, isPlaying, currentTime, duration, volume,
       shuffle, repeatMode, sleepTimer,
       play, pause, resume, next, prev, seek, setVolume: setVolumeFn,
-      toggleShuffle, cycleRepeat, addToQueue, removeFromQueue, playNext, setSleepTimer,
+      toggleShuffle, cycleRepeat, addToQueue, removeFromQueue, playNext, reorderQueue, setSleepTimer,
     }}>
       {children}
     </PlayerContext.Provider>

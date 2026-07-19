@@ -26,6 +26,9 @@ import {
   ensureNotificationPermission,
   sendDownloadCompleteNotification,
   sendDownloadErrorNotification,
+  sendDownloadProgressNotification,
+  cancelDownloadProgressNotification,
+  sendAppUpdateNotification,
   sendBatchCompleteNotification,
   sendBackgroundPlaybackNotification,
   cancelBackgroundPlaybackNotification,
@@ -197,5 +200,99 @@ describe('cancelBackgroundPlaybackNotification', () => {
   it('handles errors silently', async () => {
     mockCancel.mockRejectedValue(new Error('fail'))
     await expect(cancelBackgroundPlaybackNotification()).resolves.toBeUndefined()
+  })
+})
+
+describe('sendDownloadProgressNotification', () => {
+  beforeEach(() => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
+    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+  })
+
+  it('sends progress notification with consistent id based on downloadId', async () => {
+    mockSchedule.mockResolvedValue({ notifications: [{ id: 12345 }] })
+    await sendDownloadProgressNotification({
+      downloadId: 'dl-123',
+      title: 'Test Song',
+      artist: 'Test Artist',
+      pct: 50,
+    })
+    expect(mockSchedule).toHaveBeenCalledOnce()
+    const notification = mockSchedule.mock.calls[0][0].notifications[0]
+    expect(notification.id).toBeGreaterThanOrEqual(10000)
+    expect(notification.body).toContain('50%')
+  })
+
+  it('does nothing when not native', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false)
+    await sendDownloadProgressNotification({ downloadId: 'x', title: 'x', artist: 'y', pct: 50 })
+    expect(mockSchedule).not.toHaveBeenCalled()
+  })
+})
+
+describe('cancelDownloadProgressNotification', () => {
+  beforeEach(() => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
+  })
+
+  it('cancels the progress notification for a given downloadId', async () => {
+    mockCancel.mockResolvedValue(undefined)
+    await cancelDownloadProgressNotification('dl-123')
+    expect(mockCancel).toHaveBeenCalledOnce()
+    const call = mockCancel.mock.calls[0][0]
+    expect(call.notifications[0].id).toBeGreaterThanOrEqual(10000)
+  })
+
+  it('does nothing when not native', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false)
+    await cancelDownloadProgressNotification('dl-123')
+    expect(mockCancel).not.toHaveBeenCalled()
+  })
+
+  it('handles errors silently', async () => {
+    mockCancel.mockRejectedValue(new Error('fail'))
+    await expect(cancelDownloadProgressNotification('dl-123')).resolves.toBeUndefined()
+  })
+})
+
+describe('sendAppUpdateNotification', () => {
+  beforeEach(() => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
+    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+  })
+
+  it('sends update notification with version and channel', async () => {
+    mockSchedule.mockResolvedValue({ notifications: [{ id: 5001 }] })
+    await sendAppUpdateNotification({
+      version: '2.0.0',
+      downloadUrl: 'https://github.com/example/releases/v2.0.0',
+    })
+    expect(mockSchedule).toHaveBeenCalledOnce()
+    const notification = mockSchedule.mock.calls[0][0].notifications[0]
+    expect(notification.id).toBe(5001)
+    expect(notification.title).toBe('Update available')
+    expect(notification.body).toContain('2.0.0')
+    expect(notification.channelId).toBe('spotdl_app_update')
+    expect(notification.actionTypeId).toBe('UPDATE_ACTIONS')
+  })
+
+  it('does nothing when not native', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false)
+    await sendAppUpdateNotification({ version: '2.0.0', downloadUrl: 'https://example.com' })
+    expect(mockSchedule).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when permission is denied', async () => {
+    mockCheckPermissions.mockResolvedValue({ display: 'denied' })
+    mockRequestPermissions.mockResolvedValue({ display: 'denied' })
+    await sendAppUpdateNotification({ version: '2.0.0', downloadUrl: 'https://example.com' })
+    expect(mockSchedule).not.toHaveBeenCalled()
+  })
+
+  it('handles errors gracefully', async () => {
+    mockSchedule.mockRejectedValue(new Error('fail'))
+    await expect(
+      sendAppUpdateNotification({ version: '2.0.0', downloadUrl: 'https://example.com' })
+    ).resolves.toBeUndefined()
   })
 })

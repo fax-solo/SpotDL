@@ -4,7 +4,7 @@ import type { TrackMeta } from '../lib/api'
 import { downloadFile } from '../lib/capacitorBridge'
 import { storeBlob } from '../lib/blobCache'
 import type { HistoryEntry } from './useHistory'
-import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendDownloadProgressNotification, sendBatchCompleteNotification, ensureNotificationPermission } from '../lib/notifications'
+import { sendDownloadCompleteNotification, sendDownloadErrorNotification, sendDownloadProgressNotification, cancelDownloadProgressNotification, sendBatchCompleteNotification, ensureNotificationPermission } from '../lib/notifications'
 import { startDownloadForeground, updateDownloadForeground, stopDownloadForeground } from '../lib/nativePlugin'
 import { Capacitor } from '@capacitor/core'
 import { fetchLyricsWithFallback } from '../lib/fetchLyricsWithFallback'
@@ -195,15 +195,17 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
         if (Capacitor.isNativePlatform()) {
           try {
             const { BackgroundTask } = await import('@capawesome/capacitor-background-task')
-            taskId = await BackgroundTask.beforeExit(async () => {
-              const state = get()
-              const updated = state.queue.map(q =>
-                !q.done && !q.failed
-                  ? { ...q, failed: true, stage: 'Interrupted', error: 'App was closed' }
-                  : q
-              )
-              saveQueue(updated)
-            })
+              taskId = await BackgroundTask.beforeExit(async () => {
+                const state = get()
+                const updated = state.queue.map(q => {
+                  if (!q.done && !q.failed) {
+                    cancelDownloadProgressNotification(q.id)
+                    return { ...q, failed: true, stage: 'Interrupted', error: 'App was closed' }
+                  }
+                  return q
+                })
+                saveQueue(updated)
+              })
           } catch {}
           await ensureNotificationPermission()
           startDownloadForeground()
@@ -297,6 +299,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   }
                 }
 
+                cancelDownloadProgressNotification(item.id)
                 sendDownloadCompleteNotification({
                   title: item.track.title,
                   artist: item.track.artist,
@@ -327,6 +330,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   failed: true,
                   error: message,
                 })
+                cancelDownloadProgressNotification(item.id)
                 sendDownloadErrorNotification({
                   title: item.track.title,
                   artist: item.track.artist,

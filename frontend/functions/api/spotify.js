@@ -1,6 +1,8 @@
 import { fetchWithRetry, scrapeResponse, scrapeError, isFailFast } from './_lib/retry.js'
 import { scrapeLog } from './_lib/log.js'
 import { checkRateLimit } from './_lib/rate_limit'
+import { searchDeezerArtwork } from './_lib/deezerArtwork'
+import { searchItunesArtwork } from './_lib/itunesArtwork'
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
 
@@ -503,6 +505,19 @@ async function handleSearch(context, query, types, limit) {
     }
   }
 
+  const missingArtwork = result.tracks.filter(t => !t.artwork_url).slice(0, 15)
+  if (missingArtwork.length > 0) {
+    const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+    const db = context.env.DB
+    await Promise.allSettled(
+      missingArtwork.map(async (track) => {
+        const artwork = await searchDeezerArtwork(track.title, track.artist, ip, db)
+          || await searchItunesArtwork(track.title, track.artist, ip, db)
+        if (artwork) track.artwork_url = artwork
+      }),
+    )
+  }
+
   _cache.set(searchKey, { data: result, expires: Date.now() + SEARCH_CACHE_TTL })
   if (_cache.size > 300) {
     const now = Date.now()
@@ -920,50 +935,6 @@ function setCachedMetadata(kind, id, data) {
   }
 }
 
-// Artwork fallback: search Deezer for artwork by title + artist
-async function deezerArtwork(title, artist) {
-  if (!title && !artist) return null
-  const query = [artist, title].filter(Boolean).join(' ')
-  try {
-    const res = await fetch(
-      `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=3&order=RANKING`,
-      { headers: { 'Accept': 'application/json' }, signal: abortTimeout(5000) },
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    const track = data?.data?.[0]
-    if (!track) return null
-    const artwork = track.album?.cover_big || track.album?.cover_medium || null
-    if (artwork) scrapeLog('spotify', 'deezer_artwork', { title, artist, found: true })
-    return artwork
-  } catch {
-    return null
-  }
-}
-
-// Artwork fallback: search iTunes for artwork by title + artist
-async function itunesArtwork(title, artist) {
-  if (!title && !artist) return null
-  const query = [artist, title].filter(Boolean).join(' ')
-  try {
-    const res = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=3`,
-      { headers: { 'Accept': 'application/json' }, signal: abortTimeout(5000) },
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    const track = data?.results?.find(t => t.kind === 'song')
-    if (!track) return null
-    const artwork = track.artworkUrl100
-      ? track.artworkUrl100.replace('100x100', '600x600')
-      : null
-    if (artwork) scrapeLog('spotify', 'itunes_artwork', { title, artist, found: true })
-    return artwork
-  } catch {
-    return null
-  }
-}
-
 // Handle track by racing multiple fast sources in parallel
 async function handleTrack(context, id) {
   const cached = getCachedMetadata('track', id)
@@ -987,8 +958,9 @@ async function handleTrack(context, id) {
     if (oembed && oembed.artwork_url) {
       artwork = oembed.artwork_url
     } else {
-      artwork = await deezerArtwork(fastResult.title, fastResult.artist)
-        || await itunesArtwork(fastResult.title, fastResult.artist)
+      const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+      artwork = await searchDeezerArtwork(fastResult.title, fastResult.artist, ip, context.env.DB)
+        || await searchItunesArtwork(fastResult.title, fastResult.artist, ip, context.env.DB)
     }
     if (artwork) {
       const merged = { ...fastResult, artwork_url: artwork }
@@ -1003,8 +975,9 @@ async function handleTrack(context, id) {
   const oembedResult = await oEmbedTrack(context, id)
   if (oembedResult) {
     if (!oembedResult.artwork_url) {
-      oembedResult.artwork_url = await deezerArtwork(oembedResult.title, oembedResult.artist)
-        || await itunesArtwork(oembedResult.title, oembedResult.artist)
+      const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+      oembedResult.artwork_url = await searchDeezerArtwork(oembedResult.title, oembedResult.artist, ip, context.env.DB)
+        || await searchItunesArtwork(oembedResult.title, oembedResult.artist, ip, context.env.DB)
     }
     setCachedMetadata('track', id, oembedResult)
     return jsonOk(oembedResult)

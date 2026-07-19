@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon, User, LogOut, Camera, Shield, Mail, Pencil, Trash2, Cookie, Database } from 'lucide-react'
+import { Music, CheckCircle, AlertTriangle, Key, HelpCircle, ShieldCheck, RefreshCw, ExternalLink, Radio, RefreshCw as SyncIcon, User, LogOut, Shield, Mail, Pencil, Trash2, Cookie, Database } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getWebPlayerToken, setWebPlayerToken, clearWebPlayerToken, testWebPlayerToken } from '../lib/spotifyApi'
 import { getDownloadLyrics, setDownloadLyrics } from '../lib/lyricsSettings'
@@ -17,15 +17,12 @@ import { useToast } from '../components/Toast'
 
 export function Settings() {
   const navigate = useNavigate()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const { user, isGuest, logout, updateProfile, uploadAvatar, deleteAccount } = useAuth()
+  const { user, isGuest, logout, updateProfile, deleteAccount } = useAuth()
   const { toast } = useToast()
 
   const [profileName, setProfileName] = useState(user?.display_name || '')
   const [profileNameEditing, setProfileNameEditing] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
-  const [avatarUploading, setAvatarUploading] = useState(false)
-
   // Deezer ARL
   const [dzArl, setDzArl] = useState(getDeezerArl() || '')
   const [dzArlSaved, setDzArlSaved] = useState(!!getDeezerArl())
@@ -135,46 +132,7 @@ export function Settings() {
             )}
           </div>
 
-          <div className="flex items-center gap-4 mb-5">
-            <div className="relative flex-shrink-0">
-              <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center overflow-hidden ring-2 ring-accent/20">
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-7 h-7 text-accent" />
-                )}
-              </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={avatarUploading}
-                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-accent text-white flex items-center justify-center hover:bg-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {avatarUploading ? (
-                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Camera className="w-3 h-3" />
-                )}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={async e => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  setAvatarUploading(true)
-                  try {
-                    await uploadAvatar(file)
-                  } catch (err) {
-                    console.error('Avatar upload failed', err)
-                  } finally {
-                    setAvatarUploading(false)
-                  }
-                }}
-              />
-            </div>
-            <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0">
               {profileNameEditing ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -243,7 +201,6 @@ export function Settings() {
                 <p className="text-xs text-amber-500 mt-0.5">Signed in as guest</p>
               )}
             </div>
-          </div>
 
           {!isGuest && user?.role === 'admin' && (
             <button

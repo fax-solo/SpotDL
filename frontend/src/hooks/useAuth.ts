@@ -15,7 +15,6 @@ interface AuthState {
   guestLogin: () => Promise<void>
   logout: () => void
   updateProfile: (displayName: string) => Promise<void>
-  uploadAvatar: (file: File) => Promise<string>
   refreshUser: () => Promise<void>
   deleteAccount: () => Promise<void>
 }
@@ -110,17 +109,6 @@ export const useAuth = create<AuthState>((set, get) => ({
       auth.storeUser(updated)
       set({ user: updated })
     }
-  },
-
-  uploadAvatar: async (file: File) => {
-    const res = await auth.uploadAvatar(file)
-    const user = get().user
-    if (user) {
-      const updated = { ...user, avatar_url: res.avatar_url }
-      auth.storeUser(updated)
-      set({ user: updated })
-    }
-    return res.avatar_url
   },
 
   refreshUser: async () => {

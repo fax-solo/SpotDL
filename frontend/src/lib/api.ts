@@ -5,6 +5,7 @@ import { downloadAudio } from './audioProcessor'
 import { apiUrl } from './apiConfig'
 import { cachedFetch } from './requestCache'
 import { isNativeSpotDLAvailable, nativeFetchMetadata, nativeDownloadTrack } from './nativePlugin'
+import { ensureNotificationPermission } from './notifications'
 import { cacheMetadata, getCachedMetadata } from './dbCache'
 import { getDeezerArl, getDeezerQuality } from './deezer'
 import { getQualitySettings, VARIANT_FILENAME_SUFFIXES } from './qualitySettings'
@@ -214,6 +215,7 @@ export async function downloadTrack(
   retries = 2,
 ): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
   requireOnline()
+  ensureNotificationPermission()
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
   const quality = getQualitySettings()
   const ext = quality.format === 'm4a' ? '.m4a' : '.mp3'

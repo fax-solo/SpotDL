@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { useNavigate } from 'react-router-dom'
 import { useDownloads } from './useDownloads'
+import { GITHUB_REPO } from '../lib/version'
 
 type LocalNotificationsModule = {
   registerActionTypes: (options: {
@@ -60,6 +61,13 @@ export function useNotificationActions() {
               { id: 'next', title: 'Next', destructive: false, foreground: true },
             ],
           },
+          {
+            id: 'UPDATE_ACTIONS',
+            actions: [
+              { id: 'install', title: 'Install', destructive: false, foreground: true },
+              { id: 'dismiss_update', title: 'Dismiss', destructive: true, foreground: false },
+            ],
+          },
         ],
       })
 
@@ -81,6 +89,25 @@ export function useNotificationActions() {
 
           if (actionId === 'next') {
             navigate('/player')
+          }
+
+          if (actionId === 'install' && extra.downloadUrl) {
+            try {
+              const { Browser } = await import('@capacitor/browser')
+              await Browser.open({ url: extra.downloadUrl, windowName: '_blank' })
+            } catch {
+              window.open(extra.downloadUrl, '_blank')
+            }
+          }
+
+          if (actionId === 'install' && !extra.downloadUrl) {
+            const releasesUrl = `https://github.com/${GITHUB_REPO}/releases/latest`
+            try {
+              const { Browser } = await import('@capacitor/browser')
+              await Browser.open({ url: releasesUrl, windowName: '_blank' })
+            } catch {
+              window.open(releasesUrl, '_blank')
+            }
           }
         })
         unlisten = handler.remove

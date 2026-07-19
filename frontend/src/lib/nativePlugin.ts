@@ -41,6 +41,7 @@ interface SpotDLPlugin {
   scanLocalMusic(): Promise<{ tracks: LocalTrackResult[] }>
   checkMediaAudioPermission(): Promise<{ granted: boolean }>
   requestMediaAudioPermission(): Promise<{ granted: boolean }>
+  saveToMusicLibrary(options: { url: string; filename: string }): Promise<{ filePath: string }>
 }
 
 const SpotDL = registerPlugin<SpotDLPlugin>('SpotDL')
@@ -218,12 +219,11 @@ export async function nativeDownloadTrack(
   url: string,
   onProgress?: (pct: number, line: string) => void,
 ): Promise<{ filePath: string; filename: string }> {
-  const result = await post<{ files: string[]; output_dir: string }>('/download', { url })
+  onProgress?.(0.5, 'Downloading via native...')
+  const filename = `${Date.now()}.mp3`
+  const result = await SpotDL.saveToMusicLibrary({ url, filename })
   onProgress?.(1, 'Complete')
-  const file = result.files?.[0] || ''
-  const filename = file.split('/').pop() || `${Date.now()}.mp3`
-  const filePath = file ? `${result.output_dir}/${file}` : ''
-  return { filePath, filename }
+  return { filePath: result.filePath, filename }
 }
 
 export async function nativeScanLocalMusic(): Promise<LocalTrackResult[]> {

@@ -1,12 +1,15 @@
 package com.spotdl.plugin
 
 import android.content.BroadcastReceiver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.Manifest
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import android.view.WindowInsets
@@ -366,5 +369,63 @@ class SpotDLPlugin : Plugin() {
         } catch (e: Exception) {
             call.reject("Failed to scan local music", e)
         }
+    }
+
+    @PluginMethod
+    fun saveToMusicLibrary(call: PluginCall) {
+        val url = call.getString("url") ?: run {
+            call.reject("url is required")
+            return
+        }
+        val filename = call.getString("filename") ?: run {
+            call.reject("filename is required")
+            return
+        }
+
+        Thread {
+            try {
+                val conn = java.net.URL("$LOCAL_URL/download/process").openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.connectTimeout = 30000
+                conn.readTimeout = 60000
+
+                val requestBody = """{"url": "$url"}"""
+                conn.outputStream.use { it.write(requestBody.toByteArray()) }
+
+                val bytes = conn.inputStream.readBytes()
+                val ctx = context
+                val filePath: String
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Audio.Media.DISPLAY_NAME, filename)
+                        put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg")
+                        put(MediaStore.Audio.Media.IS_MUSIC, 1)
+                        put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC)
+                    }
+                    val uri = ctx.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+                        ?: throw Exception("Failed to create MediaStore entry")
+                    ctx.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                        ?: throw Exception("Failed to write to MediaStore entry")
+                    filePath = uri.toString()
+                } else {
+                    val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+                    musicDir.mkdirs()
+                    val file = java.io.File(musicDir, filename)
+                    file.writeBytes(bytes)
+                    filePath = file.absolutePath
+                }
+
+                activity.runOnUiThread {
+                    call.resolve(JSObject().apply { put("filePath", filePath) })
+                }
+            } catch (e: Exception) {
+                activity.runOnUiThread {
+                    call.reject("Failed to save to music library", e)
+                }
+            }
+        }.start()
     }
 }

@@ -161,22 +161,6 @@ export async function updateProfile(displayName: string): Promise<UserProfile> {
   return parseJson(res)
 }
 
-export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
-  const form = new FormData()
-  form.append('file', file)
-  const res = await fetchWithTimeout(apiUrl('/api/auth/avatar'), {
-    method: 'POST',
-    headers: authHeaders(),
-    body: form,
-    timeout: 15000,
-  })
-  if (!res.ok) {
-    const err = await parseJson(res).catch(() => ({ detail: 'Upload failed' }))
-    throw new Error(err.detail || 'Upload failed')
-  }
-  return parseJson(res)
-}
-
 export async function getHistory(limit = 100, offset = 0) {
   const res = await fetchWithTimeout(apiUrl(`/api/auth/history?limit=${limit}&offset=${offset}`), {
     headers: authHeaders(),

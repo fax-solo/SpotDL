@@ -89,6 +89,14 @@ export async function createNotificationChannels(): Promise<void> {
       lights: false,
       vibration: false,
     })
+    await ln.createChannel({
+      id: 'spotdl_app_update',
+      name: 'App Updates',
+      description: 'Notifies when a new app version is available',
+      importance: 3,
+      lights: true,
+      vibration: false,
+    })
   } catch {
     // best-effort
   }
@@ -150,13 +158,15 @@ export async function sendDownloadErrorNotification(params: {
   }
 }
 
-function _downloadNotifId(downloadId: string): number {
+export function downloadNotifId(downloadId: string): number {
   let hash = 0
   for (let i = 0; i < downloadId.length; i++) {
     hash = ((hash << 5) - hash + downloadId.charCodeAt(i)) | 0
   }
   return Math.abs(hash) % 100000 + 10000
 }
+
+const _downloadNotifId = downloadNotifId
 
 export async function sendDownloadProgressNotification(params: {
   downloadId: string
@@ -179,6 +189,44 @@ export async function sendDownloadProgressNotification(params: {
         iconColor: '#3B82F6',
         channelId: 'spotdl_downloads_progress',
         sound: undefined,
+      }],
+    })
+  } catch {
+    // best-effort
+  }
+}
+
+export async function cancelDownloadProgressNotification(downloadId: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  const ln = await getLN()
+  if (!ln) return
+  try {
+    await ln.cancel({ notifications: [{ id: downloadNotifId(downloadId) }] })
+  } catch {
+    // best-effort
+  }
+}
+
+export async function sendAppUpdateNotification(params: {
+  version: string
+  downloadUrl: string
+}): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  const granted = await ensureNotificationPermission()
+  if (!granted) return
+  const ln = await getLN()
+  if (!ln) return
+  try {
+    await ln.schedule({
+      notifications: [{
+        id: 5001,
+        title: 'Update available',
+        body: `Version ${params.version} is ready to install`,
+        smallIcon: 'ic_stat_icon',
+        iconColor: '#8B5CF6',
+        channelId: 'spotdl_app_update',
+        actionTypeId: 'UPDATE_ACTIONS',
+        extra: { downloadUrl: params.downloadUrl },
       }],
     })
   } catch {

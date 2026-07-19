@@ -15,6 +15,8 @@ vi.mock('../lib/blobCache', () => ({
 vi.mock('../lib/notifications', () => ({
   sendDownloadCompleteNotification: vi.fn().mockResolvedValue(undefined),
   sendDownloadErrorNotification: vi.fn().mockResolvedValue(undefined),
+  sendDownloadProgressNotification: vi.fn().mockResolvedValue(undefined),
+  cancelDownloadProgressNotification: vi.fn().mockResolvedValue(undefined),
   sendBatchCompleteNotification: vi.fn().mockResolvedValue(undefined),
   ensureNotificationPermission: vi.fn().mockResolvedValue(undefined),
 }))
