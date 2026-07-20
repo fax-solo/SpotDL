@@ -39,7 +39,7 @@ vi.mock('@ffmpeg/util', () => ({
 
 vi.mock('browser-id3-writer', () => mockID3WriterModule)
 
-import { convertAudio, writeId3Tags, downloadAudio } from './audioProcessor'
+import { convertAudio, writeId3Tags, writeM4ATags, downloadAudio } from './audioProcessor'
 
 const defaultQuality = { bitrate: '320' as const, format: 'mp3' as const }
 
@@ -125,8 +125,9 @@ describe('writeId3Tags', () => {
       album: 'Test Album',
       artworkUrl: null,
     })
-    expect(result).toBeInstanceOf(Blob)
-    expect(result.type).toBe('audio/mpeg')
+    expect(result.blob).toBeInstanceOf(Blob)
+    expect(result.blob.type).toBe('audio/mpeg')
+    expect(result.artworkEmbedded).toBe(false)
   })
 
   it('attempts to fetch artwork when URL provided', async () => {
@@ -142,7 +143,93 @@ describe('writeId3Tags', () => {
       album: 'Test',
       artworkUrl: 'https://example.com/cover.jpg',
     })
-    expect(fetch).toHaveBeenCalledWith('https://example.com/cover.jpg')
+    expect(fetch).toHaveBeenCalledWith('https://example.com/cover.jpg', expect.objectContaining({ signal: expect.any(AbortSignal) }))
+  })
+
+  it('sets artworkEmbedded=true when artwork fetch succeeds', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(new Blob(['fake-image-data'], { type: 'image/jpeg' })),
+    }))
+
+    const inputBuffer = new ArrayBuffer(100)
+    const result = await writeId3Tags(inputBuffer, {
+      title: 'Test',
+      artist: 'Test',
+      album: 'Test',
+      artworkUrl: 'https://example.com/cover.jpg',
+    })
+    expect(result.artworkEmbedded).toBe(true)
+  })
+
+  it('returns artworkEmbedded=false when artwork fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
+
+    const inputBuffer = new ArrayBuffer(100)
+    const result = await writeId3Tags(inputBuffer, {
+      title: 'Test',
+      artist: 'Test',
+      album: 'Test',
+      artworkUrl: 'https://example.com/cover.jpg',
+    })
+    expect(result.artworkEmbedded).toBe(false)
+    expect(result.blob).toBeInstanceOf(Blob)
+    expect(result.blob.type).toBe('audio/mpeg')
+  })
+
+  it('returns artworkEmbedded=false when artwork fetch times out', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('The operation was aborted', 'TimeoutError')))
+
+    const inputBuffer = new ArrayBuffer(100)
+    const result = await writeId3Tags(inputBuffer, {
+      title: 'Test',
+      artist: 'Test',
+      album: 'Test',
+      artworkUrl: 'https://example.com/cover.jpg',
+    })
+    expect(result.artworkEmbedded).toBe(false)
+    expect(result.blob).toBeInstanceOf(Blob)
+  })
+})
+
+describe('writeM4ATags', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('writes metadata to M4A buffer via FFmpeg', async () => {
+    const inputBuffer = new ArrayBuffer(100)
+    const result = await writeM4ATags(inputBuffer, {
+      title: 'Test Song',
+      artist: 'Test Artist',
+      album: 'Test Album',
+      artworkUrl: null,
+    })
+    expect(result.blob).toBeInstanceOf(Blob)
+    expect(result.blob.type).toBe('audio/mp4')
+    expect(result.artworkEmbedded).toBe(false)
+
+    expect(mockFFmpegInstance.exec).toHaveBeenCalled()
+    const args = mockFFmpegInstance.exec.mock.calls[0]?.[0] as string[]
+    expect(args).toContain('-metadata')
+    expect(args).toContain('title=Test Song')
+    expect(args).toContain('artist=Test Artist')
+    expect(args).toContain('album=Test Album')
+    expect(args).toContain('-c')
+    expect(args).toContain('copy')
+  })
+
+  it('includes lyrics metadata when provided', async () => {
+    const inputBuffer = new ArrayBuffer(100)
+    await writeM4ATags(inputBuffer, {
+      title: 'Test',
+      artist: 'Test',
+      album: 'Test',
+      artworkUrl: null,
+      lyrics: 'Test lyrics line 1\nTest lyrics line 2',
+    })
+    const args = mockFFmpegInstance.exec.mock.calls[0]?.[0] as string[]
+    expect(args).toContain('lyrics=Test lyrics line 1\nTest lyrics line 2')
   })
 })
 
@@ -165,8 +252,8 @@ describe('downloadAudio', () => {
       album: 'Test',
       artworkUrl: null,
     })
-    expect(result).toBeInstanceOf(Blob)
-    expect(result.type).toBe('audio/mpeg')
+    expect(result.blob).toBeInstanceOf(Blob)
+    expect(result.blob.type).toBe('audio/mpeg')
   })
 
   it('throws if aborted before processing', async () => {
@@ -182,7 +269,8 @@ describe('downloadAudio', () => {
     ).rejects.toThrow()
   })
 
-  it('returns untagged MP3 if ID3 tagging fails', async () => {
+  it('returns untagged MP3 with artworkEmbedded=false if ID3 tagging fails', async () => {
+    const prevCtor = mockID3WriterModule._ctor
     mockID3WriterModule._ctor = vi.fn(function () {
       throw new Error('Tagging failed')
     })
@@ -193,7 +281,33 @@ describe('downloadAudio', () => {
       album: 'Test',
       artworkUrl: null,
     })
-    expect(result).toBeInstanceOf(Blob)
-    expect(result.type).toBe('audio/mpeg')
+    expect(result.blob).toBeInstanceOf(Blob)
+    expect(result.blob.type).toBe('audio/mpeg')
+    expect(result.artworkEmbedded).toBe(false)
+
+    mockID3WriterModule._ctor = prevCtor
+  })
+
+  it('tags M4A and returns artworkEmbedded=true when artwork provided', async () => {
+    const result = await downloadAudio('https://example.com/audio.mp3', {
+      title: 'Test',
+      artist: 'Test',
+      album: 'Test',
+      artworkUrl: 'https://example.com/cover.jpg',
+    }, undefined, undefined, undefined, { bitrate: '320', format: 'm4a' })
+    expect(result.blob).toBeInstanceOf(Blob)
+    expect(result.blob.type).toBe('audio/mp4')
+    expect(result.artworkEmbedded).toBe(true)
+  })
+
+  it('returns artworkEmbedded=true when artwork fetch succeeds', async () => {
+    const result = await downloadAudio('https://example.com/audio.mp3', {
+      title: 'Test',
+      artist: 'Test',
+      album: 'Test',
+      artworkUrl: 'https://example.com/cover.jpg',
+    })
+    expect(result.blob).toBeInstanceOf(Blob)
+    expect(result.artworkEmbedded).toBe(true)
   })
 })

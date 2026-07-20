@@ -194,7 +194,7 @@ export async function writeId3Tags(
     artworkUrl: string | null
     lyrics?: string | null
   }
-): Promise<Blob> {
+): Promise<{ blob: Blob; artworkEmbedded: boolean }> {
   const { default: ID3Writer } = await import('browser-id3-writer')
 
   const writer = new ID3Writer(mp3Buffer)
@@ -213,9 +213,10 @@ export async function writeId3Tags(
     })
   }
 
+  let artworkEmbedded = false
   if (metadata.artworkUrl) {
     try {
-      const res = await fetch(metadata.artworkUrl)
+      const res = await fetch(metadata.artworkUrl, { signal: AbortSignal.timeout(10000) })
       if (res.ok) {
         const coverBlob = await res.blob()
         writer.setFrame('APIC', {
@@ -224,13 +225,77 @@ export async function writeId3Tags(
           description: 'Cover',
           useUnicodeEncoding: false,
         })
+        artworkEmbedded = true
       }
-    } catch {
+    } catch (err) {
+      console.warn('[audioProcessor] artwork fetch failed for ID3:', err)
     }
   }
 
   const tagged = await writer.addTag()
-  return new Blob([tagged], { type: 'audio/mpeg' })
+  return { blob: new Blob([tagged], { type: 'audio/mpeg' }), artworkEmbedded }
+}
+
+export async function writeM4ATags(
+  m4aBuffer: ArrayBuffer,
+  metadata: {
+    title: string
+    artist: string
+    album: string
+    artworkUrl: string | null
+    lyrics?: string | null
+  }
+): Promise<{ blob: Blob; artworkEmbedded: boolean }> {
+  const instance = await getFFmpeg()
+  const tag = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+  const inputName = `input_${tag}.m4a`
+  const coverName = `cover_${tag}.jpg`
+  const outputName = `output_${tag}.m4a`
+
+  let hasCover = false
+  if (metadata.artworkUrl) {
+    try {
+      const res = await fetch(metadata.artworkUrl, { signal: AbortSignal.timeout(10000) })
+      if (res.ok) {
+        const coverData = new Uint8Array(await res.arrayBuffer())
+        await instance.writeFile(inputName, new Uint8Array(m4aBuffer))
+        await instance.writeFile(coverName, coverData)
+        hasCover = true
+      }
+    } catch (err) {
+      console.warn('[audioProcessor] artwork fetch failed for M4A:', err)
+    }
+  }
+
+  try {
+    if (!hasCover) {
+      await instance.writeFile(inputName, new Uint8Array(m4aBuffer))
+    }
+
+    const args = []
+    if (hasCover) {
+      args.push('-i', coverName, '-i', inputName, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'copy', '-disposition:v', 'attached_pic')
+    } else {
+      args.push('-i', inputName, '-c', 'copy')
+    }
+    args.push(
+      '-metadata', `title=${metadata.title}`,
+      '-metadata', `artist=${metadata.artist}`,
+      '-metadata', `album=${metadata.album}`,
+    )
+    if (metadata.lyrics) {
+      args.push('-metadata', `lyrics=${metadata.lyrics}`)
+    }
+    args.push('-y', outputName)
+
+    await instance.exec(args)
+    const outData = await instance.readFile(outputName) as Uint8Array
+    return { blob: new Blob([outData.slice().buffer], { type: 'audio/mp4' }), artworkEmbedded: hasCover }
+  } finally {
+    try { await instance.deleteFile(inputName) } catch {}
+    try { await instance.deleteFile(outputName) } catch {}
+    try { await instance.deleteFile(coverName) } catch {}
+  }
 }
 
 export async function downloadAudio(
@@ -247,7 +312,7 @@ export async function downloadAudio(
   signal?: AbortSignal,
   quality?: QualitySettings,
   durationMs?: number,
-): Promise<Blob> {
+): Promise<{ blob: Blob; artworkEmbedded: boolean }> {
   const q = quality || { bitrate: '320', format: 'mp3' }
   signal?.throwIfAborted()
   const audioData = await convertAudio(audioUrl, q, metadata.artworkUrl || undefined, onProgress, signal, onDownloadProgress, durationMs)
@@ -255,14 +320,20 @@ export async function downloadAudio(
 
   if (q.format === 'mp3') {
     try {
-      const taggedBlob = await writeId3Tags(audioData, metadata)
-      return taggedBlob
+      const result = await writeId3Tags(audioData, metadata)
+      return result
     } catch (err) {
       console.warn('[audioProcessor] writeId3Tags failed, returning untagged MP3:', err)
-      return new Blob([audioData], { type: 'audio/mpeg' })
+      return { blob: new Blob([audioData], { type: 'audio/mpeg' }), artworkEmbedded: false }
     }
   }
 
-  return new Blob([audioData], { type: 'audio/mp4' })
+  try {
+    const result = await writeM4ATags(audioData, metadata)
+    return result
+  } catch (err) {
+    console.warn('[audioProcessor] writeM4ATags failed, returning untagged M4A:', err)
+    return { blob: new Blob([audioData], { type: 'audio/mp4' }), artworkEmbedded: false }
+  }
 }
 

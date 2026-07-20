@@ -220,7 +220,7 @@ export async function downloadTrack(
   signal?: AbortSignal,
   retries = 2,
   lyrics?: string | null,
-): Promise<{ blob: Blob; filename: string; nativeFilePath?: string }> {
+): Promise<{ blob: Blob; filename: string; nativeFilePath?: string; artworkEmbedded: boolean }> {
   requireOnline()
   ensureNotificationPermission()
   const safe = (s: string) => s.replace(/[/\\?%*:|"<>]/g, '_')
@@ -238,7 +238,7 @@ export async function downloadTrack(
       })
       onProgress?.('Done', 100)
       if (nativeResult.filePath) {
-        return { blob: new Blob([], { type: 'audio/mpeg' }), filename, nativeFilePath: nativeResult.filePath }
+        return { blob: new Blob([], { type: 'audio/mpeg' }), filename, nativeFilePath: nativeResult.filePath, artworkEmbedded: true }
       }
     } catch {
       // Fall through
@@ -271,7 +271,7 @@ export async function downloadTrack(
         validateBlob(blob, meta.duration_ms)
         onProgress?.('Done', 100)
         const dzExt = dzQuality === 'FLAC' ? '.flac' : ext
-        return { blob, filename: filename.replace(ext, dzExt) }
+        return { blob, filename: filename.replace(ext, dzExt), artworkEmbedded: true }
       }
       const deezerErr = await deezerRes.json().catch(() => ({ detail: deezerRes.statusText }))
       console.warn(`[api] Deezer download returned ${deezerRes.status}:`, deezerErr.detail)
@@ -302,7 +302,7 @@ export async function downloadTrack(
         const blob = await res.blob()
         validateBlob(blob, meta.duration_ms)
         onProgress?.('Done', 100)
-        return { blob, filename }
+        return { blob, filename, artworkEmbedded: true }
       }
       const serverErr = await res.json().catch(() => ({ detail: res.statusText }))
       console.warn(`[api] Server download returned ${res.status}:`, serverErr.detail)
@@ -352,7 +352,7 @@ export async function downloadTrack(
         artworkUrl: meta.artwork_url || info.thumbnail || null,
       }
       if (lyrics) dlMeta.lyrics = lyrics
-      const blob = await downloadAudio(
+      const { blob, artworkEmbedded } = await downloadAudio(
         info.audioUrl,
         dlMeta,
         (pct) => onProgress?.(`Converting...`, pct),
@@ -363,7 +363,7 @@ export async function downloadTrack(
       )
 
       validateBlob(blob)
-      return { blob, filename }
+      return { blob, filename, artworkEmbedded }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
       if (attempt < retries) {

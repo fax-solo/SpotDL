@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Music, RefreshCw, Play, FileQuestion, Loader2, Download, Library, Headphones, Clock } from 'lucide-react'
+import { ArtworkImage } from '../components/ArtworkImage'
 import { Capacitor } from '@capacitor/core'
 import { scanDeviceMusic, type LocalTrack } from '../lib/localMusic'
 import { usePlayer } from '../hooks/usePlayer'
@@ -237,11 +238,13 @@ export function LocalMusicPage() {
                   }}
                   className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer active:scale-[0.99] transition-transform"
                 >
-                  <div className="w-11 h-11 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <div className="w-11 h-11 rounded-lg bg-accent/10 flex-shrink-0 overflow-hidden">
                     {entry.artworkUrl ? (
-                      <img src={entry.artworkUrl} alt="" className="w-full h-full object-cover" />
+                      <ArtworkImage src={entry.artworkUrl} alt="" className="w-full h-full object-cover" iconSize={20} />
                     ) : (
-                      <Music className="w-5 h-5 text-accent" />
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Music className="w-5 h-5 text-accent" />
+                      </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -316,8 +319,14 @@ export function LocalMusicPage() {
                   onClick={() => handlePlay(track)}
                   className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer active:scale-[0.99] transition-transform"
                 >
-                  <div className="w-11 h-11 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <Music className="w-5 h-5 text-accent" />
+                  <div className="w-11 h-11 rounded-lg bg-accent/10 flex-shrink-0 overflow-hidden">
+                    {track.artworkUrl ? (
+                      <ArtworkImage src={track.artworkUrl} alt="" className="w-full h-full object-cover" iconSize={20} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Music className="w-5 h-5 text-accent" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">

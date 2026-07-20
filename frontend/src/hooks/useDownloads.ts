@@ -264,6 +264,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
 
                 clearTimeout(timeoutId)
 
+                const artworkEmbedded = result.artworkEmbedded ?? true
+
                 let filePath: string | null = result.nativeFilePath ?? null
                 if (!filePath && result.blob.size > 0) {
                   filePath = await downloadFile(result.blob, result.filename)
@@ -275,6 +277,10 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                 controllers.delete(item.id)
                 set({ abortControllers: new Map(controllers) })
                 get()._updateProgress(item.id, { stage: 'Done', pct: 100, done: true })
+
+                if (!artworkEmbedded) {
+                  console.warn('[downloads] artwork was not embedded for:', item.track.title)
+                }
 
                 logDownload(item.track.title, item.track.artist).catch(() => {})
 
@@ -295,10 +301,11 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                       artist: item.track.artist,
                       album: item.track.album,
                       artworkUrl: item.track.artwork_url,
+                      artworkEmbedded,
                       filePath,
                       plainLyrics,
                       syncedLyrics,
-                    } satisfies Omit<HistoryEntry, 'id' | 'timestamp'>,
+                    },
                   }),
                 )
               } catch (err) {

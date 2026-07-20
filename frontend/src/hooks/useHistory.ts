@@ -9,6 +9,7 @@ export interface HistoryEntry {
   artist: string
   album: string
   artworkUrl: string | null
+  artworkEmbedded?: boolean
   filePath: string | null
   streamUrl?: string | null
   plainLyrics?: string | null
@@ -83,6 +84,7 @@ export function useHistory() {
         artist: entry.artist ?? '',
         album: entry.album ?? '',
         artworkUrl: entry.artworkUrl ?? null,
+        artworkEmbedded: entry.artworkEmbedded,
         filePath: entry.filePath ?? null,
         streamUrl: entry.streamUrl ?? null,
         plainLyrics: entry.plainLyrics ?? null,

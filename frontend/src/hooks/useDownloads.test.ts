@@ -166,6 +166,7 @@ describe('useDownloads', () => {
       blob: new Blob(['fake-mp3'], { type: 'audio/mpeg' }),
       filename: 'Test_Song.mp3',
       nativeFilePath: null,
+      artworkEmbedded: true,
     })
     vi.mocked(downloadFile).mockResolvedValue('/storage/Test_Song.mp3')
 
