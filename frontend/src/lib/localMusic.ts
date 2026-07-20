@@ -42,7 +42,7 @@ function readFileChunk(path: string, maxBytes: number = 100 * 1024): Promise<Uin
     try {
       const { Filesystem } = await import('@capacitor/filesystem')
       const result = await Filesystem.readFile({ path })
-      const binary = atob(result.data)
+      const binary = atob(result.data as string)
       const bytes = new Uint8Array(binary.length)
       for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i)
@@ -160,7 +160,7 @@ export async function extractEmbeddedArtwork(path: string): Promise<string | nul
   if (!imageData) return null
 
   try {
-    const blob = new Blob([imageData])
+    const blob = new Blob([imageData as BlobPart])
     cacheArtwork(path, blob).catch(() => {})
     return URL.createObjectURL(blob)
   } catch {

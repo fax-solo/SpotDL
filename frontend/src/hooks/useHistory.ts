@@ -84,7 +84,7 @@ export function useHistory() {
         artist: entry.artist ?? '',
         album: entry.album ?? '',
         artworkUrl: entry.artworkUrl ?? null,
-        artworkEmbedded: entry.artworkEmbedded,
+        ...(entry.artworkEmbedded !== undefined ? { artworkEmbedded: entry.artworkEmbedded } : {}),
         filePath: entry.filePath ?? null,
         streamUrl: entry.streamUrl ?? null,
         plainLyrics: entry.plainLyrics ?? null,
