@@ -8,27 +8,33 @@ const DEEZER_QUALITY_KEY = 'deezer_quality'
 // It is sent to the server to enable high-quality downloads.
 // Only use this on servers you trust, over HTTPS.
 
-let _secureStorage: { getItem: (k: string) => Promise<string | null>; setItem: (k: string, v: string) => Promise<void>; removeItem: (k: string) => Promise<void> } | null = null
+type _SecureStore = { getItem: (k: string) => Promise<string | null>; setItem: (k: string, v: string) => Promise<void>; removeItem: (k: string) => Promise<void> }
 
-async function _getStorage() {
+let _secureStorage: _SecureStore | null = null
+
+async function _getStorage(): Promise<_SecureStore> {
   if (_secureStorage) return _secureStorage
   if (Capacitor.isNativePlatform()) {
     try {
-      const mod = await import('@capawesome/capacitor-secure-storage')
-      _secureStorage = {
-        getItem: (k) => mod.SecureStorage.get({ key: k }).then(r => r.value).catch(() => null),
-        setItem: (k, v) => mod.SecureStorage.set({ key: k, value: v }),
-        removeItem: (k) => mod.SecureStorage.remove({ key: k }),
+      const ss = (Capacitor as any).Plugins?.SecureStorage
+      if (ss?.get && ss?.set && ss?.remove) {
+        _secureStorage = {
+          getItem: async (k: string) => {
+            try { return (await ss.get({ key: k })).value } catch { return null }
+          },
+          setItem: async (k: string, v: string) => { await ss.set({ key: k, value: v }) },
+          removeItem: async (k: string) => { await ss.remove({ key: k }) },
+        }
+        return _secureStorage
       }
-      return _secureStorage
     } catch {
-      // fall through to localStorage
+      // plugin not available — fall through to localStorage
     }
   }
   _secureStorage = {
-    getItem: async (k) => localStorage.getItem(k),
-    setItem: async (k, v) => { localStorage.setItem(k, v) },
-    removeItem: async (k) => { localStorage.removeItem(k) },
+    getItem: async (k: string) => localStorage.getItem(k),
+    setItem: async (k: string, v: string) => { localStorage.setItem(k, v) },
+    removeItem: async (k: string) => { localStorage.removeItem(k) },
   }
   return _secureStorage
 }
