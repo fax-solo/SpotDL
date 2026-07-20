@@ -20,8 +20,6 @@ export function Home() {
   const [categories, setCategories] = useState<PlaylistCategory[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Search state moved to SearchPage
-
   const [newReleases, setNewReleases] = useState<NewReleaseAlbum[]>([])
   const [newReleasesLoading, setNewReleasesLoading] = useState(false)
   const [recentlyPlayed, setRecentlyPlayed] = useState<SearchTrack[]>([])
@@ -84,16 +82,12 @@ export function Home() {
     }
   }, [entries, loadRecommendations, recommendations.length])
 
-  // Search logic moved to SearchPage
-
   function openPlaylist(id: string) { navigate(`/playlist/${id}`) }
 
   return (
     <PullToRefresh onRefresh={async () => { await Promise.all([loadCategories(), loadNewReleases(), loadRecentlyPlayed()]) }}>
-      <div className="px-4 pt-6 pb-32 safe-area-top">
-        <div
-          className="mb-4"
-        >
+      <div className="px-4 pt-6 pb-32 safe-area-top animate-pageEnter">
+        <div className="mb-5">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
             Sinc
           </h1>
@@ -102,29 +96,31 @@ export function Home() {
           </p>
         </div>
 
-        <div className="relative mb-5">
+        <div className="relative mb-6">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-light-muted dark:text-dark-muted pointer-events-none" />
           <div
             onClick={() => navigate('/search')}
-            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-muted dark:text-dark-muted cursor-pointer hover:bg-light-bg dark:hover:bg-zinc-800 transition-colors"
+            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white dark:bg-dark-surface border border-light-border/40 dark:border-dark-border/40 text-sm text-light-muted dark:text-dark-muted cursor-pointer hover:border-accent/30 hover:shadow-sm transition-all active:scale-[0.99]"
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter') navigate('/search') }}
           >
             Search tracks, artists, playlists...
           </div>
         </div>
 
-        {/* New Releases */}
         {newReleases.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-4 h-4 text-accent" />
               <h2 className="text-lg font-bold text-light-text dark:text-dark-text">New Releases</h2>
             </div>
-                    <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2">
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide mx-[-1rem] px-4 pb-2">
               {newReleases.map((album, i) => (
                 <button
                   key={album.id}
                   onClick={() => navigate(`/album/${album.id}`)}
-                  className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 hover:shadow-md transition-shadow cursor-pointer group active:scale-95 transition-transform"
+                  className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/40 dark:border-dark-border/40 hover:shadow-md hover:border-accent/20 transition-all duration-200 cursor-pointer group active:scale-95 focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   <div className="aspect-square bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center relative overflow-hidden">
                     <ArtworkImage src={album.image} alt={album.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} />
@@ -149,19 +145,18 @@ export function Home() {
 
         {(
           <>
-            {/* Recently Played */}
             {recentlyPlayed.length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <Clock className="w-4 h-4 text-accent" />
                   <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Recently Played</h2>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {recentlyPlayed.slice(0, 5).map((t, i) => (
                     <button
                       key={t.id + i}
                       onClick={() => navigate(`/track/${t.id}`)}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer text-left active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-accent"
                     >
                       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
                         {t.artwork_url ? <ArtworkImage src={t.artwork_url} alt="" className="w-full h-full object-cover" /> : <Music className="w-5 h-5 text-accent/40 m-auto" />}
@@ -182,19 +177,18 @@ export function Home() {
               </div>
             )}
 
-            {/* Recommendations */}
             {recommendations.length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <Disc3 className="w-4 h-4 text-accent" />
                   <h2 className="text-lg font-bold text-light-text dark:text-dark-text">You Might Like</h2>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {recommendations.slice(0, 5).map((t, i) => (
                     <button
                       key={t.id + i}
                       onClick={() => navigate(`/track/${t.id}`)}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer text-left active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-accent"
                     >
                       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
                         {t.artwork_url ? <ArtworkImage src={t.artwork_url} alt="" className="w-full h-full object-cover" /> : <Music className="w-5 h-5 text-accent/40 m-auto" />}
@@ -209,7 +203,6 @@ export function Home() {
               </div>
             )}
 
-            {/* Categories */}
             {loading ? (
               <div className="space-y-6">
                 {[1, 2].map(i => (
@@ -264,7 +257,7 @@ function PlaylistCard({ playlist, onClick, index: _index }: { playlist: Playlist
   return (
     <button
       onClick={onClick}
-      className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 hover:shadow-md transition-shadow cursor-pointer group active:scale-95 transition-transform"
+      className="flex-shrink-0 w-[160px] text-left rounded-xl overflow-hidden bg-white dark:bg-dark-surface border border-light-border/40 dark:border-dark-border/40 hover:shadow-md hover:border-accent/20 transition-all duration-200 cursor-pointer group active:scale-95 focus-visible:outline-2 focus-visible:outline-accent"
     >
       <div className="aspect-square bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center relative overflow-hidden">
         <ArtworkImage src={imgSrc} alt={playlist.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} />

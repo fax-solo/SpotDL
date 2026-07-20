@@ -118,19 +118,19 @@ export function EpisodeDetail({ onDownloadComplete }: EpisodeDetailProps) {
 
   if (error || !episode) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-light-bg dark:bg-dark-bg px-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-light-bg dark:bg-dark-bg px-4 animate-scaleIn">
         <Headphones className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
         <p className="text-light-muted dark:text-dark-muted mb-6 text-center text-sm">{error || 'Episode not found'}</p>
         <div className="flex gap-3">
-          <button onClick={() => id && doFetch(id)} className="px-6 py-2 bg-accent text-white rounded-lg text-sm font-medium cursor-pointer">Retry</button>
-          <button onClick={() => navigate(-1)} className="px-6 py-2 bg-zinc-200 dark:bg-zinc-800 text-light-text dark:text-zinc-300 rounded-lg text-sm font-medium cursor-pointer">Go Back</button>
+          <button onClick={() => id && doFetch(id)} className="px-6 py-2 bg-accent text-white rounded-lg text-sm font-medium cursor-pointer hover:bg-accent-hover transition-colors active:scale-95">Retry</button>
+          <button onClick={() => navigate(-1)} className="px-6 py-2 bg-zinc-200 dark:bg-zinc-800 text-light-text dark:text-zinc-300 rounded-lg text-sm font-medium cursor-pointer hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors active:scale-95">Go Back</button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32">
+    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 animate-pageEnter">
       <button
         onClick={() => navigate(-1)}
         className="absolute left-4 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center cursor-pointer text-white active:scale-90 transition-transform safe-top-1rem"

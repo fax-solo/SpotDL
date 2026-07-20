@@ -249,11 +249,12 @@ export function SearchPage() {
   }, [])
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 pt-6 px-4 safe-area-top">
-      <div className="flex items-center gap-3 mb-6 relative z-10">
+    <div className="flex-1 flex flex-col min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 pt-6 px-4 safe-area-top animate-pageEnter">
+      <div className="flex items-center gap-3 mb-6 relative z-10 animate-slideUp">
         <button
           onClick={() => navigate(-1)}
-          className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer flex-shrink-0"
+          className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer flex-shrink-0 active:scale-90"
+          aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5 text-light-text dark:text-dark-text" />
         </button>
@@ -486,7 +487,19 @@ export function SearchPage() {
             })}
 
             {!searchResults.artists?.length && !searchResults.tracks?.length && !searchResults.albums?.length && !searchResults.playlists?.length && !searchResults.shows?.length && (
-              <p className="text-center text-light-muted dark:text-dark-muted py-8 text-sm">No results found</p>
+              <div className="text-center py-8">
+                <p className="text-light-muted dark:text-dark-muted text-sm">No results found</p>
+                {(searchResults as any)._diagnostics?.explanation && (
+                  <div className="mt-3 mx-auto max-w-md">
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3 text-left">
+                      <p className="text-xs font-medium text-yellow-600 dark:text-yellow-400 mb-1">Diagnostics</p>
+                      <p className="text-[11px] text-light-muted dark:text-dark-muted leading-relaxed">
+                        {(searchResults as any)._diagnostics.explanation}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

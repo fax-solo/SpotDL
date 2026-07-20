@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 
-const PRODUCTION_API = 'https://spotify-downloader-5v5.pages.dev'
+const PRODUCTION_API = import.meta.env.VITE_API_URL || ''
 
 export function getApiBase(): string {
   const envUrl = import.meta.env.VITE_API_URL

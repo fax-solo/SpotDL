@@ -120,8 +120,8 @@ export function LocalMusicPage() {
   }, [bulkLyrics, tracks, updateEntryLyrics, toast])
 
   return (
-    <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-4 pt-6 pb-32">
-      <div className="mb-6">
+    <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-4 pt-6 pb-32 animate-pageEnter">
+      <div className="mb-6 animate-slideUp">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Local Music</h1>
@@ -181,13 +181,13 @@ export function LocalMusicPage() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 animate-slideUp" style={{ animationDelay: '50ms', animationFillMode: 'both' }}>
         <button
           onClick={() => setTab('downloaded')}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer active:scale-[0.97] ${
             tab === 'downloaded'
-              ? 'bg-accent text-white'
-              : 'bg-white dark:bg-dark-surface border border-light-border/40 dark:border-dark-border/30 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+              ? 'bg-accent text-white shadow-sm'
+              : 'bg-white dark:bg-dark-surface border border-light-border/40 dark:border-dark-border/30 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text hover:border-accent/30'
           }`}
         >
           <div className="flex items-center justify-center gap-2">
@@ -197,10 +197,10 @@ export function LocalMusicPage() {
         </button>
         <button
           onClick={() => setTab('device')}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer active:scale-[0.97] ${
             tab === 'device'
-              ? 'bg-accent text-white'
-              : 'bg-white dark:bg-dark-surface border border-light-border/40 dark:border-dark-border/30 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
+              ? 'bg-accent text-white shadow-sm'
+              : 'bg-white dark:bg-dark-surface border border-light-border/40 dark:border-dark-border/30 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text hover:border-accent/30'
           }`}
         >
           <div className="flex items-center justify-center gap-2">
@@ -212,7 +212,7 @@ export function LocalMusicPage() {
 
       {/* Downloaded tab */}
       {tab === 'downloaded' && (
-        <>
+        <div className="animate-slideUp" style={{ animationDelay: '80ms', animationFillMode: 'both' }}>
           {downloadedTracks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Headphones className="w-12 h-12 text-light-muted dark:text-dark-muted mb-3 opacity-40" />
@@ -222,7 +222,7 @@ export function LocalMusicPage() {
               </p>
               <button
                 onClick={() => navigate('/download')}
-                className="mt-4 px-4 py-2 bg-accent text-white text-sm font-medium rounded-xl cursor-pointer"
+                className="mt-4 px-4 py-2 bg-accent text-white text-sm font-medium rounded-xl cursor-pointer hover:bg-accent-hover transition-colors active:scale-95"
               >
                 Go to Downloads
               </button>
@@ -236,9 +236,9 @@ export function LocalMusicPage() {
                     navigate('/player')
                     play(entry)
                   }}
-                  className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer active:scale-[0.99] transition-transform"
+                  className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer active:scale-[0.99] group"
                 >
-                  <div className="w-11 h-11 rounded-lg bg-accent/10 flex-shrink-0 overflow-hidden">
+                  <div className="w-11 h-11 rounded-lg bg-accent/10 flex-shrink-0 overflow-hidden group-hover:shadow-md transition-shadow">
                     {entry.artworkUrl ? (
                       <ArtworkImage src={entry.artworkUrl} alt="" className="w-full h-full object-cover" iconSize={20} />
                     ) : (
@@ -259,17 +259,17 @@ export function LocalMusicPage() {
                     <Clock className="w-3 h-3" />
                     {new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </div>
-                  <Play className="w-4 h-4 text-accent flex-shrink-0" />
+                  <Play className="w-4 h-4 text-accent flex-shrink-0 group-hover:scale-110 transition-transform" />
                 </button>
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Device tab */}
       {tab === 'device' && (
-        <>
+        <div className="animate-slideUp" style={{ animationDelay: '80ms', animationFillMode: 'both' }}>
           {permissionDenied && (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
               <Music className="w-12 h-12 text-light-muted dark:text-dark-muted mb-3" />
@@ -287,7 +287,7 @@ export function LocalMusicPage() {
                     toast('Permission still denied. Check system settings.', 'error')
                   }
                 }}
-                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-xl cursor-pointer"
+                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-xl cursor-pointer hover:bg-accent-hover transition-colors active:scale-95"
               >
                 Grant Permission
               </button>
@@ -317,9 +317,9 @@ export function LocalMusicPage() {
                 <button
                   key={track.path}
                   onClick={() => handlePlay(track)}
-                  className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer active:scale-[0.99] transition-transform"
+                  className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer active:scale-[0.99] group"
                 >
-                  <div className="w-11 h-11 rounded-lg bg-accent/10 flex-shrink-0 overflow-hidden">
+                  <div className="w-11 h-11 rounded-lg bg-accent/10 flex-shrink-0 overflow-hidden group-hover:shadow-md transition-shadow">
                     {track.artworkUrl ? (
                       <ArtworkImage src={track.artworkUrl} alt="" className="w-full h-full object-cover" iconSize={20} />
                     ) : (
@@ -336,12 +336,12 @@ export function LocalMusicPage() {
                       {(track.size / 1024 / 1024).toFixed(1)} MB
                     </p>
                   </div>
-                  <Play className="w-4 h-4 text-accent flex-shrink-0" />
+                  <Play className="w-4 h-4 text-accent flex-shrink-0 group-hover:scale-110 transition-transform" />
                 </button>
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
     </main>
   )

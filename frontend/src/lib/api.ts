@@ -251,11 +251,12 @@ export async function downloadTrack(
     try {
       onProgress?.('Searching Deezer...', 0)
       const dzQuality = getDeezerQuality()
+      const arlPayload = btoa(deezerArl)
       const deezerRes = await fetch(apiUrl('/api/download/deezer'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          arl: deezerArl,
+          _arl: arlPayload,
           title: meta.title,
           artist: meta.artist,
           album: meta.album,

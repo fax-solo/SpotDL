@@ -32,6 +32,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          # VITE_YOUTUBE_API_KEY: ${{ secrets.VITE_YOUTUBE_API_KEY }}  # Optional, set in CF Pages dashboard
 
       - name: Deploy to Cloudflare Pages
         run: npx wrangler pages deploy dist --project-name=spotify-downloader

@@ -13,6 +13,7 @@ from smartdl.metadata import resolve_metadata, TrackMetadata, configure as confi
 from smartdl.audio import download_audio
 from smartdl.tagging import tag_mp3, _download_cover
 from smartdl.lyrics import fetch_lrclib, inject_lyrics
+from artwork_fallback import find_artwork
 
 logger = logging.getLogger("smartdl")
 
@@ -101,6 +102,10 @@ async def download_process(
     )
 
     cover_data = None
+    if not meta.cover_art_url and meta.title and meta.artist:
+        meta.cover_art_url = await asyncio.to_thread(
+            find_artwork, meta.title, meta.artist,
+        )
     if meta.cover_art_url:
         cover_data = await asyncio.to_thread(_download_cover, meta.cover_art_url)
 

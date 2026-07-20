@@ -12,7 +12,7 @@ export function useOnlineStatus() {
       try {
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(), 5000)
-        const res = await fetch(CHECK_URL, { method: 'HEAD', signal: controller.signal })
+        const res = await fetch(CHECK_URL, { method: 'GET', signal: controller.signal })
         clearTimeout(timer)
         setIsOnline(res.ok)
       } catch {

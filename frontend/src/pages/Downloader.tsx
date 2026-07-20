@@ -52,7 +52,7 @@ export function Downloader() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-4 pt-6 pb-32 safe-area-top">
+      <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-4 pt-6 pb-32 safe-area-top animate-pageEnter">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
             {presetCollection?.collection_name || 'Downloads'}
@@ -71,7 +71,7 @@ export function Downloader() {
         )}
 
         {!fetchingPlaylist && (
-          <div className="space-y-5">
+          <div className="space-y-6">
             <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} initialUrl={initialUrl} autoDownload={fromShare} />
             <DownloadQueue />
             {!presetCollection && (

@@ -39,9 +39,6 @@ function abortTimeout(ms: number): AbortSignal {
 }
 
 async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null> {
-  // Skip Piped on native — it's slow and unreliable on mobile networks
-  if (isNative()) return null
-
   async function tryInstance(api: string): Promise<YouTubeSearchResult[] | null> {
     const res = await fetch(`${api}/search?q=${encodeURIComponent(query)}&filter=videos`, {
       signal: abortTimeout(3000),
@@ -110,15 +107,19 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult[
     if (piped) return piped
   }
 
-  const res = await fetch(FUNCTIONS_BASE(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'search', query }),
-    signal: AbortSignal.timeout(8000),
-  })
-  if (!res.ok) throw new Error('Search failed')
-  const data = await res.json()
-  return data.results || []
+  try {
+    const res = await fetch(FUNCTIONS_BASE(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'search', query }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.results?.length) return data.results
+    }
+  } catch {}
+  return []
 }
 
 export async function getVideoInfo(url: string): Promise<YouTubeInfo> {

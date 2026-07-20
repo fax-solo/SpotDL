@@ -287,7 +287,7 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-32 max-w-2xl mx-auto">
+    <div className="px-4 pt-6 pb-32 max-w-2xl mx-auto animate-pageEnter">
       <ConfirmDialog
         open={confirmUser !== null}
         title="Disable User"
@@ -296,11 +296,11 @@ export function AdminDashboard() {
         onCancel={() => setConfirmUser(null)}
       />
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 animate-slideUp">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/settings')}
-            className="w-9 h-9 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer active:scale-90"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -315,7 +315,7 @@ export function AdminDashboard() {
         <button
           onClick={() => loadData()}
           disabled={refreshing}
-          className="w-9 h-9 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer disabled:opacity-50"
+          className="w-9 h-9 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 flex items-center justify-center text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text transition-colors cursor-pointer disabled:opacity-50 active:scale-90"
           title="Refresh data"
         >
           <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
@@ -354,7 +354,7 @@ export function AdminDashboard() {
       </div>
 
       {tab === 'overview' && stats && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-slideUp" style={{ animationDelay: '50ms', animationFillMode: 'both' }}>
           <div className="grid grid-cols-2 gap-3">
             <StatCard
               icon={<Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />}

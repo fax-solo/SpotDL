@@ -10,6 +10,8 @@ compatibility_date = "2026-06-21"
 #   ADMIN_USERNAME    — Admin login username (seeded on first deploy)
 #   ADMIN_PASSWORD    — Admin login password
 #   SPOTIFY_MARKET    — Spotify market code (default: EG)
+#   YOUTUBE_API_KEY   — YouTube Data API v3 key (optional, improves YouTube search)
+#   LASTFM_API_KEY    — Last.fm API key (optional, for track metadata enrichment)
 # ============================================================
 
 # D1 binding kept for FCM push tokens only.

@@ -98,6 +98,81 @@ async function deezerSourceInfo(url: string): Promise<SourceInfo | null> {
   }
 }
 
+// ── Audius source ──
+async function searchAudius(query: string): Promise<SourceSearchResult[]> {
+  const data = await callFunction('audius', { action: 'search', query })
+  return (data?.results || []).map((r: any) => ({
+    url: r.id,
+    title: r.title,
+    artist: r.artist,
+    duration: r.duration,
+    audioUrl: r.audioUrl || null,
+    thumbnail: r.thumbnail,
+    source: 'audius',
+  }))
+}
+
+async function audiusInfo(trackId: string): Promise<SourceInfo | null> {
+  const data = await callFunction('audius', { action: 'info', id: trackId })
+  if (data?.audioUrl) return data
+  return null
+}
+
+// ── Invidious source ──
+async function searchInvidious(query: string): Promise<SourceSearchResult[]> {
+  const data = await callFunction('invidious', { action: 'search', query })
+  return (data?.results || []).map((r: any) => ({
+    url: r.url || `https://youtube.com/watch?v=${r.videoId}`,
+    title: r.title,
+    artist: r.author,
+    duration: r.duration,
+    audioUrl: null,
+    thumbnail: r.thumbnail,
+    source: 'invidious',
+  }))
+}
+
+async function invidiousInfo(url: string): Promise<SourceInfo | null> {
+  const data = await callFunction('invidious', { action: 'info', url })
+  if (data?.audioUrl) return data
+  return null
+}
+
+// ── FMA source (Free Music Archive) ──
+async function searchFma(query: string): Promise<SourceSearchResult[]> {
+  const data = await callFunction('fma', { action: 'search', query })
+  return (data?.results || []).map((r: any) => ({
+    url: r.id,
+    title: r.title,
+    artist: r.artist,
+    duration: r.duration || '',
+    audioUrl: r.audioUrl || null,
+    thumbnail: r.thumbnail || null,
+    source: 'fma',
+  }))
+}
+
+async function fmaInfo(trackId: string): Promise<SourceInfo | null> {
+  const data = await callFunction('fma', { action: 'info', id: trackId })
+  if (data?.audioUrl) return data
+  return null
+}
+
+// ── Piped direct stream (uses existing YouTube search + Piped stream URLs) ──
+async function searchPiped(query: string): Promise<SourceSearchResult[]> {
+  const results = await searchYouTube(query)
+  return results.map(r => ({ ...r, source: 'piped' as const }))
+}
+
+async function pipedInfo(url: string): Promise<SourceInfo | null> {
+  try {
+    const info = await getVideoInfo(url)
+    return info
+  } catch {
+    return null
+  }
+}
+
 interface SourceResult {
   info: SourceInfo
   source: string
@@ -253,6 +328,10 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
       { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
       { name: 'jamendo', search: searchJamendo, info: jamendoInfo },
       { name: 'deezer', search: searchDeezerSource, info: deezerSourceInfo },
+      { name: 'audius', search: searchAudius, info: audiusInfo },
+      { name: 'invidious', search: searchInvidious, info: invidiousInfo },
+      { name: 'piped', search: searchPiped, info: pipedInfo },
+      { name: 'fma', search: searchFma, info: fmaInfo },
     ]
 
     let bestCandidate: SourceCandidate | null = null
@@ -356,7 +435,23 @@ export async function findAudioFromUrl(url: string): Promise<SourceResult> {
     throw new Error('No audio found for this Deezer track')
   }
 
-  throw new Error('Unsupported URL')
+  if (url.includes('audius.co') || url.includes('audius')) {
+    const idMatch = url.match(/tracks?\/([a-zA-Z0-9]+)/)
+    const trackId = (idMatch ? idMatch[1] : url) || ''
+    const info = await audiusInfo(trackId)
+    if (info) return { info, source: 'audius' }
+    throw new Error('No audio found for this Audius track')
+  }
+
+  if (url.includes('freemusicarchive.org')) {
+    const idMatch = url.match(/track[_\-/](\d+)/)
+    const trackId = (idMatch ? idMatch[1] : url) || ''
+    const info = await fmaInfo(trackId)
+    if (info) return { info, source: 'fma' }
+    throw new Error('No audio found for this Free Music Archive track')
+  }
+
+  throw new Error('Unsupported URL. Supported: YouTube, SoundCloud, Bandcamp, Deezer, Audius, Free Music Archive')
 }
 
 async function performYouTubeSearch(query: string): Promise<SourceSearchResult[]> {

@@ -50,18 +50,20 @@ export function HistoryPage() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="px-4 pt-6 pb-32">
-        <div className="mb-6">
+      <div className="px-4 pt-6 pb-32 animate-pageEnter">
+        <div className="mb-6 animate-slideUp">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">History</h1>
           <p className="text-sm text-light-muted dark:text-dark-muted mt-1">Your downloaded tracks</p>
         </div>
-        <History
-          entries={entries}
-          onClear={clearHistory}
-          onRemove={removeEntry}
-          onRedownload={handleRedownload}
-          onPlay={handlePlay}
-        />
+        <div className="animate-slideUp" style={{ animationDelay: '50ms', animationFillMode: 'both' }}>
+          <History
+            entries={entries}
+            onClear={clearHistory}
+            onRemove={removeEntry}
+            onRedownload={handleRedownload}
+            onPlay={handlePlay}
+          />
+        </div>
       </div>
     </PullToRefresh>
   )

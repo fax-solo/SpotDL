@@ -159,20 +159,20 @@ export function AlbumDetail(_props: AlbumDetailProps) {
 
   if (error || !collection) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-light-bg dark:bg-dark-bg px-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-light-bg dark:bg-dark-bg px-4 animate-scaleIn">
         <AlertCircle className="w-10 h-10 text-light-muted dark:text-dark-muted mb-4" />
         <p className="text-light-muted dark:text-dark-muted mb-2 text-center text-sm max-w-xs">{error || 'Failed to load album'}</p>
-        <p className="text-light-muted dark:text-dark-muted text-xs mb-6 text-center opacity-60">Make sure the dev server is running: <span className="font-mono">npm run dev-server</span></p>
+        <p className="text-light-muted dark:text-dark-muted text-xs mb-6 text-center opacity-60">Could not reach the Spotify metadata service. Check your internet connection and try again.</p>
         <div className="flex gap-3">
           <button
             onClick={() => id && doFetch(id)}
-            className="px-6 py-2 bg-accent text-white rounded-lg text-sm font-medium cursor-pointer"
+            className="px-6 py-2 bg-accent text-white rounded-lg text-sm font-medium cursor-pointer hover:bg-accent-hover transition-colors active:scale-95"
           >
             Retry
           </button>
           <button
             onClick={() => navigate('/')}
-            className="px-6 py-2 bg-zinc-200 dark:bg-zinc-800 text-light-text dark:text-zinc-300 rounded-lg text-sm font-medium cursor-pointer"
+            className="px-6 py-2 bg-zinc-200 dark:bg-zinc-800 text-light-text dark:text-zinc-300 rounded-lg text-sm font-medium cursor-pointer hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors active:scale-95"
           >
             Go Back
           </button>
@@ -182,7 +182,7 @@ export function AlbumDetail(_props: AlbumDetailProps) {
   }
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32">
+    <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 animate-pageEnter">
       <div className="relative">
         <div className="relative w-full aspect-[3/4] sm:aspect-square max-h-[60vh] overflow-hidden">
           <ArtworkImage

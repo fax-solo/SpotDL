@@ -1,8 +1,7 @@
 import { fetchWithRetry, scrapeResponse, scrapeError, isFailFast } from './_lib/retry.js'
 import { scrapeLog } from './_lib/log.js'
 import { checkRateLimit } from './_lib/rate_limit'
-import { searchDeezerArtwork } from './_lib/deezerArtwork'
-import { searchItunesArtwork } from './_lib/itunesArtwork'
+import { findArtwork } from './_lib/artworkFallback'
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
 
@@ -88,8 +87,56 @@ const _cache = new Map()
 const CACHE_TTL = 30000
 const EMBED_CACHE_TTL = 300000
 const SEARCH_CACHE_TTL = 45000
+const CACHE_MAX_SIZE = 200
+
+// WolfX circuit breaker — pause requests after 3 failures in 60s
+const _wolfxCb = { failures: 0, lastFailure: 0, open: false }
+const WOLFX_CB_THRESHOLD = 3
+const WOLFX_CB_RESET_MS = 60000
+
+function wolfxCbOk() {
+  if (_wolfxCb.open) {
+    if (Date.now() - _wolfxCb.lastFailure > WOLFX_CB_RESET_MS) {
+      _wolfxCb.open = false
+      _wolfxCb.failures = 0
+      return true
+    }
+    return false
+  }
+  return true
+}
+
+function wolfxCbRecordFailure() {
+  _wolfxCb.failures++
+  _wolfxCb.lastFailure = Date.now()
+  if (_wolfxCb.failures >= WOLFX_CB_THRESHOLD) {
+    _wolfxCb.open = true
+    scrapeLog('spotify', 'wolfx_circuit_open', { failures: _wolfxCb.failures })
+  }
+}
+
+function wolfxCbRecordSuccess() {
+  _wolfxCb.failures = 0
+  _wolfxCb.open = false
+}
+
+function pruneCache(maxSize = CACHE_MAX_SIZE) {
+  if (_cache.size <= maxSize) return
+  const now = Date.now()
+  // First pass: delete expired
+  for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
+  if (_cache.size <= maxSize) return
+  // Second pass: delete oldest by expiry (poor man's LRU)
+  const entries = [..._cache.entries()].sort((a, b) => a[1].expires - b[1].expires)
+  const toDelete = entries.slice(0, _cache.size - maxSize)
+  for (const [k] of toDelete) _cache.delete(k)
+}
 
 async function wolfxFetch(path) {
+  if (!wolfxCbOk()) {
+    scrapeLog('spotify', 'wolfx_circuit_skip', { path })
+    return null
+  }
   const cached = _cache.get(path)
   if (cached && Date.now() < cached.expires) return cached.data
   try {
@@ -103,13 +150,12 @@ async function wolfxFetch(path) {
     )
     const data = await res.json()
     const result = data.success ? data : null
+    if (result) wolfxCbRecordSuccess()
     _cache.set(path, { data: result, expires: Date.now() + CACHE_TTL })
-    if (_cache.size > 200) {
-      const now = Date.now()
-      for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
-    }
+    pruneCache(200)
     return result
   } catch (err) {
+    wolfxCbRecordFailure()
     if (err instanceof Response) {
       scrapeLog('spotify', 'wolfx_failed', { path, status: err.status })
     }
@@ -138,10 +184,7 @@ function getCachedResponse(kind, id, summary) {
 function setCachedResponse(kind, id, summary, entry) {
   const key = cacheKey(kind, id, summary)
   _cache.set(key, { ...entry, expires: Date.now() + EMBED_CACHE_TTL })
-  if (_cache.size > 300) {
-    const now = Date.now()
-    for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
-  }
+  pruneCache(300)
 }
 
 // Race multiple source fetchers — first non-null result wins
@@ -522,18 +565,16 @@ async function handleSearch(context, query, types, limit) {
     const db = context.env.DB
     await Promise.allSettled(
       missingArtwork.map(async (track) => {
-        const artwork = await searchDeezerArtwork(track.title, track.artist, ip, db)
-          || await searchItunesArtwork(track.title, track.artist, ip, db)
+        const artwork = await findArtwork(track.title, track.artist, {
+          ip, db, isrc: track.isrc || null,
+        })
         if (artwork) track.artwork_url = artwork
       }),
     )
   }
 
   _cache.set(searchKey, { data: result, expires: Date.now() + SEARCH_CACHE_TTL })
-  if (_cache.size > 300) {
-    const now = Date.now()
-    for (const [k, v] of _cache) { if (now >= v.expires) _cache.delete(k) }
-  }
+  pruneCache(300)
   return jsonOk(result)
 }
 
@@ -956,6 +997,11 @@ function setCachedMetadata(kind, id, data) {
   if (_metadataCache.size > 200) {
     const now = Date.now()
     for (const [k, v] of _metadataCache) { if (now >= v.expires) _metadataCache.delete(k) }
+    if (_metadataCache.size > 200) {
+      const entries = [..._metadataCache.entries()].sort((a, b) => a[1].expires - b[1].expires)
+      const toDelete = entries.slice(0, _metadataCache.size - 200)
+      for (const [k] of toDelete) _metadataCache.delete(k)
+    }
   }
 }
 
@@ -983,8 +1029,9 @@ async function handleTrack(context, id) {
       artwork = oembed.artwork_url
     } else {
       const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
-      artwork = await searchDeezerArtwork(fastResult.title, fastResult.artist, ip, context.env.DB)
-        || await searchItunesArtwork(fastResult.title, fastResult.artist, ip, context.env.DB)
+      artwork = await findArtwork(fastResult.title, fastResult.artist, {
+        ip, db: context.env.DB, isrc: fastResult.isrc || null,
+      })
     }
     if (artwork) {
       const merged = { ...fastResult, artwork_url: artwork }
@@ -1000,8 +1047,9 @@ async function handleTrack(context, id) {
   if (oembedResult) {
     if (!oembedResult.artwork_url) {
       const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
-      oembedResult.artwork_url = await searchDeezerArtwork(oembedResult.title, oembedResult.artist, ip, context.env.DB)
-        || await searchItunesArtwork(oembedResult.title, oembedResult.artist, ip, context.env.DB)
+      oembedResult.artwork_url = await findArtwork(oembedResult.title, oembedResult.artist, {
+        ip, db: context.env.DB,
+      })
     }
     setCachedMetadata('track', id, oembedResult)
     return jsonOk(oembedResult)
@@ -1278,6 +1326,53 @@ function jsonError(msg, status = 500) {
   })
 }
 
+function attachDiag(resp, diag, extra) {
+  const explain = explainDiag(diag)
+  if (!explain) return resp
+  const data = { _diagnostics: { wolfx: diag.wolfx, spotify: diag.spotify, explanation: explain, ...extra } }
+  const body = { _diagnostics: data._diagnostics }
+  return new Response(JSON.stringify(body), {
+    status: resp.status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+async function checkDiag(context) {
+  const diag = { wolfx: null, spotify: null }
+  try {
+    const wolfxRes = await fetch('https://spotify.xwolf.space/api/search?q=test&type=track&limit=1', {
+      signal: abortTimeout(8000),
+    })
+    diag.wolfx = { ok: wolfxRes.ok, status: wolfxRes.status }
+  } catch { diag.wolfx = { ok: false, error: 'unreachable' } }
+  try {
+    const id = context.env.SPOTIFY_CLIENT_ID || context.env.VITE_SPOTIFY_CLIENT_ID
+    const secret = context.env.SPOTIFY_CLIENT_SECRET
+    if (id && secret) {
+      const r = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { Authorization: 'Basic ' + btoa(id + ':' + secret), 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=client_credentials',
+        signal: abortTimeout(8000),
+      })
+      const d = await r.json().catch(() => ({}))
+      diag.spotify = { ok: r.ok, status: r.status, error: d.error || null }
+    } else {
+      diag.spotify = { ok: false, error: 'not_configured' }
+    }
+  } catch { diag.spotify = { ok: false, error: 'request_failed' } }
+  return diag
+}
+
+function explainDiag(diag) {
+  const wolfxDown = diag.wolfx && !diag.wolfx.ok
+  const spotifyBad = diag.spotify && !diag.spotify.ok
+  if (wolfxDown && spotifyBad) return 'Both WolfX API (unreachable) and Spotify API credentials (invalid/all sources failed) are down. Search & metadata unavailable until either is fixed. Update SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET environment variables in Cloudflare Pages dashboard.'
+  if (wolfxDown) return 'WolfX API is unreachable. Metadata may be slower or fail for some lookups (using Spotify API fallback).'
+  if (spotifyBad) return 'Spotify API credentials are invalid or missing. WolfX-only data may work but official Spotify searches/playlists/albums may fail.'
+  return null
+}
+
 export async function onRequest(context) {
   if (context.request.method === 'OPTIONS') {
     return new Response(null, { status: 204 })
@@ -1292,9 +1387,21 @@ export async function onRequest(context) {
     return jsonError('Too many requests. Try again later.', 429)
   }
 
+  const diag = await checkDiag(context)
+
   try {
     const body = await context.request.json()
-    if (body.action === 'search') return await handleSearch(context, body.query, body.types || 'track,artist,album,playlist', body.limit || 10)
+    if (body.action === 'diag') return jsonOk(diag)
+    if (body.action === 'search') {
+      const searchResp = await handleSearch(context, body.query, body.types || 'track,artist,album,playlist', body.limit || 10)
+      const searchData = await searchResp.json().catch(() => null)
+      if (searchData && (searchResp.status === 200 && !searchData.tracks?.length && !searchData.albums?.length && !searchData.artists?.length)) {
+        const explain = explainDiag(diag)
+        if (explain) searchData._diagnostics = { wolfx: diag.wolfx, spotify: diag.spotify, explanation: explain }
+        return jsonOk(searchData)
+      }
+      return searchResp
+    }
     if (body.action === 'artist') return await handleArtist(context, body.id)
     if (body.action === 'track') return await handleTrack(context, body.id)
     if (body.action === 'new-releases') return await handleNewReleases(context, body.limit || 20)

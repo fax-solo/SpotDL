@@ -41,7 +41,9 @@ else:
 JWT_SECRET = os.environ.get("JWT_SECRET") or _stored.get("jwt_secret")
 if not JWT_SECRET:
     JWT_SECRET = secrets.token_hex(32)
-    print("WARNING: JWT_SECRET not set. Auto-generated (changes on restart, invalidates all tokens). Set JWT_SECRET env var in production.")
+    print("⚠️  WARNING: JWT_SECRET not set. Auto-generated (changes on restart, invalidates all tokens).")
+    print("   Set JWT_SECRET env var in production (openssl rand -hex 32).")
+    print(f"   Auto-generated secret saved to {SECRETS_FILE} — ensure this file persists across restarts.")
 if "jwt_secret" not in _stored:
     _stored["jwt_secret"] = JWT_SECRET
     tmp = SECRETS_FILE + ".tmp"

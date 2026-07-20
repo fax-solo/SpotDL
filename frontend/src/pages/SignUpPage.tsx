@@ -83,7 +83,7 @@ export function SignUpPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-light-bg dark:bg-dark-bg">
+    <div className="flex-1 flex flex-col bg-light-bg dark:bg-dark-bg animate-pageEnter">
       <div className="flex-1 flex flex-col justify-center px-6 py-10 pb-28 max-w-sm mx-auto w-full">
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-4">
@@ -104,7 +104,7 @@ export function SignUpPage() {
                 onChange={e => setDisplayName(e.target.value)}
                 placeholder="Your name (optional)"
                 autoComplete="name"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
             </div>
           </div>
@@ -119,7 +119,7 @@ export function SignUpPage() {
                 onChange={e => setUsername(e.target.value)}
                 placeholder="Choose a username (optional)"
                 autoComplete="username"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
             </div>
           </div>
@@ -135,7 +135,7 @@ export function SignUpPage() {
                 placeholder="you@example.com"
                 required
                 autoComplete="email"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
             </div>
           </div>
@@ -152,7 +152,7 @@ export function SignUpPage() {
                 required
                 minLength={8}
                 autoComplete="new-password"
-                className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
               <button
                 type="button"
@@ -176,7 +176,7 @@ export function SignUpPage() {
                 placeholder="Repeat your password"
                 required
                 autoComplete="new-password"
-                className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
               <button
                 type="button"
@@ -210,7 +210,7 @@ export function SignUpPage() {
 
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-light-border/50 dark:border-dark-border/50" />
+            <div className="w-full border-t border-light-border/30 dark:border-dark-border/30" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-light-bg dark:bg-dark-bg px-3 text-light-muted dark:text-dark-muted">or</span>
@@ -220,7 +220,7 @@ export function SignUpPage() {
         <button
           onClick={handleGuest}
           disabled={guestLoading}
-          className="w-full py-3 px-4 rounded-xl border border-light-border/50 dark:border-dark-border/50 bg-white dark:bg-dark-surface hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text font-medium text-sm transition-colors flex items-center justify-center gap-3 disabled:opacity-40 cursor-pointer"
+          className="w-full py-3 px-4 rounded-xl border border-light-border/30 dark:border-dark-border/30 bg-white dark:bg-dark-surface hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text font-medium text-sm transition-all flex items-center justify-center gap-3 disabled:opacity-40 cursor-pointer active:scale-[0.98]"
         >
           {guestLoading ? (
             <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -232,7 +232,7 @@ export function SignUpPage() {
 
         <p className="text-center text-sm text-light-muted dark:text-dark-muted mt-8">
           Already have an account?{' '}
-          <Link to="/login" className="text-accent hover:text-accent-hover font-medium">
+          <Link to="/login" className="text-accent hover:text-accent-hover font-medium underline-offset-2 hover:underline">
             Sign in
           </Link>
         </p>

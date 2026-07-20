@@ -31,7 +31,7 @@ export function LoginPage() {
       const msg = err instanceof Error ? err.message : 'Login failed'
       console.error('Login error:', err)
       if (msg.includes('abort') || msg.includes('Failed to fetch')) {
-        setError('Cannot reach the server. Make sure the API is running (npm run dev:api in another terminal).')
+        setError('Cannot reach the server. Check your internet connection and try again.')
       } else {
         setError(msg)
       }
@@ -50,7 +50,7 @@ export function LoginPage() {
       const msg = err instanceof Error ? err.message : 'Guest login failed'
       console.error('Guest login error:', err)
       if (msg.includes('abort') || msg.includes('AbortError') || msg.includes('Failed to fetch')) {
-        setError('Cannot reach the server. Make sure the API is running (npm run dev:api in another terminal).')
+        setError('Cannot reach the server. Check your internet connection and try again.')
       } else {
         setError(msg)
       }
@@ -91,7 +91,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-light-bg dark:bg-dark-bg">
+    <div className="flex-1 flex flex-col bg-light-bg dark:bg-dark-bg animate-pageEnter">
       <div className="flex-1 flex flex-col justify-center px-6 py-12 pb-28 max-w-sm mx-auto w-full">
         <div className="text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-5">
@@ -113,7 +113,7 @@ export function LoginPage() {
                 placeholder="username or email"
                 required
                 autoComplete="username"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
             </div>
           </div>
@@ -129,7 +129,7 @@ export function LoginPage() {
                 placeholder="Enter your password"
                 required
                 autoComplete="current-password"
-                className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-dark-surface border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
               <button
                 type="button"
@@ -163,7 +163,7 @@ export function LoginPage() {
 
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-light-border/50 dark:border-dark-border/50" />
+            <div className="w-full border-t border-light-border/30 dark:border-dark-border/30" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-light-bg dark:bg-dark-bg px-3 text-light-muted dark:text-dark-muted">or continue with</span>
@@ -173,7 +173,7 @@ export function LoginPage() {
         <div className="space-y-3">
           <button
             onClick={handleGoogle}
-            className="w-full py-3 px-4 rounded-xl border border-light-border/50 dark:border-dark-border/50 bg-white dark:bg-dark-surface hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 text-light-text dark:text-dark-text font-medium text-sm transition-colors flex items-center justify-center gap-3 cursor-pointer"
+            className="w-full py-3 px-4 rounded-xl border border-light-border/30 dark:border-dark-border/30 bg-white dark:bg-dark-surface hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 text-light-text dark:text-dark-text font-medium text-sm transition-colors flex items-center justify-center gap-3 cursor-pointer"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
@@ -187,7 +187,7 @@ export function LoginPage() {
           <button
             onClick={handleGuest}
             disabled={guestLoading}
-            className="w-full py-3 px-4 rounded-xl border border-light-border/50 dark:border-dark-border/50 bg-white dark:bg-dark-surface hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text font-medium text-sm transition-colors flex items-center justify-center gap-3 disabled:opacity-40 cursor-pointer"
+            className="w-full py-3 px-4 rounded-xl border border-light-border/30 dark:border-dark-border/30 bg-white dark:bg-dark-surface hover:bg-light-surface-2 dark:hover:bg-dark-surface-2 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text font-medium text-sm transition-colors flex items-center justify-center gap-3 disabled:opacity-40 cursor-pointer"
           >
             {guestLoading ? (
               <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -200,7 +200,7 @@ export function LoginPage() {
 
         <p className="text-center text-sm text-light-muted dark:text-dark-muted mt-8">
           Don't have an account?{' '}
-          <Link to="/signup" className="text-accent hover:text-accent-hover font-medium">
+          <Link to="/signup" className="text-accent hover:text-accent-hover font-medium underline-offset-2 hover:underline">
             Sign up
           </Link>
         </p>

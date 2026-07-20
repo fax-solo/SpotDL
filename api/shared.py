@@ -24,6 +24,8 @@ def active_downloads() -> int:
     return DOWNLOAD_SEMAPHORE_LIMIT - _download_semaphore._value
 
 API_KEY = os.environ.get("SPOTDL_API_KEY", "")
+if not API_KEY:
+    logger.warning("SPOTDL_API_KEY is not set — download/sync endpoints are UNPROTECTED. Set this env var in production.")
 DEBUG_MODE = os.environ.get("SPOTDL_DEBUG", "").lower() in ("1", "true", "yes")
 
 limiter = Limiter(key_func=get_remote_address)

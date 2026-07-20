@@ -186,8 +186,8 @@ export function SyncPage() {
   const canSync = !url.trim() || url.includes('spotify.com/playlist/')
 
   return (
-    <div className="px-4 pt-6 pb-32">
-      <div className="mb-6">
+    <div className="px-4 pt-6 pb-32 animate-pageEnter">
+      <div className="mb-6 animate-slideUp">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Playlist Sync</h1>
           {subs.length > 0 && (
@@ -207,7 +207,7 @@ export function SyncPage() {
               <button
                 onClick={handleSyncAll}
                 disabled={syncingAll}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-xs font-medium cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all text-xs font-medium cursor-pointer disabled:opacity-50 active:scale-95"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${syncingAll ? 'animate-spin' : ''}`} />
                 Sync All
@@ -221,7 +221,7 @@ export function SyncPage() {
       </div>
 
       {/* Add subscription */}
-      <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden mb-6">
+      <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden mb-6 animate-slideUp" style={{ animationDelay: '50ms', animationFillMode: 'both' }}>
         <div className="p-4">
           <h2 className="text-sm font-semibold text-light-text dark:text-dark-text mb-3">Add Playlist</h2>
           <div className="flex gap-2">
@@ -262,7 +262,7 @@ export function SyncPage() {
 
       {/* Sync result */}
       {syncResult && (
-        <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden mb-6">
+        <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden mb-6 animate-slideUp" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
           <div className="p-4">
             <div className="flex items-center gap-2 mb-2">
               {syncResult.downloaded > 0 ? (
@@ -302,13 +302,13 @@ export function SyncPage() {
           <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
         </div>
       ) : subs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="flex flex-col items-center justify-center py-16 text-center animate-scaleIn">
           <ListMusic className="w-12 h-12 text-light-muted dark:text-dark-muted mb-3 opacity-40" />
           <p className="text-sm text-light-muted dark:text-dark-muted">No subscriptions yet</p>
           <p className="text-xs text-light-muted dark:text-dark-muted mt-1">Add a Spotify playlist above to start auto-syncing</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 animate-stagger">
           {subs.map(sub => {
             const trackCount = sub.synced_tracks?.length || 0
             const lastSync = sub.last_synced_at

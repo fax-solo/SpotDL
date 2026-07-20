@@ -29,7 +29,7 @@ class DownloadRequest(BaseModel):
 
 
 class DeezerDownloadRequest(BaseModel):
-    arl: str = Field(min_length=1, max_length=200)
+    _arl: str = Field(default="", min_length=0, max_length=400, alias="arl")
     title: str = Field(max_length=500)
     artist: str = Field(max_length=500)
     album: str = Field(default="Unknown Album", max_length=500)
@@ -37,6 +37,19 @@ class DeezerDownloadRequest(BaseModel):
     quality: str = Field(default="FLAC", pattern="^(FLAC|MP3)$", max_length=4)
     isrc: str | None = Field(default=None, max_length=50)
     duration_ms: int | None = Field(default=None, ge=0)
+
+    def get_arl(self) -> str:
+        raw = self._arl or ""
+        try:
+            import base64
+            decoded = base64.b64decode(raw).decode("utf-8")
+            if decoded:
+                return decoded
+        except Exception:
+            pass
+        if raw and len(raw) < 200:
+            return raw
+        return raw
 
 
 class LogDownloadRequest(BaseModel):
@@ -171,9 +184,13 @@ async def download_stream(request: Request, body: DownloadRequest, _auth=Depends
 async def deezer_download(request: Request, body: DeezerDownloadRequest, _auth=Depends(verify_api_key)):
     from deezer import DeezerClient, DeezerError
 
+    arl = body.get_arl()
+    if not arl:
+        raise HTTPException(status_code=400, detail="Deezer ARL is required")
+
     client: DeezerClient | None = None
     try:
-        client = DeezerClient(body.arl)
+        client = DeezerClient(arl)
     except DeezerError:
         raise HTTPException(status_code=401, detail="Deezer authentication failed")
 

@@ -51,7 +51,7 @@ export function PlayerPage() {
 
   if (!currentTrack) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center animate-scaleIn">
         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent/20 to-purple-500/20 flex items-center justify-center mb-6">
           <Music className="w-12 h-12 text-light-muted dark:text-dark-muted" />
         </div>
@@ -61,7 +61,7 @@ export function PlayerPage() {
         </p>
         <button
           onClick={() => navigate('/search')}
-          className="px-6 py-2.5 bg-accent hover:bg-accent-hover text-white font-medium rounded-xl transition-colors text-sm cursor-pointer"
+          className="px-6 py-2.5 bg-accent hover:bg-accent-hover text-white font-medium rounded-xl transition-all text-sm cursor-pointer active:scale-95"
         >
           Browse Music
         </button>
@@ -86,7 +86,7 @@ export function PlayerPage() {
       )}
 
       {/* Tab bar */}
-      <div className="flex items-center justify-around px-4 pt-2 pb-1 border-b border-light-border/30 dark:border-dark-border/30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl">
+      <div className="flex items-center justify-around px-4 pt-2 pb-1 border-b border-light-border/30 dark:border-dark-border/30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl animate-fadeIn">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -106,7 +106,7 @@ export function PlayerPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {tab === 'now-playing' && (
-          <div className="flex flex-col px-6 pt-6 pb-8">
+          <div className="flex flex-col px-6 pt-6 pb-8 animate-slideUp" key="now-playing">
             {/* Artwork */}
             <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl mb-6 bg-gradient-to-br from-accent/10 to-purple-500/10">
               <ArtworkImage
@@ -219,7 +219,7 @@ export function PlayerPage() {
         )}
 
         {tab === 'lyrics' && (
-          <div className="px-2 py-4">
+          <div className="px-2 py-4 animate-slideUp" key="lyrics">
             <LyricsView
               trackName={currentTrack.title}
               artistName={currentTrack.artist}
@@ -237,7 +237,7 @@ export function PlayerPage() {
         )}
 
         {tab === 'queue' && (
-          <div className="px-4 py-4">
+          <div className="px-4 py-4 animate-slideUp" key="queue">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Up next</h2>
               <span className="text-xs text-light-muted dark:text-dark-muted">{queue.length} tracks</span>

@@ -56,11 +56,11 @@ export function PlaylistsPage() {
   if (selected) {
     const p = selected
     return (
-      <div className="flex-1 flex flex-col min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 pt-6 px-4 safe-area-top">
+      <div className="flex-1 flex flex-col min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 pt-6 px-4 safe-area-top animate-pageEnter">
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => setSelected(null)}
-            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer flex-shrink-0"
+            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer flex-shrink-0 active:scale-90"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -71,16 +71,16 @@ export function PlaylistsPage() {
         </div>
 
         {p.tracks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="flex flex-col items-center justify-center py-20 text-center animate-scaleIn">
             <Music className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
             <p className="text-light-muted dark:text-dark-muted text-sm">No tracks yet</p>
             <p className="text-light-muted dark:text-dark-muted text-xs mt-1">Add tracks from search results or downloads</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-1">
+          <div className="flex-1 overflow-y-auto space-y-1 animate-stagger">
             {p.tracks.map((track, i) => (
-              <div key={track.id + i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors">
-                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-accent/10">
+              <div key={track.id + i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-all group">
+                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-accent/10 group-hover:shadow-md transition-shadow">
                   {track.artwork_url ? (
                     <ArtworkImage src={track.artwork_url} alt={track.title} className="w-full h-full object-cover" />
                   ) : (
@@ -96,13 +96,15 @@ export function PlaylistsPage() {
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => handlePlayTrack(track)}
-                    className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-colors cursor-pointer"
+                    className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-colors cursor-pointer active:scale-90"
+                    aria-label={`Play ${track.title}`}
                   >
                     <Play className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => removeTrackFromPlaylist(p.id, track.id)}
-                    className="p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-red-500/10 hover:text-red-500 transition-colors cursor-pointer"
+                    className="p-2 rounded-lg text-light-muted dark:text-dark-muted hover:bg-red-500/10 hover:text-red-500 transition-colors cursor-pointer active:scale-90"
+                    aria-label={`Remove ${track.title}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -116,19 +118,20 @@ export function PlaylistsPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 pt-6 px-4 safe-area-top">
-      <div className="flex items-center justify-between mb-6">
+    <div className="flex-1 flex flex-col min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text pb-32 pt-6 px-4 safe-area-top animate-pageEnter">
+      <div className="flex items-center justify-between mb-6 animate-slideUp">
         <h1 className="text-2xl font-bold">My Playlists</h1>
         <button
           onClick={() => setCreating(true)}
-          className="w-10 h-10 rounded-full bg-accent flex items-center justify-center hover:bg-accent-hover transition-colors cursor-pointer"
+          className="w-10 h-10 rounded-full bg-accent flex items-center justify-center hover:bg-accent-hover transition-all hover:scale-105 cursor-pointer active:scale-95"
+          aria-label="Create playlist"
         >
           <Plus className="w-5 h-5 text-white" />
         </button>
       </div>
 
       {creating && (
-        <div className="mb-4 p-4 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50">
+        <div className="mb-4 p-4 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 animate-scaleIn">
           <input
             type="text"
             value={newName}
@@ -142,7 +145,7 @@ export function PlaylistsPage() {
             <button
               onClick={handleCreate}
               disabled={!newName.trim()}
-              className="flex-1 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40 cursor-pointer"
+              className="flex-1 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-hover transition-all disabled:opacity-40 cursor-pointer active:scale-[0.97]"
             >
               Create
             </button>
@@ -157,13 +160,13 @@ export function PlaylistsPage() {
       )}
 
       {playlists.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="flex flex-col items-center justify-center py-20 text-center animate-scaleIn">
           <ListMusic className="w-12 h-12 text-light-muted dark:text-dark-muted mb-4" />
           <p className="text-light-muted dark:text-dark-muted text-sm">No playlists yet</p>
           <p className="text-light-muted dark:text-dark-muted text-xs mt-1">Create one to start organizing your music</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto space-y-2">
+        <div className="flex-1 overflow-y-auto space-y-2 animate-stagger">
           {playlists.map(p => (
             <div key={p.id} className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
               <button

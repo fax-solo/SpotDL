@@ -15,6 +15,21 @@ import { clearExpired, getCacheSize } from '../lib/dbCache'
 import { clearBlobCache } from '../lib/blobCache'
 import { useToast } from '../components/Toast'
 
+function Section({ title, icon, children, badge, className = '' }: { title: string; icon: React.ReactNode; children: React.ReactNode; badge?: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-white dark:bg-dark-surface rounded-xl border border-light-border/30 dark:border-dark-border/30 overflow-hidden ${className}`}>
+      <div className="p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-5 h-5 text-accent flex-shrink-0">{icon}</div>
+          <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">{title}</h2>
+          {badge}
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
 export function Settings() {
   const navigate = useNavigate()
   const { user, isGuest, logout, updateProfile, deleteAccount } = useAuth()
@@ -23,12 +38,10 @@ export function Settings() {
   const [profileName, setProfileName] = useState(user?.display_name || '')
   const [profileNameEditing, setProfileNameEditing] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
-  // Deezer ARL
   const [dzArl, setDzArl] = useState(getDeezerArl() || '')
   const [dzArlSaved, setDzArlSaved] = useState(!!getDeezerArl())
   const [dzQuality, setDzQuality] = useState<DeezerQuality>(getDeezerQuality())
 
-  // Web Player Token
   const [wpToken, setWpToken] = useState(getWebPlayerToken() || '')
   const [wpTokenTesting, setWpTokenTesting] = useState(false)
   const [wpTokenStatus, setWpTokenStatus] = useState<'idle' | 'valid' | 'invalid'>(getWebPlayerToken() ? 'idle' : 'idle')
@@ -43,17 +56,14 @@ export function Settings() {
     checking: false, available: false, latestVersion: null, downloadUrl: null, error: null, currentVersion: APP_VERSION,
   })
 
-  // YouTube Cookies
   const [ytCookies, setYtCookies] = useState('')
   const [ytCookiesLoaded, setYtCookiesLoaded] = useState(false)
   const [ytCookiesSaving, setYtCookiesSaving] = useState(false)
   const [ytCookiesSaved, setYtCookiesSaved] = useState(false)
 
-  // Cache
   const [cacheSize, setCacheSize] = useState(0)
   const [cacheClearing, setCacheClearing] = useState(false)
 
-  // Account deletion
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -110,28 +120,23 @@ export function Settings() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-32">
-      <div className="mb-8">
+    <div className="px-4 pt-6 pb-32 animate-pageEnter">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Settings</h1>
       </div>
 
-      {/* Profile Section */}
-      <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden mb-6">
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-5">
-            <User className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Profile</h2>
-            {user?.role === 'admin' && !isGuest && (
-              <button
-                onClick={() => navigate('/admin')}
-                className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1 hover:bg-amber-500/20 transition-colors cursor-pointer"
-              >
-                <Shield className="w-3 h-3" />
-                Admin
-              </button>
-            )}
-          </div>
-
+      <div className="space-y-4">
+        {/* Profile */}
+        <Section title="Profile" icon={<User className="w-5 h-5" />}>
+          {user?.role === 'admin' && !isGuest && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="mb-4 w-full py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Shield className="w-4 h-4" />
+              Admin Dashboard
+            </button>
+          )}
           <div className="flex-1 min-w-0">
               {profileNameEditing ? (
                 <div className="flex items-center gap-2">
@@ -139,7 +144,7 @@ export function Settings() {
                     type="text"
                     value={profileName}
                     onChange={e => setProfileName(e.target.value)}
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-light-bg dark:bg-zinc-800 border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-accent/30"
                     autoFocus
                     onKeyDown={async e => {
                       if (e.key === 'Enter') {
@@ -201,32 +206,16 @@ export function Settings() {
                 <p className="text-xs text-amber-500 mt-0.5">Signed in as guest</p>
               )}
             </div>
+        </Section>
 
-          {!isGuest && user?.role === 'admin' && (
-            <button
-              onClick={() => navigate('/admin')}
-              className="w-full py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Shield className="w-4 h-4" />
-              Admin Dashboard
-            </button>
-          )}
-
-        </div>
-      </div>
-
-      <div className="rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Key className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Web Player Token</h2>
-            {wpTokenSaved && wpTokenStatus === 'valid' && (
-              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">
-                Active
-              </span>
-            )}
-          </div>
-
+        {/* Web Player Token */}
+        <Section
+          title="Web Player Token"
+          icon={<Key className="w-5 h-5" />}
+          badge={wpTokenSaved && wpTokenStatus === 'valid' ? (
+            <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">Active</span>
+          ) : undefined}
+        >
           <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
             Paste your Spotify web player token to access your library and saved tracks.
           </p>
@@ -241,7 +230,7 @@ export function Settings() {
                 aria-label="Web Player Token"
                 autoComplete="off"
                 spellCheck={false}
-                className="flex-1 px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="flex-1 px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
             </div>
 
@@ -307,21 +296,16 @@ export function Settings() {
               </div>
             </details>
           </div>
-        </div>
-      </div>
+        </Section>
 
-      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Radio className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Deezer</h2>
-            {dzArlSaved && (
-              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">
-                Connected
-              </span>
-            )}
-          </div>
-
+        {/* Deezer */}
+        <Section
+          title="Deezer"
+          icon={<Radio className="w-5 h-5" />}
+          badge={dzArlSaved ? (
+            <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">Connected</span>
+          ) : undefined}
+        >
           <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
             Add your Deezer ARL token to download FLAC quality audio. A free Deezer account is required.
           </p>
@@ -335,7 +319,7 @@ export function Settings() {
               aria-label="Deezer ARL Token"
               autoComplete="off"
               spellCheck={false}
-              className="w-full px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+              className="w-full px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
             />
 
             <div className="flex gap-2">
@@ -402,15 +386,10 @@ export function Settings() {
               </div>
             </details>
           </div>
-        </div>
-      </div>
+        </Section>
 
-      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Music className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Downloads</h2>
-          </div>
+        {/* Downloads */}
+        <Section title="Downloads" icon={<Music className="w-5 h-5" />}>
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-sm font-medium text-light-text dark:text-dark-text">Download lyrics</p>
@@ -438,7 +417,7 @@ export function Settings() {
             </button>
           </div>
 
-          <hr className="my-4 border-light-border/50 dark:border-dark-border/50" />
+          <hr className="my-4 border-light-border/30 dark:border-dark-border/30" />
 
           <div className="space-y-4">
             <div>
@@ -508,20 +487,16 @@ export function Settings() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </Section>
 
-      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Music className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Crossfade</h2>
-            {crossfade > 0 && (
-              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/20">
-                {crossfade}s
-              </span>
-            )}
-          </div>
+        {/* Crossfade */}
+        <Section
+          title="Crossfade"
+          icon={<Music className="w-5 h-5" />}
+          badge={crossfade > 0 ? (
+            <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/20">{crossfade}s</span>
+          ) : undefined}
+        >
           <p className="text-xs text-light-muted dark:text-dark-muted mb-3">
             Smoothly fade between tracks when skipping or at the end of a track.
           </p>
@@ -551,16 +526,10 @@ export function Settings() {
               </button>
             ))}
           </div>
-        </div>
-      </div>
+        </Section>
 
-      {isNative() && (
-        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-          <div className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <ShieldCheck className="w-5 h-5 text-accent" />
-              <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Permissions</h2>
-            </div>
+        {isNative() && (
+          <Section title="Permissions" icon={<ShieldCheck className="w-5 h-5" />}>
             <p className="text-xs text-light-muted dark:text-dark-muted mb-4">
               Runtime permissions that can be toggled. If permanently denied, use the button to open system settings.
             </p>
@@ -639,7 +608,7 @@ export function Settings() {
               })}
             </div>
 
-            <hr className="my-4 border-light-border/50 dark:border-dark-border/50" />
+            <hr className="my-4 border-light-border/30 dark:border-dark-border/30" />
 
             <p className="text-xs text-light-muted dark:text-dark-muted mb-3">
               Manifest permissions — always granted at install time, cannot be revoked:
@@ -657,37 +626,35 @@ export function Settings() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      )}
+          </Section>
+        )}
 
-        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+        {/* Playlist Sync */}
+        <Section title="" icon={null} className="!p-0">
           <button
             onClick={() => navigate('/sync')}
-            className="w-full p-5 flex items-center gap-3 hover:bg-light-bg dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left"
+            className="w-full p-5 flex items-center gap-3 hover:bg-light-bg dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left group"
           >
-            <SyncIcon className="w-5 h-5 text-accent" />
+            <SyncIcon className="w-5 h-5 text-accent group-hover:rotate-180 transition-transform duration-500" />
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Playlist Sync</h2>
               <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
                 Auto-download new tracks from followed playlists
               </p>
             </div>
-            <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            <svg className="w-5 h-5 text-light-muted dark:text-dark-muted group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
-        </div>
+        </Section>
 
-      {/* YouTube Cookies */}
-      {ytCookiesLoaded && (
-        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-          <div className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <Cookie className="w-5 h-5 text-accent" />
-              <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">YouTube Cookies</h2>
-              {ytCookiesSaved && (
-                <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">Saved</span>
-              )}
-            </div>
+        {/* YouTube Cookies */}
+        {ytCookiesLoaded && (
+          <Section
+            title="YouTube Cookies"
+            icon={<Cookie className="w-5 h-5" />}
+            badge={ytCookiesSaved ? (
+              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">Saved</span>
+            ) : undefined}
+          >
             <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
               Paste your YouTube cookies (Netscape format) to bypass geo-restrictions and age verification when downloading from YouTube.
             </p>
@@ -698,7 +665,7 @@ export function Settings() {
               rows={5}
               aria-label="YouTube cookies"
               spellCheck={false}
-              className="w-full px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/50 dark:border-dark-border/50 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow font-mono text-xs resize-y"
+              className="w-full px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow font-mono text-xs resize-y"
             />
             <div className="flex gap-2 mt-3">
               <button
@@ -728,20 +695,17 @@ export function Settings() {
                 </button>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </Section>
+        )}
 
-      {/* Cache */}
-      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Database className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Cache</h2>
-            {cacheSize > 0 && (
-              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/20">{cacheSize} blobs</span>
-            )}
-          </div>
+        {/* Cache */}
+        <Section
+          title="Cache"
+          icon={<Database className="w-5 h-5" />}
+          badge={cacheSize > 0 ? (
+            <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/20">{cacheSize} blobs</span>
+          ) : undefined}
+        >
           <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
             Clear cached metadata, artwork, and downloaded blobs to free up storage.
           </p>
@@ -766,17 +730,11 @@ export function Settings() {
           >
             {cacheClearing ? 'Clearing...' : 'Clear All Cache'}
           </button>
-        </div>
-      </div>
+        </Section>
 
-      {/* Account Deletion */}
-      {!isGuest && (
-        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-red-500/20 overflow-hidden">
-          <div className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <Trash2 className="w-5 h-5 text-red-500" />
-              <h2 className="text-lg font-semibold text-red-500">Delete Account</h2>
-            </div>
+        {/* Account Deletion */}
+        {!isGuest && (
+          <Section title="Delete Account" icon={<Trash2 className="w-5 h-5 text-red-500" />} className="border-red-500/20">
             <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
               Permanently delete your account and all associated data (history, downloads, settings). This cannot be undone.
             </p>
@@ -824,94 +782,101 @@ export function Settings() {
                 Delete My Account
               </button>
             )}
-          </div>
-        </div>
-      )}
+          </Section>
+        )}
 
-        <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
+        {/* About */}
+        <Section title="About" icon={null} className="!p-0">
           <div className="p-5">
-            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text mb-2">About</h2>
-          <p className="text-sm text-light-text dark:text-dark-text">
-            Sinc <span className="text-light-muted dark:text-dark-muted">v{APP_VERSION}</span>
-          </p>
-          <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
-            Download music from Spotify, YouTube, SoundCloud, and Bandcamp.
-          </p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-5 h-5 text-accent flex-shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              </div>
+              <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">About</h2>
+            </div>
+            <p className="text-sm text-light-text dark:text-dark-text">
+              Sinc <span className="text-light-muted dark:text-dark-muted">v{APP_VERSION}</span>
+            </p>
+            <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
+              Download music from Spotify, YouTube, SoundCloud, and Bandcamp.
+            </p>
 
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={handleCheckUpdate}
-              disabled={updateState.checking}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
-            >
-              <RefreshCw className={`w-4 h-4 ${updateState.checking ? 'animate-spin' : ''}`} />
-              {updateState.checking ? 'Checking...' : 'Check for Updates'}
-            </button>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                onClick={handleCheckUpdate}
+                disabled={updateState.checking}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${updateState.checking ? 'animate-spin' : ''}`} />
+                {updateState.checking ? 'Checking...' : 'Check for Updates'}
+              </button>
+
+              {updateState.available && (
+                <a
+                  href={updateState.downloadUrl || `https://github.com/${GITHUB_REPO}/releases/latest`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white hover:bg-accent-hover transition-colors text-sm font-medium"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Download v{updateState.latestVersion}
+                </a>
+              )}
+            </div>
 
             {updateState.available && (
-              <a
-                href={updateState.downloadUrl || `https://github.com/${GITHUB_REPO}/releases/latest`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white hover:bg-accent-hover transition-colors text-sm font-medium"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Download v{updateState.latestVersion}
-              </a>
+              <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-accent/10 border border-accent/20">
+                <CheckCircle className="w-4 h-4 text-accent flex-shrink-0" />
+                <p className="text-xs text-accent font-medium">
+                  v{updateState.latestVersion} available
+                </p>
+              </div>
             )}
+
+            {!updateState.checking && !updateState.available && !updateState.error && updateState.latestVersion !== null && (
+              <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  Up to date — v{APP_VERSION}
+                </p>
+              </div>
+            )}
+
+            {updateState.error && (
+              <div className="mt-3 flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-light-muted dark:text-dark-muted">{updateState.error}</p>
+              </div>
+            )}
+
+            <a
+              href={`https://github.com/${GITHUB_REPO}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center mt-4 text-accent hover:text-accent-hover transition-colors"
+              title="GitHub"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            </a>
           </div>
+        </Section>
 
-          {updateState.available && (
-            <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-accent/10 border border-accent/20">
-              <CheckCircle className="w-4 h-4 text-accent flex-shrink-0" />
-              <p className="text-xs text-accent font-medium">
-                v{updateState.latestVersion} available
-              </p>
-            </div>
-          )}
-
-          {!updateState.checking && !updateState.available && !updateState.error && updateState.latestVersion !== null && (
-            <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <p className="text-xs text-green-600 dark:text-green-400">
-                Up to date — v{APP_VERSION}
-              </p>
-            </div>
-          )}
-
-          {updateState.error && (
-            <div className="mt-3 flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-light-muted dark:text-dark-muted">{updateState.error}</p>
-            </div>
-          )}
-
-          <a
-            href={`https://github.com/${GITHUB_REPO}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center mt-4 text-accent hover:text-accent-hover transition-colors"
-            title="GitHub"
+        {/* Sign Out */}
+        <Section title="" icon={null} className="!p-0">
+          <button
+            onClick={() => { logout(); navigate('/login') }}
+            className="w-full p-5 flex items-center gap-3 hover:bg-red-500/10 transition-colors cursor-pointer text-left group"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-          </a>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-xl bg-white dark:bg-dark-surface border border-light-border/50 dark:border-dark-border/50 overflow-hidden">
-        <button
-          onClick={() => { logout(); navigate('/login') }}
-          className="w-full p-5 flex items-center gap-3 hover:bg-red-500/5 transition-colors cursor-pointer text-left"
-        >
-          <LogOut className="w-5 h-5 text-red-500" />
-          <div className="flex-1">
-            <h2 className="text-lg font-semibold text-red-500">Sign Out</h2>
-            <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
-              Sign out of your account
-            </p>
-          </div>
-          <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-        </button>
+            <LogOut className="w-5 h-5 text-red-500 group-hover:translate-x-0.5 transition-transform" />
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-red-500">Sign Out</h2>
+              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+                Sign out of your account
+              </p>
+            </div>
+            <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </Section>
       </div>
     </div>
   )

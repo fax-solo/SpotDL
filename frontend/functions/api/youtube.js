@@ -1,52 +1,50 @@
-import { fetchWithRetry, scrapeResponse, scrapeError, isFailFast } from './_lib/retry.js'
+import { scrapeResponse, scrapeError } from './_lib/retry.js'
 import { scrapeLog } from './_lib/log.js'
 import { checkRateLimit } from './_lib/rate_limit'
 
-const CLIENTS = [
-  { name: 'ANDROID_v1', context: { client: { clientName: 'ANDROID', clientVersion: '18.37.36', androidSdkVersion: 30, osName: 'Android', osVersion: '13', platform: 'MOBILE', gl: 'US', hl: 'en' } } },
-  { name: 'ANDROID_v2', context: { client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, osName: 'Android', osVersion: '13', platform: 'MOBILE', gl: 'US', hl: 'en' } } },
-  { name: 'ANDROID_MUSIC', context: { client: { clientName: 'ANDROID_MUSIC', clientVersion: '6.27.52', androidSdkVersion: 30, osName: 'Android', osVersion: '13', platform: 'MOBILE', gl: 'US', hl: 'en' } } },
-  { name: 'TV', context: { client: { clientName: 'TVHTML5', clientVersion: '7.20240101.00.00', gl: 'US', hl: 'en' } } },
-  { name: 'WEB_REMIX', context: { client: { clientName: 'WEB_REMIX', clientVersion: '1.20240101.00.00', gl: 'US', hl: 'en' } } },
-  { name: 'WEB', context: { client: { clientName: 'WEB', clientVersion: '2.20240101.00.00', gl: 'US', hl: 'en' } } },
-]
-
-const COOKIES = 'CONSENT=YES+; SOCS=CAISHAgCEhJqOHNfVUJfMl9xMHpKNHBpM1cYAiIBBiA='
-const TIMEOUT = 5000
 const CACHE_TTL = 60000
-
 const _searchCache = new Map()
 const _infoCache = new Map()
 
-const _rateLimitedClients = new Map()
-const RATE_LIMIT_COOLDOWN = 60000
-
-function getNextStartIndex() {
-  return crypto.getRandomValues(new Uint8Array(1))[0] % CLIENTS.length
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
 }
 
-function isClientRateLimited(name) {
-  const until = _rateLimitedClients.get(name)
-  return until && Date.now() < until
-}
+const PIPED_INSTANCES = [
+  'https://pipedapi.kavin.rocks',        // 🇺🇸🇮🇳🇳🇱🇨🇦🇬🇧🇫🇷 (Official, CDN)
+  'https://pipedapi.leptons.xyz',        // 🇦🇹 (CDN)
+  'https://pipedapi.nosebs.ru',          // 🇫🇮 (CDN)
+  'https://pipedapi-libre.kavin.rocks',  // 🇳🇱 (Official, no CDN)
+  'https://piped-api.privacy.com.de',    // 🇩🇪
+  'https://pipedapi.adminforge.de',      // 🇩🇪
+  'https://api.piped.yt',               // 🇩🇪
+  'https://pipedapi.drgns.space',        // 🇺🇸
+  'https://pipedapi.owo.si',            // 🇩🇪
+  'https://pipedapi.ducks.party',        // 🇳🇱
+  'https://piped-api.codespace.cz',      // 🇨🇿
+  'https://pipedapi.reallyaweso.me',     // 🇩🇪
+  'https://api.piped.private.coffee',    // 🇦🇹
+  'https://pipedapi.darkness.services',  // 🇺🇸
+  'https://pipedapi.orangenet.cc',       // 🇸🇮
+]
 
-function markClientRateLimited(name) {
-  _rateLimitedClients.set(name, Date.now() + RATE_LIMIT_COOLDOWN)
-  if (_rateLimitedClients.size > CLIENTS.length * 2) {
-    const now = Date.now()
-    for (const [k, v] of _rateLimitedClients) {
-      if (now >= v) _rateLimitedClients.delete(k)
-    }
-  }
-}
+const UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36'
 
-function getHealthyClients() {
-  const now = Date.now()
-  for (const [k, v] of _rateLimitedClients) {
-    if (now >= v) _rateLimitedClients.delete(k)
-  }
-  return CLIENTS.filter(c => !_rateLimitedClients.has(c.name))
-}
+// Known InnerTube API keys embedded in YouTube clients
+const INNERTUBE_KEYS = [
+  'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8', // YouTube Web
+  'AIzaSyC7i2F6H77R4uEqgPk0EwIqDxVJc9qPF8', // YouTube Android
+  'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w', // YouTube Music
+  'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc', // YouTube TV
+]
+
+const INNERTUBE_CLIENTS = [
+  { clientName: 'WEB', clientVersion: '2.20240101.00.00', hl: 'en', gl: 'US' },
+  { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, hl: 'en', gl: 'US' },
+  { clientName: 'ANDROID_MUSIC', clientVersion: '6.27.52', androidSdkVersion: 30, hl: 'en', gl: 'US' },
+]
 
 function getCache(map, key) {
   const entry = map.get(key)
@@ -58,261 +56,243 @@ function setCache(map, key, data, ttl = CACHE_TTL) {
   map.set(key, { data, expires: Date.now() + ttl })
   if (map.size > 100) {
     const now = Date.now()
-    let deleted = 0
-    for (const [k, v] of map) { if (now >= v.expires) { map.delete(k); deleted++ } }
-    if (deleted === 0 && map.size > 100) {
-      const oldest = [...map.entries()].sort((a, b) => a[1].expires - b[1].expires)[0]
-      if (oldest) map.delete(oldest[0])
-    }
+    for (const [k, v] of map) { if (now >= v.expires) map.delete(k) }
   }
 }
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+async function apiSearch(query, key) {
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=5&key=${key}`,
+    { signal: AbortSignal.timeout(8000) }
+  )
+  if (!res.ok) return null
+  const data = await res.json()
+  return (data.items || []).map(item => ({
+    videoId: item.id?.videoId || '',
+    title: item.snippet?.title || 'Unknown',
+    author: item.snippet?.channelTitle || 'Unknown',
+    url: `https://youtube.com/watch?v=${item.id?.videoId}`,
+    thumbnail: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || null,
+  })).filter(r => r.videoId)
 }
 
-async function tryClient(client, endpoint, body) {
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Cookie': COOKIES, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
-    body: JSON.stringify({ context: client.context, ...body }),
-    signal: AbortSignal.timeout(TIMEOUT),
-  })
-
-  if (res.status === 429) {
-    markClientRateLimited(client.name)
-    return { error: 'rate_limited', status: 429 }
+async function apiVideoInfo(videoId, key) {
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoId}&key=${key}`,
+    { signal: AbortSignal.timeout(8000) }
+  )
+  if (!res.ok) return null
+  const data = await res.json()
+  const item = data.items?.[0]
+  if (!item) return null
+  const duration = parseDuration(item.contentDetails?.duration || 'PT0S')
+  return {
+    title: item.snippet?.title || 'Unknown',
+    author: item.snippet?.channelTitle || 'Unknown',
+    duration: String(duration),
+    audioUrl: null,
+    thumbnail: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || null,
   }
-  if (res.status === 404) {
-    return { error: 'not_found', status: 404 }
-  }
-  if (isFailFast(res.status)) {
-    return { error: 'client_failed', status: res.status }
-  }
-  if (!res.ok) {
-    return { error: 'http_error', status: res.status }
-  }
-
-  return { data: await res.json() }
 }
 
-async function tryClientSequentially(clients, endpoint, body, logPrefix) {
-  for (const client of clients) {
-    if (isClientRateLimited(client.name)) continue
+function parseDuration(iso) {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+  if (!m) return 0
+  return (parseInt(m[1] || '0') * 3600 + parseInt(m[2] || '0') * 60 + parseInt(m[3] || '0'))
+}
 
-    const result = await tryClient(client, endpoint, body)
-    if (result.error === 'rate_limited') {
-      scrapeLog('youtube', `${logPrefix}_rate_limited`, { client: client.name })
-      continue
-    }
-    if (result.error === 'not_found') {
-      scrapeLog('youtube', `${logPrefix}_not_found`, { client: client.name })
-      continue
-    }
-    if (result.error === 'client_failed') {
-      scrapeLog('youtube', `${logPrefix}_failed`, { client: client.name, status: result.status })
-      continue
-    }
-    if (result.error) {
-      scrapeLog('youtube', `${logPrefix}_error`, { client: client.name, status: result.status })
-      continue
-    }
-
-    scrapeLog('youtube', `${logPrefix}_ok`, { client: client.name })
-    return result.data
+async function pipedSearch(query) {
+  const settled = await Promise.allSettled(
+    PIPED_INSTANCES.map(api =>
+      fetch(`${api}/search?q=${encodeURIComponent(query)}&filter=videos`, {
+        headers: { 'User-Agent': UA },
+        signal: AbortSignal.timeout(5000),
+      }).then(r => r.ok ? r.json() : Promise.reject())
+    )
+  )
+  for (const r of settled) {
+    if (r.status !== 'fulfilled' || !r.value?.items) continue
+    const results = r.value.items
+      .filter(item => item.url?.includes('/watch?v='))
+      .slice(0, 5)
+      .map(item => ({
+        videoId: item.url.split('v=')[1]?.split('&')[0] || '',
+        title: item.title || 'Unknown',
+        author: item.uploaderName || item.uploader || 'Unknown',
+        url: item.url.startsWith('http') ? item.url : `https://youtube.com${item.url}`,
+        thumbnail: item.thumbnail || null,
+      }))
+      .filter(r => r.videoId)
+    if (results.length > 0) return results
   }
   return null
 }
 
-async function clientSearch(client, query, key) {
-  const endpoint = `https://www.youtube.com/youtubei/v1/search?key=${key}`
-  const result = await tryClient(client, endpoint, { query })
-  if (result.error) throw result
-  return result.data
-}
-
-async function handleSearch(query, key) {
-  const cached = getCache(_searchCache, query)
-  if (cached) {
-    return scrapeResponse({ results: cached })
-  }
-
-  const healthy = getHealthyClients()
-  if (healthy.length === 0) {
-    scrapeLog('youtube', 'search_all_rate_limited', { query })
-    return scrapeResponse({ results: [] })
-  }
-
-  const startIdx = getNextStartIndex()
-  const ordered = [...healthy.slice(startIdx), ...healthy.slice(0, startIdx)]
-
-  const data = await tryClientSequentially(ordered, `https://www.youtube.com/youtubei/v1/search?key=${key}`, { query }, 'search')
-
-  if (data) {
-    const results = parseSearchResults(data)
-    if (results.length > 0) {
-      setCache(_searchCache, query, results)
-      return scrapeResponse({ results })
-    }
-  }
-
-  scrapeLog('youtube', 'search_no_results', { query })
-  return scrapeResponse({ results: [] })
-}
-
-function parseSearchResults(data) {
+async function scrapeSearch(query) {
+  const res = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
+    headers: { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9' },
+    signal: AbortSignal.timeout(8000),
+  })
+  if (!res.ok) return null
+  const html = await res.text()
+  const match = html.match(/ytInitialData\s*=\s*({.+?});\s*<\/script>/)
+  if (!match) return null
+  const data = JSON.parse(match[1])
+  const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || []
   const results = []
-  const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || []
-  for (const section of sections) {
+  for (const section of contents) {
     for (const item of (section?.itemSectionRenderer?.contents || [])) {
       const r = item?.videoRenderer
       if (!r?.videoId) continue
-      const ownerRuns = r?.ownerText?.runs || r?.longBylineText?.runs || []
-      results.push({ videoId: r.videoId, title: r.title?.runs?.[0]?.text || 'Unknown', author: ownerRuns[0]?.text || 'Unknown', url: `https://youtube.com/watch?v=${r.videoId}` })
+      results.push({
+        videoId: r.videoId,
+        title: r.title?.runs?.[0]?.text || 'Unknown',
+        author: r?.ownerText?.runs?.[0]?.text || r?.longBylineText?.runs?.[0]?.text || 'Unknown',
+        url: `https://youtube.com/watch?v=${r.videoId}`,
+        thumbnail: r?.thumbnail?.thumbnails?.slice(-1)?.[0]?.url || null,
+      })
       if (results.length >= 5) break
     }
     if (results.length >= 5) break
   }
-  return results
+  return results.length > 0 ? results : null
 }
 
-async function handleMusicSearch(query, key) {
-  const cached = getCache(_searchCache, 'music:' + query)
-  if (cached) {
-    return scrapeResponse({ results: cached })
+async function handleSearch(query, key) {
+  const cached = getCache(_searchCache, query)
+  if (cached) return scrapeResponse({ results: cached })
+
+  let results = null
+  if (key) {
+    try { results = await apiSearch(query, key) } catch (e) {
+      scrapeLog('youtube', 'api_search_failed', { err: e?.message })
+    }
   }
-
-  const healthy = getHealthyClients()
-  if (healthy.length === 0) {
-    scrapeLog('youtube', 'music_search_all_rate_limited', { query })
-    return scrapeResponse({ results: [] })
+  if (!results) {
+    try { results = await pipedSearch(query) } catch {}
   }
-
-  const startIdx = getNextStartIndex()
-  const ordered = [...healthy.slice(startIdx), ...healthy.slice(0, startIdx)]
-
-  const data = await tryClientSequentially(ordered, `https://music.youtube.com/youtubei/v1/search?key=${key}`, { query }, 'music_search')
-
-  if (data) {
-    const results = parseMusicSearchResults(data)
-    if (results.length > 0) {
-      setCache(_searchCache, 'music:' + query, results)
-      return scrapeResponse({ results })
+  if (!results) {
+    try { results = await scrapeSearch(query) } catch (e) {
+      scrapeLog('youtube', 'scrape_search_failed', { err: e?.message })
     }
   }
 
-  // Fallback: try regular search
-  scrapeLog('youtube', 'music_search_fallback_to_search', { query })
-  return handleSearch(query, key)
+  if (results?.length > 0) {
+    setCache(_searchCache, query, results)
+    return scrapeResponse({ results })
+  }
+  scrapeLog('youtube', 'search_no_results', { query })
+  return scrapeError('source_unavailable', 'YouTube search unavailable', 503)
 }
 
-function parseMusicSearchResults(data) {
-  const results = []
-  const tabs = data?.contents?.tabbedSearchResultsRenderer?.tabs || []
-  for (const tab of tabs) {
-    const tabRenderer = tab?.tabRenderer
-    if (!tabRenderer) continue
-    const tabTitle = typeof tabRenderer.title === 'string' ? tabRenderer.title : tabRenderer.title?.runs?.[0]?.text || ''
-    if (tabTitle !== 'Songs') continue
-    const sections = tabRenderer?.content?.sectionListRenderer?.contents || []
-    for (const section of sections) {
-      const shelf = section?.musicShelfRenderer
-      if (!shelf) continue
-      for (const item of (shelf.contents || [])) {
-        const r = item?.musicResponsiveListItemRenderer
-        if (!r?.videoId) continue
-        const title = r?.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || 'Unknown'
-        const subtitleRuns = r?.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || []
-        const author = subtitleRuns[0]?.text || 'Unknown'
-        const thumbnails = r?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || []
-        results.push({
-          videoId: r.videoId, title, author,
-          url: `https://music.youtube.com/watch?v=${r.videoId}`,
-          thumbnail: thumbnails[thumbnails.length - 1]?.url || null,
+async function pipedInfo(videoId) {
+  const settled = await Promise.allSettled(
+    PIPED_INSTANCES.map(api =>
+      fetch(`${api}/streams/${videoId}`, {
+        headers: { 'User-Agent': UA },
+        signal: AbortSignal.timeout(5000),
+      }).then(r => r.ok ? r.json() : Promise.reject())
+    )
+  )
+  for (const r of settled) {
+    if (r.status !== 'fulfilled' || !r.value) continue
+    const d = r.value
+    const audioStreams = d.audioStreams || []
+    if (audioStreams.length === 0) continue
+    const best = audioStreams.filter(s => s.url).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0]
+    if (!best) continue
+    return {
+      title: d.title || 'Unknown',
+      author: d.uploader || 'Unknown',
+      duration: String(d.duration || 0),
+      audioUrl: best.url,
+      thumbnail: d.thumbnailUrl || null,
+    }
+  }
+  return null
+}
+
+async function oembedInfo(videoId) {
+  const res = await fetch(
+    `https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&format=json`,
+    { signal: AbortSignal.timeout(5000) }
+  )
+  if (!res.ok) return null
+  const data = await res.json()
+  return {
+    title: data.title || 'Unknown',
+    author: data.author_name || 'Unknown',
+    duration: '0',
+    audioUrl: null,
+    thumbnail: data.thumbnail_url || null,
+  }
+}
+
+async function innerTubeInfo(videoId) {
+  for (const client of INNERTUBE_CLIENTS) {
+    for (const key of INNERTUBE_KEYS) {
+      try {
+        const body = { videoId, context: { client } }
+        const res = await fetch('https://www.youtube.com/youtubei/v1/player?key=' + key, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(4000),
         })
-        if (results.length >= 10) break
-      }
-      if (results.length >= 10) break
+        if (!res.ok) continue
+        const data = await res.json()
+        const ps = data?.playabilityStatus
+        if (ps?.status && ps.status !== 'OK') continue
+        const sd = data?.streamingData
+        if (!sd) continue
+        const all = [...(sd.formats || []), ...(sd.adaptiveFormats || [])]
+        const audio = all.filter(f => f.mimeType?.startsWith('audio/') && f.url).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
+        if (!audio[0]) continue
+        const v = data?.videoDetails || {}
+        return {
+          title: v.title || 'Unknown',
+          author: v.author || v.channelOwnerName || 'Unknown',
+          duration: v.lengthSeconds || '0',
+          audioUrl: audio[0].url,
+          thumbnail: v.thumbnail?.thumbnails?.slice(-1)?.[0]?.url || null,
+        }
+      } catch {}
     }
-    if (results.length >= 10) break
   }
-  return results
+  return null
 }
 
 async function handleInfo(videoUrl, key) {
   const videoId = extractVideoId(videoUrl)
-  if (!videoId) {
-    return scrapeError('invalid_url', 'Invalid YouTube URL', 400)
-  }
+  if (!videoId) return scrapeError('invalid_url', 'Invalid YouTube URL', 400)
 
   const cached = getCache(_infoCache, videoId)
-  if (cached) {
-    return scrapeResponse(cached)
+  if (cached) return scrapeResponse(cached)
+
+  let result = null
+  try { result = await pipedInfo(videoId) } catch {}
+  if (!result) {
+    try { result = await innerTubeInfo(videoId) } catch (e) {
+      scrapeLog('youtube', 'innertube_failed', { videoId, err: e?.message })
+    }
+  }
+  if (!result && key) {
+    try { result = await apiVideoInfo(videoId, key) } catch (e) {
+      scrapeLog('youtube', 'api_info_failed', { videoId, err: e?.message })
+    }
+  }
+  if (!result) {
+    try { result = await oembedInfo(videoId) } catch (e) {
+      scrapeLog('youtube', 'oembed_failed', { videoId, err: e?.message })
+    }
   }
 
-  const healthy = getHealthyClients()
-  if (healthy.length === 0) {
-    scrapeLog('youtube', 'info_all_rate_limited', { videoId })
-    return scrapeError('rate_limited', 'All YouTube clients rate limited, try again shortly', 429)
-  }
-
-  const startIdx = getNextStartIndex()
-  const ordered = [...healthy.slice(startIdx), ...healthy.slice(0, startIdx)]
-
-  for (const client of ordered) {
-    if (isClientRateLimited(client.name)) continue
-
-    const data = await tryClient(client, `https://www.youtube.com/youtubei/v1/player?key=${key}`, { videoId })
-
-    if (data.error === 'rate_limited') {
-      scrapeLog('youtube', 'info_rate_limited', { client: client.name, videoId })
-      continue
-    }
-    if (data.error === 'not_found') {
-      scrapeLog('youtube', 'info_not_found', { client: client.name, videoId })
-      return scrapeError('source_unavailable', 'YouTube video not found', 404)
-    }
-    if (data.error) {
-      scrapeLog('youtube', 'info_client_error', { client: client.name, videoId, status: data.status })
-      continue
-    }
-
-    const ps = data.data?.playabilityStatus
-    if (ps?.status && ps.status !== 'OK') {
-      scrapeLog('youtube', 'info_not_playable', { client: client.name, videoId, status: ps.status })
-      // If the video is genuinely unavailable, fail fast — no other client will resolve it
-      const unplayableErrors = ['UNPLAYABLE', 'CONTENT_CHECK_REQUIRED', 'AGE_CHECK_REQUIRED', 'LOGIN_REQUIRED', 'UNKNOWN']
-      if (unplayableErrors.includes(ps.status)) {
-        return scrapeError('source_unavailable', 'YouTube video not available', 502)
-      }
-      continue
-    }
-
-    const result = extractAudio(data.data)
-    if (!result) {
-      scrapeLog('youtube', 'info_no_audio', { client: client.name, videoId })
-      continue
-    }
-
-    scrapeLog('youtube', 'info_ok', { client: client.name, videoId })
+  if (result) {
     setCache(_infoCache, videoId, result, 30000)
     return scrapeResponse(result)
   }
-
-  scrapeLog('youtube', 'info_exhausted', { videoId })
-  return scrapeError('source_unavailable', 'Could not retrieve audio from any YouTube client', 502)
-}
-
-function extractAudio(data) {
-  const sd = data?.streamingData
-  if (!sd) return null
-  const all = [...(sd.formats || []), ...(sd.adaptiveFormats || [])]
-  const audio = all.filter(f => f.mimeType?.startsWith('audio/') && f.url).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
-  if (!audio[0]) return null
-  const v = data?.videoDetails || {}
-  return { title: v.title || 'Unknown', author: v.author || v.channelOwnerName || 'Unknown', duration: v.lengthSeconds || '0', audioUrl: audio[0].url, thumbnail: v.thumbnail?.thumbnails?.slice(-1)?.[0]?.url || null }
+  scrapeLog('youtube', 'info_no_data', { videoId })
+  return scrapeError('source_unavailable', 'Could not retrieve video info', 502)
 }
 
 function extractVideoId(url) {
@@ -336,20 +316,14 @@ export async function onRequest(context) {
   }
 
   const key = context.env?.YOUTUBE_API_KEY || ''
-  if (!key) {
-    return new Response(JSON.stringify({ error: 'YouTube API key not configured' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...CORS },
-    })
-  }
+
   try {
     const { action, query, url } = await context.request.json()
     if (action === 'search') return await handleSearch(query, key)
-    if (action === 'music-search') return await handleMusicSearch(query, key)
     if (action === 'info') return await handleInfo(url, key)
     return scrapeError('invalid_action', 'Invalid action', 400)
   } catch (err) {
-    scrapeLog('youtube', 'error', { message: err.message?.substring(0, 200)?.replace(/key=[^&\s]+/gi, 'key=REDACTED') })
+    scrapeLog('youtube', 'error', { message: err.message?.substring(0, 200) })
     return scrapeError('internal_error', err.message, 500)
   }
 }

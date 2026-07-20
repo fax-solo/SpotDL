@@ -22,10 +22,12 @@ try:
     _SCRAPLING_AVAILABLE = True
     logger.info("Scrapling is available — using anti-bot scraping")
 except ImportError:
-    logger.warning("Scrapling not installed — falling back to simple HTTP")
+    logger.warning("Scrapling not installed — lyrics, Bandcamp, and SoundCloud functions will silently return empty. Install with: pip install scrapling")
 
 
 def is_available() -> bool:
+    if not _SCRAPLING_AVAILABLE:
+        logger.debug("Scrapling not available — skipping scraping operation")
     return _SCRAPLING_AVAILABLE
 
 

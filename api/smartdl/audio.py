@@ -9,22 +9,31 @@ import yt_dlp
 
 from smartdl import resolver
 from smartdl import piped_client
+from smartdl import audius_client
+from smartdl import invidious_client
 
 logger = logging.getLogger("smartdl.audio")
 
-YTDL_BASE_OPTS = {
-    "quiet": True,
-    "no_warnings": True,
-    "source_address": "0.0.0.0",
-    "extractor_retries": 3,
-    "retries": 5,
-    "throttled_rate": "100K",
-    "concurrent_fragments": 5,
-    "fragment_retries": 10,
-    "file_access_retries": 3,
-    "no_mtime": True,
-    "no_part": True,
-}
+def _get_base_opts() -> dict:
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "source_address": "0.0.0.0",
+        "extractor_retries": 3,
+        "retries": 5,
+        "throttled_rate": "100K",
+        "concurrent_fragments": 5,
+        "fragment_retries": 10,
+        "file_access_retries": 3,
+        "no_mtime": True,
+        "no_part": True,
+    }
+    cookie_file = os.environ.get("YTDLP_COOKIE_FILE", "")
+    if cookie_file and os.path.isfile(cookie_file):
+        opts["cookiefile"] = cookie_file
+    return opts
+
+YTDL_BASE_OPTS = _get_base_opts()
 
 
 def _safe_filename(s: str) -> str:
@@ -80,7 +89,12 @@ def _ytdl_download(track_url: str, quality: str, tmpdir: str, safe_name: str) ->
         opts["format"] = "bestaudio[ext=m4a]/bestaudio"
 
     if "youtube.com" in track_url or "youtu.be" in track_url:
-        opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
+        opts["extractor_args"] = {
+            "youtube": {
+                "client": ["android", "ios", "web_music"],
+                "player_client": ["android", "ios", "web_music"],
+            }
+        }
 
     logger.info("ytdl_download: downloading %s", track_url)
     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -180,9 +194,29 @@ async def download_audio(artist: str, title: str, quality: str = "256") -> tuple
             source_name = "piped"
 
     if not track_url:
+        logger.info("download_audio: phase 5 — Audius free music catalog")
+        audius_url = await audius_client.audius_get_audio_url(artist, title)
+        if audius_url:
+            track_url = audius_url
+            source_name = "audius"
+
+    if not track_url:
+        logger.info("download_audio: phase 6 — Invidious YouTube fallback")
+        results = await invidious_client.invidious_search(f"{artist} - {title}", limit=3)
+        for r in results:
+            vid = r.get("videoId")
+            if not vid:
+                continue
+            audio_url = await invidious_client.invidious_get_audio_url(vid)
+            if audio_url:
+                track_url = audio_url
+                source_name = "invidious"
+                break
+
+    if not track_url:
         raise RuntimeError(
             f"No playable source found for '{title}' by {artist}. "
-            f"Tried YouTube Music (Topic), SoundCloud, YouTube, and Piped."
+            f"Tried YouTube Music (Topic), SoundCloud, YouTube, Piped, Audius, and Invidious."
         )
 
     tmpdir = tempfile.mkdtemp()

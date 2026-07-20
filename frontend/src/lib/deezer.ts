@@ -3,8 +3,14 @@ import { apiUrl } from './apiConfig'
 const DEEZER_ARL_KEY = 'deezer_arl'
 const DEEZER_QUALITY_KEY = 'deezer_quality'
 
+// WARNING: Your Deezer ARL is a full-account credential.
+// It is sent to the server to enable high-quality downloads.
+// Only use this on servers you trust, over HTTPS.
+
 export function getDeezerArl(): string | null {
-  return localStorage.getItem(DEEZER_ARL_KEY)
+  const raw = localStorage.getItem(DEEZER_ARL_KEY)
+  if (!raw) return null
+  return raw
 }
 
 export function setDeezerArl(arl: string): void {

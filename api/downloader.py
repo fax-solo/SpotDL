@@ -18,6 +18,7 @@ from cache import get_cache, set_cache
 from _matching import normalize, strip_feat, title_matches
 from shared import requests_retry_session, source_is_open, get_circuit_breaker, metrics
 from spotify import fetch_metadata, parse_url
+from artwork_fallback import find_artwork
 
 _cover_session = requests_retry_session()
 
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_base_opts() -> dict:
-    return {
+    opts = {
         "quiet": True,
         "no_warnings": True,
         "source_address": "0.0.0.0",
@@ -39,6 +40,10 @@ def _get_base_opts() -> dict:
         "no_mtime": True,
         "no_part": True,
     }
+    cookie_file = os.environ.get("YTDLP_COOKIE_FILE", "")
+    if cookie_file and os.path.isfile(cookie_file):
+        opts["cookiefile"] = cookie_file
+    return opts
 
 
 def _find_ffmpeg() -> bool:
@@ -49,6 +54,11 @@ SOURCES = [
     {"name": "youtube", "prefix": "ytsearch1"},
     {"name": "soundcloud", "prefix": "scsearch1"},
     {"name": "bandcamp", "prefix": "bcsearch1"},
+]
+
+# Additional sources tried when primary sources fail
+FALLBACK_SOURCES = [
+    {"name": "youtube_music", "prefix": "ytsearch1"},
 ]
 
 TOPIC_SOURCES = [
@@ -84,6 +94,8 @@ def download_track_combined(
         artist = meta["artist"]
         album = meta.get("album", "Single")
         artwork_url = meta.get("artwork_url")
+        if not artwork_url:
+            artwork_url = find_artwork(title, artist, meta.get("isrc"))
     else:
         title = query_or_url
         artist = ""
@@ -236,17 +248,22 @@ async def stream_download(
             shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def _resolve_urls(title: str, artist: str, source_url: str | None) -> list[tuple[str, str]]:
+def _resolve_urls(title: str, artist: str, source_url: str | None, isrc: str | None = None) -> list[tuple[str, str]]:
     if source_url and not source_url.startswith("https://open.spotify.com"):
         return [(source_url, "direct")]
     query = f"{artist} {title}"
-    track_urls = []
-    for src in SOURCES:
+    seen_urls: set[str] = set()
+    track_urls: list[tuple[str, str]] = []
+    all_sources = SOURCES + FALLBACK_SOURCES
+    for src in all_sources:
         entries = search_track(query, src["name"], src["prefix"])
         for entry in entries:
+            entry_url = entry.get("url", "")
+            if entry_url in seen_urls:
+                continue
+            seen_urls.add(entry_url)
             if title_matches(title, artist, entry.get("title"), entry.get("uploader")):
-                track_urls.append((entry["url"], src["name"]))
-                break
+                track_urls.append((entry_url, src["name"]))
         if track_urls:
             break
     if not track_urls:
@@ -292,7 +309,12 @@ def _do_download(
                 opts["format"] = "bestaudio[ext=m4a]/bestaudio"
 
             if "youtube.com" in track_url or "youtu.be" in track_url:
-                opts["extractor_args"] = {"youtube": {"client": ["android", "ios"]}}
+                opts["extractor_args"] = {
+                    "youtube": {
+                        "client": ["android", "ios", "web_music"],
+                        "player_client": ["android", "ios", "web_music"],
+                    }
+                }
 
             if tracker:
                 opts["progress_hooks"] = [tracker.hook]
@@ -347,13 +369,14 @@ def download_track(
     source_url: str | None = None,
     quality: str = "320",
     output_format: str = "mp3",
+    isrc: str | None = None,
 ) -> tuple[str, str]:
-    track_urls = _resolve_urls(title, artist, source_url)
+    track_urls = _resolve_urls(title, artist, source_url, isrc)
     return _do_download(track_urls, title, artist, album, artwork_url, quality, output_format)
 
 
-def _download_with_progress(tracker: _ProgressTracker, title, artist, album, artwork_url, source_url, quality, output_format):
-    track_urls = _resolve_urls(title, artist, source_url)
+def _download_with_progress(tracker: _ProgressTracker, title, artist, album, artwork_url, source_url, quality, output_format, isrc=None):
+    track_urls = _resolve_urls(title, artist, source_url, isrc)
     return _do_download(track_urls, title, artist, album, artwork_url, quality, output_format, tracker)
 
 

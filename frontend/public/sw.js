@@ -107,6 +107,12 @@ async function staleWhileRevalidate(request, cacheName) {
   return cached || fetchPromise
 }
 
+// Auto-trim caches every 10 minutes
+setInterval(() => {
+  trimCache(API_CACHE).catch(() => {})
+  trimCache(IMAGE_CACHE).catch(() => {})
+}, 10 * 60 * 1000)
+
 // Periodic cleanup: keep max 500 entries per cache, delete entries older than 24h
 async function trimCache(cacheName, maxEntries = 500) {
   const cache = await caches.open(cacheName)

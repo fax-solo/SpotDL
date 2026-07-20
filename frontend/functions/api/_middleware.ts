@@ -11,73 +11,41 @@ const AUTH_ERRORS = new Set([
   'Admin access required',
 ])
 
-function getAllowedOrigins(env: Env): string[] {
-  return env.ALLOWED_ORIGINS
-    ? env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
-    : []
-}
-
-function normalizeOrigin(o: string): string {
-  const s = o.trim()
-  if (s.startsWith('https://') || s.startsWith('http://')) return s
-  return `https://${s}`
-}
-
 function isAuthPath(url: string): boolean {
   try { return new URL(url).pathname.startsWith('/api/auth/') } catch { return false }
 }
 
-function csrfCheck(request: Request, allowedOrigins?: string): void {
+function csrfCheck(request: Request, allowedOrigins: string): void {
   if (SAFE_METHODS.has(request.method)) return
   if (isAuthPath(request.url)) return
+  if (!allowedOrigins) return
+
+  const allowed = allowedOrigins.split(',').map(s => s.trim()).filter(Boolean)
 
   const origin = request.headers.get('Origin')
   const referer = request.headers.get('Referer')
 
+  // Native mobile clients — require explicit marker header
   if (!origin || origin === 'null') {
-    if (!referer) {
-      // No Origin or Referer — likely a native/mobile client (Capacitor HTTP).
-      // Skip CSRF if an Authorization header is present (JWT/Bearer token),
-      // because browser-based CSRF cannot set this header cross-origin
-      // without a CORS preflight (and the token itself authenticates).
-      const auth = request.headers.get('Authorization')
-      if (auth?.startsWith('Bearer ')) return
-    }
-    // Also allow a custom header that native clients can set explicitly
     if (request.headers.get('X-Mobile-Client') === '1') return
+    if (referer) {
+      try { requestOrigin = new URL(referer).origin } catch {}
+    }
+    if (!requestOrigin && !request.headers.get('X-Mobile-Client')) {
+      throw new Error('CSRF: Missing origin and not a mobile client')
+    }
   }
 
   let requestOrigin: string | null = null
-
   if (origin && origin !== 'null') {
-    try {
-      requestOrigin = new URL(origin).origin
-    } catch {
-      throw new Error('CSRF: Invalid origin header')
-    }
+    try { requestOrigin = new URL(origin).origin } catch { throw new Error('CSRF: Invalid origin header') }
   } else if (referer) {
-    try {
-      requestOrigin = new URL(referer).origin
-    } catch {
-      throw new Error('CSRF: Invalid referer header')
-    }
-  } else {
-    throw new Error('CSRF: Missing origin or referer header')
+    try { requestOrigin = new URL(referer).origin } catch { throw new Error('CSRF: Invalid referer header') }
   }
 
-  if (!requestOrigin) throw new Error('CSRF: Invalid origin header')
+  if (!requestOrigin) return
 
-  const allowed: string[] = allowedOrigins
-    ? allowedOrigins.split(',').map(s => s.trim()).filter(Boolean)
-    : []
-
-  if (allowed.length === 0) {
-    const url = new URL(request.url)
-    allowed.push(url.origin)
-  }
-
-  const normalizedAllowed = allowed.map(normalizeOrigin)
-  if (!normalizedAllowed.some(o => requestOrigin === o)) {
+  if (!allowed.some(o => requestOrigin === o || requestOrigin === `https://${o}` || requestOrigin === `http://${o}`)) {
     throw new Error('CSRF: Invalid origin')
   }
 }
@@ -95,12 +63,11 @@ function isJsonResponse(res: Response): boolean {
 }
 
 function corsOriginValue(env: Env, origin: string): string {
-  const allowed = getAllowedOrigins(env)
-  if (allowed.length > 0) {
-    if (origin && allowed.some(a => origin === normalizeOrigin(a))) return origin
-    return ''
-  }
-  return origin || ''
+  const raw = env.ALLOWED_ORIGINS
+  if (!raw) return origin || ''
+  const allowed = raw.split(',').map(s => s.trim()).filter(Boolean)
+  if (origin && allowed.some(a => origin === a || origin === `https://${a}` || origin === `http://${a}`)) return origin
+  return ''
 }
 
 function corsHeaders(env: Env, origin: string): Record<string, string> {
@@ -117,7 +84,6 @@ function corsHeaders(env: Env, origin: string): Record<string, string> {
 export const onRequest: RouteHandler = async (context) => {
   const origin = context.request.headers.get('Origin') || ''
 
-  // Handle preflight
   if (context.request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -128,9 +94,8 @@ export const onRequest: RouteHandler = async (context) => {
     })
   }
 
-  // CSRF check for state-changing methods
   try {
-    csrfCheck(context.request, context.env.ALLOWED_ORIGINS)
+    csrfCheck(context.request, context.env.ALLOWED_ORIGINS || '')
   } catch (e: any) {
     return errorJson(e.message, 403)
   }
@@ -143,14 +108,9 @@ export const onRequest: RouteHandler = async (context) => {
     if (AUTH_ERRORS.has(e.message)) {
       return errorJson(msg, e.message === 'Admin access required' ? 403 : 401)
     }
-    if (e.message?.startsWith('CSRF:')) {
-      return errorJson(msg, 403)
-    }
     return errorJson(msg, 400)
   }
 
-  // If the response is not JSON and not a binary/stream type, and the
-  // response came from an unhandled route (no Content-Type), return 404.
   if (!isJsonResponse(response)) {
     const ct = response.headers.get('content-type') || ''
     const isBinary = ct.startsWith('image/') || ct.startsWith('audio/') || ct === 'application/octet-stream'
@@ -159,7 +119,6 @@ export const onRequest: RouteHandler = async (context) => {
     }
   }
 
-  // Add CORS headers to all responses
   const headers = new Headers(response.headers)
   for (const [k, v] of Object.entries(corsHeaders(context.env, origin))) {
     headers.set(k, v)

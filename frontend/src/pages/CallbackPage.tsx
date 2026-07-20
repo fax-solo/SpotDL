@@ -135,9 +135,13 @@ export function CallbackPage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4" ref={statusRef}>
-      <RefreshCw className="w-10 h-10 text-accent animate-spin mb-4" />
-      <p className="text-sm text-light-muted dark:text-dark-muted">Authenticating...</p>
+    <div className="flex-1 flex flex-col items-center justify-center px-4 min-h-screen bg-light-bg dark:bg-dark-bg" ref={statusRef}>
+      <div className="flex flex-col items-center gap-4 animate-scaleIn">
+        <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center">
+          <RefreshCw className="w-8 h-8 text-accent animate-spin" />
+        </div>
+        <p className="text-sm text-light-muted dark:text-dark-muted">Authenticating...</p>
+      </div>
     </div>
   )
 }

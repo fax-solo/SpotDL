@@ -541,10 +541,7 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto text-center">
           <h2 className="text-2xl md:text-4xl font-bold text-white mb-10 md:mb-12">How it works</h2>
           <div className="grid md:grid-cols-3 gap-8 md:gap-6 relative">
-            <div className="hidden md:block absolute top-[44px] left-[16%] right-[16%] h-[2px] overflow-hidden">
-              <div className="w-full h-full bg-gradient-to-r from-transparent via-[#1DB954] to-transparent" />
-              <div className="absolute inset-0 bg-white/5 opacity-50" />
-            </div>
+
             <StepCard number="1" title="Copy Link" description="Find a track, album, or playlist on Spotify and copy its share link." />
             <StepCard number="2" title="Paste & Fetch" description="Paste the link into Sinc. We'll instantly fetch the metadata and artwork." />
             <StepCard number="3" title="Download" description="Click download. We'll find the highest quality audio and tag it for you." />
