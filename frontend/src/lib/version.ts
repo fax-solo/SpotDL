@@ -1,4 +1,4 @@
-export const APP_VERSION: string = '1.20.1'
+export const APP_VERSION: string = '1.21.0'
 export const GITHUB_REPO = 'fax-solo/SpotDL'
 
 export function parseVersion(v: string): { major: number; minor: number; patch: number } | null {
