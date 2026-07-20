@@ -212,17 +212,24 @@ jobs:
           git tag "v${{ steps.bump.outputs.new }}"
           git push origin HEAD:main --tags
 
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > /tmp/release-notes.md << 'ENDMARKER'
+          ## Sinc v${{ steps.bump.outputs.new }}
+
+          ### Changes
+          ${{ github.event.head_commit.message }}
+
+          ### Download
+          - [Sinc-${{ steps.bump.outputs.new }}.apk](Sinc-${{ steps.bump.outputs.new }}.apk)
+          ENDMARKER
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: v${{ steps.bump.outputs.new }}
-          name: v${{ steps.bump.outputs.new }}
-          body: |
-            ## Sinc v${{ steps.bump.outputs.new }}
-
-            ### Changes
-            ${{ github.event.head_commit.message }}
-
-            ### Download
-            - [Sinc-${{ steps.bump.outputs.new }}.apk](Sinc-${{ steps.bump.outputs.new }}.apk)
-          files: frontend/android/app/build/outputs/apk/debug/Sinc-${{ steps.bump.outputs.new }}.apk
+        run: |
+          gh release create "v${{ steps.bump.outputs.new }}" \
+            "frontend/android/app/build/outputs/apk/debug/Sinc-${{ steps.bump.outputs.new }}.apk" \
+            --title "v${{ steps.bump.outputs.new }}" \
+            --notes-file /tmp/release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
