@@ -2,9 +2,19 @@ import { checkRateLimit } from './_lib/rate_limit'
 
 const DEFAULT_CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Range', 'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Content-Type' }
 
-const ALLOWED_HOST_SUFFIXES = [
-  '.googlevideo.com',
-  'rr',
+const ALLOWED_HOSTS = [
+  'rr1.googlevideo.com',
+  'rr2.googlevideo.com',
+  'rr3.googlevideo.com',
+  'rr4.googlevideo.com',
+  'rr5.googlevideo.com',
+  'rr6.googlevideo.com',
+  'rr7.googlevideo.com',
+  'rr8.googlevideo.com',
+  'rr9.googlevideo.com',
+  'rr10.googlevideo.com',
+  'rr11.googlevideo.com',
+  'rr12.googlevideo.com',
   'lh3.googleusercontent.com',
   'pipedapi.kavin.rocks',
   'i.ytimg.com',
@@ -18,11 +28,15 @@ const ALLOWED_HOST_SUFFIXES = [
 function isAllowedUrl(urlStr) {
   try {
     const u = new URL(urlStr)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
+    // Block private / internal IP ranges
     const host = u.hostname.toLowerCase()
-    return ALLOWED_HOST_SUFFIXES.some(h => {
-      if (h === 'rr') return /^rr\d*--?[a-z]+\.googlevideo\.com$/.test(host)
-      return host === h || host.endsWith('.' + h)
-    })
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '[::1]') return false
+    if (/^10\.\d+\.\d+\.\d+$/.test(host) || /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(host) || /^192\.168\.\d+\.\d+$/.test(host)) return false
+    if (/^169\.254\.\d+\.\d+$/.test(host)) return false
+    if (/\s/.test(host)) return false
+    if (host.includes('..')) return false
+    return ALLOWED_HOSTS.includes(host)
   } catch {
     return false
   }

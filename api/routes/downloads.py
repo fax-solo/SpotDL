@@ -63,7 +63,7 @@ class LogDownloadRequest(BaseModel):
 @limiter.limit("10/minute")
 async def download_combined(
     request: Request,
-    query: str = Query(..., description="Spotify URL or search string"),
+    query: str = Query(..., max_length=2000, description="Spotify URL or search string"),
     quality: str = Query("320", pattern="^(128|192|256|320)$"),
     format: str = Query("mp3", pattern="^(mp3|m4a)$"),
     _auth=Depends(verify_api_key),
@@ -213,8 +213,9 @@ async def deezer_download(request: Request, body: DeezerDownloadRequest, _auth=D
                     if os.path.isdir(parent):
                         shutil.rmtree(parent, ignore_errors=True)
 
-                safe_artist = body.artist.replace("/", "_").replace("\\", "_")
-                safe_title = body.title.replace("/", "_").replace("\\", "_")
+                import re as _re
+                safe_artist = _re.sub(r'[/\\?%*:|"<>\s\.\.]', "_", body.artist)
+                safe_title = _re.sub(r'[/\\?%*:|"<>\s\.\.]', "_", body.title)
                 filename = f"{safe_artist} - {safe_title}{ext}"
                 media_type = "audio/flac" if ext == ".flac" else "audio/mpeg"
 

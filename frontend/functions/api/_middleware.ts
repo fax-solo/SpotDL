@@ -25,36 +25,48 @@ function csrfCheck(request: Request, allowedOrigins: string): void {
   const origin = request.headers.get('Origin')
   const referer = request.headers.get('Referer')
 
-  // Native mobile clients — require explicit marker header
-  if (!origin || origin === 'null') {
-    if (request.headers.get('X-Mobile-Client') === '1') return
-    if (referer) {
-      try { requestOrigin = new URL(referer).origin } catch {}
-    }
-    if (!requestOrigin && !request.headers.get('X-Mobile-Client')) {
-      throw new Error('CSRF: Missing origin and not a mobile client')
-    }
-  }
+  // Native mobile clients send no Origin header but always include a valid Bearer token.
+  // Skip CSRF for authenticated requests — browsers cannot set Authorization headers
+  // cross-origin without a successful CORS preflight, which already validates the origin.
+  if (request.headers.get('Authorization')?.startsWith('Bearer ')) return
 
   let requestOrigin: string | null = null
+
   if (origin && origin !== 'null') {
     try { requestOrigin = new URL(origin).origin } catch { throw new Error('CSRF: Invalid origin header') }
   } else if (referer) {
     try { requestOrigin = new URL(referer).origin } catch { throw new Error('CSRF: Invalid referer header') }
   }
 
-  if (!requestOrigin) return
+  if (!requestOrigin) {
+    throw new Error('CSRF: Missing origin or referer')
+  }
 
   if (!allowed.some(o => requestOrigin === o || requestOrigin === `https://${o}` || requestOrigin === `http://${o}`)) {
     throw new Error('CSRF: Invalid origin')
   }
 }
 
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+}
+
+function withHeaders(r: Response): Response {
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+    if (!r.headers.has(k)) r.headers.set(k, v)
+  }
+  return r
+}
+
 function errorJson(msg: string, status: number): Response {
-  return new Response(JSON.stringify({ detail: msg }), {
+  return withHeaders(new Response(JSON.stringify({ detail: msg }), {
     status,
     headers: { 'Content-Type': 'application/json' },
-  })
+  }))
 }
 
 function isJsonResponse(res: Response): boolean {
@@ -85,13 +97,13 @@ export const onRequest: RouteHandler = async (context) => {
   const origin = context.request.headers.get('Origin') || ''
 
   if (context.request.method === 'OPTIONS') {
-    return new Response(null, {
+    return withHeaders(new Response(null, {
       status: 204,
       headers: {
         ...corsHeaders(context.env, origin),
         'Access-Control-Max-Age': '86400',
       },
-    })
+    }))
   }
 
   try {
@@ -124,9 +136,9 @@ export const onRequest: RouteHandler = async (context) => {
     headers.set(k, v)
   }
 
-  return new Response(response.body, {
+  return withHeaders(new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,
-  })
+  }))
 }

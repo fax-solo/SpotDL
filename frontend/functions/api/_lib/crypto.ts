@@ -28,6 +28,18 @@ export function b64urlDecode(input: string): string {
   return atob(padded)
 }
 
+export async function timingSafeEqual(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder()
+  const bufA = enc.encode(a)
+  const bufB = enc.encode(b)
+  if (bufA.byteLength !== bufB.byteLength) return false
+  try {
+    return crypto.subtle.timingSafeEqual(bufA, bufB)
+  } catch {
+    return a === b
+  }
+}
+
 export function uuid(): string {
   return crypto.randomUUID()
 }

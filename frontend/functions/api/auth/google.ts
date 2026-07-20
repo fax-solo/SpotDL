@@ -151,6 +151,10 @@ export const onRequest: RouteHandler = async (context) => {
     }
   }
 
+  if (user.is_active === 0) {
+    return error('Account has been disabled', 403)
+  }
+
   const token = await createToken(user.id, context.env.JWT_SECRET)
   return json(formatUser(user, token))
 }

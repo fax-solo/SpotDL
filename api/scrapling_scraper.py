@@ -119,8 +119,24 @@ def search_bandcamp(query: str) -> list[dict]:
         return []
 
 
+def _validate_host(url: str, expected_domain: str) -> bool:
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = parsed.hostname.lower() if parsed.hostname else ""
+        if host != expected_domain and not host.endswith("." + expected_domain):
+            return False
+        return True
+    except Exception:
+        return False
+
+
 def bandcamp_info(track_url: str) -> dict | None:
     if not is_available():
+        return None
+    if not _validate_host(track_url, "bandcamp.com"):
+        logger.warning("Scrapling: Bandcamp info called with non-Bandcamp URL — rejected")
         return None
     try:
         page = Fetcher.get(track_url, impersonate='chrome', stealthy_headers=True, timeout=15)
@@ -220,6 +236,9 @@ def search_soundcloud(query: str) -> list[dict]:
 
 def soundcloud_info(track_url: str) -> dict | None:
     if not is_available():
+        return None
+    if not _validate_host(track_url, "soundcloud.com"):
+        logger.warning("Scrapling: SoundCloud info called with non-SoundCloud URL — rejected")
         return None
     path_match = re.search(r'soundcloud\.com(/[^?#]+)', track_url)
     if not path_match:

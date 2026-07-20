@@ -94,6 +94,7 @@ export async function onRequest(context) {
 
     return jsonOk(data || { plainLyrics: null, syncedLyrics: null })
   } catch (err) {
-    return jsonError(err.message)
+    console.warn('[lyrics]', err)
+    return jsonError('Lyrics fetch failed')
   }
 }

@@ -34,7 +34,7 @@ export const onRequest: RouteHandler = async (context) => {
     'SELECT id FROM users WHERE email = ?'
   ).bind(data.email).first()
   if (existing) {
-    return error('Email already registered', 409)
+    return error('An account with this email already exists', 409)
   }
 
   if (data.username) {
@@ -42,7 +42,7 @@ export const onRequest: RouteHandler = async (context) => {
       'SELECT id FROM users WHERE username = ?'
     ).bind(data.username).first()
     if (usernameTaken) {
-      return error('Username already taken', 409)
+      return error('An account with this username already exists', 409)
     }
   }
 

@@ -95,7 +95,8 @@ export async function onRequest(context) {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         })
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
+        console.warn('[spotify-auth] token exchange failed:', err)
+        return new Response(JSON.stringify({ error: 'Token exchange failed' }), {
           status: 502,
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         })
@@ -187,8 +188,9 @@ export async function onRequest(context) {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       })
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), {
-        status: 502,
+      console.warn('[spotify-auth] refresh failed:', err)
+      return new Response(JSON.stringify({ error: 'Token refresh failed' }), {
+        status: err.message === 'Refresh token expired' ? 401 : 502,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       })
     }

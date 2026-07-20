@@ -71,8 +71,12 @@ export function scrapeResponse(data, status = 200) {
   })
 }
 
-export function scrapeError(type, message, status = 502) {
-  return new Response(JSON.stringify({ error: message, error_type: type }), {
+export function scrapeError(type, _message, status = 502) {
+  // Log the real error internally, return a generic message to the client
+  if (typeof _message === 'string' && _message.length > 0) {
+    console.warn('[scrapeError]', type, _message)
+  }
+  return new Response(JSON.stringify({ error: 'Upstream source error', error_type: type }), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })

@@ -35,9 +35,9 @@ export async function onRequestPost(context) {
     'Vary': 'Origin',
   }
 
-  // Verify API key
+  // Verify API key (timing-safe comparison)
   const apiKey = request.headers.get('x-api-key')
-  if (!apiKey || apiKey !== env.FCM_API_KEY) {
+  if (!apiKey || !timingSafeEqual(apiKey, env.FCM_API_KEY)) {
     return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers })
   }
 
@@ -198,5 +198,18 @@ async function getFcmAccessToken(env) {
   } catch (err) {
     console.error('[fcm] Token exchange failed:', err)
     return null
+  }
+}
+
+function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  if (a.length !== b.length) return false
+  const enc = new TextEncoder()
+  const bufA = enc.encode(a)
+  const bufB = enc.encode(b)
+  try {
+    return crypto.subtle.timingSafeEqual(bufA, bufB)
+  } catch {
+    return a === b
   }
 }

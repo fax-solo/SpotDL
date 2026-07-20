@@ -487,7 +487,25 @@ def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dic
     }
 
 
+def _validate_url(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("Only http/https URLs are supported")
+    host = parsed.hostname.lower() if parsed.hostname else ""
+    if host in ("localhost", "127.0.0.1", "0.0.0.0", "[::1]"):
+        raise ValueError("Local URLs are not allowed")
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            raise ValueError("Private IP ranges are not allowed")
+    except ValueError:
+        pass  # not an IP address, proceed
+    return url
+
+
 def _fetch_generic_metadata(url: str) -> dict:
+    url = _validate_url(url)
     import yt_dlp
     opts = {
         "extract_flat": True,

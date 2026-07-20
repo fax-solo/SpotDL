@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import type { Env } from './index'
-import { sha256, hmacSha256, b64url, b64urlDecode, uuid } from './crypto'
+import { sha256, hmacSha256, b64url, b64urlDecode, timingSafeEqual, uuid } from './crypto'
 
 export async function createToken(userId: string, secret: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
@@ -34,7 +34,7 @@ export async function verifyToken(token: string, secret: string, db?: D1Database
   }
 
   const expected = await hmacSha256(`${headerB64}.${payloadB64}`, secret)
-  if (sig !== expected) return null
+  if (!(await timingSafeEqual(sig, expected))) return null
 
   if (typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) return null
 
@@ -65,7 +65,7 @@ async function verifyLegacyToken(parts: string[], secret: string, db?: D1Databas
 
   const sigInput = jti !== undefined ? `${userId}:${expiryStr}:${jti}` : `${userId}:${expiryStr}`
   const expected = await sha256(sigInput + secret)
-  if (sig !== expected) return null
+  if (!(await timingSafeEqual(sig, expected))) return null
 
   if (jti && db) {
     const blacklisted = await db.prepare(
@@ -87,7 +87,7 @@ export async function verifyPassword(password: string, storedHash: string, secre
     return bcrypt.compare(password, storedHash)
   }
   const expected = await sha256(password + secret)
-  return storedHash === expected
+  return timingSafeEqual(storedHash, expected)
 }
 
 export async function getUser(context: { request: Request; env: Env; params: any }, db: D1Database, requireAuth = false): Promise<any | null> {

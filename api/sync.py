@@ -257,4 +257,6 @@ def _safe(s: str) -> str:
 
 
 def _safe_dir(s: str) -> str:
-    return re.sub(r'[/\\?%*:|"<>\s]', "_", s).strip("_") or "playlist"
+    s = re.sub(r'[/\\?%*:|"<>\s]', "_", s).strip("_") or "playlist"
+    s = re.sub(r'\.\.+', "_", s)
+    return s

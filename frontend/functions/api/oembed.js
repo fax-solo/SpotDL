@@ -28,6 +28,14 @@ export async function onRequest(context) {
       })
     }
 
+    const isSpotify = Object.values(SPOTIFY_PATTERNS).some(p => p.test(url))
+    if (!isSpotify) {
+      return new Response(JSON.stringify({ error: 'Only Spotify URLs are supported' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
     const oembedUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`
     const res = await fetch(oembedUrl, {
       headers: {
@@ -52,8 +60,8 @@ export async function onRequest(context) {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+  } catch {
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })

@@ -35,6 +35,7 @@ from routes.downloads import router as downloads_router
 from routes.metadata import router as metadata_router
 from routes.sync import router as sync_router
 from routes.scraping import router as scraping_router
+from shared import DEBUG_MODE
 from routes.debug import router as debug_router
 from routes.spotify_auth import router as spotify_auth_router
 from routes.events import router as events_router
@@ -69,7 +70,8 @@ app.include_router(downloads_router)
 app.include_router(metadata_router)
 app.include_router(sync_router)
 app.include_router(scraping_router)
-app.include_router(debug_router)
+if DEBUG_MODE:
+    app.include_router(debug_router)
 app.include_router(spotify_auth_router)
 app.include_router(events_router)
 app.include_router(metrics_router)
@@ -101,9 +103,22 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+        if not response.headers.get("Strict-Transport-Security"):
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}

@@ -1,6 +1,7 @@
 """Server-side artwork fallback chain.
 Tries multiple free sources in order until artwork is found."""
 
+import os
 import re
 import logging
 import urllib.parse
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 _session = requests_retry_session()
 
-LASTFM_API_KEY = "7a5d0a2a4b1e8c3f6d9e0f1a2b3c4d5e"
+LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY", "7a5d0a2a4b1e8c3f6d9e0f1a2b3c4d5e")
 
 
 def find_artwork(title: str, artist: str, isrc: str | None = None) -> str | None:

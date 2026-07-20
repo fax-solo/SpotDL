@@ -1501,6 +1501,7 @@ export async function onRequest(context) {
     }
     return await handleEmbedScrape(context, body.url, body.summary)
   } catch (err) {
-    return jsonError(err.message)
+    console.warn('[spotify] metadata fetch error:', err)
+    return jsonError('Metadata fetch failed')
   }
 }

@@ -27,7 +27,8 @@ export async function onRequest(context) {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.warn('[jamendo]', err)
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
