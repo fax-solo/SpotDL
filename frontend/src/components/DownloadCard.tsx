@@ -359,7 +359,8 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                       <div className="px-4 pb-2">
                         <div className="h-0.5 bg-light-border dark:bg-dark-border rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-accent rounded-full"
+                            style={{ width: `${prog.pct ?? 5}%` }}
+                            className="h-full bg-accent rounded-full transition-all duration-300"
                           />
                         </div>
                       </div>

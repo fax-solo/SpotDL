@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from pydantic import BaseModel, Field
 
 from shared import verify_api_key, limiter
@@ -32,9 +32,16 @@ async def sync_subscribe(request: Request, body: SubscribeRequest, _auth=Depends
 
 @router.get("/api/sync/subscriptions")
 @limiter.limit("30/minute")
-async def sync_list(request: Request, _auth=Depends(verify_api_key)):
-    from sync import list_subscriptions
-    return {"ok": True, "subscriptions": list_subscriptions()}
+async def sync_list(
+    request: Request,
+    _auth=Depends(verify_api_key),
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    from sync import list_subscriptions, count_subscriptions
+    subs = list_subscriptions(limit=limit, offset=offset)
+    total = count_subscriptions()
+    return {"ok": True, "subscriptions": subs, "total": total}
 
 
 @router.delete("/api/sync/subscribe/{sub_id}")

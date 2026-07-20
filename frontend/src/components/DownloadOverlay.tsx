@@ -78,7 +78,7 @@ export function DownloadOverlay() {
               </div>
               <div className="h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                 <div
-                  ref={el => { if (el) el.style.width = `${overallPct}%` }}
+                  style={{ width: `${overallPct}%` }}
                   className={`h-full rounded-full transition-all duration-500 ${
                     anyIndeterminate
                       ? 'bg-accent animate-pulse'

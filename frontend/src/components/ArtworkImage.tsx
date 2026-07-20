@@ -28,7 +28,7 @@ export function ArtworkImage({ src, alt, className, iconSize = 16, loading = 'la
   if (!src || failed) {
     return (
       <div className={`${className} bg-gray-200 dark:bg-zinc-700 flex items-center justify-center`}>
-        <Music ref={el => { if (el) { el.style.width = `${iconSize}px`; el.style.height = `${iconSize}px` } }} className="text-gray-400" />
+        <Music size={iconSize} className="text-gray-400 flex-shrink-0" />
       </div>
     )
   }

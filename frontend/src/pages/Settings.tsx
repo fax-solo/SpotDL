@@ -40,8 +40,8 @@ export function Settings() {
   const [profileName, setProfileName] = useState(user?.display_name || '')
   const [profileNameEditing, setProfileNameEditing] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
-  const [dzArl, setDzArl] = useState(getDeezerArl() || '')
-  const [dzArlSaved, setDzArlSaved] = useState(!!getDeezerArl())
+  const [dzArl, setDzArl] = useState('')
+  const [dzArlSaved, setDzArlSaved] = useState(false)
   const [dzQuality, setDzQuality] = useState<DeezerQuality>(getDeezerQuality())
 
   const [wpToken, setWpToken] = useState(getWebPlayerToken() || '')
@@ -89,6 +89,10 @@ export function Settings() {
 
   useEffect(() => {
     getYoutubeCookies().then(c => { setYtCookies(c); setYtCookiesLoaded(true) })
+  }, [])
+
+  useEffect(() => {
+    getDeezerArl().then(arl => { setDzArl(arl || ''); setDzArlSaved(!!arl) })
   }, [])
 
   useEffect(() => {
@@ -327,14 +331,14 @@ export function Settings() {
             <div className="flex gap-2">
               {dzArlSaved ? (
                 <button
-                  onClick={() => { clearDeezerArl(); setDzArl(''); setDzArlSaved(false) }}
+                  onClick={async () => { await clearDeezerArl(); setDzArl(''); setDzArlSaved(false) }}
                   className="flex-1 py-3 px-5 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
                 >
                   Disconnect
                 </button>
               ) : (
                 <button
-                  onClick={() => { setDeezerArl(dzArl.trim()); setDzArlSaved(true) }}
+                  onClick={async () => { await setDeezerArl(dzArl.trim()); setDzArlSaved(true) }}
                   disabled={!dzArl.trim()}
                   className="flex-1 py-3 px-5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >

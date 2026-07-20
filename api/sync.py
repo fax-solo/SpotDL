@@ -49,8 +49,15 @@ def _with_write_lock(fn):
     return result
 
 
-def list_subscriptions() -> list[dict]:
-    return _load_db()["subscriptions"]
+def list_subscriptions(limit: int = 0, offset: int = 0) -> list[dict]:
+    subs = _load_db()["subscriptions"]
+    if limit > 0:
+        subs = subs[offset:offset + limit]
+    return subs
+
+
+def count_subscriptions() -> int:
+    return len(_load_db()["subscriptions"])
 
 
 def add_subscription(playlist_url: str, interval: str = "daily") -> dict:
@@ -198,20 +205,46 @@ def _load_subscription(sub_id: str) -> dict | None:
 
 def run_all_syncs() -> list[dict]:
     subs = list_subscriptions()
-    results = []
-    for sub in subs:
+    results = [{} for _ in subs]
+
+    def _sync_one(idx: int, sub: dict):
         try:
             result = run_sync(sub["id"])
             result["playlist_id"] = sub["playlist_id"]
             result["playlist_name"] = sub.get("playlist_name", "")
-            results.append(result)
+            results[idx] = result
         except Exception as e:
-            results.append({
+            results[idx] = {
                 "playlist_id": sub["playlist_id"],
                 "playlist_name": sub.get("playlist_name", ""),
                 "error": str(e),
-            })
+            }
+
+    with ThreadPoolExecutor(max_workers=min(len(subs), 4)) as executor:
+        for i, sub in enumerate(subs):
+            executor.submit(_sync_one, i, sub)
+
+    _clean_orphaned_tracks()
     return results
+
+
+def _clean_orphaned_tracks():
+    known_paths: set[str] = set()
+    db = _load_db()
+    for s in db["subscriptions"]:
+        playlist_dir = _safe_dir(s.get("playlist_name", "")) or s["playlist_id"]
+        known_paths.add(os.path.join(SYNC_DOWNLOAD_DIR, playlist_dir))
+
+    if not os.path.isdir(SYNC_DOWNLOAD_DIR):
+        return
+    for entry in os.listdir(SYNC_DOWNLOAD_DIR):
+        entry_path = os.path.join(SYNC_DOWNLOAD_DIR, entry)
+        if os.path.isdir(entry_path) and entry_path not in known_paths:
+            try:
+                shutil.rmtree(entry_path)
+                logger.info("sync: removed orphaned playlist dir %s", entry)
+            except Exception as e:
+                logger.warning("sync: failed to remove orphaned dir %s: %s", entry, e)
 
 
 def _parse_playlist_url(url: str) -> str | None:

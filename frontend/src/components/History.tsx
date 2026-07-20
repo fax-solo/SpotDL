@@ -42,7 +42,6 @@ function SwipeableRow({
   onAddToPlaylist?: (entry: HistoryEntry) => void
 }) {
   const startX = useRef(0)
-  const dragging = useRef(false)
   const [offsetX, setOffsetX] = useState(0)
   const [showDelete, setShowDelete] = useState(false)
   const threshold = 80
@@ -51,7 +50,6 @@ function SwipeableRow({
     const touch = e.touches[0]
     if (!touch) return
     startX.current = touch.clientX
-    dragging.current = true
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -63,7 +61,6 @@ function SwipeableRow({
   }, [])
 
   const handleTouchEnd = useCallback(() => {
-    dragging.current = false
     if (offsetX > threshold) {
       setShowDelete(true)
       setOffsetX(80)
@@ -99,11 +96,7 @@ function SwipeableRow({
         </button>
       </div>
       <div
-        ref={el => {
-          if (!el) return
-          el.style.transform = `translateX(${offsetX}px)`
-          el.style.transition = dragging.current ? 'none' : 'transform 0.2s'
-        }}
+        style={{ transform: `translateX(${offsetX}px)`, transition: 'transform 0.2s ease' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

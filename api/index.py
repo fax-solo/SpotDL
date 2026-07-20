@@ -114,7 +114,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             origin = request.headers.get("Origin")
             referer = request.headers.get("Referer")
 
-            if origin and origin != "null":
+            if origin:
                 try:
                     origin_parsed = urlparse(origin)
                     request_origin = f"{origin_parsed.scheme}://{origin_parsed.netloc}".lower()

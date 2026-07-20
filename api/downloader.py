@@ -200,6 +200,9 @@ async def stream_download(
 ) -> AsyncGenerator[str, None]:
     tracker = _ProgressTracker()
 
+    if not _find_ffmpeg():
+        yield json.dumps({"type": "warning", "message": "ffmpeg not found on server — converting client-side instead", "code": "ffmpeg_missing"}) + "\n"
+
     def _run():
         return _download_with_progress(tracker, title, artist, album, artwork_url, source_url, quality, output_format)
 

@@ -121,10 +121,10 @@ function AppContent() {
 
     useEffect(() => {
       const timer = setTimeout(() => {
-        import('./pages/SearchPage')
-        import('./pages/Downloader')
-        import('./pages/HistoryPage')
-        import('./pages/LocalMusicPage')
+        import('./pages/SearchPage').catch(() => {})
+        import('./pages/Downloader').catch(() => {})
+        import('./pages/HistoryPage').catch(() => {})
+        import('./pages/LocalMusicPage').catch(() => {})
       }, 1000)
       return () => clearTimeout(timer)
     }, [])

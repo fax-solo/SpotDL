@@ -108,10 +108,13 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
   },
 
   removeDownload: (id: string) => {
+    const controllers = get().abortControllers
+    controllers.get(id)?.abort()
+    controllers.delete(id)
     set((state: DownloadsState) => {
       const queue = state.queue.filter((q) => q.id !== id)
       saveQueue(queue)
-      return { queue }
+      return { queue, abortControllers: new Map(controllers) }
     })
   },
 
@@ -337,7 +340,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
         const finalState = get()
         const completed = finalState.queue.filter(q => q.done)
         const failed = finalState.queue.filter(q => q.failed)
-        if (completed.length + failed.length >= finalState.queue.filter(q => q.done || q.failed).length) {
+        const allDone = finalState.queue.every(q => q.done || q.failed)
+        if (allDone) {
           const totalDone = completed.length
           const totalFailed = failed.length
           if (totalDone > 0) {

@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core'
 import { apiUrl } from './apiConfig'
 
 const DEEZER_ARL_KEY = 'deezer_arl'
@@ -7,18 +8,44 @@ const DEEZER_QUALITY_KEY = 'deezer_quality'
 // It is sent to the server to enable high-quality downloads.
 // Only use this on servers you trust, over HTTPS.
 
-export function getDeezerArl(): string | null {
-  const raw = localStorage.getItem(DEEZER_ARL_KEY)
-  if (!raw) return null
-  return raw
+let _secureStorage: { getItem: (k: string) => Promise<string | null>; setItem: (k: string, v: string) => Promise<void>; removeItem: (k: string) => Promise<void> } | null = null
+
+async function _getStorage() {
+  if (_secureStorage) return _secureStorage
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const mod = await import('@capawesome/capacitor-secure-storage')
+      _secureStorage = {
+        getItem: (k) => mod.SecureStorage.get({ key: k }).then(r => r.value).catch(() => null),
+        setItem: (k, v) => mod.SecureStorage.set({ key: k, value: v }),
+        removeItem: (k) => mod.SecureStorage.remove({ key: k }),
+      }
+      return _secureStorage
+    } catch {
+      // fall through to localStorage
+    }
+  }
+  _secureStorage = {
+    getItem: async (k) => localStorage.getItem(k),
+    setItem: async (k, v) => { localStorage.setItem(k, v) },
+    removeItem: async (k) => { localStorage.removeItem(k) },
+  }
+  return _secureStorage
 }
 
-export function setDeezerArl(arl: string): void {
-  localStorage.setItem(DEEZER_ARL_KEY, arl)
+export async function getDeezerArl(): Promise<string | null> {
+  const storage = await _getStorage()
+  return storage.getItem(DEEZER_ARL_KEY)
 }
 
-export function clearDeezerArl(): void {
-  localStorage.removeItem(DEEZER_ARL_KEY)
+export async function setDeezerArl(arl: string): Promise<void> {
+  const storage = await _getStorage()
+  await storage.setItem(DEEZER_ARL_KEY, arl)
+}
+
+export async function clearDeezerArl(): Promise<void> {
+  const storage = await _getStorage()
+  await storage.removeItem(DEEZER_ARL_KEY)
 }
 
 export type DeezerQuality = 'FLAC' | 'MP3'

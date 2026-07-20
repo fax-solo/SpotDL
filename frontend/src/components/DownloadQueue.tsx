@@ -112,8 +112,8 @@ export function DownloadQueue() {
                 <div className="mt-1.5">
                   <div className="h-1 bg-light-border dark:bg-dark-border rounded-full overflow-hidden">
                     <div
-                      ref={el => { if (el && item.pct !== null) el.style.width = `${pct}%` }}
-                      className={`h-full bg-accent rounded-full transition-all duration-300 ease-out ${item.pct === null ? 'w-1/3 animate-pulse' : ''}`}
+                      style={{ width: item.pct !== null ? `${pct}%` : '33%' }}
+                      className={`h-full bg-accent rounded-full transition-all duration-300 ease-out ${item.pct === null ? 'animate-pulse' : ''}`}
                     />
                   </div>
                 </div>

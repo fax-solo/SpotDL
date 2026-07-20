@@ -5,7 +5,7 @@ import logging
 
 from fastapi import APIRouter, Request
 
-from shared import DOWNLOAD_SEMAPHORE_LIMIT, active_downloads, limiter
+from shared import DOWNLOAD_SEMAPHORE_LIMIT, active_downloads, limiter, API_KEY
 from spotify import is_user_authenticated
 
 router = APIRouter(tags=["health"])
@@ -56,6 +56,7 @@ async def status(request: Request):
         "active_downloads": active_downloads(),
         "db_healthy": _db_healthy(),
         "disk": _disk_usage(),
+        "api_key_missing": not API_KEY,
     }
 
 

@@ -413,7 +413,7 @@ async def _save_google_avatar(picture_url: str, ident: str) -> str:
 @limiter.limit("10/minute")
 async def guest_login(request: Request, body: GuestRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(User).where(User.is_guest == True, User.device_id == body.device_id)
+        select(User).where(User.device_id == body.device_id, User.is_guest == True)
     )
     user = result.scalar_one_or_none()
 
@@ -424,22 +424,14 @@ async def guest_login(request: Request, body: GuestRequest, db: AsyncSession = D
         await db.commit()
         await db.refresh(user)
     else:
-        result = await db.execute(select(User).where(User.device_id == body.device_id))
-        existing = result.scalar_one_or_none()
-        if existing and existing.is_guest:
-            user = existing
-            user.last_active = _utcnow()
-            await db.commit()
-            await db.refresh(user)
-        else:
-            user = User(
-                display_name=f"Guest_{body.device_id[:8]}",
-                is_guest=True,
-                device_id=body.device_id,
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
+        user = User(
+            display_name=f"Guest_{body.device_id[:8]}",
+            is_guest=True,
+            device_id=body.device_id,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
 
     token = _create_token(user.id)
     resp = _user_response(user, token)
@@ -509,7 +501,7 @@ async def update_profile(
 async def upload_avatar(
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     if file.content_type and not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")

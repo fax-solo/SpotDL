@@ -22,9 +22,20 @@ class _Subscriber:
 
 _subscribers: dict[str, list[_Subscriber]] = {}
 _cleanup_interval: int = 300
+_last_cleanup: float = time.time()
+
+
+def _maybe_cleanup():
+    global _last_cleanup
+    now = time.time()
+    if now - _last_cleanup < _cleanup_interval:
+        return
+    _cleanup_stale_queues()
+    _last_cleanup = now
 
 
 def subscribe(event_pattern: str) -> _Subscriber:
+    _maybe_cleanup()
     sub = _Subscriber()
     _subscribers.setdefault(event_pattern, []).append(sub)
     return sub
@@ -54,6 +65,7 @@ def _cleanup_stale_queues():
 
 
 async def publish(event: str, data: dict):
+    _maybe_cleanup()
     for pattern, subs in list(_subscribers.items()):
         if _match_pattern(event, pattern):
             for sub in subs:

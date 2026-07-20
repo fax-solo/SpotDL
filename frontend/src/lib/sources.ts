@@ -384,6 +384,13 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
 
 let _preResolveCache = new Map<string, SourceResult>()
 
+function _trimPreResolveCache() {
+  while (_preResolveCache.size > 500) {
+    const first = _preResolveCache.keys().next().value
+    if (first !== undefined) _preResolveCache.delete(first)
+  }
+}
+
 export async function preResolveAudio(title: string, artist: string, knownUrl?: string): Promise<void> {
   const key = `${artist}:${title}`
   if (_preResolveCache.has(key)) return
@@ -392,18 +399,24 @@ export async function preResolveAudio(title: string, artist: string, knownUrl?: 
       ? await findAudioFromUrl(knownUrl)
       : await findAudio(`${artist} ${title}`, title, artist)
     _preResolveCache.set(key, result)
-    if (_preResolveCache.size > 500) _preResolveCache.clear()
+    _trimPreResolveCache()
   } catch {}
 }
 
 export function getPreResolvedAudio(title: string, artist: string): SourceResult | undefined {
-  return _preResolveCache.get(`${artist}:${title}`)
+  const key = `${artist}:${title}`
+  const result = _preResolveCache.get(key)
+  if (result) {
+    _preResolveCache.delete(key)
+    _preResolveCache.set(key, result)
+  }
+  return result
 }
 
 export function stashPreResolvedAudio(title: string, artist: string, result: SourceResult) {
   const key = `${artist}:${title}`
   _preResolveCache.set(key, result)
-  if (_preResolveCache.size > 500) _preResolveCache.clear()
+  _trimPreResolveCache()
 }
 
 export function clearPreResolvedAudio() {

@@ -245,9 +245,9 @@ export async function downloadTrack(
   }
 
   // Try server download (fastest path)
-  const serverAvailable = isServerAvailable(signal)
+  const serverAvailable = await isServerAvailable(signal)
 
-  if (await serverAvailable) {
+  if (serverAvailable) {
     try {
       onProgress?.('Downloading from server...', 0)
       const res = await fetch(apiUrl('/api/download'), {
@@ -312,7 +312,7 @@ export async function downloadTrack(
       const dlMeta: {
         title: string; artist: string; album: string; artworkUrl: string | null; lyrics?: string | null
       } = {
-        title: meta.title + variantSuffix,
+        title: meta.title,
         artist: meta.artist,
         album: meta.album,
         artworkUrl: meta.artwork_url || info.thumbnail || null,
@@ -341,5 +341,6 @@ export async function downloadTrack(
       if ('type' in lastError && (lastError as any).type === 'source_unavailable') break
     }
   }
-  throw lastError || new Error(`Download failed after retries. Last source: ${lastSource}. Try a different search query or a direct URL.`)
+  const attempts = lastError ? ` (last attempt source: ${lastSource})` : ''
+  throw lastError || new Error(`Download failed after retries.${attempts} Try a different search query or a direct URL.`)
 }

@@ -21,7 +21,7 @@ if _env_path.exists():
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from cryptography.fernet import Fernet
-from shared import requests_retry_session
+from shared import requests_retry_session, get_circuit_breaker, source_is_open
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
 
@@ -43,9 +43,18 @@ def parse_url(url: str) -> tuple[str, str] | None:
 
 
 def _fetch_embed_data(kind: str, spotify_id: str) -> dict:
+    cb_name = f"spotify_embed_{kind}"
+    if source_is_open(cb_name):
+        raise RuntimeError(f"Spotify embed {kind} circuit is open — skipping")
     url = f"https://open.spotify.com/embed/{kind}/{spotify_id}"
-    resp = _session.get(url, headers=HEADERS, timeout=15)
-    resp.raise_for_status()
+    try:
+        resp = _session.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+    except Exception:
+        get_circuit_breaker(cb_name).record_failure()
+        raise
+
+    get_circuit_breaker(cb_name).record_success()
     html = resp.text
 
     m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.+?)</script>', html)
@@ -147,16 +156,19 @@ def _extract_track_album(item: dict) -> str | None:
 
 
 def _scrape_collection(kind: str, collection_id: str) -> dict:
-    logger.warning(
-        "Falling back to Spotify embed scraper — limited to first ~100 tracks. "
-        "Set up valid SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET or use OAuth login for full playlist access."
-    )
     entity = _fetch_embed_data(kind, collection_id)
 
     collection_name = entity.get("title", "Unknown Album/Playlist")
     collection_artwork = _extract_image_url(entity)
 
     track_list = entity.get("trackList", [])
+
+    if len(track_list) >= 100:
+        logger.warning(
+            "Spotify embed returned %d tracks — results may be truncated. "
+            "Set up SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET or use OAuth login for full collection access.",
+            len(track_list),
+        )
 
     tracks = []
     for item in track_list:
@@ -533,11 +545,19 @@ def _fetch_generic_metadata(url: str) -> dict:
 
 
 def _try_official(kind: str, id_: str, token: str) -> dict | None:
+    cb_name = f"spotify_official_{kind}"
+    if source_is_open(cb_name):
+        logger.warning("Spotify official %s circuit is open — skipping", kind)
+        return None
     try:
         if kind == "track":
-            return _fetch_official_track(id_, token)
-        return _fetch_official_collection(kind, id_, token)
+            result = _fetch_official_track(id_, token)
+        else:
+            result = _fetch_official_collection(kind, id_, token)
+        get_circuit_breaker(cb_name).record_success()
+        return result
     except requests.exceptions.HTTPError as e:
+        get_circuit_breaker(cb_name).record_failure()
         if e.response.status_code in (403, 404):
             return None
         raise
