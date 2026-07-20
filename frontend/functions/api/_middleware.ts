@@ -30,10 +30,24 @@ function isAuthPath(url: string): boolean {
 function csrfCheck(request: Request, allowedOrigins?: string): void {
   if (SAFE_METHODS.has(request.method)) return
   if (isAuthPath(request.url)) return
-  let requestOrigin: string | null = null
 
   const origin = request.headers.get('Origin')
   const referer = request.headers.get('Referer')
+
+  if (!origin || origin === 'null') {
+    if (!referer) {
+      // No Origin or Referer — likely a native/mobile client (Capacitor HTTP).
+      // Skip CSRF if an Authorization header is present (JWT/Bearer token),
+      // because browser-based CSRF cannot set this header cross-origin
+      // without a CORS preflight (and the token itself authenticates).
+      const auth = request.headers.get('Authorization')
+      if (auth?.startsWith('Bearer ')) return
+    }
+    // Also allow a custom header that native clients can set explicitly
+    if (request.headers.get('X-Mobile-Client') === '1') return
+  }
+
+  let requestOrigin: string | null = null
 
   if (origin && origin !== 'null') {
     try {

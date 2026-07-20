@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core'
 import { apiUrl } from './apiConfig'
 
 const TIMEOUT_MS = 8000
@@ -55,7 +56,11 @@ function setToken(token: string | null) {
 
 function authHeaders(): HeadersInit {
   const token = getToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+    headers['X-Mobile-Client'] = '1'
+  }
+  return headers
 }
 
 export async function signup(email: string, password: string, displayName?: string, username?: string): Promise<AuthResponse> {
