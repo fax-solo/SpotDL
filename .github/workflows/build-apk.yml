@@ -227,9 +227,14 @@ jobs:
 
       - name: Create GitHub Release
         run: |
-          gh release create "v${{ steps.bump.outputs.new }}" \
-            "frontend/android/app/build/outputs/apk/debug/Sinc-${{ steps.bump.outputs.new }}.apk" \
-            --title "v${{ steps.bump.outputs.new }}" \
-            --notes-file /tmp/release-notes.md
+          for i in 1 2 3 4 5; do
+            gh release create "v${{ steps.bump.outputs.new }}" \
+              "frontend/android/app/build/outputs/apk/debug/Sinc-${{ steps.bump.outputs.new }}.apk" \
+              --title "v${{ steps.bump.outputs.new }}" \
+              --notes-file /tmp/release-notes.md && exit 0
+            echo "Attempt $i failed, retrying in $((i * 5))s..."
+            sleep $((i * 5))
+          done
+          exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
