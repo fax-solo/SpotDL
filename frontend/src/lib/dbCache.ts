@@ -10,34 +10,42 @@ interface CacheEntry {
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
+let db: IDBDatabase | null = null
+
 function openDB(): Promise<IDBDatabase> {
+  if (db) return Promise.resolve(db)
   if (dbPromise) return dbPromise
   dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
     request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result
+      const target = (event.target as IDBOpenDBRequest).result
       for (const storeName of ['metadata', 'blobs', 'artwork']) {
-        if (!db.objectStoreNames.contains(storeName)) {
-          const store = db.createObjectStore(storeName, { keyPath: 'key' })
+        if (!target.objectStoreNames.contains(storeName)) {
+          const store = target.createObjectStore(storeName, { keyPath: 'key' })
           store.createIndex('timestamp', 'timestamp', { unique: false })
         }
       }
     }
-    request.onsuccess = (event) => resolve((event.target as IDBOpenDBRequest).result)
+    request.onsuccess = (event) => {
+      db = (event.target as IDBOpenDBRequest).result
+      db.onclose = () => { db = null; dbPromise = null }
+      db.onversionchange = () => { db?.close(); db = null; dbPromise = null }
+      resolve(db)
+    }
     request.onerror = () => { dbPromise = null; reject(request.error) }
   })
   return dbPromise
 }
 
-async function getTransaction(mode: IDBTransactionMode, storeName: string = 'metadata') {
-  const db = await openDB()
-  const transaction = db.transaction(storeName, mode)
-  return { transaction, store: transaction.objectStore(storeName) }
+async function getStore(mode: IDBTransactionMode, storeName: string = 'metadata') {
+  const database = await openDB()
+  const transaction = database.transaction(storeName, mode)
+  return transaction.objectStore(storeName)
 }
 
 export async function getCache<T>(key: string, storeName: string = 'metadata', defaultTtl: number = 300000): Promise<T | null> {
   try {
-    const { store, transaction } = await getTransaction('readonly', storeName)
+    const store = await getStore('readonly', storeName)
     return new Promise((resolve) => {
       const request = store.get(key)
       request.onsuccess = () => {
@@ -50,7 +58,6 @@ export async function getCache<T>(key: string, storeName: string = 'metadata', d
         resolve(entry.data as T)
       }
       request.onerror = () => resolve(null)
-      transaction.oncomplete = () => resolve(null)
     })
   } catch {
     return null
@@ -59,13 +66,9 @@ export async function getCache<T>(key: string, storeName: string = 'metadata', d
 
 export async function setCache(key: string, data: unknown, storeName: string = 'metadata', ttl: number = 300000): Promise<void> {
   try {
-    const { store, transaction } = await getTransaction('readwrite', storeName)
+    const store = await getStore('readwrite', storeName)
     const entry: CacheEntry = { key, data, timestamp: Date.now(), ttl }
     store.put(entry)
-    return new Promise((resolve) => {
-      transaction.oncomplete = () => resolve()
-      transaction.onerror = () => resolve()
-    })
   } catch {
     // Silently fail — cache is not critical
   }
@@ -73,18 +76,14 @@ export async function setCache(key: string, data: unknown, storeName: string = '
 
 export async function removeCache(key: string, storeName: string = 'metadata'): Promise<void> {
   try {
-    const { store, transaction } = await getTransaction('readwrite', storeName)
+    const store = await getStore('readwrite', storeName)
     store.delete(key)
-    return new Promise((resolve) => {
-      transaction.oncomplete = () => resolve()
-      transaction.onerror = () => resolve()
-    })
   } catch {}
 }
 
 export async function clearExpired(storeName: string = 'metadata', maxAge: number = 300000): Promise<number> {
   try {
-    const { store, transaction } = await getTransaction('readwrite', storeName)
+    const store = await getStore('readwrite', storeName)
     const index = store.index('timestamp')
     const cutoff = Date.now() - maxAge
     let cleared = 0
@@ -99,8 +98,7 @@ export async function clearExpired(storeName: string = 'metadata', maxAge: numbe
           cursor.continue()
         }
       }
-      transaction.oncomplete = () => resolve(cleared)
-      transaction.onerror = () => resolve(cleared)
+      request.onsuccess = () => resolve(cleared)
     })
   } catch {
     return 0
@@ -109,7 +107,7 @@ export async function clearExpired(storeName: string = 'metadata', maxAge: numbe
 
 export async function getCacheSize(storeName: string = 'blobs'): Promise<number> {
   try {
-    const { store } = await getTransaction('readonly', storeName)
+    const store = await getStore('readonly', storeName)
     return new Promise((resolve) => {
       const request = store.count()
       request.onsuccess = () => resolve(request.result)

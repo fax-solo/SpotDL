@@ -11,7 +11,7 @@ import { getDownloadLyrics } from '../lib/lyricsSettings'
 import { logDownload } from '../lib/auth'
 
 
-const CONCURRENT_DOWNLOADS = Math.min(Math.max(parseInt(import.meta.env.VITE_CONCURRENT_DOWNLOADS || '3', 10), 1), 10)
+const CONCURRENT_DOWNLOADS = Math.min(Math.max(parseInt(import.meta.env.VITE_CONCURRENT_DOWNLOADS || '4', 10), 1), 10)
 
 export interface DownloadProgress {
   id: string
@@ -208,6 +208,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   let lastNotifTime = 0
                   let lastNotifPct = -1
                   let lastUpdateTime = 0
+                  let queueSnapshot = get().queue
 
                   let plainLyrics: string | null = null
                   let syncedLyrics: string | null = null
@@ -228,31 +229,31 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
                   const result = await downloadTrack(
                     item.track,
                     (stage, pct) => {
-                      if (get().queue.some(q => q.id === item.id)) {
-                        const now = Date.now()
-                        const actualPct = pct !== undefined ? Math.round(pct * 100) / 100 : null
-                        if (actualPct === null || actualPct === 100 || now - lastUpdateTime >= 100) {
-                          lastUpdateTime = now
-                          get()._updateProgress(item.id, { stage, pct: actualPct })
-                        }
-                        const pctInt = actualPct !== null ? Math.round(actualPct) : -1
-                        if (pctInt === 100 || (now - lastNotifTime >= 400 && pctInt !== lastNotifPct)) {
-                          lastNotifTime = now
-                          lastNotifPct = pctInt
-                          updateDownloadForeground(
-                            `${item.track.artist} - ${item.track.title}`,
-                            get().queue.filter(q => !q.done && !q.failed).length,
-                            actualPct ?? undefined,
-                            stage,
-                          )
-                          if (actualPct !== null && actualPct > 0 && actualPct < 100) {
-                            sendDownloadProgressNotification({
-                              downloadId: item.id,
-                              title: item.track.title,
-                              artist: item.track.artist,
-                              pct: actualPct,
-                            })
-                          }
+                      const now = Date.now()
+                      const actualPct = pct !== undefined ? Math.round(pct * 100) / 100 : null
+                      if (actualPct === null || actualPct === 100 || now - lastUpdateTime >= 100) {
+                        lastUpdateTime = now
+                        get()._updateProgress(item.id, { stage, pct: actualPct })
+                        queueSnapshot = get().queue
+                      }
+                      const pctInt = actualPct !== null ? Math.round(actualPct) : -1
+                      if (pctInt === 100 || (now - lastNotifTime >= 400 && pctInt !== lastNotifPct)) {
+                        lastNotifTime = now
+                        lastNotifPct = pctInt
+                        const remaining = queueSnapshot.filter(q => !q.done && !q.failed).length
+                        updateDownloadForeground(
+                          `${item.track.artist} - ${item.track.title}`,
+                          remaining,
+                          actualPct ?? undefined,
+                          stage,
+                        )
+                        if (actualPct !== null && actualPct > 0 && actualPct < 100) {
+                          sendDownloadProgressNotification({
+                            downloadId: item.id,
+                            title: item.track.title,
+                            artist: item.track.artist,
+                            pct: actualPct,
+                          })
                         }
                       }
                     },

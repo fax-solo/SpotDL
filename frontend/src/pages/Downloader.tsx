@@ -52,12 +52,12 @@ export function Downloader() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-4 pt-6 pb-32 safe-area-top animate-pageEnter">
-        <div className="mb-6">
+      <main className="min-h-screen bg-light-bg dark:bg-dark-bg px-5 pt-6 pb-36 safe-area-top animate-pageEnter max-w-5xl mx-auto">
+        <div className="mb-8">
           <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
             {presetCollection?.collection_name || 'Downloads'}
           </h1>
-          <p className="text-sm text-light-muted dark:text-dark-muted mt-1">
+          <p className="text-sm text-light-muted dark:text-dark-muted mt-1.5">
             {presetCollection
               ? `${presetCollection.tracks.length} tracks`
               : 'Paste a Spotify or YouTube URL'}
@@ -65,13 +65,13 @@ export function Downloader() {
         </div>
 
         {fetchingPlaylist && (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex items-center justify-center py-24">
             <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
         {!fetchingPlaylist && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <DownloadCard onDownloadComplete={addEntry} presetCollection={presetCollection} initialUrl={initialUrl} autoDownload={fromShare} />
             <DownloadQueue />
             {!presetCollection && (

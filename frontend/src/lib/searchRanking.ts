@@ -64,7 +64,12 @@ export function pickTopResult(query: string, results: {
   }
 
   if (candidates.length === 0) return null
-  candidates.sort((a, b) => b.score - a.score)
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    const typeRank = { track: 0, artist: 1, album: 2, playlist: 3 }
+    return (typeRank[a.item.type] ?? 0) - (typeRank[b.item.type] ?? 0)
+  })
   const top = candidates[0]
-  return top && top.score >= 40 ? top.item : null
+  if (!top || top.score <= 0) return null
+  return top.score >= 20 ? top.item : null
 }

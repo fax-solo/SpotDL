@@ -8,7 +8,6 @@ import { isNative } from '../lib/capacitorBridge'
 import { useToast } from './Toast'
 import type { HistoryEntry } from '../hooks/useHistory'
 import { useDownloads } from '../hooks/useDownloads'
-import { getDeezerArl, getDeezerQuality } from '../lib/deezer'
 import { getQualitySettings, setQualitySettings, VARIANT_LABELS, type AudioVariant } from '../lib/qualitySettings'
 import { AddToPlaylistModal } from './AddToPlaylistModal'
 import type { PlaylistTrack } from '../hooks/usePlaylists'
@@ -94,8 +93,8 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
   
   const singleDownloading = singleQueueItem && !singleQueueItem.done && !singleQueueItem.failed
   const singleStage = singleQueueItem?.stage ?? ''
-  const deezerConnected = !!getDeezerArl()
-  const downloadLabel = deezerConnected && getDeezerQuality() === 'FLAC' ? 'Download FLAC' : deezerConnected ? 'Download MP3' : 'Download MP3'
+  const quality = getQualitySettings()
+  const downloadLabel = quality.format === 'm4a' ? 'Download M4A' : `Download MP3`
 
   const handleDownloadSingle = async (track: TrackMeta) => {
     if (Capacitor.isNativePlatform()) {

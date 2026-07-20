@@ -15,15 +15,17 @@ import { clearExpired, getCacheSize } from '../lib/dbCache'
 import { clearBlobCache } from '../lib/blobCache'
 import { useToast } from '../components/Toast'
 
-function Section({ title, icon, children, badge, className = '' }: { title: string; icon: React.ReactNode; children: React.ReactNode; badge?: React.ReactNode; className?: string }) {
+function Section({ title, icon, children, badge, className = '' }: { title: string | null; icon: React.ReactNode; children: React.ReactNode; badge?: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white dark:bg-dark-surface rounded-xl border border-light-border/30 dark:border-dark-border/30 overflow-hidden ${className}`}>
-      <div className="p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-5 h-5 text-accent flex-shrink-0">{icon}</div>
-          <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">{title}</h2>
-          {badge}
-        </div>
+    <div className={`bg-white dark:bg-dark-surface rounded-2xl border border-light-border/20 dark:border-dark-border/20 ${className}`}>
+      <div className="p-6">
+        {title && (
+          <div className="flex items-center gap-3 mb-6">
+            {icon && <div className="w-5 h-5 text-accent flex-shrink-0">{icon}</div>}
+            <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">{title}</h2>
+            {badge}
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -120,18 +122,18 @@ export function Settings() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-32 animate-pageEnter">
-      <div className="mb-6">
+    <div className="px-5 pt-6 pb-36 animate-pageEnter max-w-4xl mx-auto">
+      <div className="mb-8">
         <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">Settings</h1>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {/* Profile */}
         <Section title="Profile" icon={<User className="w-5 h-5" />}>
           {user?.role === 'admin' && !isGuest && (
             <button
               onClick={() => navigate('/admin')}
-              className="mb-4 w-full py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
+              className="mb-5 w-full py-3 px-5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
             >
               <Shield className="w-4 h-4" />
               Admin Dashboard
@@ -144,7 +146,7 @@ export function Settings() {
                     type="text"
                     value={profileName}
                     onChange={e => setProfileName(e.target.value)}
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-accent/30"
                     autoFocus
                     onKeyDown={async e => {
                       if (e.key === 'Enter') {
@@ -173,7 +175,7 @@ export function Settings() {
                       }
                     }}
                     disabled={profileSaving}
-                    className="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     {profileSaving ? (
                       <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -197,13 +199,13 @@ export function Settings() {
                 </div>
               )}
               {user?.email && (
-                <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="flex items-center gap-1.5 mt-1.5">
                   <Mail className="w-3 h-3 text-light-muted dark:text-dark-muted" />
                   <p className="text-xs text-light-muted dark:text-dark-muted truncate">{user.email}</p>
                 </div>
               )}
               {isGuest && (
-                <p className="text-xs text-amber-500 mt-0.5">Signed in as guest</p>
+                <p className="text-xs text-amber-500 mt-1">Signed in as guest</p>
               )}
             </div>
         </Section>
@@ -216,11 +218,11 @@ export function Settings() {
             <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">Active</span>
           ) : undefined}
         >
-          <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+          <p className="text-sm text-light-muted dark:text-dark-muted mb-4 leading-relaxed">
             Paste your Spotify web player token to access your library and saved tracks.
           </p>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -230,7 +232,7 @@ export function Settings() {
                 aria-label="Web Player Token"
                 autoComplete="off"
                 spellCheck={false}
-                className="flex-1 px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                className="flex-1 px-4 py-3 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
               />
             </div>
 
@@ -238,7 +240,7 @@ export function Settings() {
               {wpTokenSaved && wpToken.trim() === getWebPlayerToken() ? (
                 <button
                   onClick={handleClearToken}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
+                  className="flex-1 py-3 px-5 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
                 >
                   Clear Token
                 </button>
@@ -246,7 +248,7 @@ export function Settings() {
                 <button
                   onClick={handleTestToken}
                   disabled={!wpToken.trim() || wpTokenTesting}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="flex-1 py-3 px-5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {wpTokenTesting ? (
                     <span className="flex items-center justify-center gap-2">
@@ -259,7 +261,7 @@ export function Settings() {
             </div>
 
             {wpTokenStatus === 'valid' && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+              <div className="flex items-center gap-2 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
                 <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                 <p className="text-xs text-green-600 dark:text-green-400">
                   Token valid — library access is active
@@ -268,7 +270,7 @@ export function Settings() {
             )}
 
             {wpTokenStatus === 'invalid' && (
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
                 <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-red-500">Token invalid</p>
@@ -280,15 +282,15 @@ export function Settings() {
             )}
 
             <details className="group">
-              <summary className="flex items-center gap-2 text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text cursor-pointer">
+              <summary className="flex items-center gap-2 text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text cursor-pointer py-1">
                 <HelpCircle className="w-3 h-3" />
                 How to get your token
               </summary>
-              <div className="mt-2 p-3 rounded-xl bg-light-bg dark:bg-zinc-800/50 text-xs text-light-muted dark:text-dark-muted space-y-2">
+              <div className="mt-3 p-4 rounded-xl bg-light-bg dark:bg-zinc-800/50 text-xs text-light-muted dark:text-dark-muted space-y-2 leading-relaxed">
                 <p>1. Open <a href="https://open.spotify.com" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">open.spotify.com</a> and log in</p>
                 <p>2. Open Developer Tools (F12) → Console</p>
                 <p>3. Paste and run:</p>
-                <code className="block p-2 rounded-lg bg-black/10 dark:bg-white/10 text-xs break-all mt-1">
+                <code className="block p-3 rounded-lg bg-black/10 dark:bg-white/10 text-xs break-all mt-1 leading-relaxed">
 {`fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player').then(r=>r.json()).then(d=>{navigator.clipboard.writeText(d.accessToken); console.log('Token copied!')})`}
                 </code>
                 <p className="mt-1">4. The token is now in your clipboard — paste it above</p>
@@ -306,11 +308,11 @@ export function Settings() {
             <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">Connected</span>
           ) : undefined}
         >
-          <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+          <p className="text-sm text-light-muted dark:text-dark-muted mb-4 leading-relaxed">
             Add your Deezer ARL token to download FLAC quality audio. A free Deezer account is required.
           </p>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <input
               type="text"
               value={dzArl}
@@ -319,14 +321,14 @@ export function Settings() {
               aria-label="Deezer ARL Token"
               autoComplete="off"
               spellCheck={false}
-              className="w-full px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+              className="w-full px-4 py-3 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
             />
 
             <div className="flex gap-2">
               {dzArlSaved ? (
                 <button
                   onClick={() => { clearDeezerArl(); setDzArl(''); setDzArlSaved(false) }}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
+                  className="flex-1 py-3 px-5 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
                 >
                   Disconnect
                 </button>
@@ -334,24 +336,24 @@ export function Settings() {
                 <button
                   onClick={() => { setDeezerArl(dzArl.trim()); setDzArlSaved(true) }}
                   disabled={!dzArl.trim()}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="flex-1 py-3 px-5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   Save Token
                 </button>
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center justify-between pt-3">
               <div className="flex-1">
                 <p className="text-sm font-medium text-light-text dark:text-dark-text">Download quality</p>
-                <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+                <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
                   {dzQuality === 'FLAC' ? 'Lossless FLAC (requires Deezer HiFi)' : '320kbps MP3'}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => { setDzQuality('MP3'); setDeezerQuality('MP3') }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                     dzQuality === 'MP3'
                       ? 'bg-accent text-white'
                       : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
@@ -361,7 +363,7 @@ export function Settings() {
                 </button>
                 <button
                   onClick={() => { setDzQuality('FLAC'); setDeezerQuality('FLAC') }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                     dzQuality === 'FLAC'
                       ? 'bg-accent text-white'
                       : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
@@ -373,11 +375,11 @@ export function Settings() {
             </div>
 
             <details className="group">
-              <summary className="flex items-center gap-2 text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text cursor-pointer">
+              <summary className="flex items-center gap-2 text-xs text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text cursor-pointer py-1">
                 <HelpCircle className="w-3 h-3" />
                 How to get your Deezer ARL
               </summary>
-              <div className="mt-2 p-3 rounded-xl bg-light-bg dark:bg-zinc-800/50 text-xs text-light-muted dark:text-dark-muted space-y-2">
+              <div className="mt-3 p-4 rounded-xl bg-light-bg dark:bg-zinc-800/50 text-xs text-light-muted dark:text-dark-muted space-y-2 leading-relaxed">
                 <p>1. Open <a href="https://www.deezer.com" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">deezer.com</a> and log in with your free account</p>
                 <p>2. Open Developer Tools (F12) → Application → Cookies → deezer.com</p>
                 <p>3. Find the cookie named <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10">arl</code></p>
@@ -393,7 +395,7 @@ export function Settings() {
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-sm font-medium text-light-text dark:text-dark-text">Download lyrics</p>
-              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+              <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
                 Fetch synced lyrics for each track during download
               </p>
             </div>
@@ -417,12 +419,12 @@ export function Settings() {
             </button>
           </div>
 
-          <hr className="my-4 border-light-border/30 dark:border-dark-border/30" />
+          <hr className="my-6 border-light-border/30 dark:border-dark-border/30" />
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
-              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-2">Bitrate</p>
-              <div className="flex gap-2">
+              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-3">Bitrate</p>
+              <div className="flex gap-3">
                 {(['128', '192', '256', '320'] as Bitrate[]).map(b => (
                   <button
                     key={b}
@@ -431,7 +433,7 @@ export function Settings() {
                       setDlQuality(next)
                       setQualitySettings(next)
                     }}
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                       dlQuality.bitrate === b
                         ? 'bg-accent text-white'
                         : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
@@ -443,8 +445,8 @@ export function Settings() {
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-2">Format</p>
-              <div className="flex gap-2">
+              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-3">Format</p>
+              <div className="flex gap-3">
                 {([['mp3', 'MP3'], ['m4a', 'M4A (AAC)']] as [OutputFormat, string][]).map(([val, label]) => (
                   <button
                     key={val}
@@ -453,7 +455,7 @@ export function Settings() {
                       setDlQuality(next)
                       setQualitySettings(next)
                     }}
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                       dlQuality.format === val
                         ? 'bg-accent text-white'
                         : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
@@ -465,8 +467,8 @@ export function Settings() {
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-2">Variant</p>
-              <div className="flex gap-2">
+              <p className="text-sm font-medium text-light-text dark:text-dark-text mb-3">Variant</p>
+              <div className="flex gap-3">
                 {(['normal', 'sped_up', 'slowed_reverb'] as AudioVariant[]).map(v => (
                   <button
                     key={v}
@@ -475,7 +477,7 @@ export function Settings() {
                       setDlQuality(next)
                       setQualitySettings(next)
                     }}
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                       (dlQuality.variant || 'normal') === v
                         ? 'bg-accent text-white'
                         : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
@@ -497,10 +499,10 @@ export function Settings() {
             <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/20">{crossfade}s</span>
           ) : undefined}
         >
-          <p className="text-xs text-light-muted dark:text-dark-muted mb-3">
+          <p className="text-sm text-light-muted dark:text-dark-muted mb-4 leading-relaxed">
             Smoothly fade between tracks when skipping or at the end of a track.
           </p>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-3 flex-wrap">
             {[
               [0, 'Off'],
               [1, '1s'],
@@ -516,7 +518,7 @@ export function Settings() {
                   setCrossfadeState(val as number)
                   setCrossfadeDuration(val as number)
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                   crossfade === val
                     ? 'bg-accent text-white'
                     : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
@@ -530,7 +532,7 @@ export function Settings() {
 
         {isNative() && (
           <Section title="Permissions" icon={<ShieldCheck className="w-5 h-5" />}>
-            <p className="text-xs text-light-muted dark:text-dark-muted mb-4">
+            <p className="text-sm text-light-muted dark:text-dark-muted mb-4 leading-relaxed">
               Runtime permissions that can be toggled. If permanently denied, use the button to open system settings.
             </p>
             <div className="space-y-1">
@@ -538,12 +540,12 @@ export function Settings() {
                 const granted = permStatus[p.key]
                 const loading = requestingPerm === p.key
                 return (
-                  <div key={p.key} className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-light-bg dark:hover:bg-zinc-800/50 transition-colors">
-                    <div className="flex-1 min-w-0 mr-3">
+                  <div key={p.key} className="flex items-center justify-between py-3 px-4 rounded-xl hover:bg-light-bg dark:hover:bg-zinc-800/50 transition-colors">
+                    <div className="flex-1 min-w-0 mr-4">
                       <p className="text-sm font-medium text-light-text dark:text-dark-text">{p.label}</p>
                       <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5 truncate">{p.description}</p>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-3 flex-shrink-0">
                       {!granted && (
                         <button
                           onClick={async () => {
@@ -558,7 +560,7 @@ export function Settings() {
                               setRequestingPerm(null)
                             }
                           }}
-                          className="text-xs text-accent hover:text-accent-hover font-medium cursor-pointer px-2 py-1 rounded-lg hover:bg-accent/10 transition-colors"
+                          className="text-xs text-accent hover:text-accent-hover font-medium cursor-pointer px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
                         >
                           Settings
                         </button>
@@ -608,15 +610,15 @@ export function Settings() {
               })}
             </div>
 
-            <hr className="my-4 border-light-border/30 dark:border-dark-border/30" />
+            <hr className="my-6 border-light-border/30 dark:border-dark-border/30" />
 
-            <p className="text-xs text-light-muted dark:text-dark-muted mb-3">
+            <p className="text-xs text-light-muted dark:text-dark-muted mb-4 leading-relaxed">
               Manifest permissions — always granted at install time, cannot be revoked:
             </p>
             <div className="space-y-1">
               {MANIFEST_PERMISSIONS.map(p => (
-                <div key={p.key} className="flex items-center justify-between py-2 px-3 rounded-xl">
-                  <div className="flex-1 min-w-0 mr-3">
+                <div key={p.key} className="flex items-center justify-between py-3 px-4 rounded-xl">
+                  <div className="flex-1 min-w-0 mr-4">
                     <p className="text-sm font-medium text-light-text dark:text-dark-text">{p.label}</p>
                     <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5 truncate">{p.description}</p>
                   </div>
@@ -630,21 +632,21 @@ export function Settings() {
         )}
 
         {/* Playlist Sync */}
-        <Section title="" icon={null} className="!p-0">
+        <div className="bg-white dark:bg-dark-surface rounded-2xl border border-light-border/20 dark:border-dark-border/20">
           <button
             onClick={() => navigate('/sync')}
-            className="w-full p-5 flex items-center gap-3 hover:bg-light-bg dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left group"
+            className="w-full p-6 flex items-center gap-3 hover:bg-light-bg dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left group rounded-2xl"
           >
             <SyncIcon className="w-5 h-5 text-accent group-hover:rotate-180 transition-transform duration-500" />
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">Playlist Sync</h2>
-              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+              <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
                 Auto-download new tracks from followed playlists
               </p>
             </div>
             <svg className="w-5 h-5 text-light-muted dark:text-dark-muted group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
-        </Section>
+        </div>
 
         {/* YouTube Cookies */}
         {ytCookiesLoaded && (
@@ -655,7 +657,7 @@ export function Settings() {
               <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">Saved</span>
             ) : undefined}
           >
-            <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+            <p className="text-sm text-light-muted dark:text-dark-muted mb-4 leading-relaxed">
               Paste your YouTube cookies (Netscape format) to bypass geo-restrictions and age verification when downloading from YouTube.
             </p>
             <textarea
@@ -665,9 +667,9 @@ export function Settings() {
               rows={5}
               aria-label="YouTube cookies"
               spellCheck={false}
-              className="w-full px-3 py-2.5 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow font-mono text-xs resize-y"
+              className="w-full px-4 py-3 rounded-xl bg-light-bg dark:bg-zinc-800 border border-light-border/30 dark:border-dark-border/30 text-sm text-light-text dark:text-dark-text placeholder:text-light-muted dark:placeholder:text-dark-muted focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow font-mono text-xs resize-y"
             />
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-3 mt-4">
               <button
                 onClick={async () => {
                   setYtCookiesSaving(true)
@@ -682,14 +684,14 @@ export function Settings() {
                   }
                 }}
                 disabled={ytCookiesSaving}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+                className="flex-1 py-3 px-5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
               >
                 {ytCookiesSaving ? 'Saving...' : 'Save Cookies'}
               </button>
               {ytCookies.trim() && (
                 <button
                   onClick={() => { setYtCookies(''); setYoutubeCookies(''); setYtCookiesSaved(false) }}
-                  className="py-2.5 px-4 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
+                  className="py-3 px-5 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
                 >
                   Clear
                 </button>
@@ -706,7 +708,7 @@ export function Settings() {
             <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/20">{cacheSize} blobs</span>
           ) : undefined}
         >
-          <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+          <p className="text-sm text-light-muted dark:text-dark-muted mb-4 leading-relaxed">
             Clear cached metadata, artwork, and downloaded blobs to free up storage.
           </p>
           <button
@@ -726,7 +728,7 @@ export function Settings() {
               }
             }}
             disabled={cacheClearing}
-            className="w-full py-2.5 px-4 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+            className="w-full py-3 px-5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
           >
             {cacheClearing ? 'Clearing...' : 'Clear All Cache'}
           </button>
@@ -735,17 +737,17 @@ export function Settings() {
         {/* Account Deletion */}
         {!isGuest && (
           <Section title="Delete Account" icon={<Trash2 className="w-5 h-5 text-red-500" />} className="border-red-500/20">
-            <p className="text-sm text-light-muted dark:text-dark-muted mb-3">
+            <p className="text-sm text-light-muted dark:text-dark-muted mb-4 leading-relaxed">
               Permanently delete your account and all associated data (history, downloads, settings). This cannot be undone.
             </p>
             {confirmDelete ? (
-              <div className="space-y-3">
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-                  <p className="text-xs text-red-500 font-medium">
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <p className="text-xs text-red-500 font-medium leading-relaxed">
                     Are you sure? This will permanently delete your account, listening history, download logs, and push notification tokens.
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <button
                     onClick={async () => {
                       setDeleting(true)
@@ -761,14 +763,14 @@ export function Settings() {
                       }
                     }}
                     disabled={deleting}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+                    className="flex-1 py-3 px-5 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
                   >
                     {deleting ? 'Deleting...' : 'Yes, Delete My Account'}
                   </button>
                   <button
                     onClick={() => setConfirmDelete(false)}
                     disabled={deleting}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-light-text dark:text-dark-text hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium cursor-pointer"
+                    className="flex-1 py-3 px-5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-light-text dark:text-dark-text hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-sm font-medium cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -777,7 +779,7 @@ export function Settings() {
             ) : (
               <button
                 onClick={() => setConfirmDelete(true)}
-                className="w-full py-2.5 px-4 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
+                className="w-full py-3 px-5 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors text-sm font-medium cursor-pointer"
               >
                 Delete My Account
               </button>
@@ -786,97 +788,91 @@ export function Settings() {
         )}
 
         {/* About */}
-        <Section title="About" icon={null} className="!p-0">
-          <div className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-5 h-5 text-accent flex-shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-              </div>
-              <h2 className="text-lg font-semibold text-light-text dark:text-dark-text">About</h2>
-            </div>
-            <p className="text-sm text-light-text dark:text-dark-text">
-              Sinc <span className="text-light-muted dark:text-dark-muted">v{APP_VERSION}</span>
-            </p>
-            <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
-              Download music from Spotify, YouTube, SoundCloud, and Bandcamp.
-            </p>
+        <Section title="About" icon={
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        }>
+          <p className="text-sm text-light-text dark:text-dark-text">
+            Sinc <span className="text-light-muted dark:text-dark-muted">v{APP_VERSION}</span>
+          </p>
+          <p className="text-xs text-light-muted dark:text-dark-muted mt-1.5 leading-relaxed">
+            Download music from Spotify, YouTube, SoundCloud, and Bandcamp.
+          </p>
 
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                onClick={handleCheckUpdate}
-                disabled={updateState.checking}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
-              >
-                <RefreshCw className={`w-4 h-4 ${updateState.checking ? 'animate-spin' : ''}`} />
-                {updateState.checking ? 'Checking...' : 'Check for Updates'}
-              </button>
-
-              {updateState.available && (
-                <a
-                  href={updateState.downloadUrl || `https://github.com/${GITHUB_REPO}/releases/latest`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white hover:bg-accent-hover transition-colors text-sm font-medium"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Download v{updateState.latestVersion}
-                </a>
-              )}
-            </div>
+          <div className="mt-6 flex items-center gap-3">
+            <button
+              onClick={handleCheckUpdate}
+              disabled={updateState.checking}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors text-sm font-medium disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${updateState.checking ? 'animate-spin' : ''}`} />
+              {updateState.checking ? 'Checking...' : 'Check for Updates'}
+            </button>
 
             {updateState.available && (
-              <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-accent/10 border border-accent/20">
-                <CheckCircle className="w-4 h-4 text-accent flex-shrink-0" />
-                <p className="text-xs text-accent font-medium">
-                  v{updateState.latestVersion} available
-                </p>
-              </div>
+              <a
+                href={updateState.downloadUrl || `https://github.com/${GITHUB_REPO}/releases/latest`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-accent text-white hover:bg-accent-hover transition-colors text-sm font-medium"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Download v{updateState.latestVersion}
+              </a>
             )}
-
-            {!updateState.checking && !updateState.available && !updateState.error && updateState.latestVersion !== null && (
-              <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <p className="text-xs text-green-600 dark:text-green-400">
-                  Up to date — v{APP_VERSION}
-                </p>
-              </div>
-            )}
-
-            {updateState.error && (
-              <div className="mt-3 flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-light-muted dark:text-dark-muted">{updateState.error}</p>
-              </div>
-            )}
-
-            <a
-              href={`https://github.com/${GITHUB_REPO}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center mt-4 text-accent hover:text-accent-hover transition-colors"
-              title="GitHub"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-            </a>
           </div>
+
+          {updateState.available && (
+            <div className="mt-4 flex items-center gap-2 p-4 rounded-xl bg-accent/10 border border-accent/20">
+              <CheckCircle className="w-4 h-4 text-accent flex-shrink-0" />
+              <p className="text-xs text-accent font-medium">
+                v{updateState.latestVersion} available
+              </p>
+            </div>
+          )}
+
+          {!updateState.checking && !updateState.available && !updateState.error && updateState.latestVersion !== null && (
+            <div className="mt-4 flex items-center gap-2 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <p className="text-xs text-green-600 dark:text-green-400">
+                Up to date — v{APP_VERSION}
+              </p>
+            </div>
+          )}
+
+          {updateState.error && (
+            <div className="mt-4 flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-light-muted dark:text-dark-muted">{updateState.error}</p>
+            </div>
+          )}
+
+          <a
+            href={`https://github.com/${GITHUB_REPO}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center mt-5 text-accent hover:text-accent-hover transition-colors"
+            title="GitHub"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          </a>
         </Section>
 
         {/* Sign Out */}
-        <Section title="" icon={null} className="!p-0">
+        <div className="bg-white dark:bg-dark-surface rounded-2xl border border-light-border/20 dark:border-dark-border/20">
           <button
             onClick={() => { logout(); navigate('/login') }}
-            className="w-full p-5 flex items-center gap-3 hover:bg-red-500/10 transition-colors cursor-pointer text-left group"
+            className="w-full p-6 flex items-center gap-3 hover:bg-red-500/10 transition-colors cursor-pointer text-left group rounded-2xl"
           >
             <LogOut className="w-5 h-5 text-red-500 group-hover:translate-x-0.5 transition-transform" />
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-red-500">Sign Out</h2>
-              <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+              <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
                 Sign out of your account
               </p>
             </div>
             <svg className="w-5 h-5 text-light-muted dark:text-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
-        </Section>
+        </div>
       </div>
     </div>
   )

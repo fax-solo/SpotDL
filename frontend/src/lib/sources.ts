@@ -324,13 +324,13 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
     const queries = [...new Set(SEARCH_QUERIES.map(fn => fn(expectedArtist || '', expectedTitle || query).trim()).filter(Boolean))]
 
     const sources: SourceModule[] = [
-      { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
-      { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
-      { name: 'jamendo', search: searchJamendo, info: jamendoInfo },
-      { name: 'deezer', search: searchDeezerSource, info: deezerSourceInfo },
-      { name: 'audius', search: searchAudius, info: audiusInfo },
-      { name: 'invidious', search: searchInvidious, info: invidiousInfo },
       { name: 'piped', search: searchPiped, info: pipedInfo },
+      { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
+      { name: 'deezer', search: searchDeezerSource, info: deezerSourceInfo },
+      { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
+      { name: 'invidious', search: searchInvidious, info: invidiousInfo },
+      { name: 'jamendo', search: searchJamendo, info: jamendoInfo },
+      { name: 'audius', search: searchAudius, info: audiusInfo },
       { name: 'fma', search: searchFma, info: fmaInfo },
     ]
 
@@ -392,7 +392,7 @@ export async function preResolveAudio(title: string, artist: string, knownUrl?: 
       ? await findAudioFromUrl(knownUrl)
       : await findAudio(`${artist} ${title}`, title, artist)
     _preResolveCache.set(key, result)
-    if (_preResolveCache.size > 100) _preResolveCache.clear()
+    if (_preResolveCache.size > 500) _preResolveCache.clear()
   } catch {}
 }
 
@@ -403,7 +403,7 @@ export function getPreResolvedAudio(title: string, artist: string): SourceResult
 export function stashPreResolvedAudio(title: string, artist: string, result: SourceResult) {
   const key = `${artist}:${title}`
   _preResolveCache.set(key, result)
-  if (_preResolveCache.size > 100) _preResolveCache.clear()
+  if (_preResolveCache.size > 500) _preResolveCache.clear()
 }
 
 export function clearPreResolvedAudio() {

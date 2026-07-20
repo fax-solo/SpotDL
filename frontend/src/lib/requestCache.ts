@@ -35,15 +35,14 @@ export async function cachedFetch<T>(
   const inflight = pendingDedup.get(key) as Promise<T> | undefined
   if (inflight) return inflight
 
-  const netPromise = fetcher()
-  pendingDedup.set(key, netPromise.finally(() => pendingDedup.delete(key)))
-
-  const [dbCached] = await Promise.all([getCachedMetadata<T>(key), netPromise])
+  const dbCached = await getCachedMetadata<T>(key)
   if (dbCached !== null) {
     memoryCache.set(key, { data: dbCached, ts: Date.now() })
-    netPromise.then(data => cacheMetadata(key, data).catch(() => {}))
     return dbCached
   }
+
+  const netPromise = fetcher()
+  pendingDedup.set(key, netPromise.finally(() => pendingDedup.delete(key)))
 
   const data = await netPromise
   memoryCache.set(key, { data, ts: Date.now() })

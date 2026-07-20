@@ -7,7 +7,6 @@ import { cachedFetch } from './requestCache'
 import { isNativeSpotDLAvailable, nativeFetchMetadata, nativeDownloadTrack } from './nativePlugin'
 import { ensureNotificationPermission } from './notifications'
 import { cacheMetadata, getCachedMetadata } from './dbCache'
-import { getDeezerArl, getDeezerQuality } from './deezer'
 import { getQualitySettings, VARIANT_FILENAME_SUFFIXES } from './qualitySettings'
 
 export type { TrackMeta, CollectionMeta }
@@ -245,44 +244,10 @@ export async function downloadTrack(
     }
   }
 
-  // Try Deezer download (highest quality — FLAC/320kbps via server)
-  const deezerArl = getDeezerArl()
-  if (deezerArl && await isServerAvailable(signal)) {
-    try {
-      onProgress?.('Searching Deezer...', 0)
-      const dzQuality = getDeezerQuality()
-      const arlPayload = btoa(deezerArl)
-      const deezerRes = await fetch(apiUrl('/api/download/deezer'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          _arl: arlPayload,
-          title: meta.title,
-          artist: meta.artist,
-          album: meta.album,
-          artwork_url: meta.artwork_url,
-          quality: dzQuality,
-          isrc: meta.isrc || undefined,
-          duration_ms: meta.duration_ms || undefined,
-        }),
-        ...(signal ? { signal } : {}),
-      })
-      if (deezerRes.ok) {
-        const blob = await deezerRes.blob()
-        validateBlob(blob, meta.duration_ms)
-        onProgress?.('Done', 100)
-        const dzExt = dzQuality === 'FLAC' ? '.flac' : ext
-        return { blob, filename: filename.replace(ext, dzExt), artworkEmbedded: true }
-      }
-      const deezerErr = await deezerRes.json().catch(() => ({ detail: deezerRes.statusText }))
-      console.warn(`[api] Deezer download returned ${deezerRes.status}:`, deezerErr.detail)
-    } catch (err) {
-      console.warn('[api] Deezer download failed, falling back to server:', err instanceof Error ? err.message : err)
-    }
-  }
+  // Try server download (fastest path)
+  const serverAvailable = isServerAvailable(signal)
 
-  // Try server download (fastest — native ffmpeg, async thread pool)
-  if (await isServerAvailable(signal)) {
+  if (await serverAvailable) {
     try {
       onProgress?.('Downloading from server...', 0)
       const res = await fetch(apiUrl('/api/download'), {

@@ -14,6 +14,7 @@ import { pickTopResult, type RankableItem } from '../lib/searchRanking'
 import { uuid } from '../lib/uuid'
 
 const SEARCH_TIMEOUT = 8000
+const MIN_SEARCH_CHARS = 3
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -170,12 +171,10 @@ export function SearchPage() {
 
   const handleSearch = useCallback(async (query: string) => {
     const trimmed = query.trim()
-    if (!trimmed) { setSearchResults(null); setPlayResults(null); return }
+    if (trimmed.length < MIN_SEARCH_CHARS) { setSearchResults(null); setPlayResults(null); return }
 
     setSearching(true)
     setSearchError(null)
-    // Keep old results visible while searching (optimistic UI), only clear play results
-    // setSearchResults(null) — don't clear, let old results stay until new ones arrive
     setPlayResults(null)
 
     const reqId = ++searchReqId.current
@@ -234,9 +233,10 @@ export function SearchPage() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (!searchQuery.trim()) { setSearchResults(null); setPlayResults(null); return }
-    // 500ms on native to reduce hammering on slow mobile keyboards
-    debounceRef.current = setTimeout(() => handleSearch(searchQuery), isNative ? 500 : 350)
+    const trimmed = searchQuery.trim()
+    if (trimmed.length < MIN_SEARCH_CHARS) { setSearchResults(null); setPlayResults(null); return }
+    // 150ms debounce for fast response, 300ms on native
+    debounceRef.current = setTimeout(() => handleSearch(searchQuery), isNative ? 300 : 150)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [searchQuery, handleSearch, isNative])
 

@@ -71,14 +71,14 @@ describe('searchYouTube', () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringContaining('pipedapi'), expect.anything())
   })
 
-  it('throws on total failure', async () => {
+  it('returns empty array on total failure (non-throwing)', async () => {
     vi.mocked(fetch)
       .mockRejectedValueOnce(new Error('Network error'))
       .mockRejectedValueOnce(new Error('Network error'))
       .mockRejectedValueOnce(new Error('Network error'))
       .mockRejectedValueOnce(new Error('Network error'))
 
-    await expect(searchYouTube('test')).rejects.toThrow()
+    await expect(searchYouTube('test')).resolves.toEqual([])
   })
 })
 

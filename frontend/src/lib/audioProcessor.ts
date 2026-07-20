@@ -48,24 +48,28 @@ async function fetchWithProgress(
     return new Uint8Array(buf)
   }
   const reader = response.body.getReader()
+  onDownloadProgress?.(total !== null ? 0 : null)
+  if (total !== null) {
+    const result = new Uint8Array(total)
+    let loaded = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      result.set(value, loaded)
+      loaded += value.length
+      onDownloadProgress?.(Math.min(loaded / total, 1))
+    }
+    return result
+  }
   const chunks: Uint8Array[] = []
   let loaded = 0
-  if (total !== null) {
-    onDownloadProgress?.(0)
-  } else {
-    onDownloadProgress?.(null)
-  }
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
     chunks.push(value)
     loaded += value.length
-    if (total !== null) {
-      onDownloadProgress?.(Math.min(loaded / total, 1))
-    }
   }
-  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0)
-  const result = new Uint8Array(totalLength)
+  const result = new Uint8Array(loaded)
   let offset = 0
   for (const chunk of chunks) {
     result.set(chunk, offset)
@@ -129,10 +133,21 @@ export async function convertAudio(
     }
   }
 
+  let coverPromise: Promise<Uint8Array | null> | null = null
+  if (coverUrl && quality.format === 'm4a') {
+    coverPromise = fetch(coverUrl, { signal: AbortSignal.timeout(10000) })
+      .then(r => r.ok ? r.arrayBuffer().then(b => new Uint8Array(b)) : null)
+      .catch(() => null)
+  }
+
   try {
-    const data = signal
-      ? await fetchWithProgress(audioUrl, onDownloadProgress, signal)
-      : await fetchWithProgress(audioUrl, onDownloadProgress)
+    const [data, coverData] = await Promise.all([
+      signal
+        ? fetchWithProgress(audioUrl, onDownloadProgress, signal)
+        : fetchWithProgress(audioUrl, onDownloadProgress),
+      coverPromise ?? Promise.resolve(null),
+    ])
+
     await instance.writeFile(inputName, data)
 
     const filterArgs = audioFilterArgs(quality.variant)
@@ -147,12 +162,11 @@ export async function convertAudio(
       ])
     } else {
       let hasCover = false
-      if (coverUrl) {
+      if (coverData) {
         try {
-          const coverData = new Uint8Array(await (await fetch(coverUrl)).arrayBuffer())
           await instance.writeFile(coverName, coverData)
           hasCover = true
-        } catch { console.warn('[audio] cover fetch failed') }
+        } catch {}
       }
 
       const args = ['-i', inputName]

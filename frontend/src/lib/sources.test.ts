@@ -137,7 +137,7 @@ describe('findAudio', () => {
     invalidateCache()
   })
 
-  it('returns result from youtube when it succeeds first', async () => {
+  it('returns result from piped (faster YouTube proxy) when it succeeds first', async () => {
     vi.mocked(searchYouTube).mockResolvedValue([
       { videoId: 'abc123', title: 'Test Song', url: 'https://youtube.com/watch?v=abc123' },
     ])
@@ -148,7 +148,7 @@ describe('findAudio', () => {
     const { findAudio } = await import('./sources')
 
     const result = await findAudio('Test Song Test Artist')
-    expect(result.source).toBe('youtube')
+    expect(result.source).toBe('piped')
     expect(result.info.audioUrl).toBe('https://audio.url')
   })
 
@@ -176,7 +176,7 @@ describe('findAudio', () => {
     const { findAudio } = await import('./sources')
 
     const result = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
-    expect(result.source).toBe('youtube')
+    expect(result.source).toBe('piped')
     expect(result.info.title).toBe('Expected Title')
   })
 
@@ -191,13 +191,13 @@ describe('findAudio', () => {
     const { findAudio } = await import('./sources')
 
     const r1 = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
-    expect(r1.source).toBe('youtube')
-    expect(searchYouTube).toHaveBeenCalledTimes(1)
+    expect(r1.source).toBe('piped')
+    expect(searchYouTube).toHaveBeenCalled()
 
     vi.mocked(searchYouTube).mockClear()
 
     const r2 = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
-    expect(r2.source).toBe('youtube')
+    expect(r2.source).toBe('piped')
     expect(r2.info.audioUrl).toBe('https://audio.url')
     expect(searchYouTube).not.toHaveBeenCalled()
   })
@@ -234,7 +234,7 @@ describe('findAudio', () => {
     const { findAudio } = await import('./sources')
 
     const result = await findAudio('Test Query', 'Test Song', 'Test Artist')
-    expect(result.source).toBe('youtube')
+    expect(result.source).toBe('piped')
     expect(result.isPreview).toBeUndefined()
     expect(result.info.audioUrl).toBe('https://audio.youtube/full')
   })
