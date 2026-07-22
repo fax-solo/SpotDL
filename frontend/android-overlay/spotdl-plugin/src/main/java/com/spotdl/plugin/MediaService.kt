@@ -148,7 +148,9 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 } catch (e: Exception) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
+                    return START_NOT_STICKY
                 }
+                return START_STICKY
             }
             ACTION_UPDATE -> {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: currentTitle ?: "Playing"
@@ -164,6 +166,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 updatePlaybackState(true)
                 val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(NOTIFICATION_ID, createNotification(title, artist))
+                return START_STICKY
             }
             ACTION_STOP -> {
                 isCurrentlyPlaying = false
@@ -174,6 +177,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 totalDuration = 0
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                return START_NOT_STICKY
             }
         }
 

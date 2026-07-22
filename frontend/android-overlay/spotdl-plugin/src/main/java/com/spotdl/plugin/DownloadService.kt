@@ -36,7 +36,9 @@ class DownloadService : Service() {
                 } catch (e: Exception) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
+                    return START_NOT_STICKY
                 }
+                return START_REDELIVER_INTENT
             }
             ACTION_UPDATE -> {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Downloading..."
@@ -45,10 +47,12 @@ class DownloadService : Service() {
                 val stage = intent.getStringExtra(EXTRA_STAGE)
                 val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(NOTIFICATION_ID, createProgressNotification(title, count, progress, stage))
+                return START_REDELIVER_INTENT
             }
             ACTION_STOP -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                return START_NOT_STICKY
             }
         }
 

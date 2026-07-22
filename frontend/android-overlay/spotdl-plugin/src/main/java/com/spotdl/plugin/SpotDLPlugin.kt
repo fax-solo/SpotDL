@@ -10,6 +10,7 @@ import android.Manifest
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.PowerManager
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
@@ -53,6 +54,10 @@ const val LOCAL_URL = "http://127.0.0.1:$LOCAL_PORT"
         Permission(
             alias = "scheduleExactAlarm",
             strings = [Manifest.permission.USE_EXACT_ALARM]
+        ),
+        Permission(
+            alias = "ignoreBatteryOptimizations",
+            strings = [Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS]
         ),
     ]
 )
@@ -159,6 +164,27 @@ class SpotDLPlugin : Plugin() {
             call.resolve()
         } catch (e: Exception) {
             call.reject("Failed to open app settings", e)
+        }
+    }
+
+    @PluginMethod
+    fun requestBatteryOptimizationExemption(call: PluginCall) {
+        try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                call.resolve(JSObject().apply { put("alreadyExempt", true) })
+                return
+            }
+            val intent = Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:${context.packageName}")
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            call.resolve(JSObject().apply { put("alreadyExempt", false) })
+        } catch (e: Exception) {
+            call.reject("Failed to request battery optimization exemption", e)
         }
     }
 

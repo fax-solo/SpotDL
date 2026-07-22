@@ -44,6 +44,7 @@ interface SpotDLPlugin {
   checkMediaAudioPermission(): Promise<{ granted: boolean }>
   requestMediaAudioPermission(): Promise<{ granted: boolean }>
   saveToMusicLibrary(options: { url: string; filename: string }): Promise<{ filePath: string }>
+  requestBatteryOptimizationExemption(): Promise<{ alreadyExempt: boolean }>
 }
 
 const SpotDL = registerPlugin<SpotDLPlugin>('SpotDL')
@@ -189,6 +190,17 @@ export async function openAppSettings(): Promise<void> {
     await SpotDL.openAppSettings()
   } catch (e) {
     console.warn('[native] Failed to open app settings:', e)
+  }
+}
+
+export async function requestBatteryOptimizationExemption(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false
+  try {
+    const result = await SpotDL.requestBatteryOptimizationExemption()
+    return result.alreadyExempt
+  } catch (e) {
+    console.warn('[native] Failed to request battery optimization exemption:', e)
+    return false
   }
 }
 
