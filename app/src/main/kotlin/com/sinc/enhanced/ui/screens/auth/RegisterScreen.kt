@@ -59,8 +59,9 @@ fun RegisterScreen(
         OutlinedTextField(
             value = serverUrl,
             onValueChange = { serverUrl = it },
-            label = { Text("Server URL") },
-            placeholder = { Text("https://your-server.com") },
+            label = { Text("Backend Server URL") },
+            placeholder = { Text("https://your-worker.workers.dev") },
+            supportingText = { Text("Same URL you use to login") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(

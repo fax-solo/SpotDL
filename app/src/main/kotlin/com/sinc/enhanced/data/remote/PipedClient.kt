@@ -35,19 +35,36 @@ class PipedClient(private val client: OkHttpClient) {
         val thumbnailUrl: String? = null
     )
 
+    private var lastWorkingInstance: String? = null
+
     private fun getInstance(): String {
-        return INSTANCES.first()
+        return lastWorkingInstance ?: INSTANCES.first()
+    }
+
+    private fun <T> tryInstances(block: (String) -> T?): T? {
+        val instances = if (lastWorkingInstance != null) {
+            listOf(lastWorkingInstance!!) + INSTANCES.filter { it != lastWorkingInstance }
+        } else INSTANCES
+        for (instance in instances) {
+            try {
+                val result = block(instance)
+                if (result != null) {
+                    lastWorkingInstance = instance
+                    return result
+                }
+            } catch (_: Exception) { }
+        }
+        return null
     }
 
     fun search(query: String, limit: Int = 5): List<PipedSearchResult> {
-        val instance = getInstance()
-        val url = "$instance/search?q=${URLEncoder.encode(query, "UTF-8")}&filter=music"
-        return try {
+        return tryInstances { instance ->
+            val url = "$instance/search?q=${URLEncoder.encode(query, "UTF-8")}&filter=music"
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
-            val json = JSONObject(response.body?.string() ?: return emptyList())
-            val items = json.optJSONArray("items") ?: return emptyList()
+            if (!response.isSuccessful) return@tryInstances null
+            val json = JSONObject(response.body?.string() ?: return@tryInstances null)
+            val items = json.optJSONArray("items") ?: return@tryInstances null
             (0 until minOf(items.length(), limit)).mapNotNull { i ->
                 val item = items.getJSONObject(i)
                 val duration = item.optLong("duration") ?: 0L
@@ -61,18 +78,17 @@ class PipedClient(private val client: OkHttpClient) {
                     uploaderUrl = item.optString("uploaderUrl")
                 )
             }
-        } catch (_: Exception) { emptyList() }
+        } ?: emptyList()
     }
 
     fun getStreams(videoId: String): PipedStream? {
-        val instance = getInstance()
-        val url = "$instance/streams/$videoId"
-        return try {
+        return tryInstances { instance ->
+            val url = "$instance/streams/$videoId"
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val json = JSONObject(response.body?.string() ?: return null)
-            val audioStreams = json.optJSONArray("audioStreams") ?: return null
+            if (!response.isSuccessful) return@tryInstances null
+            val json = JSONObject(response.body?.string() ?: return@tryInstances null)
+            val audioStreams = json.optJSONArray("audioStreams") ?: return@tryInstances null
             val bestAudio = if (audioStreams.length() > 0) {
                 (0 until audioStreams.length()).map { audioStreams.getJSONObject(it) }
                     .maxByOrNull { it.optInt("bitrate", 0) }
@@ -85,6 +101,6 @@ class PipedClient(private val client: OkHttpClient) {
                 duration = json.optLong("duration"),
                 thumbnailUrl = json.optString("thumbnailUrl")
             )
-        } catch (_: Exception) { null }
+        }
     }
 }

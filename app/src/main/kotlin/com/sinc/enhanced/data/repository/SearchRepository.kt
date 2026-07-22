@@ -36,7 +36,20 @@ class SearchRepository(
 
     suspend fun searchAll(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
         try {
-            val spotifyTracks = spotifyClient.searchTracks(query)
+            val spotifyDeferred = async { spotifyClient.searchTracks(query) }
+            val pipedDeferred = async { pipedClient.search(query, limit = 5) }
+            val additionalDeferred = listOf(
+                async { searchAudius(query) },
+                async { searchJamendo(query) },
+                async { searchFma(query) },
+                async { searchSoundCloud(query) },
+                async { searchBandcamp(query) }
+            )
+
+            val spotifyTracks = spotifyDeferred.await()
+            val pipedResults = pipedDeferred.await()
+            val additional = additionalDeferred.awaitAll().flatten()
+
             val spotifyEnriched = if (spotifyTracks.isNotEmpty()) {
                 spotifyTracks.map { track ->
                     async {
@@ -51,23 +64,39 @@ class SearchRepository(
                 }.awaitAll()
             } else emptyList()
 
-            val additionalDeferred = listOf(
-                async { searchAudius(query) },
-                async { searchJamendo(query) },
-                async { searchFma(query) },
-                async { searchSoundCloud(query) },
-                async { searchBandcamp(query) }
-            )
-            val additional = additionalDeferred.awaitAll().flatten()
+            val youtubeResults = pipedResults.mapNotNull { yt ->
+                try {
+                    val stream = pipedClient.getStreams(yt.videoId)
+                    if (stream != null) {
+                        val audioUrl = stream.audioTrackUrl ?: stream.url
+                        if (audioUrl.isEmpty()) return@mapNotNull null
+                        EnrichedTrack(
+                            track = Track(
+                                id = "yt_${yt.videoId}",
+                                title = yt.title,
+                                artist = yt.uploader,
+                                album = yt.uploader,
+                                durationMs = yt.duration * 1000,
+                                artworkUrl = yt.thumbnailUrl,
+                                source = "youtube"
+                            ),
+                            audioUrl = audioUrl,
+                            audioSource = "youtube",
+                            confidence = 0.9f
+                        )
+                    } else null
+                } catch (_: Exception) { null }
+            }
 
             val seenIds = mutableSetOf<String>()
-            (spotifyEnriched + additional).filter { enriched ->
+            val all = (spotifyEnriched + youtubeResults + additional)
+            all.filter { enriched ->
                 val key = enriched.track.id
                 if (key in seenIds) false else {
                     seenIds.add(key)
                     true
                 }
-            }.sortedByDescending { it.confidence }
+            }.sortedByDescending { it.confidence }.take(30)
         } catch (_: Exception) { emptyList() }
     }
 

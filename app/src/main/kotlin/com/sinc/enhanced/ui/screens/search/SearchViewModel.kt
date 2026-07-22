@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
+import com.sinc.enhanced.data.model.Album
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.SearchRepository
 import kotlinx.coroutines.Job
@@ -16,6 +17,9 @@ import kotlinx.coroutines.launch
 data class SearchUiState(
     val query: String = "",
     val results: List<SearchRepository.EnrichedTrack> = emptyList(),
+    val albums: List<Album> = emptyList(),
+    val selectedAlbum: Album? = null,
+    val albumTracks: List<Track> = emptyList(),
     val isSearching: Boolean = false,
     val error: String? = null
 )
@@ -50,12 +54,28 @@ class SearchViewModel(
         }
     }
 
+    fun selectAlbum(album: Album) {
+        viewModelScope.launch {
+            val albumWithTracks = searchRepository.getAlbum(album.id)
+            _uiState.value = _uiState.value.copy(
+                selectedAlbum = albumWithTracks ?: album,
+                albumTracks = albumWithTracks?.tracks ?: emptyList()
+            )
+        }
+    }
+
+    fun dismissAlbum() {
+        _uiState.value = _uiState.value.copy(selectedAlbum = null, albumTracks = emptyList())
+    }
+
     private suspend fun performSearch(query: String) {
         _uiState.value = _uiState.value.copy(isSearching = true, error = null)
         try {
             val results = searchRepository.searchAll(query)
+            val albums = searchRepository.searchAlbums(query)
             _uiState.value = _uiState.value.copy(
                 results = results,
+                albums = albums,
                 isSearching = false
             )
         } catch (e: Exception) {

@@ -27,10 +27,10 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
+    onLogout: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(LocalContext.current))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
     val authRepository = SincApp.instance.container.authRepository
     val authState by authRepository.authState.collectAsState(initial = com.sinc.enhanced.data.repository.AuthState())
 
@@ -49,7 +49,7 @@ fun SettingsScreen(
         Spacer(Modifier.height(24.dp))
 
         Text(
-            text = "Server",
+            text = "Account & Server",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -79,21 +79,26 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = authState.serverUrl.ifEmpty { "No server configured" },
+                    text = "Server: ${authState.serverUrl.ifEmpty { "None (offline mode)" }}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
                 if (authState.isLoggedIn) {
                     OutlinedButton(
-                        onClick = {
-                            scope.launch { authRepository.clearAuth() }
-                        },
+                        onClick = onLogout,
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Logout, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Logout")
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onLogout,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Login / Register")
                     }
                 }
             }

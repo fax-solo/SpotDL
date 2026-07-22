@@ -2,9 +2,9 @@ package com.sinc.enhanced.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -18,7 +18,7 @@ sealed class BottomNavItem(
     data object Search : BottomNavItem("search", "Search", Icons.Default.Search)
     data object Queue : BottomNavItem("queue", "Queue", Icons.Default.Download)
     data object Library : BottomNavItem("library", "Library", Icons.Default.LibraryMusic)
-    data object Stats : BottomNavItem("admin", "Stats", Icons.Default.Info)
+    data object Settings : BottomNavItem("settings", "Settings", Icons.Default.Settings)
 }
 
 @Composable
@@ -31,7 +31,7 @@ fun BottomNavBar(
         BottomNavItem.Search,
         BottomNavItem.Queue,
         BottomNavItem.Library,
-        BottomNavItem.Stats
+        BottomNavItem.Settings
     )
 
     NavigationBar(

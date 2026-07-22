@@ -49,8 +49,13 @@ fun LoginScreen(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Connect to your server",
-            style = MaterialTheme.typography.bodyLarge,
+            text = "Login to track stats & sync across devices",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "Optional — you can skip and use the app offline",
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -59,8 +64,9 @@ fun LoginScreen(
         OutlinedTextField(
             value = serverUrl,
             onValueChange = { serverUrl = it },
-            label = { Text("Server URL") },
-            placeholder = { Text("https://your-server.com") },
+            label = { Text("Backend Server URL") },
+            placeholder = { Text("https://your-worker.workers.dev") },
+            supportingText = { Text("Optional — needed only for account sync") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(
@@ -112,7 +118,7 @@ fun LoginScreen(
         Button(
             onClick = {
                 if (serverUrl.isBlank() || username.isBlank() || password.isBlank()) {
-                    error = "All fields required"
+                    error = "Enter server URL, username, and password — or tap \"Skip\" for offline"
                     return@Button
                 }
                 loading = true
