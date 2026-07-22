@@ -4,6 +4,8 @@
 - `frontend/` — React SPA (Vite + TypeScript + Tailwind)
 - `api/` — FastAPI backend (Python)
 - `frontend/functions/` — Cloudflare Pages Functions (TypeScript, auth + API routes)
+- `app/` — Standalone Android app (Sinc Enhanced, Kotlin + Jetpack Compose)
+- `backend-worker/` — Cloudflare Worker (TypeScript + Hono + D1) for auth/stats
 
 ## Key commands
 - `deploy` — Build and deploy frontend to Cloudflare Pages
@@ -52,3 +54,31 @@ Never commit the `.keystore` file or its passwords to the repo.
 - The `functions/` directory contains CF Pages Functions served at `/api/*`
 - After making changes, run `deploy` to build and push to Cloudflare Pages
 - The FastAPI backend (`api/`) handles downloads while auth/API routes use CF Functions
+
+## Cloudflare Worker (auth/stats backend)
+
+The `backend-worker/` handles auth + stats for the Android app. Deploy:
+
+```bash
+cd backend-worker
+npx wrangler d1 create sinc-enhanced-db           # one-time: creates the D1 DB
+# Update database_id in wrangler.toml with the ID from above
+npx wrangler d1 execute sinc-enhanced-db --file=seed.sql   # init schema
+npx wrangler secret put JWT_SECRET                          # set a random secret
+npx wrangler secret put ADMIN_USERNAME                      # set admin username
+npx wrangler secret put ADMIN_PASSWORD                      # set admin password
+npx wrangler deploy                                         # deploy
+```
+
+The Worker URL is `<worker-name>.<subdomain>.workers.dev`. Users enter this in the Android app's login screen.
+
+### API endpoints
+| Endpoint | Auth | What it does |
+|---|---|---|
+| `POST /api/auth/register` | Public | Create account |
+| `POST /api/auth/login` | Public | Login, returns JWT |
+| `GET /api/auth/me` | Bearer | Current user |
+| `POST /api/stats/ping` | Bearer | Track active user |
+| `POST /api/stats/download` | Bearer | Record download |
+| `GET /api/admin/stats` | Admin | Server-wide stats |
+| `GET /api/admin/users` | Admin | User list |

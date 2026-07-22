@@ -1,0 +1,12 @@
+name = "sinc-enhanced-backend"
+main = "src/index.ts"
+compatibility_date = "2024-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+JWT_SECRET = "change-this-to-a-random-secret"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sinc-enhanced-db"
+database_id = "5e79e143-2caf-48f3-8bc2-5fe6c8b77ac0"

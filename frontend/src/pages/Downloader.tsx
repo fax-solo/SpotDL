@@ -27,8 +27,8 @@ export function Downloader() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: `https://open.spotify.com/playlist/${listId}` }),
     })
-      .then(r => r.json())
-      .then(data => setPresetCollection(data))
+      .then(r => r.ok ? r.json() : null)
+      .then(data => data && setPresetCollection(data))
       .catch(() => {})
       .finally(() => setFetchingPlaylist(false))
   }, [listId])
@@ -43,8 +43,10 @@ export function Downloader() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: `https://open.spotify.com/playlist/${listId}` }),
         })
-        const data = await res.json()
-        setPresetCollection(data)
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.tracks) setPresetCollection(data)
+        }
       } catch {}
       setFetchingPlaylist(false)
     }

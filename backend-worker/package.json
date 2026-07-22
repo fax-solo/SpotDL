@@ -1,0 +1,19 @@
+{
+  "name": "sinc-enhanced-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute sinc-enhanced-db --file=seed.sql",
+    "db:init:remote": "wrangler d1 execute sinc-enhanced-db --remote --file=seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "jose": "^5.8.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240620.0",
+    "wrangler": "^3.65.0"
+  }
+}

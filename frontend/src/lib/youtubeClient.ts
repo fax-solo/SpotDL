@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core'
 import { apiUrl } from './apiConfig'
 
 const FUNCTIONS_BASE = () => apiUrl('/api/youtube')
@@ -17,10 +16,6 @@ export interface YouTubeInfo {
   duration: string
   audioUrl: string | null
   thumbnail: string | null
-}
-
-function isNative() {
-  return Capacitor.isNativePlatform()
 }
 
 /** Route an audio URL through the Cloudflare proxy to avoid browser CORS restrictions */
@@ -102,10 +97,8 @@ async function pipedInfo(videoId: string): Promise<YouTubeInfo | null> {
 }
 
 export async function searchYouTube(query: string): Promise<YouTubeSearchResult[]> {
-  if (!isNative()) {
-    const piped = await pipedSearch(query)
-    if (piped) return piped
-  }
+  const piped = await pipedSearch(query)
+  if (piped) return piped
 
   try {
     const res = await fetch(FUNCTIONS_BASE(), {

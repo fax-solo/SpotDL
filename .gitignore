@@ -10,3 +10,16 @@ api/data/
 .DS_Store
 cookies.txt
 test-*.js
+
+# App secrets
+app/gradle.properties
+
+# Android build artifacts
+app/build/
+app/.gradle/
+app/.kotlin/
+app/local.properties
+
+# Backend worker
+backend-worker/node_modules/
+backend-worker/.wrangler/

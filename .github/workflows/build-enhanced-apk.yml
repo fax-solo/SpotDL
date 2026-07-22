@@ -1,0 +1,180 @@
+name: Build Sinc Enhanced APK
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/build-enhanced-apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required SDK components
+        run: |
+          yes | sdkmanager "platforms;android-36" "build-tools;36.0.0" 2>&1 | tail -5
+          echo "SDK components installed"
+
+      - name: Read current version
+        id: version
+        run: |
+          VERSION=$(tr -d ' \n' < app/VERSION 2>/dev/null || echo "1.0.0")
+          echo "current=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current version: $VERSION"
+
+      - name: Bump version
+        id: bump
+        run: |
+          VERSION="${{ steps.version.outputs.current }}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          if echo "$COMMIT_MSG" | grep -qi "BREAKING CHANGE"; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif echo "$COMMIT_MSG" | grep -qi "^feat"; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Bumped: $VERSION → $NEW_VERSION"
+
+      - name: Write updated VERSION file
+        run: echo "${{ steps.bump.outputs.new }}" > app/VERSION
+
+      - name: Inject version into build.gradle.kts
+        run: |
+          VERSION="${{ steps.bump.outputs.new }}"
+          VERSION_CODE=$(echo "$VERSION" | awk -F. '{ print ($1 * 1000000) + ($2 * 1000) + $3 }')
+          sed -i "s/versionCode = [0-9]*/versionCode = $VERSION_CODE/" app/build.gradle.kts
+          sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+          echo "build.gradle.kts: versionCode=$VERSION_CODE versionName=$VERSION"
+
+      - name: Ensure gradlew is executable
+        run: chmod +x app/gradlew
+
+      - name: Check if keystore secrets are available
+        id: check_secrets
+        run: |
+          if [ -n "${{ secrets.ENHANCED_RELEASE_KEYSTORE_B64 }}" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decode and prepare release keystore
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          INPUT="${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}"
+          KEYPASS="${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}"
+          ALIAS="${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}"
+          echo "${{ secrets.ENHANCED_RELEASE_KEYSTORE_B64 }}" | base64 -d > app/release.p12
+          keytool -importkeystore \
+            -srckeystore app/release.p12 \
+            -srcstoretype PKCS12 \
+            -srcstorepass "$INPUT" \
+            -srcalias "$ALIAS" \
+            -srckeypass "${KEYPASS:-$INPUT}" \
+            -destkeystore app/release.keystore \
+            -deststoretype JKS \
+            -deststorepass "$INPUT" \
+            -destalias "$ALIAS" \
+            -destkeypass "${KEYPASS:-$INPUT}" 2>&1
+          rm -f app/release.p12
+          echo "Keystore decoded and converted to JKS"
+
+      - name: Build signed release APK
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          export ENHANCED_RELEASE_KEYSTORE_PATH="${{ github.workspace }}/app/release.keystore"
+          export ENHANCED_RELEASE_KEYSTORE_PASSWORD="${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}"
+          export ENHANCED_RELEASE_KEY_ALIAS="${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}"
+          export ENHANCED_RELEASE_KEY_PASSWORD="${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}"
+          ./gradlew assembleRelease
+        working-directory: app
+
+      - name: Build debug APK (unsigned, no keystore)
+        if: steps.check_secrets.outputs.has_secrets != 'true'
+        run: ./gradlew assembleDebug
+        working-directory: app
+
+      - name: Clean up keystore from runner
+        if: always()
+        run: rm -f app/release.keystore app/release.p12
+
+      - name: Rename APK
+        run: |
+          VERSION="${{ steps.bump.outputs.new }}"
+          if [ -f app/build/outputs/apk/release/SincEnhanced-release.apk ]; then
+            cp app/build/outputs/apk/release/SincEnhanced-release.apk "app/build/outputs/apk/release/Sinc-Enhanced-${VERSION}.apk"
+          elif [ -f app/build/outputs/apk/debug/SincEnhanced-debug.apk ]; then
+            mkdir -p app/build/outputs/apk/release
+            cp app/build/outputs/apk/debug/SincEnhanced-debug.apk "app/build/outputs/apk/release/Sinc-Enhanced-${VERSION}.apk"
+          fi
+          echo "APK ready: Sinc-Enhanced-${VERSION}.apk"
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sinc-Enhanced-${{ steps.bump.outputs.new }}
+          path: app/build/outputs/apk/release/Sinc-Enhanced-${{ steps.bump.outputs.new }}.apk
+
+      - name: Commit version bump
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add app/VERSION app/build.gradle.kts
+          git commit -m "chore: bump enhanced version to ${{ steps.bump.outputs.new }} [skip ci]"
+          git tag "enhanced-v${{ steps.bump.outputs.new }}"
+          git push origin HEAD:main --tags
+
+      - name: Generate release notes
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        id: release_notes
+        run: |
+          cat > /tmp/release-notes-enhanced.md << 'ENDMARKER'
+          ## Sinc Enhanced v${{ steps.bump.outputs.new }}
+
+          ### Changes
+          ${{ github.event.head_commit.message }}
+
+          ### Download
+          - [Sinc-Enhanced-${{ steps.bump.outputs.new }}.apk](Sinc-Enhanced-${{ steps.bump.outputs.new }}.apk)
+          ENDMARKER
+
+      - name: Create GitHub Release
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          for i in 1 2 3 4 5; do
+            gh release create "enhanced-v${{ steps.bump.outputs.new }}" \
+              "app/build/outputs/apk/release/Sinc-Enhanced-${{ steps.bump.outputs.new }}.apk" \
+              --title "Sinc Enhanced v${{ steps.bump.outputs.new }}" \
+              --notes-file /tmp/release-notes-enhanced.md && exit 0
+            echo "Attempt $i failed, retrying in $((i * 5))s..."
+            sleep $((i * 5))
+          done
+          exit 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -142,7 +142,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 except Exception:
                     return JSONResponse(status_code=403, content={"detail": "Invalid Referer header"})
             else:
-                return JSONResponse(status_code=403, content={"detail": "CSRF: Missing origin or referer"})
+                # No Origin or Referer — this is a native app or non-browser client.
+                # CSRF is not applicable since browser-based cross-origin requests
+                # always include an Origin header.
+                return await call_next(request)
 
             if request_origin:
                 allowed = [o.lower() for o in _cors_origins]
