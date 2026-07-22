@@ -28,6 +28,26 @@ The following frontend env vars are inlined at build time (set in `.env` or CI):
 - `cloudflare-observability` — Cloudflare logs
 - `cloudflare-builds` — Cloudflare Workers Builds
 
+## Release APK signing
+
+### One-time keystore setup (manual)
+```bash
+keytool -genkey -v -keystore release.keystore -alias spotdl \
+  -keyalg RSA -keysize 2048 -validity 10000 -storetype JKS
+```
+Save the keystore file, its password, key alias, and key password in a password manager. Then base64-encode and add as GitHub secrets:
+
+| Secret | Value |
+|---|---|
+| `RELEASE_KEYSTORE_B64` | `base64 -w0 release.keystore` output |
+| `RELEASE_KEYSTORE_PASSWORD` | keystore password |
+| `RELEASE_KEY_ALIAS` | `spotdl` |
+| `RELEASE_KEY_PASSWORD` | key password (same as keystore password unless you specified `-keypass`) |
+
+**Important:** Use `-storetype JKS` when creating the keystore. If you already created a PKCS12 keystore (default in Java 9+), the CI will attempt an automatic conversion, but JKS is preferred for Android tooling compatibility. If the CI build fails with "Tag number over 30", re-create with `-storetype JKS`.
+
+Never commit the `.keystore` file or its passwords to the repo.
+
 ## Important notes
 - The `functions/` directory contains CF Pages Functions served at `/api/*`
 - After making changes, run `deploy` to build and push to Cloudflare Pages
