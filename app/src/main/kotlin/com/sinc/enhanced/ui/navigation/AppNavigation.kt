@@ -15,6 +15,7 @@ import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.BottomNavBar
 import com.sinc.enhanced.ui.components.PlayerMiniBar
+import com.sinc.enhanced.ui.screens.admin.AdminScreen
 import com.sinc.enhanced.ui.screens.auth.LoginScreen
 import com.sinc.enhanced.ui.screens.auth.RegisterScreen
 import com.sinc.enhanced.ui.screens.history.HistoryScreen
@@ -184,8 +185,12 @@ fun AppNavigation() {
                                     popUpTo(0) { inclusive = true }
                                 }
                             }
-                        }
+                        },
+                        onNavigateAdmin = { navController.navigate(Routes.ADMIN) }
                     )
+                }
+                composable(Routes.ADMIN) {
+                    AdminScreen()
                 }
             }
         }

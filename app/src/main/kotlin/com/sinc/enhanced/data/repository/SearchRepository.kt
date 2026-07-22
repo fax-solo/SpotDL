@@ -35,69 +35,85 @@ class SearchRepository(
     )
 
     suspend fun searchAll(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
-        try {
-            val spotifyDeferred = async { spotifyClient.searchTracks(query) }
-            val pipedDeferred = async { pipedClient.search(query, limit = 5) }
-            val additionalDeferred = listOf(
+        val spotifyTracks = try { spotifyClient.searchTracks(query) } catch (_: Exception) { emptyList() }
+        val pipedResults = try { pipedClient.search(query, limit = 5) } catch (_: Exception) { emptyList() }
+        val deezerResults = try {
+            deezerClient.searchTracks(query).map { d ->
+                EnrichedTrack(
+                    track = Track(
+                        id = "dz_${d.id}",
+                        title = d.title,
+                        artist = d.artist,
+                        album = d.album,
+                        durationMs = d.duration * 1000L,
+                        artworkUrl = d.artworkUrl,
+                        isrc = d.isrc,
+                        previewUrl = d.previewUrl,
+                        source = "deezer"
+                    ),
+                    audioUrl = d.previewUrl,
+                    audioSource = "deezer",
+                    confidence = 0.7f
+                )
+            }
+        } catch (_: Exception) { emptyList() }
+        val additional = try {
+            listOf(
                 async { searchAudius(query) },
                 async { searchJamendo(query) },
                 async { searchFma(query) },
                 async { searchSoundCloud(query) },
                 async { searchBandcamp(query) }
-            )
+            ).awaitAll().flatten()
+        } catch (_: Exception) { emptyList() }
 
-            val spotifyTracks = spotifyDeferred.await()
-            val pipedResults = pipedDeferred.await()
-            val additional = additionalDeferred.awaitAll().flatten()
-
-            val spotifyEnriched = if (spotifyTracks.isNotEmpty()) {
-                spotifyTracks.map { track ->
-                    async {
-                        val bestAudio = findBestAudioForTrack(track)
-                        EnrichedTrack(
-                            track = track,
-                            audioUrl = bestAudio?.first,
-                            audioSource = bestAudio?.second,
-                            confidence = if (bestAudio != null) 1.0f else 0.5f
-                        )
-                    }
-                }.awaitAll()
-            } else emptyList()
-
-            val youtubeResults = pipedResults.mapNotNull { yt ->
+        val spotifyEnriched = if (spotifyTracks.isNotEmpty()) {
+            spotifyTracks.mapNotNull { track ->
                 try {
-                    val stream = pipedClient.getStreams(yt.videoId)
-                    if (stream != null) {
-                        val audioUrl = stream.audioTrackUrl ?: stream.url
-                        if (audioUrl.isEmpty()) return@mapNotNull null
-                        EnrichedTrack(
-                            track = Track(
-                                id = "yt_${yt.videoId}",
-                                title = yt.title,
-                                artist = yt.uploader,
-                                album = yt.uploader,
-                                durationMs = yt.duration * 1000,
-                                artworkUrl = yt.thumbnailUrl,
-                                source = "youtube"
-                            ),
-                            audioUrl = audioUrl,
-                            audioSource = "youtube",
-                            confidence = 0.9f
-                        )
-                    } else null
+                    val bestAudio = findBestAudioForTrack(track)
+                    EnrichedTrack(
+                        track = track,
+                        audioUrl = bestAudio?.first,
+                        audioSource = bestAudio?.second,
+                        confidence = if (bestAudio != null) 1.0f else 0.5f
+                    )
                 } catch (_: Exception) { null }
             }
+        } else emptyList()
 
-            val seenIds = mutableSetOf<String>()
-            val all = (spotifyEnriched + youtubeResults + additional)
-            all.filter { enriched ->
-                val key = enriched.track.id
-                if (key in seenIds) false else {
-                    seenIds.add(key)
-                    true
-                }
-            }.sortedByDescending { it.confidence }.take(30)
-        } catch (_: Exception) { emptyList() }
+        val youtubeResults = pipedResults.mapNotNull { yt ->
+            try {
+                val stream = pipedClient.getStreams(yt.videoId)
+                if (stream != null) {
+                    val audioUrl = stream.audioTrackUrl ?: stream.url
+                    if (audioUrl.isEmpty()) return@mapNotNull null
+                    EnrichedTrack(
+                        track = Track(
+                            id = "yt_${yt.videoId}",
+                            title = yt.title,
+                            artist = yt.uploader,
+                            album = yt.uploader,
+                            durationMs = yt.duration * 1000,
+                            artworkUrl = yt.thumbnailUrl,
+                            source = "youtube"
+                        ),
+                        audioUrl = audioUrl,
+                        audioSource = "youtube",
+                        confidence = 0.9f
+                    )
+                } else null
+            } catch (_: Exception) { null }
+        }
+
+        val seenIds = mutableSetOf<String>()
+        val all = spotifyEnriched + deezerResults + youtubeResults + additional
+        all.filter { enriched ->
+            val key = enriched.track.id
+            if (key in seenIds) false else {
+                seenIds.add(key)
+                true
+            }
+        }.sortedByDescending { it.confidence }.take(30)
     }
 
     suspend fun searchYouTubeOnly(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
@@ -277,11 +293,11 @@ class SearchRepository(
         return null
     }
 
-    fun searchAlbums(query: String): List<Album> {
-        return spotifyClient.searchAlbums(query)
+    suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
+        spotifyClient.searchAlbums(query)
     }
 
-    fun getAlbum(albumId: String): Album? {
-        return spotifyClient.getAlbum(albumId)
+    suspend fun getAlbum(albumId: String): Album? = withContext(Dispatchers.IO) {
+        spotifyClient.getAlbum(albumId)
     }
 }

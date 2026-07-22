@@ -11,12 +11,12 @@ import org.json.JSONObject
 
 class SpotifyClient(private val client: OkHttpClient) {
 
-    private var accessToken: String? = null
-    private var tokenExpiresAt: Long = 0
+    @Volatile private var accessToken: String? = null
+    @Volatile private var tokenExpiresAt: Long = 0
 
     private fun getToken(): String {
-        if (accessToken != null && System.currentTimeMillis() < tokenExpiresAt) {
-            return accessToken!!
+        accessToken?.let { token ->
+            if (System.currentTimeMillis() < tokenExpiresAt) return token
         }
         val body = FormBody.Builder()
             .add("grant_type", "client_credentials")
@@ -30,9 +30,10 @@ class SpotifyClient(private val client: OkHttpClient) {
         return try {
             val response = client.newCall(request).execute()
             val json = JSONObject(response.body?.string() ?: "{}")
-            accessToken = json.getString("access_token")
+            val token = json.getString("access_token")
+            accessToken = token
             tokenExpiresAt = System.currentTimeMillis() + (json.optLong("expires_in", 3600) * 1000) - 60000
-            accessToken!!
+            token
         } catch (_: Exception) {
             ""
         }

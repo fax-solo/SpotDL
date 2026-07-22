@@ -28,11 +28,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     onLogout: () -> Unit = {},
+    onNavigateAdmin: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(LocalContext.current))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val authRepository = SincApp.instance.container.authRepository
-    val authState by authRepository.authState.collectAsState(initial = com.sinc.enhanced.data.repository.AuthState())
+    val authState by authRepository.authState.collectAsStateWithLifecycle(initialValue = com.sinc.enhanced.data.repository.AuthState())
 
     Column(
         modifier = Modifier
@@ -84,21 +85,33 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                if (authState.isLoggedIn) {
-                    OutlinedButton(
-                        onClick = onLogout,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Logout")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (authState.isAdmin) {
+                        OutlinedButton(
+                            onClick = onNavigateAdmin,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Dashboard")
+                        }
                     }
-                } else {
-                    OutlinedButton(
-                        onClick = onLogout,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Login / Register")
+                    if (authState.isLoggedIn) {
+                        OutlinedButton(
+                            onClick = onLogout,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Logout")
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onLogout,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Login / Register")
+                        }
                     }
                 }
             }

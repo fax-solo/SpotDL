@@ -15,6 +15,7 @@ class MediaPlaybackService : MediaSessionService() {
         val session = (application as SincApp).mediaSession
         val player = session?.player
         if (player == null || (!player.playWhenReady || player.mediaItemCount == 0)) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }

@@ -35,7 +35,7 @@ class PipedClient(private val client: OkHttpClient) {
         val thumbnailUrl: String? = null
     )
 
-    private var lastWorkingInstance: String? = null
+    @Volatile private var lastWorkingInstance: String? = null
 
     private fun getInstance(): String {
         return lastWorkingInstance ?: INSTANCES.first()
@@ -43,7 +43,7 @@ class PipedClient(private val client: OkHttpClient) {
 
     private fun <T> tryInstances(block: (String) -> T?): T? {
         val instances = if (lastWorkingInstance != null) {
-            listOf(lastWorkingInstance!!) + INSTANCES.filter { it != lastWorkingInstance }
+            listOfNotNull(lastWorkingInstance) + INSTANCES.filter { it != lastWorkingInstance }
         } else INSTANCES
         for (instance in instances) {
             try {

@@ -26,7 +26,7 @@ import org.json.JSONObject
 fun AdminScreen() {
     val scope = rememberCoroutineScope()
     val authRepository = SincApp.instance.container.authRepository
-    val authState by authRepository.authState.collectAsState(initial = com.sinc.enhanced.data.repository.AuthState())
+    val authState by authRepository.authState.collectAsStateWithLifecycle(initialValue = com.sinc.enhanced.data.repository.AuthState())
     val apiClient = SincApp.instance.container.apiClient
 
     var serverStats by remember { mutableStateOf<JSONObject?>(null) }

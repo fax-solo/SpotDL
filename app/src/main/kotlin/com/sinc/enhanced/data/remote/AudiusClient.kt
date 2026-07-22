@@ -17,8 +17,8 @@ class AudiusClient(private val client: OkHttpClient) {
         val genre: String? = null
     )
 
-    private var cachedNode: String? = null
-    private var lastNodeCheck: Long = 0
+    @Volatile private var cachedNode: String? = null
+    @Volatile private var lastNodeCheck: Long = 0
 
     private fun getNode(): String {
         cachedNode?.let {

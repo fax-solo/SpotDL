@@ -12,8 +12,8 @@ class SoundCloudClient {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private var resolvedClientId: String? = null
-    private var lastResolved: Long = 0
+    @Volatile private var resolvedClientId: String? = null
+    @Volatile private var lastResolved: Long = 0
 
     data class SoundCloudResult(
         val title: String,

@@ -2,6 +2,7 @@ package com.sinc.enhanced.service
 
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import com.sinc.enhanced.SincApp
 import kotlinx.coroutines.*
@@ -14,8 +15,8 @@ class DownloadService : Service() {
         const val EXTRA_TRACK_ID = "track_id"
     }
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var isProcessing = false
+    private val scope = CoroutineScope(SupervisorJob())
+    @Volatile private var isProcessing = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -23,10 +24,15 @@ class DownloadService : Service() {
         when (intent?.action) {
             ACTION_DOWNLOAD -> {
                 val trackId = intent.getStringExtra(EXTRA_TRACK_ID) ?: return START_NOT_STICKY
-                startForeground(
-                    NotificationHelper.DOWNLOAD_NOTIFICATION_ID,
-                    NotificationHelper.buildDownloadNotification(this, "Starting...", 0f)
-                )
+                try {
+                    startForeground(
+                        NotificationHelper.DOWNLOAD_NOTIFICATION_ID,
+                        NotificationHelper.buildDownloadNotification(this, "Starting...", 0f)
+                    )
+                } catch (_: SecurityException) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 processQueue(trackId)
             }
         }
@@ -37,13 +43,13 @@ class DownloadService : Service() {
         if (isProcessing) return
         isProcessing = true
 
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             try {
                 val app = application as SincApp
                 val repo = app.container.downloadRepository
                 val download = repo.allDownloads.first().find { it.trackId == initialTrackId }
                 if (download == null) {
-                    stopSelf()
+                    withContext(Dispatchers.Main) { stopSelf() }
                     return@launch
                 }
 
@@ -56,12 +62,14 @@ class DownloadService : Service() {
                 manager.notify(NotificationHelper.DOWNLOAD_NOTIFICATION_ID, notification)
 
                 val success = repo.downloadFile(initialTrackId) { progress ->
-                    val notif = NotificationHelper.buildDownloadNotification(
-                        this@DownloadService,
-                        "${download.artist} - ${download.title}",
-                        progress
-                    )
-                    manager.notify(NotificationHelper.DOWNLOAD_NOTIFICATION_ID, notif)
+                    if (isActive) {
+                        val notif = NotificationHelper.buildDownloadNotification(
+                            this@DownloadService,
+                            "${download.artist} - ${download.title}",
+                            progress
+                        )
+                        manager.notify(NotificationHelper.DOWNLOAD_NOTIFICATION_ID, notif)
+                    }
                 }
 
                 if (success) {
@@ -89,8 +97,10 @@ class DownloadService : Service() {
                 manager.notify(NotificationHelper.DOWNLOAD_NOTIFICATION_ID, notif)
             } finally {
                 isProcessing = false
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                withContext(Dispatchers.Main) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
             }
         }
     }

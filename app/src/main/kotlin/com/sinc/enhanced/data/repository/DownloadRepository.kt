@@ -67,71 +67,72 @@ class DownloadRepository(
             val request = Request.Builder().url(url).build()
             val response = okHttpClient.newCall(request).execute()
 
-            if (!response.isSuccessful) {
-                downloadDao.markError(trackId, "HTTP ${response.code}")
-                return@withContext false
-            }
+            response.use { resp ->
+                if (!resp.isSuccessful) {
+                    downloadDao.markError(trackId, "HTTP ${resp.code}")
+                    return@withContext false
+                }
 
-            val body = response.body ?: run {
-                downloadDao.markError(trackId, "Empty response body")
-                return@withContext false
-            }
+                val body = resp.body ?: run {
+                    downloadDao.markError(trackId, "Empty response body")
+                    return@withContext false
+                }
 
-            val contentLength = body.contentLength()
-            val inputStream = body.byteStream()
+                val contentLength = body.contentLength()
 
-            val fileName = "${sanitizeFileName(download.artist)} - ${sanitizeFileName(download.title)}.mp3"
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-            val appDir = File(downloadsDir, "Sinc Enhanced")
-            if (!appDir.exists()) appDir.mkdirs()
+                body.byteStream().use { inputStream ->
+                    val fileName = "${sanitizeFileName(download.artist)} - ${sanitizeFileName(download.title)}.mp3"
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+                    val appDir = File(downloadsDir, "Sinc Enhanced")
+                    if (!appDir.exists()) appDir.mkdirs()
 
-            val outputFile = File(appDir, fileName)
-            var bytesRead: Long = 0
-            val buffer = ByteArray(8192)
-            var read: Int
+                    val outputFile = File(appDir, fileName)
+                    var bytesRead: Long = 0
+                    val buffer = ByteArray(8192)
+                    var read: Int
 
-            FileOutputStream(outputFile).use { output ->
-                while (inputStream.read(buffer).also { read = it } != -1) {
-                    output.write(buffer, 0, read)
-                    bytesRead += read
-                    if (contentLength > 0) {
-                        val progress = bytesRead.toFloat() / contentLength.toFloat()
-                        onProgress(progress)
+                    FileOutputStream(outputFile).use { output ->
+                        while (inputStream.read(buffer).also { read = it } != -1) {
+                            output.write(buffer, 0, read)
+                            bytesRead += read
+                            if (contentLength > 0) {
+                                val progress = bytesRead.toFloat() / contentLength.toFloat()
+                                onProgress(progress)
+                            }
+                        }
                     }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        val values = ContentValues().apply {
+                            put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+                            put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg")
+                            put(MediaStore.Audio.Media.ARTIST, download.artist)
+                            put(MediaStore.Audio.Media.TITLE, download.title)
+                            put(MediaStore.Audio.Media.ALBUM, download.album)
+                            put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/Sinc Enhanced")
+                            put(MediaStore.Audio.Media.IS_MUSIC, true)
+                        }
+                        context.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+                    } else {
+                        MediaScannerConnection.scanFile(context, arrayOf(outputFile.absolutePath), null, null)
+                    }
+
+                    downloadDao.markComplete(trackId, outputFile.absolutePath, bytesRead)
+
+                    historyDao.insert(
+                        HistoryEntity(
+                            trackId = download.trackId,
+                            title = download.title,
+                            artist = download.artist,
+                            album = download.album,
+                            artworkUrl = download.artworkUrl,
+                            durationMs = download.durationMs,
+                            source = download.source,
+                            filePath = outputFile.absolutePath
+                        )
+                    )
                 }
             }
-
-            inputStream.close()
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
-                    put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg")
-                    put(MediaStore.Audio.Media.ARTIST, download.artist)
-                    put(MediaStore.Audio.Media.TITLE, download.title)
-                    put(MediaStore.Audio.Media.ALBUM, download.album)
-                    put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/Sinc Enhanced")
-                    put(MediaStore.Audio.Media.IS_MUSIC, true)
-                }
-                context.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
-            } else {
-                MediaScannerConnection.scanFile(context, arrayOf(outputFile.absolutePath), null, null)
-            }
-
-            downloadDao.markComplete(trackId, outputFile.absolutePath, bytesRead)
-
-            historyDao.insert(
-                HistoryEntity(
-                    trackId = download.trackId,
-                    title = download.title,
-                    artist = download.artist,
-                    album = download.album,
-                    artworkUrl = download.artworkUrl,
-                    durationMs = download.durationMs,
-                    source = download.source,
-                    filePath = outputFile.absolutePath
-                )
-            )
 
             return@withContext true
         } catch (e: Exception) {
