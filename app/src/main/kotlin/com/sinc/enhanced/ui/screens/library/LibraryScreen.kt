@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,82 +17,154 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sinc.enhanced.data.local.entity.DownloadEntity
+import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.MusicRepository
 import com.sinc.enhanced.ui.components.TrackItem
+import com.sinc.enhanced.ui.permission.AudioPermissionState
+import com.sinc.enhanced.ui.permission.PermissionRequestEffect
+import com.sinc.enhanced.ui.permission.PermissionRequiredContent
+import com.sinc.enhanced.ui.screens.playlist.AddToPlaylistSheet
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     onPlayLocal: (MusicRepository.LocalTrack) -> Unit,
+    onPlayDownloaded: (DownloadEntity) -> Unit,
+    onNavigatePlaylists: () -> Unit,
+    onNavigateImportPlaylist: () -> Unit,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory())
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var permissionState by remember { mutableStateOf<AudioPermissionState>(AudioPermissionState.NotAsked) }
+
+    PermissionRequestEffect(
+        permissionState = permissionState,
+        onPermissionResult = { newState ->
+            permissionState = newState
+            viewModel.setPermissionState(newState)
+            if (newState is AudioPermissionState.Granted) {
+                viewModel.loadLocalMusic()
+            }
+        }
+    )
+
+    var addToPlaylistTrack by remember { mutableStateOf<Pair<Track, String?>?>(null) }
+
+    addToPlaylistTrack?.let { (track, filePath) ->
+        AddToPlaylistSheet(
+            track = track,
+            filePath = filePath,
+            onDismiss = { addToPlaylistTrack = null },
+            onPlaylistCreated = { addToPlaylistTrack = null }
+        )
+    }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Local Music",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                if (uiState.totalCount > 0) {
+        TopAppBar(
+            title = { Text("Library") },
+            actions = {
+                IconButton(onClick = onNavigateImportPlaylist) {
+                    Icon(Icons.Default.FileDownload, "Import Playlist")
+                }
+                IconButton(onClick = onNavigatePlaylists) {
+                    Icon(Icons.Default.QueueMusic, "Playlists")
+                }
+            }
+        )
+
+        TabRow(selectedTabIndex = uiState.selectedTab) {
+            Tab(
+                selected = uiState.selectedTab == 0,
+                onClick = { viewModel.selectTab(0) },
+                text = { Text("Local") },
+                icon = { Icon(Icons.Default.LibraryMusic, null) }
+            )
+            Tab(
+                selected = uiState.selectedTab == 1,
+                onClick = { viewModel.selectTab(1) },
+                text = { Text("Downloaded") },
+                icon = { Icon(Icons.Default.FileDownload, null) }
+            )
+        }
+
+        when (uiState.selectedTab) {
+            0 -> LocalTab(
+                permissionState = permissionState,
+                uiState = uiState,
+                onRequestPermission = { permissionState = AudioPermissionState.NotAsked },
+                onRefresh = { viewModel.loadLocalMusic() },
+                onPlayLocal = onPlayLocal,
+                onAddToPlaylist = { track, filePath -> addToPlaylistTrack = track to filePath }
+            )
+            1 -> DownloadedTab(
+                downloadedTracks = uiState.downloadedTracks,
+                onPlay = onPlayDownloaded,
+                onAddToPlaylist = { track, filePath -> addToPlaylistTrack = track to filePath }
+            )
+        }
+    }
+}
+
+@Composable
+private fun LocalTab(
+    permissionState: com.sinc.enhanced.ui.permission.AudioPermissionState,
+    uiState: LibraryUiState,
+    onRequestPermission: () -> Unit,
+    onRefresh: () -> Unit,
+    onPlayLocal: (MusicRepository.LocalTrack) -> Unit,
+    onAddToPlaylist: (Track, String?) -> Unit = { _, _ -> }
+) {
+    PermissionRequiredContent(
+        permissionState = permissionState,
+        onRequestPermission = onRequestPermission
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (uiState.localCount > 0) {
                     Text(
-                        text = "${uiState.totalCount} tracks",
+                        text = "${uiState.localCount} tracks",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-            IconButton(onClick = { viewModel.loadLocalMusic() }) {
-                Icon(Icons.Default.Refresh, "Refresh", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        when {
-            uiState.isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                IconButton(onClick = onRefresh) {
+                    Icon(Icons.Default.Refresh, "Refresh")
                 }
             }
-            uiState.localTracks.isEmpty() -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+
+            Spacer(Modifier.height(8.dp))
+
+            if (uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.localTracks.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "No local music found",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
                             text = "Download music to see it here",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-            }
-            else -> {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(uiState.localTracks) { localTrack ->
-                        val track = com.sinc.enhanced.data.model.Track(
+                        val track = Track(
                             id = "local_${localTrack.id}",
                             title = localTrack.title,
                             artist = localTrack.artist,
@@ -97,16 +173,29 @@ fun LibraryScreen(
                             artworkUrl = localTrack.albumArtUri,
                             source = "local"
                         )
+                        var showMenu by remember { mutableStateOf(false) }
                         TrackItem(
                             track = track,
                             onClick = { onPlayLocal(localTrack) },
                             trailing = {
-                                IconButton(onClick = { onPlayLocal(localTrack) }) {
-                                    Icon(
-                                        Icons.Default.PlayArrow,
-                                        "Play",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
+                                Row {
+                                    IconButton(onClick = { onPlayLocal(localTrack) }) {
+                                        Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    Box {
+                                        IconButton(onClick = { showMenu = true }) {
+                                            Icon(Icons.Default.MoreVert, "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                            DropdownMenuItem(
+                                                text = { Text("Add to Playlist") },
+                                                onClick = {
+                                                    showMenu = false
+                                                    onAddToPlaylist(track, localTrack.filePath)
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         )
@@ -114,5 +203,96 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DownloadedTab(
+    downloadedTracks: List<DownloadEntity>,
+    onPlay: (DownloadEntity) -> Unit,
+    onAddToPlaylist: (Track, String?) -> Unit = { _, _ -> }
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Spacer(Modifier.height(8.dp))
+
+        if (downloadedTracks.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "No downloads yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Search for music and download it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    Text(
+                        text = "${downloadedTracks.size} downloaded",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                items(downloadedTracks) { download ->
+                    val track = Track(
+                        id = download.trackId,
+                        title = download.title,
+                        artist = download.artist,
+                        album = download.album,
+                        durationMs = download.durationMs,
+                        artworkUrl = download.artworkUrl,
+                        source = download.source
+                    )
+                    var showMenu by remember { mutableStateOf(false) }
+                    TrackItem(
+                        track = track,
+                        onClick = { onPlay(download) },
+                        subtitle = if (download.completedAt != null) {
+                            "Downloaded ${formatTimestamp(download.completedAt)}"
+                        } else null,
+                        trailing = {
+                            Row {
+                                IconButton(onClick = { onPlay(download) }) {
+                                    Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                                }
+                                Box {
+                                    IconButton(onClick = { showMenu = true }) {
+                                        Icon(Icons.Default.MoreVert, "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text("Add to Playlist") },
+                                            onClick = {
+                                                showMenu = false
+                                                onAddToPlaylist(track, download.filePath)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatTimestamp(millis: Long): String {
+    val diff = System.currentTimeMillis() - millis
+    val days = diff / (24 * 60 * 60 * 1000)
+    return when {
+        days < 1 -> "Today"
+        days < 2 -> "Yesterday"
+        days < 7 -> "$days days ago"
+        days < 30 -> "${days / 7} weeks ago"
+        else -> "${days / 30} months ago"
     }
 }

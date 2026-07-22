@@ -20,6 +20,7 @@ fun TrackItem(
     track: Track,
     onClick: () -> Unit,
     trailing: @Composable (() -> Unit)? = null,
+    subtitle: String? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -73,7 +74,7 @@ fun TrackItem(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = track.artist,
+                    text = subtitle ?: track.artist,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

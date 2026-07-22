@@ -2,6 +2,7 @@ package com.sinc.enhanced.data.remote
 
 import com.sinc.enhanced.BuildConfig
 import com.sinc.enhanced.data.model.Album
+import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -86,6 +87,32 @@ class SpotifyClient(private val client: OkHttpClient) {
         }
     }
 
+    fun getPlaylist(playlistId: String): Map<String, Any?>? {
+        val json = jsonGet("https://api.spotify.com/v1/playlists/$playlistId") ?: return null
+        val images = json.optJSONArray("images")
+        val owner = json.optJSONObject("owner")
+        return mapOf(
+            "id" to (json.optString("id") as Any),
+            "name" to (json.optString("name") as Any),
+            "description" to ((json.optString("description") ?: "") as Any),
+            "imageUrl" to (if (images != null && images.length() > 0) images.getJSONObject(0).optString("url") else null) as Any,
+            "owner" to ((owner?.optString("display_name") ?: "Unknown") as Any),
+            "totalTracks" to ((json.optJSONObject("tracks")?.optInt("total", 0) ?: 0) as Any),
+            "tracksUrl" to ((json.optJSONObject("tracks")?.optString("href") ?: "") as Any)
+        )
+    }
+
+    fun getPlaylistTracks(playlistId: String, offset: Int = 0, limit: Int = 100): List<Track> {
+        val url = "https://api.spotify.com/v1/playlists/$playlistId/tracks?offset=$offset&limit=$limit&fields=items(track(id,name,duration_ms,artists,album,track_number,disc_number,external_ids)),next,total"
+        val json = jsonGet(url) ?: return emptyList()
+        val items = json.optJSONArray("items") ?: return emptyList()
+        return (0 until items.length()).mapNotNull { i ->
+            val item = items.getJSONObject(i)
+            val track = item.optJSONObject("track") ?: return@mapNotNull null
+            Track.fromSpotify(toMap(track))
+        }
+    }
+
     fun getTrack(trackId: String): Track? {
         val json = jsonGet("https://api.spotify.com/v1/tracks/$trackId") ?: return null
         return Track.fromSpotify(toMap(json))
@@ -109,6 +136,51 @@ class SpotifyClient(private val client: OkHttpClient) {
             tracks = (0 until items.length()).mapNotNull { i ->
                 Track.fromSpotify(toMap(items.getJSONObject(i)))
             }
+        )
+    }
+
+    fun searchArtists(query: String, limit: Int = 5): List<Artist> {
+        val url = "https://api.spotify.com/v1/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&type=artist&limit=$limit"
+        val json = jsonGet(url) ?: return emptyList()
+        val items = json.optJSONObject("artists")?.optJSONArray("items") ?: return emptyList()
+        return (0 until items.length()).mapNotNull { i ->
+            artistFromJson(items.getJSONObject(i))
+        }
+    }
+
+    fun getArtist(artistId: String): Artist? {
+        val json = jsonGet("https://api.spotify.com/v1/artists/$artistId") ?: return null
+        return artistFromJson(json)
+    }
+
+    fun getArtistTopTracks(artistId: String, market: String = "US"): List<Track> {
+        val json = jsonGet("https://api.spotify.com/v1/artists/$artistId/top-tracks?market=$market") ?: return emptyList()
+        val items = json.optJSONArray("tracks") ?: return emptyList()
+        return (0 until items.length()).mapNotNull { i ->
+            Track.fromSpotify(toMap(items.getJSONObject(i)))
+        }
+    }
+
+    fun getRelatedArtists(artistId: String): List<Artist> {
+        val json = jsonGet("https://api.spotify.com/v1/artists/$artistId/related-artists") ?: return emptyList()
+        val items = json.optJSONArray("artists") ?: return emptyList()
+        return (0 until items.length()).mapNotNull { i ->
+            artistFromJson(items.getJSONObject(i))
+        }
+    }
+
+    private fun artistFromJson(item: JSONObject): Artist {
+        val images = item.optJSONArray("images")
+        val genresArray = item.optJSONArray("genres")
+        return Artist(
+            id = item.optString("id"),
+            name = item.optString("name"),
+            imageUrl = if (images != null && images.length() > 0) {
+                images.getJSONObject(0).optString("url")
+            } else null,
+            genres = (0 until (genresArray?.length() ?: 0)).mapNotNull { genresArray?.getString(it) },
+            followers = item.optJSONObject("followers")?.optInt("total", 0) ?: 0,
+            popularity = item.optInt("popularity", 0)
         )
     }
 }

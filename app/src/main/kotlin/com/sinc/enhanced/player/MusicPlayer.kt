@@ -105,9 +105,10 @@ class MusicPlayer(private val context: Context) {
     }
 
     private fun buildMediaItem(track: Track, urlOverride: String? = null): MediaItem {
+        val uri = urlOverride ?: track.previewUrl
         val builder = MediaItem.Builder()
             .setMediaId(track.id)
-            .setUri(urlOverride ?: track.previewUrl ?: "")
+            .apply { if (uri != null && uri.isNotEmpty()) setUri(uri) }
             .setMediaMetadata(
                 androidx.media3.common.MediaMetadata.Builder()
                     .setTitle(track.title)

@@ -2,6 +2,7 @@ package com.sinc.enhanced.ui.screens.player
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,10 +20,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PlayerScreen(
+    onNavigateArtist: (String) -> Unit = {},
     viewModel: PlayerViewModel = viewModel(factory = PlayerViewModel.Factory())
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -51,9 +56,20 @@ fun PlayerScreen(
 
         Spacer(Modifier.height(32.dp))
 
-        if (track.artworkUrl != null) {
+        var artworkUrl by remember { mutableStateOf(track.artworkUrl) }
+        LaunchedEffect(track.id, track.artworkUrl) {
+            if (track.artworkUrl == null) {
+                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val fallback = SincApp.instance.container.artworkClient.findArtwork(track.artist, track.title)
+                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        if (fallback != null) artworkUrl = fallback
+                    }
+                }
+            }
+        }
+        if (artworkUrl != null) {
             Image(
-                painter = rememberAsyncImagePainter(track.artworkUrl),
+                painter = rememberAsyncImagePainter(artworkUrl),
                 contentDescription = null,
                 modifier = Modifier
                     .size(300.dp)
@@ -94,9 +110,10 @@ fun PlayerScreen(
         Text(
             text = track.artist,
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.primary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clickable { onNavigateArtist(track.artist) }
         )
 
         Spacer(Modifier.height(40.dp))

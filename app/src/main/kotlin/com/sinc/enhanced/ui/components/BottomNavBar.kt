@@ -3,7 +3,7 @@ package com.sinc.enhanced.ui.components
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -15,7 +15,7 @@ sealed class BottomNavItem(
     val label: String,
     val icon: ImageVector
 ) {
-    data object Search : BottomNavItem("search", "Search", Icons.Default.Search)
+    data object Home : BottomNavItem("home", "Home", Icons.Default.Home)
     data object Queue : BottomNavItem("queue", "Queue", Icons.Default.Download)
     data object Library : BottomNavItem("library", "Library", Icons.Default.LibraryMusic)
     data object Settings : BottomNavItem("settings", "Settings", Icons.Default.Settings)
@@ -28,7 +28,7 @@ fun BottomNavBar(
     modifier: Modifier = Modifier
 ) {
     val items = listOf(
-        BottomNavItem.Search,
+        BottomNavItem.Home,
         BottomNavItem.Queue,
         BottomNavItem.Library,
         BottomNavItem.Settings

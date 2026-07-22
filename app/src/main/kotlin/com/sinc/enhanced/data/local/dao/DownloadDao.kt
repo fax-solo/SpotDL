@@ -12,6 +12,9 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads WHERE status = :status ORDER BY addedAt DESC")
     fun getDownloadsByStatus(status: String): Flow<List<DownloadEntity>>
 
+    @Query("SELECT * FROM downloads WHERE status = 'completed' ORDER BY completedAt DESC")
+    fun getCompletedDownloads(): Flow<List<DownloadEntity>>
+
     @Query("SELECT * FROM downloads WHERE trackId = :trackId")
     suspend fun getDownload(trackId: String): DownloadEntity?
 

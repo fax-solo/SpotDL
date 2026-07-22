@@ -21,6 +21,7 @@ import com.sinc.enhanced.data.remote.SpotifyClient
 import com.sinc.enhanced.data.repository.AuthRepository
 import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.MusicRepository
+import com.sinc.enhanced.data.repository.PlaylistRepository
 import com.sinc.enhanced.data.repository.SearchRepository
 import com.sinc.enhanced.player.MusicPlayer
 import okhttp3.OkHttpClient
@@ -40,7 +41,7 @@ class AppContainer(private val context: Context) {
         context,
         AppDatabase::class.java,
         "sinc-enhanced.db"
-    ).build()
+    ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build()
 
     val dataStore: DataStore<Preferences> = context.dataStore
 
@@ -52,7 +53,7 @@ class AppContainer(private val context: Context) {
     val spotifyClient: SpotifyClient = SpotifyClient(okHttpClient)
     val deezerClient: DeezerClient = DeezerClient(okHttpClient)
     val pipedClient: PipedClient = PipedClient(okHttpClient)
-    val lyricsClient: LyricsClient = LyricsClient(okHttpClient)
+    val lyricsClient: LyricsClient = LyricsClient(okHttpClient, context)
     val soundCloudClient: SoundCloudClient = SoundCloudClient()
     val audiusClient: AudiusClient = AudiusClient(okHttpClient)
     val jamendoClient: JamendoClient = JamendoClient(okHttpClient)
@@ -75,8 +76,10 @@ class AppContainer(private val context: Context) {
         context = context,
         downloadDao = database.downloadDao(),
         historyDao = database.historyDao(),
-        okHttpClient = okHttpClient
+        okHttpClient = okHttpClient,
+        findAudioUrl = { track -> searchRepository.findBestAudioForTrack(track) }
     )
+    val playlistRepository: PlaylistRepository = PlaylistRepository(database.playlistDao())
 
     val musicPlayer: MusicPlayer = MusicPlayer(context)
 }

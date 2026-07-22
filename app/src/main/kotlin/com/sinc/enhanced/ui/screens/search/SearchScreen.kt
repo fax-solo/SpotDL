@@ -6,11 +6,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -31,13 +34,27 @@ import com.sinc.enhanced.ui.components.TrackItem
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    onPlayTrack: (String, String) -> Unit,
-    onDownloadTrack: (String, String) -> Unit,
+    onPlayTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
+    onDownloadTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
+    onNavigateArtist: (String) -> Unit = {},
+    onNavigateTrack: (String) -> Unit = {},
     onNavigateSettings: () -> Unit = {},
     onNavigateHistory: () -> Unit = {},
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory())
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val layoutInfo = listState.layoutInfo
+            val totalItems = layoutInfo.totalItemsCount
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= totalItems - 2
+        }.collect { nearEnd ->
+            if (nearEnd) viewModel.loadMore()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -115,8 +132,31 @@ fun SearchScreen(
             }
             else -> {
                 LazyColumn(
+                    state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    if (uiState.artists.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Artists",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(uiState.artists) { artist ->
+                                    ArtistCard(
+                                        artist = artist,
+                                        onClick = { onNavigateArtist(artist.id) }
+                                    )
+                                }
+                            }
+                        }
+                        item { Spacer(Modifier.height(8.dp)) }
+                    }
+
                     if (uiState.albums.isNotEmpty()) {
                         item {
                             Text(
@@ -151,22 +191,22 @@ fun SearchScreen(
                         items(uiState.results) { enriched ->
                             TrackItem(
                                 track = enriched.track,
-                                onClick = {
-                                    enriched.audioUrl?.let { url ->
-                                        onPlayTrack(enriched.track.id, url)
-                                    }
-                                },
+                                onClick = { onNavigateTrack(enriched.track.id) },
                                 trailing = {
                                     Row {
                                         if (enriched.audioUrl != null) {
-                                            IconButton(onClick = { onPlayTrack(enriched.track.id, enriched.audioUrl) }) {
+                                            IconButton(onClick = {
+                                                enriched.audioUrl?.let { onPlayTrack(enriched.track, it) }
+                                            }) {
                                                 Icon(
                                                     imageVector = Icons.Default.PlayArrow,
                                                     contentDescription = "Play",
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
                                             }
-                                            IconButton(onClick = { onDownloadTrack(enriched.track.id, enriched.audioUrl) }) {
+                                            IconButton(onClick = {
+                                                enriched.audioUrl?.let { onDownloadTrack(enriched.track, it) }
+                                            }) {
                                                 Icon(
                                                     imageVector = Icons.Default.Download,
                                                     contentDescription = "Download",
@@ -177,6 +217,28 @@ fun SearchScreen(
                                     }
                                 }
                             )
+                        }
+
+                        if (uiState.hasMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (uiState.isLoadingMore) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "More tracks available — scroll down",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -205,7 +267,8 @@ fun SearchScreen(
             tracks = uiState.albumTracks,
             onDismiss = { viewModel.dismissAlbum() },
             onDownloadTrack = onDownloadTrack,
-            onPlayTrack = onPlayTrack
+            onPlayTrack = onPlayTrack,
+            onNavigateTrack = onNavigateTrack
         )
     }
 }
@@ -260,12 +323,67 @@ private fun AlbumCard(
 }
 
 @Composable
+private fun ArtistCard(
+    artist: com.sinc.enhanced.data.model.Artist,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .width(160.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (artist.imageUrl != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(artist.imageUrl),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Surface(
+                    modifier = Modifier.size(120.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Person, null, modifier = Modifier.size(48.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = artist.name,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (artist.genres.isNotEmpty()) {
+                Text(
+                    text = artist.genres.take(2).joinToString(", "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun AlbumDetailDialog(
     album: Album,
     tracks: List<com.sinc.enhanced.data.model.Track>,
     onDismiss: () -> Unit,
-    onDownloadTrack: (String, String) -> Unit,
-    onPlayTrack: (String, String) -> Unit
+    onDownloadTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
+    onPlayTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
+    onNavigateTrack: (String) -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -287,18 +405,16 @@ private fun AlbumDetailDialog(
                     items(tracks) { track ->
                         TrackItem(
                             track = track,
-                            onClick = {
-                                track.previewUrl?.let { onPlayTrack(track.id, it) }
-                            },
+                            onClick = { onNavigateTrack(track.id) },
                             trailing = {
                                 Row {
                                     IconButton(onClick = {
-                                        track.previewUrl?.let { onPlayTrack(track.id, it) }
+                                        track.previewUrl?.let { onPlayTrack(track, it) }
                                     }) {
                                         Icon(Icons.Default.PlayArrow, "Play")
                                     }
                                     IconButton(onClick = {
-                                        track.previewUrl?.let { onDownloadTrack(track.id, it) }
+                                        track.previewUrl?.let { onDownloadTrack(track, it) }
                                     }) {
                                         Icon(Icons.Default.Download, "Download")
                                     }
@@ -313,7 +429,7 @@ private fun AlbumDetailDialog(
             if (tracks.isNotEmpty()) {
                 Button(onClick = {
                     tracks.forEach { track ->
-                        track.previewUrl?.let { onDownloadTrack(track.id, it) }
+                        track.previewUrl?.let { onDownloadTrack(track, it) }
                     }
                     onDismiss()
                 }) {
