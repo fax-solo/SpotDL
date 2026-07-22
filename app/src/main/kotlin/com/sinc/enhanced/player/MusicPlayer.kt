@@ -30,6 +30,9 @@ class MusicPlayer(private val context: Context) {
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
+    private val _recentlyPlayed = MutableStateFlow<List<Track>>(emptyList())
+    val recentlyPlayed: StateFlow<List<Track>> = _recentlyPlayed.asStateFlow()
+
     private val player: ExoPlayer = ExoPlayer.Builder(context)
         .setAudioAttributes(
             androidx.media3.common.AudioAttributes.Builder()
@@ -75,7 +78,15 @@ class MusicPlayer(private val context: Context) {
         player.addListener(playerListener)
     }
 
+    private fun addToRecentlyPlayed(track: Track) {
+        val current = _recentlyPlayed.value.toMutableList()
+        current.removeAll { it.id == track.id }
+        current.add(0, track)
+        _recentlyPlayed.value = current.take(20)
+    }
+
     fun play(track: Track) {
+        addToRecentlyPlayed(track)
         val updatedQueue = if (_state.value.queue.none { it.id == track.id }) {
             _state.value.queue + track
         } else _state.value.queue
@@ -94,6 +105,7 @@ class MusicPlayer(private val context: Context) {
     }
 
     fun playUrl(track: Track, url: String) {
+        addToRecentlyPlayed(track)
         _state.value = _state.value.copy(currentTrack = track)
 
         val mediaItem = buildMediaItem(track, url)

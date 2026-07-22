@@ -265,6 +265,7 @@ fun SearchScreen(
         AlbumDetailDialog(
             album = album,
             tracks = uiState.albumTracks,
+            audioUrls = uiState.albumAudioUrls,
             onDismiss = { viewModel.dismissAlbum() },
             onDownloadTrack = onDownloadTrack,
             onPlayTrack = onPlayTrack,
@@ -380,6 +381,7 @@ private fun ArtistCard(
 private fun AlbumDetailDialog(
     album: Album,
     tracks: List<com.sinc.enhanced.data.model.Track>,
+    audioUrls: Map<String, String> = emptyMap(),
     onDismiss: () -> Unit,
     onDownloadTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
     onPlayTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
@@ -403,20 +405,19 @@ private fun AlbumDetailDialog(
             } else {
                 LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
                     items(tracks) { track ->
+                        val url = audioUrls[track.id] ?: track.previewUrl
                         TrackItem(
                             track = track,
                             onClick = { onNavigateTrack(track.id) },
                             trailing = {
-                                Row {
-                                    IconButton(onClick = {
-                                        track.previewUrl?.let { onPlayTrack(track, it) }
-                                    }) {
-                                        Icon(Icons.Default.PlayArrow, "Play")
-                                    }
-                                    IconButton(onClick = {
-                                        track.previewUrl?.let { onDownloadTrack(track, it) }
-                                    }) {
-                                        Icon(Icons.Default.Download, "Download")
+                                if (url != null) {
+                                    Row {
+                                        IconButton(onClick = { onPlayTrack(track, url) }) {
+                                            Icon(Icons.Default.PlayArrow, "Play")
+                                        }
+                                        IconButton(onClick = { onDownloadTrack(track, url) }) {
+                                            Icon(Icons.Default.Download, "Download")
+                                        }
                                     }
                                 }
                             }
@@ -429,7 +430,8 @@ private fun AlbumDetailDialog(
             if (tracks.isNotEmpty()) {
                 Button(onClick = {
                     tracks.forEach { track ->
-                        track.previewUrl?.let { onDownloadTrack(track, it) }
+                        val url = audioUrls[track.id] ?: track.previewUrl
+                        if (url != null) onDownloadTrack(track, url)
                     }
                     onDismiss()
                 }) {

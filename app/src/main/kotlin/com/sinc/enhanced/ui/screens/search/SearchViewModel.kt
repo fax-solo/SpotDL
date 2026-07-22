@@ -12,6 +12,8 @@ import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.QueryType
 import com.sinc.enhanced.data.repository.SearchRepository
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,7 @@ data class SearchUiState(
     val albums: List<Album> = emptyList(),
     val selectedAlbum: Album? = null,
     val albumTracks: List<Track> = emptyList(),
+    val albumAudioUrls: Map<String, String> = emptyMap(),
     val isSearching: Boolean = false,
     val isLoadingMore: Boolean = false,
     val hasMore: Boolean = false,
@@ -85,9 +88,19 @@ class SearchViewModel(
     fun selectAlbum(album: Album) {
         viewModelScope.launch {
             val albumWithTracks = searchRepository.getAlbum(album.id)
+            val tracks = albumWithTracks?.tracks ?: emptyList()
+            val audioUrls = coroutineScope {
+                tracks.map { track ->
+                    async { track.id to searchRepository.findBestAudioForTrack(track) }
+                }.mapNotNull { deferred ->
+                    val (id, result) = deferred.await()
+                    if (result != null) id to result.first else null
+                }.toMap()
+            }
             _uiState.value = _uiState.value.copy(
                 selectedAlbum = albumWithTracks ?: album,
-                albumTracks = albumWithTracks?.tracks ?: emptyList()
+                albumTracks = tracks,
+                albumAudioUrls = audioUrls
             )
         }
     }

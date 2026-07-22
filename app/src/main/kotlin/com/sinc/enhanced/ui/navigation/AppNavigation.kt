@@ -117,14 +117,14 @@ fun AppNavigation() {
                 composable(Routes.LOGIN) {
                     LoginScreen(
                         onLoginSuccess = {
-                            navController.navigate(Routes.SEARCH) {
+                            navController.navigate(Routes.HOME) {
                                 popUpTo(Routes.LOGIN) { inclusive = true }
                             }
                             scope.launch { schedulePing() }
                         },
                         onNavigateRegister = { navController.navigate(Routes.REGISTER) },
                         onSkip = {
-                            navController.navigate(Routes.SEARCH) {
+                            navController.navigate(Routes.HOME) {
                                 popUpTo(Routes.LOGIN) { inclusive = true }
                             }
                         }
@@ -133,7 +133,7 @@ fun AppNavigation() {
                 composable(Routes.REGISTER) {
                     RegisterScreen(
                         onRegisterSuccess = {
-                            navController.navigate(Routes.SEARCH) {
+                            navController.navigate(Routes.HOME) {
                                 popUpTo(Routes.LOGIN) { inclusive = true }
                             }
                             scope.launch { schedulePing() }
@@ -145,7 +145,11 @@ fun AppNavigation() {
                     HomeScreen(
                         onSearch = { navController.navigate(Routes.SEARCH) },
                         onNavigateSettings = { navController.navigate(Routes.SETTINGS) },
-                        onNavigateHistory = { navController.navigate(Routes.HISTORY) }
+                        onNavigateHistory = { navController.navigate(Routes.HISTORY) },
+                        onPlayTrack = { track, url ->
+                            musicPlayer.playUrl(track, url)
+                            navController.navigate(Routes.PLAYER)
+                        }
                     )
                 }
                 composable(Routes.SEARCH) {
@@ -222,8 +226,12 @@ fun AppNavigation() {
                 }
                 composable(Routes.HISTORY) {
                     HistoryScreen(
-                        onPlayHistory = { _ ->
-                            navController.navigate(Routes.PLAYER)
+                        onPlayHistory = { filePath ->
+                            val state = musicPlayer.state.value
+                            state.currentTrack?.let { track ->
+                                musicPlayer.playUrl(track, filePath)
+                                navController.navigate(Routes.PLAYER)
+                            }
                         }
                     )
                 }
