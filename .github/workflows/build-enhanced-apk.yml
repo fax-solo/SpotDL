@@ -74,6 +74,21 @@ jobs:
       - name: Ensure gradlew is executable
         run: chmod +x app/gradlew
 
+      - name: Create gradle.properties with build settings
+        run: |
+          cat > app/gradle.properties << EOF
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          android.suppressUnsupportedCompileSdk=36
+          SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-YOUR_SPOTIFY_CLIENT_ID}
+          SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-YOUR_SPOTIFY_CLIENT_SECRET}
+          EOF
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+
       - name: Check if keystore secrets are available
         id: check_secrets
         run: |
