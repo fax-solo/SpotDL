@@ -12,7 +12,15 @@ class PipedClient(private val client: OkHttpClient) {
             "https://pipedapi.kavin.rocks",
             "https://pipedapi.smnz.de",
             "https://pipedapi.adminforge.de",
-            "https://pipedapi.r4fo.com"
+            "https://pipedapi.r4fo.com",
+            "https://pipedapi.syncpundit.io",
+            "https://api-piped.mha.fi",
+            "https://piped-api.garudalinux.org",
+            "https://pipedapi.leptons.xyz",
+            "https://pipedapi.moomoo.me",
+            "https://pipedapi.pfcd.me",
+            "https://pipedapi.drgns.space",
+            "https://pipedapi.qdi.fi"
         )
     }
 
@@ -57,9 +65,10 @@ class PipedClient(private val client: OkHttpClient) {
         return null
     }
 
-    fun search(query: String, limit: Int = 5): List<PipedSearchResult> {
+    fun search(query: String, limit: Int = 5, filter: String? = "music"): List<PipedSearchResult> {
         return tryInstances { instance ->
-            val url = "$instance/search?q=${URLEncoder.encode(query, "UTF-8")}&filter=music"
+            val filterParam = if (filter != null) "&filter=$filter" else ""
+            val url = "$instance/search?q=${URLEncoder.encode(query, "UTF-8")}$filterParam"
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) return@tryInstances null

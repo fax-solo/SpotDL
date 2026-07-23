@@ -78,13 +78,16 @@ class SearchViewModel(
 
     fun loadMore() {
         val state = _uiState.value
-        if (state.isLoadingMore || !state.hasMore) return
+        if (state.isLoadingMore || !state.hasMore || state.isSearching) return
         _uiState.value = state.copy(isLoadingMore = true)
 
         val currentCount = state.results.size
+        if (currentCount >= allResults.size) {
+            _uiState.value = _uiState.value.copy(isLoadingMore = false, hasMore = false)
+            return
+        }
         val nextCount = minOf(currentCount + PAGE_SIZE, allResults.size)
         val newResults = allResults.take(nextCount)
-
         _uiState.value = _uiState.value.copy(
             results = newResults,
             isLoadingMore = false,

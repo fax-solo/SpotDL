@@ -103,7 +103,7 @@ class SpotifyClient(private val client: OkHttpClient) {
     }
 
     fun getPlaylistTracks(playlistId: String, offset: Int = 0, limit: Int = 100): List<Track> {
-        val url = "https://api.spotify.com/v1/playlists/$playlistId/tracks?offset=$offset&limit=$limit&fields=items(track(id,name,duration_ms,artists,album,track_number,disc_number,external_ids)),next,total"
+        val url = "https://api.spotify.com/v1/playlists/$playlistId/tracks?offset=$offset&limit=$limit&fields=items(track(id,name,duration_ms,artists(id,name),album(id,name,images,release_date),track_number,disc_number,external_ids(isrc),preview_url)),next,total"
         val json = jsonGet(url) ?: return emptyList()
         val items = json.optJSONArray("items") ?: return emptyList()
         return (0 until items.length()).mapNotNull { i ->

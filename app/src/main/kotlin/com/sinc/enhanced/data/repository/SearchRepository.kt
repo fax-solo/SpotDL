@@ -55,7 +55,7 @@ class SearchRepository(
         enrichedCache.get(normalized)?.let { return@withContext it }
 
         val spotifyDeferred = async { robustCall(label = "spotify") { spotifyClient.searchTracks(normalized) } }
-        val pipedDeferred = async { robustCall(label = "piped") { pipedClient.search(normalized, limit = 5) } }
+        val pipedDeferred = async { robustCall(label = "piped") { pipedClient.search(normalized, limit = 10) } }
         val deezerDeferred = async { robustCall(label = "deezer") { deezerClient.searchTracks(normalized) } }
 
         val additionalDeferred = async {
@@ -74,22 +74,23 @@ class SearchRepository(
         val deezerResults = deezerDeferred.await() ?: emptyList()
         val additional = additionalDeferred.await()
 
-        val deezerEnriched = deezerResults.map { d ->
+        val deezerEnriched = deezerResults.mapNotNull { d ->
+            val track = Track(
+                id = "dz_${d.id}",
+                title = d.title,
+                artist = d.artist,
+                album = d.album,
+                durationMs = d.duration * 1000L,
+                artworkUrl = d.artworkUrl,
+                isrc = d.isrc,
+                source = "deezer"
+            )
+            val bestAudio = findBestAudioForTrack(track)
             EnrichedTrack(
-                track = Track(
-                    id = "dz_${d.id}",
-                    title = d.title,
-                    artist = d.artist,
-                    album = d.album,
-                    durationMs = d.duration * 1000L,
-                    artworkUrl = d.artworkUrl,
-                    isrc = d.isrc,
-                    previewUrl = d.previewUrl,
-                    source = "deezer"
-                ),
-                audioUrl = d.previewUrl,
-                audioSource = "deezer",
-                confidence = 0.7f
+                track = track,
+                audioUrl = bestAudio?.first,
+                audioSource = bestAudio?.second ?: "deezer",
+                confidence = if (bestAudio != null) 0.7f else 0.4f
             )
         }
 
@@ -277,6 +278,26 @@ class SearchRepository(
 
         return robustCall(timeoutMs = 15000, label = "find_piped") {
             val results = pipedClient.search(query, limit = 10)
+            if (results.isEmpty()) {
+                val fallback = pipedClient.search(query, limit = 10, filter = null)
+                for (result in fallback) {
+                    if (durationSec == null || abs(result.duration - durationSec) <= 30) {
+                        val stream = pipedClient.getStreams(result.videoId)
+                        if (stream != null) {
+                            val audioUrl = stream.audioTrackUrl ?: stream.url
+                            if (audioUrl.isNotEmpty()) return@robustCall Pair(audioUrl, "piped")
+                        }
+                    }
+                }
+                for (result in fallback) {
+                    val stream = pipedClient.getStreams(result.videoId)
+                    if (stream != null) {
+                        val audioUrl = stream.audioTrackUrl ?: stream.url
+                        if (audioUrl.isNotEmpty()) return@robustCall Pair(audioUrl, "piped")
+                    }
+                }
+                return@robustCall null
+            }
             for (result in results) {
                 if (durationSec != null && abs(result.duration - durationSec) <= 30) {
                     val stream = pipedClient.getStreams(result.videoId)

@@ -1,5 +1,8 @@
 package com.sinc.enhanced.ui.screens.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.ui.components.HomeShimmer
 import kotlinx.coroutines.launch
 
 @Composable
@@ -48,11 +54,18 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Home",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                Column {
+                    Text(
+                        text = "Home",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Discover music",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Row {
                     IconButton(onClick = onNavigateHistory) {
                         Icon(Icons.Default.History, "History")
@@ -87,9 +100,7 @@ fun HomeScreen(
 
         if (uiState.isLoading) {
             item {
-                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                HomeShimmer()
             }
         } else if (uiState.error != null) {
             item {
@@ -98,6 +109,12 @@ fun HomeScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.HourglassEmpty, null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
                         Text(
                             text = uiState.error!!,
                             style = MaterialTheme.typography.bodyMedium,
@@ -113,7 +130,13 @@ fun HomeScreen(
         } else {
             if (uiState.recentlyPlayed.isNotEmpty()) {
                 item {
-                    SectionHeader("Recently Played")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SectionHeader("Recently Played")
+                    }
                 }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -155,11 +178,13 @@ fun HomeScreen(
                 item {
                     SectionHeader("Recent Searches")
                 }
-                items(uiState.recentSearches, key = { it }) { query ->
+                items(uiState.recentSearches.size) { index ->
+                    val query = uiState.recentSearches[index]
                     Surface(
                         modifier = Modifier.fillMaxWidth().clickable { onSearchQuery(query) },
                         shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        tonalElevation = 1.dp
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -185,7 +210,19 @@ fun HomeScreen(
             if (uiState.recommendations.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(16.dp))
-                    SectionHeader("You Might Also Like")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SectionHeader("You Might Also Like")
+                        @Suppress("DEPRECATION")
+                    Icon(
+                            Icons.Default.TrendingUp, null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -210,10 +247,16 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.MusicNote, null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            )
+                            Spacer(Modifier.height(16.dp))
                             Text(
                                 text = "Welcome!",
                                 style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(
@@ -243,15 +286,17 @@ private fun SectionHeader(text: String) {
 private fun TrackCard(track: Track, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.width(150.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             if (track.artworkUrl != null) {
                 androidx.compose.foundation.Image(
                     painter = rememberAsyncImagePainter(track.artworkUrl),
                     contentDescription = null,
-                    modifier = Modifier.size(134.dp).clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.size(134.dp).clip(RoundedCornerShape(10.dp)),
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -262,16 +307,18 @@ private fun TrackCard(track: Track, onClick: () -> Unit) {
                     Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(48.dp))
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = track.title,
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            Spacer(Modifier.height(2.dp))
             Text(
                 text = track.artist,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -284,15 +331,17 @@ private fun TrackCard(track: Track, onClick: () -> Unit) {
 private fun DownloadedCard(download: DownloadEntity, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.width(150.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             if (download.artworkUrl != null) {
                 androidx.compose.foundation.Image(
                     painter = rememberAsyncImagePainter(download.artworkUrl),
                     contentDescription = null,
-                    modifier = Modifier.size(134.dp).clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.size(134.dp).clip(RoundedCornerShape(10.dp)),
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -303,16 +352,18 @@ private fun DownloadedCard(download: DownloadEntity, onClick: () -> Unit) {
                     Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(48.dp))
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = download.title,
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            Spacer(Modifier.height(2.dp))
             Text(
                 text = download.artist,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -325,8 +376,10 @@ private fun DownloadedCard(download: DownloadEntity, onClick: () -> Unit) {
 private fun RecommenderCard(track: Track, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.width(160.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             if (track.artworkUrl != null) {
@@ -336,7 +389,7 @@ private fun RecommenderCard(track: Track, onClick: () -> Unit) {
                     modifier = Modifier
                         .width(144.dp)
                         .height(144.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(10.dp)),
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -347,7 +400,7 @@ private fun RecommenderCard(track: Track, onClick: () -> Unit) {
                     Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(48.dp))
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = track.title,
                 style = MaterialTheme.typography.bodyMedium,

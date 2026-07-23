@@ -3,6 +3,7 @@ package com.sinc.enhanced.ui.screens.library
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -10,13 +11,20 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.rememberAsyncImagePainter
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.MusicRepository
@@ -60,50 +68,77 @@ fun LibraryScreen(
         )
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        TopAppBar(
-            title = { Text("Library") },
-            actions = {
-                IconButton(onClick = onNavigateImportPlaylist) {
-                    Icon(Icons.Default.FileDownload, "Import Playlist")
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Library") },
+                actions = {
+                    IconButton(onClick = onNavigateImportPlaylist) {
+                        Icon(Icons.Default.FileDownload, "Import Playlist")
+                    }
+                    IconButton(onClick = onNavigatePlaylists) {
+                        Icon(Icons.AutoMirrored.Filled.QueueMusic, "Playlists")
+                    }
                 }
-                IconButton(onClick = onNavigatePlaylists) {
-                    Icon(Icons.AutoMirrored.Filled.QueueMusic, "Playlists")
-                }
-            }
-        )
-
-        TabRow(selectedTabIndex = uiState.selectedTab) {
-            Tab(
-                selected = uiState.selectedTab == 0,
-                onClick = { viewModel.selectTab(0) },
-                text = { Text("Local") },
-                icon = { Icon(Icons.Default.LibraryMusic, null) }
-            )
-            Tab(
-                selected = uiState.selectedTab == 1,
-                onClick = { viewModel.selectTab(1) },
-                text = { Text("Downloaded") },
-                icon = { Icon(Icons.Default.FileDownload, null) }
             )
         }
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            TabRow(
+                selectedTabIndex = uiState.selectedTab,
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Tab(
+                    selected = uiState.selectedTab == 0,
+                    onClick = { viewModel.selectTab(0) },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.LibraryMusic, null,
+                                modifier = Modifier.size(18.dp),
+                                tint = if (uiState.selectedTab == 0)
+                                    MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Local")
+                        }
+                    }
+                )
+                Tab(
+                    selected = uiState.selectedTab == 1,
+                    onClick = { viewModel.selectTab(1) },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.FileDownload, null,
+                                modifier = Modifier.size(18.dp),
+                                tint = if (uiState.selectedTab == 1)
+                                    MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Downloaded")
+                        }
+                    }
+                )
+            }
 
-        when (uiState.selectedTab) {
-            0 -> LocalTab(
-                permissionState = permissionState,
-                uiState = uiState,
-                onRequestPermission = { permissionState = AudioPermissionState.NotAsked },
-                onRefresh = { viewModel.loadLocalMusic() },
-                onPlayLocal = onPlayLocal,
-                onAddToPlaylist = { track, filePath -> addToPlaylistTrack = track to filePath }
-            )
-            1 -> DownloadedTab(
-                downloadedTracks = uiState.downloadedTracks,
-                onPlay = onPlayDownloaded,
-                onAddToPlaylist = { track, filePath -> addToPlaylistTrack = track to filePath }
-            )
+            when (uiState.selectedTab) {
+                0 -> LocalTab(
+                    permissionState = permissionState,
+                    uiState = uiState,
+                    onRequestPermission = { permissionState = AudioPermissionState.NotAsked },
+                    onRefresh = { viewModel.loadLocalMusic() },
+                    onPlayLocal = onPlayLocal,
+                    onAddToPlaylist = { track, filePath -> addToPlaylistTrack = track to filePath }
+                )
+                1 -> DownloadedTab(
+                    downloadedTracks = uiState.downloadedTracks,
+                    onPlay = onPlayDownloaded,
+                    onAddToPlaylist = { track, filePath -> addToPlaylistTrack = track to filePath }
+                )
+            }
         }
     }
 }
@@ -121,15 +156,15 @@ private fun LocalTab(
         permissionState = permissionState,
         onRequestPermission = onRequestPermission
     ) {
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (uiState.localCount > 0) {
                     Text(
-                        text = "${uiState.localCount} tracks",
+                        text = "${uiState.localCount} tracks on device",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -139,88 +174,110 @@ private fun LocalTab(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            if (uiState.isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            when {
+                uiState.isLoading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
-            } else if (uiState.error != null) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                uiState.error != null -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
                         ) {
-                            Text(
-                                text = uiState.error!!,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Button(onClick = onRefresh) {
-                                Text("Retry")
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    Icons.Default.HourglassEmpty, null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = uiState.error!!,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                Button(onClick = onRefresh) {
+                                    Text("Retry")
+                                }
                             }
                         }
                     }
                 }
-            } else if (uiState.localTracks.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "No local music found",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "Download music to see it here",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                uiState.localTracks.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.MusicNote, null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                text = "No local music found",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "Download music to see it here",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(uiState.localTracks, key = { it.id }) { localTrack ->
-                        val track = Track(
-                            id = "local_${localTrack.id}",
-                            title = localTrack.title,
-                            artist = localTrack.artist,
-                            album = localTrack.album,
-                            durationMs = localTrack.durationMs,
-                            artworkUrl = localTrack.albumArtUri,
-                            source = "local"
-                        )
-                        var showMenu by remember { mutableStateOf(false) }
-                        TrackItem(
-                            track = track,
-                            onClick = { onPlayLocal(localTrack) },
-                            trailing = {
-                                Row {
-                                    IconButton(onClick = { onPlayLocal(localTrack) }) {
-                                        Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                    Box {
-                                        IconButton(onClick = { showMenu = true }) {
-                                            Icon(Icons.Default.MoreVert, "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(uiState.localTracks, key = { it.id }) { localTrack ->
+                            val track = Track(
+                                id = "local_${localTrack.id}",
+                                title = localTrack.title,
+                                artist = localTrack.artist,
+                                album = localTrack.album,
+                                durationMs = localTrack.durationMs,
+                                artworkUrl = localTrack.albumArtUri,
+                                source = "local"
+                            )
+                            var showMenu by remember { mutableStateOf(false) }
+                            TrackItem(
+                                track = track,
+                                onClick = { onPlayLocal(localTrack) },
+                                subtitle = localTrack.filePath?.let {
+                                    val segments = it.split("/")
+                                    if (segments.size >= 2) segments[segments.size - 2] else null
+                                },
+                                trailing = {
+                                    Row {
+                                        IconButton(onClick = { onPlayLocal(localTrack) }) {
+                                            Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
                                         }
-                                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                                            DropdownMenuItem(
-                                                text = { Text("Add to Playlist") },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onAddToPlaylist(track, localTrack.filePath)
-                                                }
-                                            )
+                                        Box {
+                                            IconButton(onClick = { showMenu = true }) {
+                                                Icon(Icons.Default.MoreVert, "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Add to Playlist") },
+                                                    onClick = {
+                                                        showMenu = false
+                                                        onAddToPlaylist(track, localTrack.filePath)
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -234,16 +291,22 @@ private fun DownloadedTab(
     onPlay: (DownloadEntity) -> Unit,
     onAddToPlaylist: (Track, String?) -> Unit = { _, _ -> }
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         Spacer(Modifier.height(8.dp))
 
         if (downloadedTracks.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.FileDownload, null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+                    Spacer(Modifier.height(16.dp))
                     Text(
                         text = "No downloads yet",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -254,13 +317,22 @@ private fun DownloadedTab(
                 }
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 item {
-                    Text(
-                        text = "${downloadedTracks.size} downloaded",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${downloadedTracks.size} downloaded",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 items(downloadedTracks, key = { it.trackId }) { download ->
                     val track = Track(

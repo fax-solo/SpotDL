@@ -67,7 +67,7 @@ class HomeViewModel(
                     .shuffled()
                     .take(5)
                 _uiState.value = _uiState.value.copy(
-                    recentSearches = recent.take(10)
+                    recentSearches = recent.take(10).distinct()
                 )
                 loadRecommendations(keywords)
             } catch (_: Exception) {
