@@ -3,14 +3,8 @@ package com.sinc.enhanced.data.remote
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
-class SoundCloudClient {
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+class SoundCloudClient(private val client: OkHttpClient) {
 
     @Volatile private var resolvedClientId: String? = null
     @Volatile private var lastResolved: Long = 0

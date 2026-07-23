@@ -24,16 +24,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Track
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
     onSearch: () -> Unit,
+    onSearchQuery: (String) -> Unit = {},
     onNavigateSettings: () -> Unit = {},
     onNavigateHistory: () -> Unit = {},
     onPlayTrack: (Track, String) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory())
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -88,6 +91,25 @@ fun HomeScreen(
                     CircularProgressIndicator()
                 }
             }
+        } else if (uiState.error != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = uiState.error!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = { viewModel.refresh() }) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
         } else {
             if (uiState.recentlyPlayed.isNotEmpty()) {
                 item {
@@ -97,8 +119,10 @@ fun HomeScreen(
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(uiState.recentlyPlayed, key = { it.id }) { track ->
                             TrackCard(track = track, onClick = {
-                                val url = track.previewUrl
-                                if (url != null) onPlayTrack(track, url)
+                                scope.launch {
+                                    val audio = viewModel.resolveAudioUrl(track)
+                                    if (audio != null) onPlayTrack(track, audio.first)
+                                }
                             })
                         }
                     }
@@ -133,7 +157,7 @@ fun HomeScreen(
                 }
                 items(uiState.recentSearches, key = { it }) { query ->
                     Surface(
-                        modifier = Modifier.fillMaxWidth().clickable { onSearch() },
+                        modifier = Modifier.fillMaxWidth().clickable { onSearchQuery(query) },
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
@@ -167,8 +191,10 @@ fun HomeScreen(
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(uiState.recommendations, key = { it.id }) { track ->
                             RecommenderCard(track = track, onClick = {
-                                val url = track.previewUrl
-                                if (url != null) onPlayTrack(track, url)
+                                scope.launch {
+                                    val audio = viewModel.resolveAudioUrl(track)
+                                    if (audio != null) onPlayTrack(track, audio.first)
+                                }
                             })
                         }
                     }

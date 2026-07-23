@@ -11,6 +11,7 @@ import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.QueryType
 import com.sinc.enhanced.data.repository.SearchRepository
+import com.sinc.enhanced.domain.music.SearchResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -25,7 +26,7 @@ private const val PAGE_SIZE = 20
 data class SearchUiState(
     val query: String = "",
     val queryType: QueryType = QueryType.GENERIC,
-    val results: List<SearchRepository.EnrichedTrack> = emptyList(),
+    val results: List<SearchResult> = emptyList(),
     val artists: List<Artist> = emptyList(),
     val albums: List<Album> = emptyList(),
     val selectedAlbum: Album? = null,
@@ -39,14 +40,20 @@ data class SearchUiState(
 
 class SearchViewModel(
     private val searchRepository: SearchRepository,
-    private val searchHistoryDao: SearchHistoryDao
+    private val searchHistoryDao: SearchHistoryDao,
+    private val initialQuery: String = ""
 ) : ViewModel() {
+    init {
+        if (initialQuery.isNotBlank()) {
+            onSearch(initialQuery)
+        }
+    }
 
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
-    private var allResults: List<SearchRepository.EnrichedTrack> = emptyList()
+    private var allResults: List<SearchResult> = emptyList()
 
     fun onQueryChange(query: String) {
         _uiState.value = _uiState.value.copy(query = query)
@@ -137,12 +144,13 @@ class SearchViewModel(
         }
     }
 
-    class Factory : ViewModelProvider.Factory {
+    class Factory(private val initialQuery: String = "") : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
             return SearchViewModel(
                 SincApp.instance.container.searchRepository,
-                SincApp.instance.container.database.searchHistoryDao()
+                SincApp.instance.container.database.searchHistoryDao(),
+                initialQuery
             ) as T
         }
     }

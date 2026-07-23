@@ -20,7 +20,8 @@ data class LibraryUiState(
     val downloadedTracks: List<DownloadEntity> = emptyList(),
     val localCount: Int = 0,
     val downloadedCount: Int = 0,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val error: String? = null
 )
 
 class LibraryViewModel(
@@ -54,7 +55,7 @@ class LibraryViewModel(
 
     fun loadLocalMusic() {
         viewModelScope.launch(Dispatchers.IO) {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val tracks = musicRepository.scanLocalMusic()
                 val count = musicRepository.getTrackCount()
@@ -63,8 +64,8 @@ class LibraryViewModel(
                     localCount = count,
                     isLoading = false
                 )
-            } catch (_: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message ?: "Unknown error")
             }
         }
     }

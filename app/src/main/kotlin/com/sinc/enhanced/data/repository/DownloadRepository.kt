@@ -14,6 +14,7 @@ import com.sinc.enhanced.data.local.entity.HistoryEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.remote.LyricsClient
 import com.sinc.enhanced.data.util.robustCall
+import com.sinc.enhanced.domain.repository.DownloadRepository as DownloadRepositoryInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -32,13 +33,13 @@ class DownloadRepository(
     private val findAudioUrl: suspend (Track) -> Pair<String, String>?,
     private val lyricsClient: LyricsClient,
     private val settingsManager: SettingsManager
-) {
+) : DownloadRepositoryInterface {
 
-    val allDownloads: Flow<List<DownloadEntity>> = downloadDao.getAllDownloads()
-    val activeDownloads: Flow<List<DownloadEntity>> = downloadDao.getActiveDownloads()
-    val completedDownloads: Flow<List<DownloadEntity>> = downloadDao.getCompletedDownloads()
+    override val allDownloads: Flow<List<DownloadEntity>> = downloadDao.getAllDownloads()
+    override val activeDownloads: Flow<List<DownloadEntity>> = downloadDao.getActiveDownloads()
+    override val completedDownloads: Flow<List<DownloadEntity>> = downloadDao.getCompletedDownloads()
 
-    suspend fun addToQueue(track: Track, audioUrl: String) {
+    override suspend fun addToQueue(track: Track, audioUrl: String) {
         val existing = downloadDao.getDownload(track.id)
         if (existing != null && existing.status != "error") return
 
@@ -58,11 +59,11 @@ class DownloadRepository(
         )
     }
 
-    suspend fun removeFromQueue(trackId: String) {
+    override suspend fun removeFromQueue(trackId: String) {
         downloadDao.delete(trackId)
     }
 
-    suspend fun clearAll() {
+    override suspend fun clearAll() {
         downloadDao.deleteAll()
     }
 
@@ -98,7 +99,7 @@ class DownloadRepository(
         } catch (_: Exception) { false }
     }
 
-    suspend fun downloadFile(trackId: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun downloadFile(trackId: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         val download = downloadDao.getDownload(trackId) ?: return@withContext false
 
         downloadDao.updateStatus(trackId, "downloading", 0f)
@@ -139,8 +140,13 @@ class DownloadRepository(
 
             val result = tryDownload(url, usedSource, download, onProgress)
             if (result != null) {
-                downloadDao.markComplete(trackId, result.first, result.second)
-                return@withContext true
+                val file = File(result.first)
+                if (isValidAudioFile(file)) {
+                    downloadDao.markComplete(trackId, result.first, result.second)
+                    return@withContext true
+                } else {
+                    file.delete()
+                }
             }
 
             url = null
@@ -279,7 +285,7 @@ class DownloadRepository(
         } catch (_: Exception) { null }
     }
 
-    suspend fun retryDownload(trackId: String) {
+    override suspend fun retryDownload(trackId: String) {
         val download = downloadDao.getDownload(trackId) ?: return
         downloadDao.upsert(download.copy(status = "queued", errorMessage = null, progress = 0f))
     }

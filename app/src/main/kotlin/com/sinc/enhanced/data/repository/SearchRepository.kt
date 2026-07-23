@@ -13,6 +13,9 @@ import com.sinc.enhanced.data.remote.SoundCloudClient
 import com.sinc.enhanced.data.remote.SpotifyClient
 import com.sinc.enhanced.data.util.SearchCache
 import com.sinc.enhanced.data.util.robustCall
+import com.sinc.enhanced.domain.music.SearchResult
+import com.sinc.enhanced.domain.music.MusicSource
+import com.sinc.enhanced.domain.repository.SearchRepository as SearchRepositoryInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -30,8 +33,9 @@ class SearchRepository(
     private val jamendoClient: JamendoClient,
     private val fmaClient: FreeMusicArchiveClient,
     private val bandcampClient: BandcampClient
-) {
-    private val cache = SearchCache()
+) : SearchRepositoryInterface {
+    private val cache = SearchCache<SearchResult>()
+    private val enrichedCache = SearchCache<EnrichedTrack>()
 
     data class EnrichedTrack(
         val track: Track,
@@ -40,11 +44,15 @@ class SearchRepository(
         val confidence: Float = 0f
     )
 
-    suspend fun searchAll(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
+    private fun List<EnrichedTrack>.asResults() = map { SearchResult(it.track, it.audioUrl, it.audioSource, it.confidence) }
+
+    override suspend fun searchAll(query: String): List<SearchResult> = searchAllInternal(query).asResults()
+
+    private suspend fun searchAllInternal(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
         val normalized = query.trim()
         if (normalized.isEmpty()) return@withContext emptyList()
 
-        cache.get(normalized)?.let { return@withContext it }
+        enrichedCache.get(normalized)?.let { return@withContext it }
 
         val spotifyDeferred = async { robustCall(label = "spotify") { spotifyClient.searchTracks(normalized) } }
         val pipedDeferred = async { robustCall(label = "piped") { pipedClient.search(normalized, limit = 5) } }
@@ -135,11 +143,13 @@ class SearchRepository(
             }
         }.sortedByDescending { e -> e.confidence }
 
-        cache.put(normalized, results)
+        enrichedCache.put(normalized, results)
         results
     }
 
-    suspend fun searchYouTubeOnly(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
+    override suspend fun searchYouTubeOnly(query: String): List<SearchResult> = searchYouTubeOnlyInternal(query).asResults()
+
+    private suspend fun searchYouTubeOnlyInternal(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
         val results = robustCall(label = "piped_search") { pipedClient.search(query) } ?: return@withContext emptyList()
         results.mapNotNull { yt ->
             try {
@@ -261,16 +271,22 @@ class SearchRepository(
         }
     }
 
-    suspend fun findBestAudioForTrack(track: Track): Pair<String, String>? {
+    override suspend fun findBestAudioForTrack(track: Track): Pair<String, String>? {
         val query = "${track.title} ${track.artist}"
         val durationSec = if (track.durationMs > 0) track.durationMs / 1000 else null
 
-        val pipedResult = robustCall(timeoutMs = 10000, label = "find_piped") {
-            val results = pipedClient.search(query, limit = 5)
+        return robustCall(timeoutMs = 15000, label = "find_piped") {
+            val results = pipedClient.search(query, limit = 10)
             for (result in results) {
-                if (durationSec != null) {
-                    if (abs(result.duration - durationSec) > 30) continue
+                if (durationSec != null && abs(result.duration - durationSec) <= 30) {
+                    val stream = pipedClient.getStreams(result.videoId)
+                    if (stream != null) {
+                        val audioUrl = stream.audioTrackUrl ?: stream.url
+                        if (audioUrl.isNotEmpty()) return@robustCall Pair(audioUrl, "piped")
+                    }
                 }
+            }
+            for (result in results) {
                 val stream = pipedClient.getStreams(result.videoId)
                 if (stream != null) {
                     val audioUrl = stream.audioTrackUrl ?: stream.url
@@ -279,30 +295,18 @@ class SearchRepository(
             }
             null
         }
-        if (pipedResult != null) return pipedResult
-
-        val deezerResult = robustCall(timeoutMs = 8000, label = "find_deezer") {
-            val results = deezerClient.searchTracks(query, limit = 5)
-            val bestMatch = results.minByOrNull {
-                if (durationSec != null) abs(it.duration - durationSec.toInt()) else 0
-            }
-            if (bestMatch?.previewUrl != null && bestMatch.previewUrl.isNotEmpty()) {
-                return@robustCall Pair(bestMatch.previewUrl, "deezer")
-            }
-            null
-        }
-        return deezerResult
     }
 
-    fun invalidateCache() {
+    override fun invalidateCache() {
         cache.invalidateAll()
+        enrichedCache.invalidateAll()
     }
 
-    suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
+    override suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
         robustCall(label = "spotify_albums") { spotifyClient.searchAlbums(query) } ?: emptyList()
     }
 
-    suspend fun getAlbum(albumId: String): Album? = withContext(Dispatchers.IO) {
+    override suspend fun getAlbum(albumId: String): Album? = withContext(Dispatchers.IO) {
         robustCall(label = "spotify_album") { spotifyClient.getAlbum(albumId) }
     }
 
@@ -316,23 +320,23 @@ class SearchRepository(
         return QueryType.GENERIC
     }
 
-    suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
+    override suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
         robustCall(label = "spotify_artists") { spotifyClient.searchArtists(query) } ?: emptyList()
     }
 
-    suspend fun getArtist(artistId: String): Artist? = withContext(Dispatchers.IO) {
+    override suspend fun getArtist(artistId: String): Artist? = withContext(Dispatchers.IO) {
         robustCall(label = "spotify_artist") { spotifyClient.getArtist(artistId) }
     }
 
-    suspend fun getArtistTopTracks(artistId: String): List<Track> = withContext(Dispatchers.IO) {
+    override suspend fun getArtistTopTracks(artistId: String): List<Track> = withContext(Dispatchers.IO) {
         robustCall(label = "spotify_top_tracks") { spotifyClient.getArtistTopTracks(artistId) } ?: emptyList()
     }
 
-    suspend fun getRelatedArtists(artistId: String): List<Artist> = withContext(Dispatchers.IO) {
+    override suspend fun getRelatedArtists(artistId: String): List<Artist> = withContext(Dispatchers.IO) {
         robustCall(label = "spotify_related") { spotifyClient.getRelatedArtists(artistId) } ?: emptyList()
     }
 
-    suspend fun getTrack(trackId: String): Track? = withContext(Dispatchers.IO) {
+    override suspend fun getTrack(trackId: String): Track? = withContext(Dispatchers.IO) {
         robustCall(label = "spotify_track") { spotifyClient.getTrack(trackId) }
     }
 }

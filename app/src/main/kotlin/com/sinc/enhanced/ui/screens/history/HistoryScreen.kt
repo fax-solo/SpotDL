@@ -45,45 +45,84 @@ fun HistoryScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        if (uiState.history.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No history yet",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        when {
+            uiState.isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(uiState.history, key = { it.id }) { item ->
-                    val track = com.sinc.enhanced.data.model.Track(
-                        id = item.trackId,
-                        title = item.title,
-                        artist = item.artist,
-                        album = item.album,
-                        artworkUrl = item.artworkUrl,
-                        durationMs = item.durationMs,
-                        source = item.source,
-                        previewUrl = item.filePath
-                    )
-                    TrackItem(
-                        track = track,
-                        onClick = { item.filePath?.let { onPlayTrack(track, it) } },
-                        trailing = {
-                            IconButton(onClick = { item.filePath?.let { onPlayTrack(track, it) } }) {
-                                Icon(
-                                    Icons.Default.PlayArrow,
-                                    "Play",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+            uiState.error != null -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier.padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = uiState.error ?: "",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Button(onClick = { viewModel.refresh() }) {
+                                Text("Retry")
                             }
                         }
+                    }
+                }
+            }
+            uiState.history.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No history yet",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+            else -> {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.history, key = { it.id }) { item ->
+                        val track = com.sinc.enhanced.data.model.Track(
+                            id = item.trackId,
+                            title = item.title,
+                            artist = item.artist,
+                            album = item.album,
+                            artworkUrl = item.artworkUrl,
+                            durationMs = item.durationMs,
+                            source = item.source,
+                            previewUrl = item.filePath
+                        )
+                        TrackItem(
+                            track = track,
+                            onClick = { item.filePath?.let { onPlayTrack(track, it) } },
+                            trailing = {
+                                IconButton(onClick = { item.filePath?.let { onPlayTrack(track, it) } }) {
+                                    Icon(
+                                        Icons.Default.PlayArrow,
+                                        "Play",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }

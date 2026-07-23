@@ -54,7 +54,7 @@ class AppContainer(private val context: Context) {
     val deezerClient: DeezerClient = DeezerClient(okHttpClient)
     val pipedClient: PipedClient = PipedClient(okHttpClient)
     val lyricsClient: LyricsClient = LyricsClient(okHttpClient, context)
-    val soundCloudClient: SoundCloudClient = SoundCloudClient()
+    val soundCloudClient: SoundCloudClient = SoundCloudClient(okHttpClient)
     val audiusClient: AudiusClient = AudiusClient(okHttpClient)
     val jamendoClient: JamendoClient = JamendoClient(okHttpClient)
     val fmaClient: FreeMusicArchiveClient = FreeMusicArchiveClient(okHttpClient)

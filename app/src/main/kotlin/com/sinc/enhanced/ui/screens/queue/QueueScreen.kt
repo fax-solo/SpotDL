@@ -21,6 +21,7 @@ import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.DownloadProgress
 import com.sinc.enhanced.ui.components.TrackItem
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QueueScreen(
     onPlayTrack: (Track, String) -> Unit = { _, _ -> },
@@ -28,72 +29,104 @@ fun QueueScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Downloads",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onBackground
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Downloads") },
+                actions = {
+                    if (uiState.downloads.isNotEmpty()) {
+                        TextButton(onClick = { viewModel.clearAll() }) {
+                            Text("Clear all")
+                        }
+                    }
+                    IconButton(onClick = { viewModel.refresh() }) {
+                        Icon(Icons.Default.Refresh, "Refresh")
+                    }
+                }
             )
-            if (uiState.downloads.isNotEmpty()) {
-                TextButton(onClick = { viewModel.clearAll() }) {
-                    Text("Clear all")
-                }
-            }
         }
-
-        Spacer(Modifier.height(16.dp))
-
-        if (uiState.downloads.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "No downloads yet",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Search for music and start downloading",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            when {
+                uiState.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(uiState.downloads, key = { it.trackId }) { download ->
-                    DownloadItem(
-                        download = download,
-                        onPlay = {
-                            val track = Track(
-                                id = download.trackId,
-                                title = download.title,
-                                artist = download.artist,
-                                album = download.album,
-                                artworkUrl = download.artworkUrl,
-                                durationMs = download.durationMs,
-                                isrc = download.isrc,
-                                source = download.source
+                uiState.error != null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = uiState.error!!,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyLarge
                             )
-                            download.filePath?.let { onPlayTrack(track, it) }
-                        },
-                        onRemove = { viewModel.removeDownload(download.trackId) },
-                        onRetry = { viewModel.retryDownload(download.trackId) }
-                    )
+                            Spacer(Modifier.height(8.dp))
+                            Button(onClick = { viewModel.refresh() }) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                }
+                uiState.downloads.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "No downloads yet",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "Search for music and start downloading",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 16.dp)
+                    ) {
+                        items(uiState.downloads, key = { it.trackId }) { download ->
+                            DownloadItem(
+                                download = download,
+                                onPlay = {
+                                    val track = Track(
+                                        id = download.trackId,
+                                        title = download.title,
+                                        artist = download.artist,
+                                        album = download.album,
+                                        artworkUrl = download.artworkUrl,
+                                        durationMs = download.durationMs,
+                                        isrc = download.isrc,
+                                        source = download.source
+                                    )
+                                    download.filePath?.let { onPlayTrack(track, it) }
+                                },
+                                onRemove = { viewModel.removeDownload(download.trackId) },
+                                onRetry = { viewModel.retryDownload(download.trackId) }
+                            )
+                        }
+                    }
                 }
             }
         }

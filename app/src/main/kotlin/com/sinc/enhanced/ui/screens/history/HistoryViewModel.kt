@@ -12,7 +12,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class HistoryUiState(
-    val history: List<HistoryEntity> = emptyList()
+    val history: List<HistoryEntity> = emptyList(),
+    val isLoading: Boolean = true,
+    val error: String? = null
 )
 
 class HistoryViewModel(
@@ -23,15 +25,34 @@ class HistoryViewModel(
     val uiState: StateFlow<HistoryUiState> = _uiState.asStateFlow()
 
     init {
+        refresh()
+    }
+
+    fun refresh() {
         viewModelScope.launch {
-            historyDao.getAllHistory().collect { history ->
-                _uiState.value = _uiState.value.copy(history = history)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                historyDao.getAllHistory().collect { history ->
+                    _uiState.value = _uiState.value.copy(
+                        history = history,
+                        isLoading = false,
+                        error = null
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "Unknown error"
+                )
             }
         }
     }
 
     fun clearHistory() {
-        viewModelScope.launch { historyDao.deleteAll() }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(error = null)
+            historyDao.deleteAll()
+        }
     }
 
     class Factory : ViewModelProvider.Factory {

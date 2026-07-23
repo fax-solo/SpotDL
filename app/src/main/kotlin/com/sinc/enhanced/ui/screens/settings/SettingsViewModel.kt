@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
+import com.sinc.enhanced.data.local.SettingsManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,58 +25,53 @@ class SettingsViewModel(
     private val context: Context
 ) : ViewModel() {
 
-    companion object {
-        val DOWNLOAD_QUALITY = intPreferencesKey("download_quality")
-        val DOWNLOAD_FORMAT = stringPreferencesKey("download_format")
-        val DEEZER_ARL = stringPreferencesKey("deezer_arl")
-    }
-
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
-    private val dataStore = SincApp.instance.container.dataStore
+    private val settingsManager: SettingsManager = SincApp.instance.container.settingsManager
 
     init {
         viewModelScope.launch {
-            dataStore.data.collect { prefs ->
-                _uiState.value = SettingsUiState(
-                    downloadQuality = prefs[DOWNLOAD_QUALITY] ?: 128,
-                    downloadFormat = prefs[DOWNLOAD_FORMAT] ?: "mp3",
-                    deezerArl = prefs[DEEZER_ARL] ?: "",
-                    downloadLyrics = prefs[com.sinc.enhanced.data.local.SettingsManager.DOWNLOAD_LYRICS] ?: true
-                )
+            settingsManager.downloadLyrics.collect { value ->
+                _uiState.value = _uiState.value.copy(downloadLyrics = value)
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.downloadQuality.collect { value ->
+                _uiState.value = _uiState.value.copy(downloadQuality = value)
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.downloadFormat.collect { value ->
+                _uiState.value = _uiState.value.copy(downloadFormat = value)
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.deezerArl.collect { value ->
+                _uiState.value = _uiState.value.copy(deezerArl = value)
             }
         }
     }
 
     fun setDownloadLyrics(enabled: Boolean) {
-        viewModelScope.launch {
-            val manager = SincApp.instance.container.settingsManager
-            manager.setDownloadLyrics(enabled)
-        }
+        viewModelScope.launch { settingsManager.setDownloadLyrics(enabled) }
     }
 
     fun setDownloadQuality(quality: Int) {
-        viewModelScope.launch {
-            dataStore.edit { prefs -> prefs[DOWNLOAD_QUALITY] = quality }
-        }
+        viewModelScope.launch { settingsManager.setDownloadQuality(quality) }
     }
 
     fun setDownloadFormat(format: String) {
-        viewModelScope.launch {
-            dataStore.edit { prefs -> prefs[DOWNLOAD_FORMAT] = format }
-        }
+        viewModelScope.launch { settingsManager.setDownloadFormat(format) }
     }
 
     fun setDeezerArl(arl: String) {
-        viewModelScope.launch {
-            dataStore.edit { prefs -> prefs[DEEZER_ARL] = arl }
-        }
+        viewModelScope.launch { settingsManager.setDeezerArl(arl) }
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            @Suppress("UNCHECKED_CAST")
             return SettingsViewModel(context) as T
         }
     }

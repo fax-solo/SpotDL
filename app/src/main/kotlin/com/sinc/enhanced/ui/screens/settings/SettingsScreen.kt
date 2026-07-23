@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +36,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val authRepository = SincApp.instance.container.authRepository
     val authState by authRepository.authState.collectAsStateWithLifecycle(initialValue = com.sinc.enhanced.data.repository.AuthState())
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -86,6 +88,54 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                if (authState.isAdmin) {
+                    Spacer(Modifier.height(12.dp))
+                    var showServerField by remember { mutableStateOf(false) }
+                    if (!showServerField) {
+                        OutlinedButton(
+                            onClick = { showServerField = true },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Cloud, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (authState.serverUrl.isEmpty()) "Set Server URL" else "Change Server URL")
+                        }
+                    } else {
+                        var serverInput by remember(authState.serverUrl) { mutableStateOf(authState.serverUrl) }
+                        OutlinedTextField(
+                            value = serverInput,
+                            onValueChange = { serverInput = it },
+                            label = { Text("Worker URL") },
+                            placeholder = { Text("https://your-worker.workers.dev") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        authRepository.setServerUrl(serverInput)
+                                        showServerField = false
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                enabled = serverInput.isNotBlank()
+                            ) { Text("Save") }
+                            OutlinedButton(
+                                onClick = {
+                                    if (serverInput.isBlank()) showServerField = false
+                                    else {
+                                        scope.launch { authRepository.setServerUrl(""); showServerField = false }
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp)
+                            ) { Text("Cancel") }
+                        }
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

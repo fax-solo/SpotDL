@@ -41,7 +41,22 @@ class TrackDetailViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val track = withContext(Dispatchers.IO) { searchRepository.getTrack(trackId) }
+                var track: Track? = null
+                val sourcePrefix = listOf("yt_", "dz_", "sc_", "aud_", "jam_", "fma_", "bc_")
+                    .firstOrNull { trackId.startsWith(it) }
+                if (sourcePrefix != null) {
+                    track = withContext(Dispatchers.IO) {
+                        try {
+                            val keyword = trackId.removePrefix(sourcePrefix).replace("_", " ")
+                            searchRepository.searchYouTubeOnly(keyword).firstOrNull()?.track
+                        } catch (_: Exception) { null }
+                    }
+                    if (track == null) {
+                        track = Track(id = trackId, title = "Track", artist = "Unknown", album = "")
+                    }
+                } else {
+                    track = withContext(Dispatchers.IO) { searchRepository.getTrack(trackId) }
+                }
                 if (track == null) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,

@@ -10,18 +10,21 @@ import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.SearchRepository
 import com.sinc.enhanced.player.MusicPlayer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class HomeUiState(
     val recentSearches: List<String> = emptyList(),
     val recommendations: List<Track> = emptyList(),
     val recentlyPlayed: List<Track> = emptyList(),
     val recentlyDownloaded: List<DownloadEntity> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val error: String? = null
 )
 
 class HomeViewModel(
@@ -46,6 +49,7 @@ class HomeViewModel(
                 _uiState.value = current.copy(
                     recentlyPlayed = recent,
                     recentlyDownloaded = downloaded,
+                    error = null,
                     isLoading = false
                 )
             }
@@ -67,7 +71,7 @@ class HomeViewModel(
                 )
                 loadRecommendations(keywords)
             } catch (_: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false)
+                _uiState.value = _uiState.value.copy(isLoading = false, error = "Failed to load data")
             }
         }
     }
@@ -99,7 +103,14 @@ class HomeViewModel(
         )
     }
 
+    suspend fun resolveAudioUrl(track: Track): Pair<String, String>? {
+        return withContext(Dispatchers.IO) {
+            searchRepository.findBestAudioForTrack(track)
+        }
+    }
+
     fun refresh() {
+        _uiState.value = _uiState.value.copy(error = null)
         loadRecentSearches()
     }
 

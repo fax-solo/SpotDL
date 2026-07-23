@@ -4,11 +4,13 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.sinc.enhanced.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class SettingsManager(private val dataStore: DataStore<Preferences>) {
+class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsRepository {
 
     companion object {
         val JAMENDO_CLIENT_ID = stringPreferencesKey("jamendo_client_id")
@@ -18,61 +20,88 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) {
         val SOURCE_BANDCAMP_ENABLED = booleanPreferencesKey("source_bandcamp_enabled")
         val DOWNLOAD_LYRICS = booleanPreferencesKey("download_lyrics")
         val DOWNLOAD_PATH = stringPreferencesKey("download_path")
+        val DOWNLOAD_QUALITY = intPreferencesKey("download_quality")
+        val DOWNLOAD_FORMAT = stringPreferencesKey("download_format")
+        val DEEZER_ARL = stringPreferencesKey("deezer_arl")
     }
 
-    val downloadLyrics: Flow<Boolean> = dataStore.data.map {
+    override val downloadLyrics: Flow<Boolean> = dataStore.data.map {
         it[DOWNLOAD_LYRICS] ?: true
     }
 
-    val jamendoClientId: Flow<String> = dataStore.data.map {
+    override val downloadQuality: Flow<Int> = dataStore.data.map {
+        it[DOWNLOAD_QUALITY] ?: 128
+    }
+
+    override val downloadFormat: Flow<String> = dataStore.data.map {
+        it[DOWNLOAD_FORMAT] ?: "mp3"
+    }
+
+    override val deezerArl: Flow<String> = dataStore.data.map {
+        it[DEEZER_ARL] ?: ""
+    }
+
+    override val jamendoClientId: Flow<String> = dataStore.data.map {
         it[JAMENDO_CLIENT_ID] ?: ""
     }
 
-    val audiusEnabled: Flow<Boolean> = dataStore.data.map {
+    override val audiusEnabled: Flow<Boolean> = dataStore.data.map {
         it[SOURCE_AUDIUS_ENABLED] ?: true
     }
 
-    val jamendoEnabled: Flow<Boolean> = dataStore.data.map {
+    override val jamendoEnabled: Flow<Boolean> = dataStore.data.map {
         it[SOURCE_JAMENDO_ENABLED] ?: false
     }
 
-    val fmaEnabled: Flow<Boolean> = dataStore.data.map {
+    override val fmaEnabled: Flow<Boolean> = dataStore.data.map {
         it[SOURCE_FMA_ENABLED] ?: false
     }
 
-    val bandcampEnabled: Flow<Boolean> = dataStore.data.map {
+    override val bandcampEnabled: Flow<Boolean> = dataStore.data.map {
         it[SOURCE_BANDCAMP_ENABLED] ?: true
     }
 
-    val downloadPath: Flow<String> = dataStore.data.map {
+    override val downloadPath: Flow<String> = dataStore.data.map {
         it[DOWNLOAD_PATH] ?: ""
     }
 
-    suspend fun setJamendoClientId(id: String) {
+    override suspend fun setJamendoClientId(id: String) {
         dataStore.edit { it[JAMENDO_CLIENT_ID] = id }
     }
 
-    suspend fun setAudiusEnabled(enabled: Boolean) {
+    override suspend fun setAudiusEnabled(enabled: Boolean) {
         dataStore.edit { it[SOURCE_AUDIUS_ENABLED] = enabled }
     }
 
-    suspend fun setJamendoEnabled(enabled: Boolean) {
+    override suspend fun setJamendoEnabled(enabled: Boolean) {
         dataStore.edit { it[SOURCE_JAMENDO_ENABLED] = enabled }
     }
 
-    suspend fun setFmaEnabled(enabled: Boolean) {
+    override suspend fun setFmaEnabled(enabled: Boolean) {
         dataStore.edit { it[SOURCE_FMA_ENABLED] = enabled }
     }
 
-    suspend fun setBandcampEnabled(enabled: Boolean) {
+    override suspend fun setBandcampEnabled(enabled: Boolean) {
         dataStore.edit { it[SOURCE_BANDCAMP_ENABLED] = enabled }
     }
 
-    suspend fun setDownloadPath(path: String) {
+    override suspend fun setDownloadPath(path: String) {
         dataStore.edit { it[DOWNLOAD_PATH] = path }
     }
 
-    suspend fun setDownloadLyrics(enabled: Boolean) {
+    override suspend fun setDownloadLyrics(enabled: Boolean) {
         dataStore.edit { it[DOWNLOAD_LYRICS] = enabled }
+    }
+
+    override suspend fun setDownloadQuality(quality: Int) {
+        dataStore.edit { it[DOWNLOAD_QUALITY] = quality }
+    }
+
+    override suspend fun setDownloadFormat(format: String) {
+        dataStore.edit { it[DOWNLOAD_FORMAT] = format }
+    }
+
+    override suspend fun setDeezerArl(arl: String) {
+        dataStore.edit { it[DEEZER_ARL] = arl }
     }
 }

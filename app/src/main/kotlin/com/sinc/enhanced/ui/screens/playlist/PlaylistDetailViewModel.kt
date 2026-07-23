@@ -18,7 +18,8 @@ data class PlaylistDetailUiState(
     val playlist: PlaylistEntity? = null,
     val tracks: List<PlaylistTrackEntity> = emptyList(),
     val isLoading: Boolean = true,
-    val showEditDialog: Boolean = false
+    val showEditDialog: Boolean = false,
+    val error: String? = null
 )
 
 class PlaylistDetailViewModel(
@@ -31,17 +32,25 @@ class PlaylistDetailViewModel(
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
 
     init {
-        load()
+        refresh()
     }
 
-    private fun load() {
+    fun refresh() {
         viewModelScope.launch {
-            val playlist = playlistRepository.get(playlistId)
-            playlistRepository.getTracksFlow(playlistId).collect { tracks ->
-                _uiState.value = PlaylistDetailUiState(
-                    playlist = playlist,
-                    tracks = tracks,
-                    isLoading = false
+            try {
+                _uiState.value = _uiState.value.copy(error = null, isLoading = true)
+                val playlist = playlistRepository.get(playlistId)
+                playlistRepository.getTracksFlow(playlistId).collect { tracks ->
+                    _uiState.value = PlaylistDetailUiState(
+                        playlist = playlist,
+                        tracks = tracks,
+                        isLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "Failed to load playlist"
                 )
             }
         }
@@ -49,7 +58,11 @@ class PlaylistDetailViewModel(
 
     fun removeTrack(trackId: String) {
         viewModelScope.launch {
-            playlistRepository.removeTrack(playlistId, trackId)
+            try {
+                playlistRepository.removeTrack(playlistId, trackId)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to remove track")
+            }
         }
     }
 
@@ -63,15 +76,23 @@ class PlaylistDetailViewModel(
 
     fun updatePlaylist(name: String, description: String) {
         viewModelScope.launch {
-            val p = playlistRepository.get(playlistId) ?: return@launch
-            playlistRepository.update(p.copy(name = name.trim(), description = description.trim(), updatedAt = System.currentTimeMillis()))
-            hideEditDialog()
+            try {
+                val p = playlistRepository.get(playlistId) ?: return@launch
+                playlistRepository.update(p.copy(name = name.trim(), description = description.trim(), updatedAt = System.currentTimeMillis()))
+                hideEditDialog()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to update playlist")
+            }
         }
     }
 
     fun deletePlaylist() {
         viewModelScope.launch {
-            playlistRepository.delete(playlistId)
+            try {
+                playlistRepository.delete(playlistId)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to delete playlist")
+            }
         }
     }
 

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.sinc.enhanced.data.remote.ApiClient
+import com.sinc.enhanced.domain.repository.AuthRepository as AuthRepositoryInterface
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -21,7 +22,7 @@ data class AuthState(
 class AuthRepository(
     private val dataStore: DataStore<Preferences>,
     private val apiClient: ApiClient
-) {
+) : AuthRepositoryInterface {
 
     companion object {
         private val KEY_TOKEN = stringPreferencesKey("auth_token")
@@ -31,7 +32,7 @@ class AuthRepository(
         private val KEY_SERVER_URL = stringPreferencesKey("server_url")
     }
 
-    val authState: Flow<AuthState> = dataStore.data.map { prefs ->
+    override val authState: Flow<AuthState> = dataStore.data.map { prefs ->
         val token = prefs[KEY_TOKEN] ?: ""
         AuthState(
             isLoggedIn = token.isNotEmpty(),
@@ -42,11 +43,11 @@ class AuthRepository(
         )
     }
 
-    val serverUrl: Flow<String> = dataStore.data.map {
+    override val serverUrl: Flow<String> = dataStore.data.map {
         it[KEY_SERVER_URL] ?: ""
     }
 
-    suspend fun saveAuth(token: String, username: String, userId: Long, role: String, serverUrl: String) {
+    override suspend fun saveAuth(token: String, username: String, userId: Long, role: String, serverUrl: String) {
         dataStore.edit { prefs ->
             prefs[KEY_TOKEN] = token
             prefs[KEY_USERNAME] = username
@@ -57,7 +58,7 @@ class AuthRepository(
         apiClient.configure(serverUrl, token)
     }
 
-    suspend fun clearAuth() {
+    override suspend fun clearAuth() {
         dataStore.edit { prefs ->
             prefs.remove(KEY_TOKEN)
             prefs.remove(KEY_USERNAME)
@@ -66,13 +67,13 @@ class AuthRepository(
         }
     }
 
-    suspend fun setServerUrl(url: String) {
+    override suspend fun setServerUrl(url: String) {
         dataStore.edit { prefs ->
             prefs[KEY_SERVER_URL] = url
         }
     }
 
-    suspend fun restoreSession(): Boolean {
+    override suspend fun restoreSession(): Boolean {
         val prefs = dataStore.data.first()
         val token = prefs[KEY_TOKEN] ?: return false
         val url = prefs[KEY_SERVER_URL] ?: return false

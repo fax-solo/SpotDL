@@ -19,15 +19,20 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sinc.enhanced.SincApp
+import com.sinc.enhanced.data.repository.StatsRepository
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminScreen() {
+fun AdminScreen(
+    localViewModel: AdminViewModel = viewModel(factory = AdminViewModel.Factory())
+) {
     val scope = rememberCoroutineScope()
     val authRepository = SincApp.instance.container.authRepository
     val authState by authRepository.authState.collectAsStateWithLifecycle(initialValue = com.sinc.enhanced.data.repository.AuthState())
     val apiClient = SincApp.instance.container.apiClient
+    val localUiState by localViewModel.uiState.collectAsStateWithLifecycle()
 
     var serverStats by remember { mutableStateOf<JSONObject?>(null) }
     var serverUsers by remember { mutableStateOf<List<JSONObject>?>(null) }
@@ -149,6 +154,45 @@ fun AdminScreen() {
 
             Spacer(Modifier.height(24.dp))
 
+            Text(
+                text = "Local Device Stats",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(8.dp))
+            val localStats = localUiState.stats
+            if (localStats != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatCard(Modifier.weight(1f), Icons.Default.Download, "Downloads", localStats.totalDownloads.toString(), MaterialTheme.colorScheme.primary)
+                    StatCard(Modifier.weight(1f), Icons.Default.Download, "This Month", localStats.downloadsThisMonth.toString(), MaterialTheme.colorScheme.tertiary)
+                    StatCard(Modifier.weight(1f), Icons.Default.Download, "This Year", localStats.downloadsThisYear.toString(), MaterialTheme.colorScheme.secondary)
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatCard(Modifier.weight(1f), Icons.Default.History, "History", localStats.totalHistoryItems.toString(), MaterialTheme.colorScheme.primary)
+                    StatCard(Modifier.weight(1f), Icons.Default.History, "This Month", localStats.historyThisMonth.toString(), MaterialTheme.colorScheme.tertiary)
+                    StatCard(Modifier.weight(1f), Icons.Default.History, "This Year", localStats.historyThisYear.toString(), MaterialTheme.colorScheme.secondary)
+                }
+                if (localStats.bySource.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("By Source", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    localStats.bySource.forEach { sc ->
+                        Text("${sc.source}: ${sc.count}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else if (localUiState.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
+
+            Spacer(Modifier.height(24.dp))
+
         } else if (authState.isLoggedIn && loading) {
             Box(
                 modifier = Modifier.fillMaxWidth().height(200.dp),
@@ -180,6 +224,18 @@ fun AdminScreen() {
                 }
             }
             Spacer(Modifier.height(16.dp))
+            val localStats = localUiState.stats
+            if (localStats != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatCard(Modifier.weight(1f), Icons.Default.Download, "Downloads", localStats.totalDownloads.toString(), MaterialTheme.colorScheme.primary)
+                    StatCard(Modifier.weight(1f), Icons.Default.History, "History", localStats.totalHistoryItems.toString(), MaterialTheme.colorScheme.tertiary)
+                }
+            } else if (localUiState.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
         }
 
         Spacer(Modifier.height(16.dp))

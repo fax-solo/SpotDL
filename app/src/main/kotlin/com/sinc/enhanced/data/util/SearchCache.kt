@@ -1,21 +1,19 @@
 package com.sinc.enhanced.data.util
 
-import com.sinc.enhanced.data.repository.SearchRepository
 import java.util.LinkedList
 
-class SearchCache(private val maxSize: Int = 20) {
+class SearchCache<T>(private val maxSize: Int = 20) {
 
-    private data class Entry(
-        val results: List<SearchRepository.EnrichedTrack>,
-        val albums: List<Any>,
+    private data class Entry<T>(
+        val results: List<T>,
         val timestamp: Long
     )
 
-    private val map = LinkedHashMap<String, Entry>(maxSize, 0.75f, true)
+    private val map = LinkedHashMap<String, Entry<T>>(maxSize, 0.75f, true)
     private val order = LinkedList<String>()
 
     @Synchronized
-    fun get(query: String): List<SearchRepository.EnrichedTrack>? {
+    fun get(query: String): List<T>? {
         val entry = map[normalize(query)] ?: return null
         if (System.currentTimeMillis() - entry.timestamp > 300_000L) {
             map.remove(normalize(query))
@@ -25,13 +23,13 @@ class SearchCache(private val maxSize: Int = 20) {
     }
 
     @Synchronized
-    fun put(query: String, results: List<SearchRepository.EnrichedTrack>) {
+    fun put(query: String, results: List<T>) {
         val key = normalize(query)
         if (map.size >= maxSize) {
             val oldest = order.pollFirst()
             if (oldest != null) map.remove(oldest)
         }
-        map[key] = Entry(results, emptyList(), System.currentTimeMillis())
+        map[key] = Entry(results, System.currentTimeMillis())
         order.add(key)
     }
 

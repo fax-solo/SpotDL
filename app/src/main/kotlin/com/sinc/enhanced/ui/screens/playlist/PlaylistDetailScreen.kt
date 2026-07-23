@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import com.sinc.enhanced.ui.components.TrackItem
 fun PlaylistDetailScreen(
     playlistId: Int,
     onPlayTrack: (Track) -> Unit,
+    onPlayAll: (List<Track>) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: PlaylistDetailViewModel = viewModel(factory = PlaylistDetailViewModel.Factory(playlistId))
 ) {
@@ -40,6 +42,9 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.refresh() }) {
+                        Icon(Icons.Default.Refresh, "Refresh")
+                    }
                     val playlist = uiState.playlist
                     if (playlist != null) {
                         val scope = rememberCoroutineScope()
@@ -63,10 +68,22 @@ fun PlaylistDetailScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+        } else if (uiState.error != null) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.ErrorOutline, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(16.dp))
+                    Text(uiState.error!!, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(onClick = { viewModel.refresh() }) {
+                        Text("Retry")
+                    }
+                }
+            }
         } else if (uiState.tracks.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.QueueMusic, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.AutoMirrored.Filled.QueueMusic, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(16.dp))
                     Text("This playlist is empty", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
@@ -84,6 +101,18 @@ fun PlaylistDetailScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         val p = uiState.playlist
+                        val tracks = uiState.tracks.map { e ->
+                            Track(
+                                id = e.trackId,
+                                title = e.title,
+                                artist = e.artist,
+                                album = e.album,
+                                durationMs = e.durationMs,
+                                artworkUrl = e.artworkUrl,
+                                source = e.source,
+                                previewUrl = e.filePath
+                            )
+                        }
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(p?.name ?: "", style = MaterialTheme.typography.headlineSmall)
                             if (p?.description?.isNotEmpty() == true) {
@@ -91,6 +120,15 @@ fun PlaylistDetailScreen(
                             }
                             Spacer(Modifier.height(8.dp))
                             Text("${uiState.tracks.size} tracks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = { onPlayAll(tracks) },
+                                enabled = tracks.isNotEmpty()
+                            ) {
+                                Icon(Icons.Default.PlayArrow, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Play All")
+                            }
                         }
                     }
                 }

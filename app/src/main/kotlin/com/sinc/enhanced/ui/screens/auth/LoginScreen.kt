@@ -1,6 +1,7 @@
 package com.sinc.enhanced.ui.screens.auth
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -21,6 +22,7 @@ fun LoginScreen(
     onNavigateRegister: () -> Unit,
     onSkip: () -> Unit
 ) {
+    var showServerField by remember { mutableStateOf(false) }
     var serverUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -33,6 +35,7 @@ fun LoginScreen(
 
     LaunchedEffect(Unit) {
         serverUrl = authRepository.serverUrl.first()
+        if (serverUrl.isEmpty()) showServerField = true
     }
 
     Column(
@@ -61,22 +64,33 @@ fun LoginScreen(
 
         Spacer(Modifier.height(32.dp))
 
-        OutlinedTextField(
-            value = serverUrl,
-            onValueChange = { serverUrl = it },
-            label = { Text("Backend Server URL") },
-            placeholder = { Text("https://your-worker.workers.dev") },
-            supportingText = { Text("Optional — needed only for account sync") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Next
-            ),
-            shape = RoundedCornerShape(12.dp)
-        )
-
-        Spacer(Modifier.height(12.dp))
+        if (!showServerField && serverUrl.isNotEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable { showServerField = true },
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Server: $serverUrl", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    Text("Change", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+        if (showServerField) {
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = { serverUrl = it },
+                label = { Text("Backend Server URL") },
+                placeholder = { Text("https://your-worker.workers.dev") },
+                supportingText = { Text("Required for login") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                shape = RoundedCornerShape(12.dp)
+            )
+            Spacer(Modifier.height(12.dp))
+        }
 
         OutlinedTextField(
             value = username,
@@ -117,21 +131,25 @@ fun LoginScreen(
 
         Button(
             onClick = {
-                if (serverUrl.isBlank() || username.isBlank() || password.isBlank()) {
-                    error = "Enter server URL, username, and password — or tap \"Skip\" for offline"
+                if (username.isBlank() || password.isBlank()) {
+                    error = "Enter username and password — or tap \"Skip\" for offline"
+                    return@Button
+                }
+                if (serverUrl.isBlank()) {
+                    error = "Enter the backend server URL"
                     return@Button
                 }
                 loading = true
                 error = null
                 scope.launch {
                     try {
-                        apiClient.configure(serverUrl, "")
-                        val result = apiClient.login(username, password)
+                        apiClient.configure(serverUrl.trim(), "")
+                        val result = apiClient.login(username.trim(), password)
                         if (result != null) {
                             val (token, json) = result
                             val role = json.optJSONObject("user")?.optString("role", "user") ?: "user"
                             val uid = json.optJSONObject("user")?.optLong("id", 0) ?: 0
-                            authRepository.saveAuth(token, username, uid, role, serverUrl)
+                            authRepository.saveAuth(token, username.trim(), uid, role, serverUrl.trim())
                             onLoginSuccess()
                         } else {
                             error = "Login failed. Check credentials and server URL."

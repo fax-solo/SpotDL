@@ -14,7 +14,8 @@ import kotlinx.coroutines.launch
 data class PlaylistListUiState(
     val playlists: List<PlaylistEntity> = emptyList(),
     val isLoading: Boolean = true,
-    val showCreateDialog: Boolean = false
+    val showCreateDialog: Boolean = false,
+    val error: String? = null
 )
 
 class PlaylistListViewModel(
@@ -25,9 +26,18 @@ class PlaylistListViewModel(
     val uiState: StateFlow<PlaylistListUiState> = _uiState.asStateFlow()
 
     init {
+        refresh()
+    }
+
+    fun refresh() {
         viewModelScope.launch {
-            playlistRepository.allPlaylists.collect { playlists ->
-                _uiState.value = _uiState.value.copy(playlists = playlists, isLoading = false)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                playlistRepository.allPlaylists.collect { playlists ->
+                    _uiState.value = _uiState.value.copy(playlists = playlists, isLoading = false)
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message ?: "Failed to load playlists")
             }
         }
     }
@@ -42,20 +52,32 @@ class PlaylistListViewModel(
 
     fun createPlaylist(name: String, description: String = "") {
         viewModelScope.launch {
-            playlistRepository.create(name, description)
-            hideCreateDialog()
+            try {
+                playlistRepository.create(name, description)
+                hideCreateDialog()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to create playlist")
+            }
         }
     }
 
     fun deletePlaylist(id: Int) {
         viewModelScope.launch {
-            playlistRepository.delete(id)
+            try {
+                playlistRepository.delete(id)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to delete playlist")
+            }
         }
     }
 
     fun renamePlaylist(id: Int, name: String) {
         viewModelScope.launch {
-            playlistRepository.rename(id, name)
+            try {
+                playlistRepository.rename(id, name)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to rename playlist")
+            }
         }
     }
 

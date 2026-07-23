@@ -34,13 +34,14 @@ import com.sinc.enhanced.ui.components.TrackItem
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
+    initialQuery: String = "",
     onPlayTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
     onDownloadTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
     onNavigateArtist: (String) -> Unit = {},
     onNavigateTrack: (String) -> Unit = {},
     onNavigateSettings: () -> Unit = {},
     onNavigateHistory: () -> Unit = {},
-    viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory())
+    viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory(initialQuery))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()

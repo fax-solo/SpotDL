@@ -17,6 +17,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.service.DownloadService
@@ -32,6 +34,7 @@ import com.sinc.enhanced.ui.screens.queue.QueueScreen
 import com.sinc.enhanced.ui.screens.home.HomeScreen
 import com.sinc.enhanced.ui.screens.search.SearchScreen
 import com.sinc.enhanced.ui.screens.settings.SettingsScreen
+import java.net.URLEncoder
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -79,7 +82,8 @@ fun AppNavigation() {
     startDest?.let { start ->
         val isAuthScreen = currentRoute == Routes.LOGIN || currentRoute == Routes.REGISTER
         val bottomTabRoutes = listOf(Routes.HOME, Routes.QUEUE, Routes.LIBRARY, Routes.SETTINGS)
-        val showBottomBar = !isAuthScreen && currentRoute in bottomTabRoutes
+        val showBottomBar = !isAuthScreen
+        val showBottomNavBar = !isAuthScreen && currentRoute in bottomTabRoutes
 
         val musicPlayer = SincApp.instance.container.musicPlayer
         val playerState by musicPlayer.state.collectAsStateWithLifecycle()
@@ -103,7 +107,7 @@ fun AppNavigation() {
                             )
                         }
 
-                        if (showBottomBar) {
+                        if (showBottomNavBar) {
                             BottomNavBar(
                                 currentRoute = currentRoute,
                                 onNavigate = { route ->
@@ -158,6 +162,9 @@ fun AppNavigation() {
                 composable(Routes.HOME) {
                     HomeScreen(
                         onSearch = { navController.navigate(Routes.SEARCH) },
+                        onSearchQuery = { query ->
+                            navController.navigate("search/${java.net.URLEncoder.encode(query, "UTF-8")}")
+                        },
                         onNavigateSettings = { navController.navigate(Routes.SETTINGS) },
                         onNavigateHistory = { navController.navigate(Routes.HISTORY) },
                         onPlayTrack = { track, url ->
@@ -169,6 +176,40 @@ fun AppNavigation() {
                 composable(Routes.SEARCH) {
                     val context = LocalContext.current
                     SearchScreen(
+                        initialQuery = "",
+                        onPlayTrack = { track, url ->
+                            musicPlayer.playUrl(track, url)
+                            navController.navigate(Routes.PLAYER)
+                        },
+                        onDownloadTrack = { track, audioUrl ->
+                            scope.launch {
+                                SincApp.instance.container.downloadRepository.addToQueue(track, audioUrl)
+                                val intent = Intent(context, DownloadService::class.java).apply {
+                                    action = DownloadService.ACTION_DOWNLOAD
+                                    putExtra(DownloadService.EXTRA_TRACK_ID, track.id)
+                                }
+                                context.startForegroundService(intent)
+                                navController.navigate(Routes.QUEUE)
+                            }
+                        },
+                        onNavigateArtist = { artistId ->
+                            navController.navigate("artist/$artistId")
+                        },
+                        onNavigateTrack = { trackId ->
+                            navController.navigate("track/$trackId")
+                        },
+                        onNavigateSettings = { navController.navigate(Routes.SETTINGS) },
+                        onNavigateHistory = { navController.navigate(Routes.HISTORY) }
+                    )
+                }
+                composable(
+                    route = "search/{query}",
+                    arguments = listOf(navArgument("query") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val initialQuery = backStackEntry.arguments?.getString("query") ?: ""
+                    val context = LocalContext.current
+                    SearchScreen(
+                        initialQuery = initialQuery,
                         onPlayTrack = { track, url ->
                             musicPlayer.playUrl(track, url)
                             navController.navigate(Routes.PLAYER)
@@ -286,6 +327,10 @@ fun AppNavigation() {
                                 musicPlayer.playUrl(track, url)
                                 navController.navigate(Routes.PLAYER)
                             }
+                        },
+                        onPlayAll = { tracks ->
+                            musicPlayer.playAll(tracks)
+                            navController.navigate(Routes.PLAYER)
                         },
                         onNavigateBack = { navController.popBackStack() }
                     )

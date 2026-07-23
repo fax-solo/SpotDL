@@ -12,6 +12,8 @@ import androidx.media3.session.MediaSession
 import com.sinc.enhanced.MainActivity
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.domain.player.PlayerController
+import com.sinc.enhanced.domain.player.PlayerState
 import com.sinc.enhanced.service.MediaPlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,21 +26,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-class MusicPlayer(private val context: Context) {
-
-    data class PlayerState(
-        val currentTrack: Track? = null,
-        val isPlaying: Boolean = false,
-        val position: Long = 0,
-        val duration: Long = 0,
-        val queue: List<Track> = emptyList()
-    )
+class MusicPlayer(private val context: Context) : PlayerController {
 
     private val _state = MutableStateFlow(PlayerState())
-    val state: StateFlow<PlayerState> = _state.asStateFlow()
+    override val state: StateFlow<PlayerState> = _state.asStateFlow()
 
     private val _recentlyPlayed = MutableStateFlow<List<Track>>(emptyList())
-    val recentlyPlayed: StateFlow<List<Track>> = _recentlyPlayed.asStateFlow()
+    override val recentlyPlayed: StateFlow<List<Track>> = _recentlyPlayed.asStateFlow()
 
     private val player: ExoPlayer = ExoPlayer.Builder(context)
         .setAudioAttributes(
@@ -97,7 +91,7 @@ class MusicPlayer(private val context: Context) {
         _recentlyPlayed.value = current.take(20)
     }
 
-    fun play(track: Track) {
+    override fun play(track: Track) {
         addToRecentlyPlayed(track)
         val updatedQueue = if (_state.value.queue.none { it.id == track.id }) {
             _state.value.queue + track
@@ -117,7 +111,7 @@ class MusicPlayer(private val context: Context) {
         startService()
     }
 
-    fun playUrl(track: Track, url: String) {
+    override fun playUrl(track: Track, url: String) {
         addToRecentlyPlayed(track)
         val newQueue = listOf(track)
         _state.value = _state.value.copy(currentTrack = track, queue = newQueue)
@@ -127,6 +121,20 @@ class MusicPlayer(private val context: Context) {
         player.prepare()
         player.play()
 
+        startService()
+    }
+
+    override fun playAll(tracks: List<Track>) {
+        if (tracks.isEmpty()) return
+        tracks.forEach { addToRecentlyPlayed(it) }
+        _state.value = _state.value.copy(
+            currentTrack = tracks.first(),
+            queue = tracks
+        )
+        val mediaItems = tracks.map { buildMediaItem(it) }
+        player.setMediaItems(mediaItems)
+        player.prepare()
+        player.play()
         startService()
     }
 
@@ -153,7 +161,7 @@ class MusicPlayer(private val context: Context) {
         return builder.build()
     }
 
-    fun togglePlayPause() {
+    override fun togglePlayPause() {
         if (player.isPlaying) {
             player.pause()
         } else {
@@ -161,24 +169,24 @@ class MusicPlayer(private val context: Context) {
         }
     }
 
-    fun seekTo(positionMs: Long) {
+    override fun seekTo(positionMs: Long) {
         player.seekTo(positionMs)
         updateState()
     }
 
-    fun skipToNext() {
+    override fun skipToNext() {
         player.seekToNextMediaItem()
     }
 
-    fun skipToPrevious() {
+    override fun skipToPrevious() {
         player.seekToPreviousMediaItem()
     }
 
-    fun setVolume(volume: Float) {
+    override fun setVolume(volume: Float) {
         player.volume = volume
     }
 
-    fun release() {
+    override fun release() {
         positionJob?.cancel()
         player.removeListener(playerListener)
         player.release()

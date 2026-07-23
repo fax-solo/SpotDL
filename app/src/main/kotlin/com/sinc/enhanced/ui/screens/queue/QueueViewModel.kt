@@ -15,7 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class QueueUiState(
-    val downloads: List<DownloadEntity> = emptyList()
+    val downloads: List<DownloadEntity> = emptyList(),
+    val isLoading: Boolean = true,
+    val error: String? = null
 )
 
 class QueueViewModel(
@@ -27,32 +29,55 @@ class QueueViewModel(
     val uiState: StateFlow<QueueUiState> = _uiState.asStateFlow()
 
     init {
+        refresh()
+    }
+
+    fun refresh() {
         viewModelScope.launch {
-            downloadRepository.allDownloads.collect { downloads ->
-                _uiState.value = _uiState.value.copy(downloads = downloads)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                downloadRepository.allDownloads.collect { d ->
+                    _uiState.value = QueueUiState(downloads = d, isLoading = false)
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message ?: "Failed to load downloads")
             }
         }
     }
 
     fun removeDownload(trackId: String) {
         viewModelScope.launch {
-            downloadRepository.removeFromQueue(trackId)
+            try {
+                downloadRepository.removeFromQueue(trackId)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to remove download")
+            }
         }
     }
 
     fun retryDownload(trackId: String) {
         viewModelScope.launch {
-            downloadRepository.retryDownload(trackId)
-            val intent = Intent(context, DownloadService::class.java).apply {
-                action = DownloadService.ACTION_DOWNLOAD
-                putExtra(DownloadService.EXTRA_TRACK_ID, trackId)
+            try {
+                downloadRepository.retryDownload(trackId)
+                val intent = Intent(context, DownloadService::class.java).apply {
+                    action = DownloadService.ACTION_DOWNLOAD
+                    putExtra(DownloadService.EXTRA_TRACK_ID, trackId)
+                }
+                context.startForegroundService(intent)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to retry download")
             }
-            context.startForegroundService(intent)
         }
     }
 
     fun clearAll() {
-        viewModelScope.launch { downloadRepository.clearAll() }
+        viewModelScope.launch {
+            try {
+                downloadRepository.clearAll()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to clear downloads")
+            }
+        }
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {

@@ -130,6 +130,7 @@ class ImportPlaylistViewModel(
 
         val patterns = listOf(
             Regex("""open\.spotify\.com/playlist/([a-zA-Z0-9]+)"""),
+            Regex("""spotify\.com/playlist/([a-zA-Z0-9]+)"""),
             Regex("""spotify:playlist:([a-zA-Z0-9]+)"""),
             Regex("""playlist/([a-zA-Z0-9]+)"""),
             Regex("""^([a-zA-Z0-9]{22})$""")
