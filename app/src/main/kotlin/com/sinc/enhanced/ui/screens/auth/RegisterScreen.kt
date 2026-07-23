@@ -20,7 +20,6 @@ fun RegisterScreen(
     onRegisterSuccess: () -> Unit,
     onNavigateLogin: () -> Unit
 ) {
-    var serverUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -30,10 +29,6 @@ fun RegisterScreen(
 
     val apiClient = SincApp.instance.container.apiClient
     val authRepository = SincApp.instance.container.authRepository
-
-    LaunchedEffect(Unit) {
-        serverUrl = authRepository.serverUrl.first()
-    }
 
     Column(
         modifier = Modifier
@@ -55,23 +50,6 @@ fun RegisterScreen(
         )
 
         Spacer(Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = serverUrl,
-            onValueChange = { serverUrl = it },
-            label = { Text("Backend Server URL") },
-            placeholder = { Text("https://your-worker.workers.dev") },
-            supportingText = { Text("Same URL you use to login") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Next
-            ),
-            shape = RoundedCornerShape(12.dp)
-        )
-
-        Spacer(Modifier.height(12.dp))
 
         OutlinedTextField(
             value = username,
@@ -128,7 +106,7 @@ fun RegisterScreen(
 
         Button(
             onClick = {
-                if (serverUrl.isBlank() || username.isBlank() || password.isBlank()) {
+                if (username.isBlank() || password.isBlank()) {
                     error = "All fields required"
                     return@Button
                 }
@@ -136,10 +114,19 @@ fun RegisterScreen(
                     error = "Passwords do not match"
                     return@Button
                 }
+                if (password.length < 6) {
+                    error = "Password must be at least 6 characters"
+                    return@Button
+                }
+                if (username.length < 3) {
+                    error = "Username must be at least 3 characters"
+                    return@Button
+                }
                 loading = true
                 error = null
                 scope.launch {
                     try {
+                        val serverUrl = authRepository.serverUrl.first()
                         apiClient.configure(serverUrl, "")
                         val result = apiClient.register(username, password)
                         if (result != null) {

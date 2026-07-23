@@ -3,6 +3,7 @@ package com.sinc.enhanced.data.repository
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.sinc.enhanced.data.remote.ApiClient
@@ -21,7 +22,8 @@ data class AuthState(
 
 class AuthRepository(
     private val dataStore: DataStore<Preferences>,
-    private val apiClient: ApiClient
+    private val apiClient: ApiClient,
+    private val defaultUrl: String = ""
 ) : AuthRepositoryInterface {
 
     companion object {
@@ -30,21 +32,25 @@ class AuthRepository(
         private val KEY_USER_ID = longPreferencesKey("auth_user_id")
         private val KEY_ROLE = stringPreferencesKey("auth_role")
         private val KEY_SERVER_URL = stringPreferencesKey("server_url")
+        private val HAS_AUTO_INIT = booleanPreferencesKey("has_auto_init_url")
     }
 
     override val authState: Flow<AuthState> = dataStore.data.map { prefs ->
         val token = prefs[KEY_TOKEN] ?: ""
+        val savedUrl = prefs[KEY_SERVER_URL] ?: ""
+        val url = if (savedUrl.isNotEmpty()) savedUrl else defaultUrl
         AuthState(
             isLoggedIn = token.isNotEmpty(),
             isAdmin = prefs[KEY_ROLE] == "admin",
             username = prefs[KEY_USERNAME] ?: "",
             userId = prefs[KEY_USER_ID] ?: 0,
-            serverUrl = prefs[KEY_SERVER_URL] ?: ""
+            serverUrl = url
         )
     }
 
     override val serverUrl: Flow<String> = dataStore.data.map {
-        it[KEY_SERVER_URL] ?: ""
+        val saved = it[KEY_SERVER_URL] ?: ""
+        if (saved.isNotEmpty()) saved else defaultUrl
     }
 
     override suspend fun saveAuth(token: String, username: String, userId: Long, role: String, serverUrl: String) {
@@ -76,10 +82,20 @@ class AuthRepository(
     override suspend fun restoreSession(): Boolean {
         val prefs = dataStore.data.first()
         val token = prefs[KEY_TOKEN] ?: return false
-        val url = prefs[KEY_SERVER_URL] ?: return false
-        if (token.isEmpty() || url.isEmpty()) return false
+        var url = prefs[KEY_SERVER_URL] ?: ""
+
+        val hasInit = prefs[HAS_AUTO_INIT] ?: false
+        if (hasInit != true && defaultUrl.isNotBlank()) {
+            url = defaultUrl
+            dataStore.edit {
+                it[KEY_SERVER_URL] = defaultUrl
+                it[HAS_AUTO_INIT] = true
+            }
+            url = defaultUrl
+        }
 
         apiClient.configure(url, token)
+        if (token.isEmpty() || url.isEmpty()) return false
 
         val me = apiClient.getMe()
         if (me != null) {

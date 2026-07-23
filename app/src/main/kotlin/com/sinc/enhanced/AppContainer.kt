@@ -48,7 +48,7 @@ class AppContainer(private val context: Context) {
     val settingsManager: SettingsManager = SettingsManager(dataStore)
 
     val apiClient: ApiClient = ApiClient(okHttpClient)
-    val authRepository: AuthRepository = AuthRepository(dataStore, apiClient)
+    val authRepository: AuthRepository = AuthRepository(dataStore, apiClient, BuildConfig.BACKEND_URL)
 
     val spotifyClient: SpotifyClient = SpotifyClient(okHttpClient)
     val deezerClient: DeezerClient = DeezerClient(okHttpClient)

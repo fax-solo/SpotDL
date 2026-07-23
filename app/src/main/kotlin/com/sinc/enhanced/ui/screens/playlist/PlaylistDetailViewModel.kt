@@ -6,9 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.entity.PlaylistEntity
 import com.sinc.enhanced.data.local.entity.PlaylistTrackEntity
-import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.PlaylistRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,21 +31,22 @@ class PlaylistDetailViewModel(
     private val _uiState = MutableStateFlow(PlaylistDetailUiState())
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
 
+    private var collectionJob: Job? = null
+
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        collectionJob?.cancel()
+        collectionJob = viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(error = null, isLoading = true)
-                val playlist = playlistRepository.get(playlistId)
+                playlistRepository.get(playlistId)?.let { playlist ->
+                    _uiState.value = _uiState.value.copy(playlist = playlist)
+                }
                 playlistRepository.getTracksFlow(playlistId).collect { tracks ->
-                    _uiState.value = PlaylistDetailUiState(
-                        playlist = playlist,
-                        tracks = tracks,
-                        isLoading = false
-                    )
+                    _uiState.value = _uiState.value.copy(tracks = tracks, isLoading = false)
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -78,7 +79,9 @@ class PlaylistDetailViewModel(
         viewModelScope.launch {
             try {
                 val p = playlistRepository.get(playlistId) ?: return@launch
-                playlistRepository.update(p.copy(name = name.trim(), description = description.trim(), updatedAt = System.currentTimeMillis()))
+                val updated = p.copy(name = name.trim(), description = description.trim(), updatedAt = System.currentTimeMillis())
+                playlistRepository.update(updated)
+                _uiState.value = _uiState.value.copy(playlist = updated)
                 hideEditDialog()
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to update playlist")

@@ -38,37 +38,47 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
+        observePlayerAndDownloads()
+        loadRecentSearches()
+    }
+
+    private fun observePlayerAndDownloads() {
         viewModelScope.launch {
-            combine(
-                musicPlayer.recentlyPlayed,
-                downloadRepository.completedDownloads
-            ) { recent, downloaded ->
-                recent to downloaded
-            }.collect { (recent, downloaded) ->
-                val current = _uiState.value
-                _uiState.value = current.copy(
-                    recentlyPlayed = recent,
-                    recentlyDownloaded = downloaded,
-                    error = null,
-                    isLoading = false
-                )
+            try {
+                combine(
+                    musicPlayer.recentlyPlayed,
+                    downloadRepository.completedDownloads
+                ) { recent, downloaded ->
+                    recent to downloaded
+                }.collect { (recent, downloaded) ->
+                    val current = _uiState.value
+                    if (current.recentlyPlayed != recent || current.recentlyDownloaded != downloaded) {
+                        _uiState.value = current.copy(
+                            recentlyPlayed = recent,
+                            recentlyDownloaded = downloaded,
+                            error = null,
+                            isLoading = false
+                        )
+                    }
+                }
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
-        loadRecentSearches()
     }
 
     private fun loadRecentSearches() {
         viewModelScope.launch {
             try {
                 val recent = searchHistoryDao.getRecentQueries()
-                val keywords = recent.flatMap { it.split(Regex("\\s+")) }
+                val safe = recent.filterNotNull().take(10).distinct()
+                _uiState.value = _uiState.value.copy(recentSearches = safe)
+
+                val keywords = safe.flatMap { it.split(Regex("\\s+")) }
                     .filter { it.length > 3 }
                     .distinct()
                     .shuffled()
                     .take(5)
-                _uiState.value = _uiState.value.copy(
-                    recentSearches = recent.take(10).distinct()
-                )
                 loadRecommendations(keywords)
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, error = "Failed to load data")
@@ -110,7 +120,7 @@ class HomeViewModel(
     }
 
     fun refresh() {
-        _uiState.value = _uiState.value.copy(error = null)
+        _uiState.value = _uiState.value.copy(error = null, isLoading = true)
         loadRecentSearches()
     }
 

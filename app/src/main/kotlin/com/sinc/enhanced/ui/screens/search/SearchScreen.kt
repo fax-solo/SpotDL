@@ -159,6 +159,7 @@ fun SearchScreen(
             else -> {
                 LazyColumn(
                     state = listState,
+                    modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (uiState.artists.isNotEmpty()) {

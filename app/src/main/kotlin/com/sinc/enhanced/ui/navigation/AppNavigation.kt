@@ -323,14 +323,32 @@ fun AppNavigation() {
                     com.sinc.enhanced.ui.screens.playlist.PlaylistDetailScreen(
                         playlistId = playlistId,
                         onPlayTrack = { track ->
-                            track.previewUrl?.let { url ->
-                                musicPlayer.playUrl(track, url)
-                                navController.navigate(Routes.PLAYER)
+                            val repo = SincApp.instance.container.searchRepository
+                            scope.launch {
+                                val url = track.previewUrl
+                                    ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        repo.findBestAudioForTrack(track)?.first
+                                    }
+                                if (url != null) {
+                                    musicPlayer.playUrl(track, url)
+                                    navController.navigate(Routes.PLAYER)
+                                }
                             }
                         },
                         onPlayAll = { tracks ->
-                            musicPlayer.playAll(tracks)
-                            navController.navigate(Routes.PLAYER)
+                            scope.launch {
+                                val loaded = tracks.map { t ->
+                                    if (t.previewUrl != null) t
+                                    else {
+                                        val url = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            SincApp.instance.container.searchRepository.findBestAudioForTrack(t)?.first
+                                        }
+                                        if (url != null) t.copy(previewUrl = url) else t
+                                    }
+                                }
+                                musicPlayer.playAll(loaded)
+                                navController.navigate(Routes.PLAYER)
+                            }
                         },
                         onNavigateBack = { navController.popBackStack() }
                     )

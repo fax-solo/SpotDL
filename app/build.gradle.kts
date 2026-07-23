@@ -18,6 +18,7 @@ android {
 
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"${project.findProperty("SPOTIFY_CLIENT_ID") ?: "YOUR_SPOTIFY_CLIENT_ID"}\"")
         buildConfigField("String", "SPOTIFY_CLIENT_SECRET", "\"${project.findProperty("SPOTIFY_CLIENT_SECRET") ?: "YOUR_SPOTIFY_CLIENT_SECRET"}\"")
+        buildConfigField("String", "BACKEND_URL", "\"${project.findProperty("BACKEND_URL") ?: ""}\"")
     }
 
     signingConfigs {

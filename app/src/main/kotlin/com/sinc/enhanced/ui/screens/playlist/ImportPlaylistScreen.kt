@@ -110,7 +110,7 @@ fun ImportPlaylistScreen(
                                         Text("by ${uiState.playlistOwner}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     Text("${uiState.tracks.size} tracks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    val available = uiState.trackAvailability.count { it.value }
+                                    val available = uiState.trackAudioUrls.size
                                     Text("$available available to download", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
@@ -128,7 +128,7 @@ fun ImportPlaylistScreen(
                                 if (!uiState.isDownloading) {
                                     TextButton(
                                         onClick = { viewModel.downloadAll(onQueueComplete = onQueueComplete) },
-                                        enabled = uiState.trackAvailability.any { it.value }
+                                        enabled = uiState.trackAudioUrls.isNotEmpty()
                                     ) {
                                         Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
                                         Spacer(Modifier.width(4.dp))
@@ -139,17 +139,13 @@ fun ImportPlaylistScreen(
                         }
 
                         items(uiState.tracks, key = { it.id }) { track ->
-                            val isAvailable = uiState.trackAvailability[track.id] == true
+                            val audioUrl = uiState.trackAudioUrls[track.id]
                             TrackRow(
                                 track = track,
-                                isAvailable = isAvailable,
+                                isAvailable = audioUrl != null,
                                 onDownload = {
-                                    if (isAvailable) {
-                                        scope.launch {
-                                            val repo = com.sinc.enhanced.SincApp.instance.container.searchRepository
-                                            val audio = repo.findBestAudioForTrack(track)
-                                            if (audio != null) onDownloadTrack(track, audio.first)
-                                        }
+                                    if (audioUrl != null) {
+                                        onDownloadTrack(track, audioUrl)
                                     }
                                 }
                             )

@@ -105,7 +105,7 @@ fun LoginScreen(
                     try {
                         val serverUrl = authRepository.serverUrl.first()
                         if (serverUrl.isBlank()) {
-                            error = "Configure the server URL in Settings first"
+                            error = "No server URL configured. Set BACKEND_URL in app/gradle.properties and rebuild."
                             loading = false
                             return@launch
                         }
@@ -118,7 +118,7 @@ fun LoginScreen(
                             authRepository.saveAuth(token, username.trim(), uid, role, serverUrl.trim())
                             onLoginSuccess()
                         } else {
-                            error = "Login failed. Check credentials and server URL."
+                            error = "Login failed. Check credentials."
                         }
                     } catch (e: Exception) {
                         error = "Connection error: ${e.message}"

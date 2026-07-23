@@ -24,7 +24,7 @@ data class ImportPlaylistUiState(
     val playlistImage: String? = null,
     val playlistOwner: String? = null,
     val tracks: List<Track> = emptyList(),
-    val trackAvailability: Map<String, Boolean> = emptyMap(),
+    val trackAudioUrls: Map<String, String> = emptyMap(),
     val isDownloading: Boolean = false,
     val downloadProgress: String = "",
     val error: String? = null
@@ -73,10 +73,13 @@ class ImportPlaylistViewModel(
                     hasMore = batch.size >= limit
                 }
 
-                val availability = withContext(Dispatchers.IO) {
+                val audioUrls = withContext(Dispatchers.IO) {
                     allTracks.map { track ->
-                        async { track.id to (searchRepository.findBestAudioForTrack(track) != null) }
-                    }.map { it.await() }.toMap()
+                        async { track.id to searchRepository.findBestAudioForTrack(track) }
+                    }.mapNotNull { deferred ->
+                        val (id, result) = deferred.await()
+                        if (result != null) id to result.first else null
+                    }.toMap()
                 }
 
                 _uiState.value = _uiState.value.copy(
@@ -86,7 +89,7 @@ class ImportPlaylistViewModel(
                     playlistImage = playlist["imageUrl"] as? String,
                     playlistOwner = playlist["owner"] as? String,
                     tracks = allTracks,
-                    trackAvailability = availability
+                    trackAudioUrls = audioUrls
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -97,23 +100,23 @@ class ImportPlaylistViewModel(
         }
     }
 
-    fun downloadAll(onDownloadTrack: (Track, String) -> Unit = { _, _ -> }, onQueueComplete: () -> Unit = {}) {
+    fun downloadAll(onQueueComplete: () -> Unit = {}) {
         val state = _uiState.value
-        val available = state.tracks.filter { state.trackAvailability[it.id] == true }
+        val available = state.tracks.filter { state.trackAudioUrls.containsKey(it.id) }
         if (available.isEmpty()) return
 
-        _uiState.value = state.copy(isDownloading = true, downloadProgress = "Starting download...")
+        _uiState.value = state.copy(isDownloading = true, downloadProgress = "Queuing downloads...")
         viewModelScope.launch {
             var count = 0
             val total = available.size
             for (track in available) {
-                val audio = withContext(Dispatchers.IO) { searchRepository.findBestAudioForTrack(track) }
-                if (audio != null) {
-                    downloadRepository.addToQueue(track, audio.first)
+                val audioUrl = state.trackAudioUrls[track.id]
+                if (audioUrl != null) {
+                    downloadRepository.addToQueue(track, audioUrl)
                 }
                 count++
                 _uiState.value = _uiState.value.copy(
-                    downloadProgress = "Finding track $count of $total"
+                    downloadProgress = "Queued $count of $total"
                 )
             }
             _uiState.value = _uiState.value.copy(
