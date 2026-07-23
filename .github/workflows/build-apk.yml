@@ -47,11 +47,11 @@ jobs:
 
       - name: Bump version
         id: bump
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           VERSION="${{ steps.version.outputs.current }}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
 
           if echo "$COMMIT_MSG" | grep -qi "BREAKING CHANGE"; then
             MAJOR=$((MAJOR + 1))
