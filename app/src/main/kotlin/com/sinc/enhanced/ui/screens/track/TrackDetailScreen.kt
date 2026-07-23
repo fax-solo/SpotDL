@@ -55,7 +55,11 @@ fun TrackDetailScreen(
             }
         } else if (uiState.error != null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(uiState.error ?: "Error", color = MaterialTheme.colorScheme.error)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(uiState.error ?: "Error", color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = onNavigateBack) { Text("Go Back") }
+                }
             }
         } else {
             val track = uiState.track
@@ -65,12 +69,12 @@ fun TrackDetailScreen(
             ) {
                 if (track != null) {
                     item {
-                        var artworkUrl by remember { mutableStateOf(track.artworkUrl) }
-                        LaunchedEffect(track.id) {
+                        var artworkUrl by remember(track.id, track.artworkUrl) { mutableStateOf(track.artworkUrl) }
+                        LaunchedEffect(track.id, track.artworkUrl) {
                             if (track.artworkUrl == null) {
-                                withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val fallback = SincApp.instance.container.artworkClient.findArtwork(track.artist, track.title)
-                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                withContext(Dispatchers.IO) {
+                                    val fallback = SincApp.instance.container.artworkClient.findArtwork(track.title, track.artist)
+                                    withContext(Dispatchers.Main) {
                                         if (fallback != null) artworkUrl = fallback
                                     }
                                 }
@@ -113,14 +117,18 @@ fun TrackDetailScreen(
                             }
                             Text(track.durationFormatted, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(8.dp))
-                            Button(onClick = { track.previewUrl?.let { onPlayTrack(track, it) } }) {
-                                Icon(Icons.Default.PlayArrow, null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Play")
+                            val playUrl = uiState.audioUrl ?: track.previewUrl
+                            if (playUrl != null) {
+                                Button(onClick = { onPlayTrack(track, playUrl) }) {
+                                    Icon(Icons.Default.PlayArrow, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Play")
+                                }
                             }
                         }
                     }
 
+                    val artist = uiState.artist
                     if (uiState.lyrics != null) {
                         item {
                             Text("Lyrics", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
@@ -138,15 +146,24 @@ fun TrackDetailScreen(
                                 )
                             }
                         }
+                    } else {
+                        item {
+                            Text(
+                                text = "No lyrics found",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
                     }
 
-                    if (uiState.artist != null) {
+                    if (artist != null) {
                         item {
                             Text("Artist", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
                         }
                         item {
                             Surface(
-                                modifier = Modifier.fillMaxWidth().clickable { uiState.artist?.let { onNavigateArtist(it.id) } },
+                                modifier = Modifier.fillMaxWidth().clickable { onNavigateArtist(artist.id) },
                                 shape = RoundedCornerShape(12.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant
                             ) {
@@ -154,9 +171,9 @@ fun TrackDetailScreen(
                                     modifier = Modifier.padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (uiState.artist?.imageUrl != null) {
+                                    if (artist.imageUrl != null) {
                                         Image(
-                                            painter = rememberAsyncImagePainter(uiState.artist!!.imageUrl),
+                                            painter = rememberAsyncImagePainter(artist.imageUrl),
                                             contentDescription = null,
                                             modifier = Modifier.size(56.dp).clip(RoundedCornerShape(28.dp)),
                                             contentScale = ContentScale.Crop
@@ -165,7 +182,7 @@ fun TrackDetailScreen(
                                         Icon(Icons.Default.Person, null, modifier = Modifier.size(56.dp))
                                     }
                                     Spacer(Modifier.width(12.dp))
-                                    Text(uiState.artist!!.name, style = MaterialTheme.typography.titleMedium)
+                                    Text(artist.name, style = MaterialTheme.typography.titleMedium)
                                 }
                             }
                         }

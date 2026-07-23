@@ -51,9 +51,6 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Row {
-                    IconButton(onClick = onSearch) {
-                        Icon(Icons.Default.Search, "Search")
-                    }
                     IconButton(onClick = onNavigateHistory) {
                         Icon(Icons.Default.History, "History")
                     }
@@ -66,10 +63,19 @@ fun HomeScreen(
                 value = "",
                 onValueChange = {},
                 placeholder = { Text("Search for music...") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clickable { onSearch() },
                 shape = RoundedCornerShape(16.dp),
                 readOnly = true,
-                trailingIcon = { Icon(Icons.Default.Search, "Search") },
+                enabled = false,
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                    disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                leadingIcon = { Icon(Icons.Default.Search, "Search") },
                 singleLine = true
             )
         }
@@ -89,7 +95,7 @@ fun HomeScreen(
                 }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(uiState.recentlyPlayed) { track ->
+                        items(uiState.recentlyPlayed, key = { it.id }) { track ->
                             TrackCard(track = track, onClick = {
                                 val url = track.previewUrl
                                 if (url != null) onPlayTrack(track, url)
@@ -106,11 +112,11 @@ fun HomeScreen(
                 }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(uiState.recentlyDownloaded) { download ->
+                        items(uiState.recentlyDownloaded, key = { it.trackId }) { download ->
                             DownloadedCard(
                                 download = download,
                                 onClick = {
-                                    trackDownload(download)?.let { track ->
+                                    trackFromDownload(download)?.let { track ->
                                         download.filePath?.let { onPlayTrack(track, it) }
                                     }
                                 }
@@ -152,42 +158,25 @@ fun HomeScreen(
                 }
             }
 
-            if (uiState.recentResults.isNotEmpty()) {
+            if (uiState.recommendations.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = "You Might Like",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    SectionHeader("You Might Also Like")
                 }
-                items(uiState.recentResults) { keyword ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().clickable { onSearch() },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Search, null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                text = "Search for \"$keyword\"",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(uiState.recommendations, key = { it.id }) { track ->
+                            RecommenderCard(track = track, onClick = {
+                                val url = track.previewUrl
+                                if (url != null) onPlayTrack(track, url)
+                            })
                         }
                     }
                 }
+                item { Spacer(Modifier.height(8.dp)) }
             }
 
-            if (uiState.recentSearches.isEmpty() && uiState.recentResults.isEmpty()
+            if (uiState.recentSearches.isEmpty() && uiState.recommendations.isEmpty()
                 && uiState.recentlyPlayed.isEmpty() && uiState.recentlyDownloaded.isEmpty()) {
                 item {
                     Box(
@@ -306,7 +295,60 @@ private fun DownloadedCard(download: DownloadEntity, onClick: () -> Unit) {
     }
 }
 
-private fun trackDownload(download: DownloadEntity): Track? {
+@Composable
+private fun RecommenderCard(track: Track, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.width(160.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            if (track.artworkUrl != null) {
+                androidx.compose.foundation.Image(
+                    painter = rememberAsyncImagePainter(track.artworkUrl),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .width(144.dp)
+                        .height(144.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier.size(144.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(48.dp))
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = track.title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = track.artist,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = track.album,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun trackFromDownload(download: DownloadEntity): Track? {
     return Track(
         id = download.trackId,
         title = download.title,

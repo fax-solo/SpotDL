@@ -7,10 +7,14 @@ import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.remote.LyricsClient
 import com.sinc.enhanced.player.MusicPlayer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class PlayerUiState(
     val currentTrack: Track? = null,
@@ -40,6 +44,17 @@ class PlayerViewModel(
                 )
             }
         }
+        viewModelScope.launch {
+            musicPlayer.state.map { it.currentTrack?.let { it.id to it } }
+                .distinctUntilChanged()
+                .collect { pair ->
+                    val track = pair?.second
+                    if (track != null && track != _uiState.value.currentTrack) {
+                        _uiState.value = _uiState.value.copy(lyrics = null, isLoadingLyrics = false)
+                    }
+                    if (track != null) loadLyrics(track)
+                }
+        }
     }
 
     fun togglePlayPause() {
@@ -58,14 +73,16 @@ class PlayerViewModel(
         musicPlayer.skipToPrevious()
     }
 
-    private fun loadLyrics() {
-        val track = _uiState.value.currentTrack ?: return
+    private fun loadLyrics(track: Track) {
+        if (_uiState.value.isLoadingLyrics) return
         _uiState.value = _uiState.value.copy(isLoadingLyrics = true)
         viewModelScope.launch {
             try {
-                val result = lyricsClient.getLyrics(track.artist, track.title, track.album)
+                val result = withContext(Dispatchers.IO) {
+                    lyricsClient.getLyrics(track.artist, track.title, track.album)
+                }
                 _uiState.value = _uiState.value.copy(
-                    lyrics = result.plainLyrics ?: result.syncedLyrics,
+                    lyrics = result?.plainLyrics ?: result?.syncedLyrics,
                     isLoadingLyrics = false
                 )
             } catch (_: Exception) {

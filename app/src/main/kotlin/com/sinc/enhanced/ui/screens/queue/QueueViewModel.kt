@@ -15,8 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class QueueUiState(
-    val downloads: List<DownloadEntity> = emptyList(),
-    val activeDownloads: List<DownloadEntity> = emptyList()
+    val downloads: List<DownloadEntity> = emptyList()
 )
 
 class QueueViewModel(
@@ -32,36 +31,6 @@ class QueueViewModel(
             downloadRepository.allDownloads.collect { downloads ->
                 _uiState.value = _uiState.value.copy(downloads = downloads)
             }
-        }
-        viewModelScope.launch {
-            downloadRepository.activeDownloads.collect { active ->
-                _uiState.value = _uiState.value.copy(activeDownloads = active)
-            }
-        }
-    }
-
-    fun startDownload(trackId: String, audioUrl: String) {
-        viewModelScope.launch {
-            val track = _uiState.value.downloads.find { it.trackId == trackId }
-            if (track == null) return@launch
-            downloadRepository.addToQueue(
-                com.sinc.enhanced.data.model.Track(
-                    id = track.trackId,
-                    title = track.title,
-                    artist = track.artist,
-                    album = track.album,
-                    artworkUrl = track.artworkUrl,
-                    durationMs = track.durationMs,
-                    isrc = track.isrc,
-                    source = track.source
-                ),
-                audioUrl
-            )
-            val intent = Intent(context, DownloadService::class.java).apply {
-                action = DownloadService.ACTION_DOWNLOAD
-                putExtra(DownloadService.EXTRA_TRACK_ID, trackId)
-            }
-            context.startForegroundService(intent)
         }
     }
 

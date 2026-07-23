@@ -20,6 +20,7 @@ fun PlayerMiniBar(
     artist: String?,
     isPlaying: Boolean,
     onPlayPause: () -> Unit,
+    onSkipNext: () -> Unit = {},
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -68,7 +69,7 @@ fun PlayerMiniBar(
                 )
             }
 
-            IconButton(onClick = { }) {
+            IconButton(onClick = onSkipNext) {
                 Icon(
                     imageVector = Icons.Default.SkipNext,
                     contentDescription = "Next",

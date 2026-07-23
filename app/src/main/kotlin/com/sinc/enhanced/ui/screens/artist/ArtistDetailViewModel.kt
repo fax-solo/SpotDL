@@ -39,12 +39,19 @@ class ArtistDetailViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val artist = searchRepository.getArtist(artistId)
-                val topTracks = if (artist != null) searchRepository.getArtistTopTracks(artistId) else emptyList()
-                val related = if (artist != null) searchRepository.getRelatedArtists(artistId) else emptyList()
+                if (artist == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "Could not load artist. Make sure you have a working internet connection."
+                    )
+                    return@launch
+                }
+                val topTracks = searchRepository.getArtistTopTracks(artistId)
+                val related = searchRepository.getRelatedArtists(artistId)
                 _uiState.value = ArtistUiState(
                     artist = artist,
                     topTracks = topTracks,
-                    albums = artist?.albums ?: emptyList(),
+                    albums = artist.albums,
                     relatedArtists = related,
                     isLoading = false
                 )

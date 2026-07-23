@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sinc.enhanced.BuildConfig
 import com.sinc.enhanced.SincApp
 import kotlinx.coroutines.launch
 
@@ -155,6 +156,36 @@ fun SettingsScreen(
             }
         }
 
+        Spacer(Modifier.height(16.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Download Lyrics",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Save lyrics when downloading songs for offline viewing",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = uiState.downloadLyrics,
+                    onCheckedChange = viewModel::setDownloadLyrics
+                )
+            }
+        }
+
         Spacer(Modifier.height(24.dp))
 
         Text(
@@ -210,7 +241,7 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Version 1.0.0",
+                    text = "Version ${BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -2,11 +2,14 @@ package com.sinc.enhanced.ui.navigation
 
 import android.content.Intent
 import androidx.compose.animation.*
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
@@ -54,13 +57,22 @@ fun AppNavigation() {
     val scope = rememberCoroutineScope()
 
     val authRepository = SincApp.instance.container.authRepository
-    val authState by authRepository.authState.collectAsState(initial = com.sinc.enhanced.data.repository.AuthState())
 
     var startDest by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         val sessionValid = authRepository.restoreSession()
         startDest = if (sessionValid) Routes.HOME else Routes.LOGIN
+    }
+
+    if (startDest == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
     }
 
     startDest?.let { start ->
@@ -85,6 +97,7 @@ fun AppNavigation() {
                                 artist = playerState.currentTrack?.artist,
                                 isPlaying = playerState.isPlaying,
                                 onPlayPause = { musicPlayer.togglePlayPause() },
+                                onSkipNext = { musicPlayer.skipToNext() },
                                 onClick = { navController.navigate(Routes.PLAYER) }
                             )
                         }
@@ -181,7 +194,12 @@ fun AppNavigation() {
                     )
                 }
                 composable(Routes.QUEUE) {
-                    QueueScreen()
+                    QueueScreen(
+                        onPlayTrack = { track, url ->
+                            musicPlayer.playUrl(track, url)
+                            navController.navigate(Routes.PLAYER)
+                        }
+                    )
                 }
                 composable(Routes.LIBRARY) {
                     LibraryScreen(
@@ -226,12 +244,9 @@ fun AppNavigation() {
                 }
                 composable(Routes.HISTORY) {
                     HistoryScreen(
-                        onPlayHistory = { filePath ->
-                            val state = musicPlayer.state.value
-                            state.currentTrack?.let { track ->
-                                musicPlayer.playUrl(track, filePath)
-                                navController.navigate(Routes.PLAYER)
-                            }
+                        onPlayTrack = { track, url ->
+                            musicPlayer.playUrl(track, url)
+                            navController.navigate(Routes.PLAYER)
                         }
                     )
                 }
@@ -279,13 +294,14 @@ fun AppNavigation() {
                     com.sinc.enhanced.ui.screens.playlist.ImportPlaylistScreen(
                         onDownloadTrack = { track, audioUrl ->
                             scope.launch {
-                                val repo = SincApp.instance.container.downloadRepository
-                                repo.addToQueue(track, audioUrl)
-                                val intent = android.content.Intent(ctx, com.sinc.enhanced.service.DownloadService::class.java).apply {
-                                    action = com.sinc.enhanced.service.DownloadService.ACTION_PROCESS_QUEUE
-                                }
-                                ctx.startForegroundService(intent)
+                                SincApp.instance.container.downloadRepository.addToQueue(track, audioUrl)
                             }
+                        },
+                        onQueueComplete = {
+                            val intent = android.content.Intent(ctx, com.sinc.enhanced.service.DownloadService::class.java).apply {
+                                action = com.sinc.enhanced.service.DownloadService.ACTION_PROCESS_QUEUE
+                            }
+                            ctx.startForegroundService(intent)
                         },
                         onNavigateBack = { navController.popBackStack() }
                     )
@@ -297,6 +313,9 @@ fun AppNavigation() {
                         onPlayTrack = { track, url ->
                             musicPlayer.playUrl(track, url)
                             navController.navigate(Routes.PLAYER)
+                        },
+                        onNavigateArtist = { id ->
+                            navController.navigate("artist/$id")
                         },
                         onNavigateBack = { navController.popBackStack() }
                     )

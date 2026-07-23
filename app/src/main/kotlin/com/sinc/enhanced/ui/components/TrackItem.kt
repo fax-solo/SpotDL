@@ -54,7 +54,7 @@ fun TrackItem(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = track.title.first().toString(),
+                            text = track.title.firstOrNull()?.toString() ?: "?",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

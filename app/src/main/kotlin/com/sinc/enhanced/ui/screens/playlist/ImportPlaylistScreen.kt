@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ImportPlaylistScreen(
     onDownloadTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
+    onQueueComplete: () -> Unit = {},
     onNavigateBack: () -> Unit,
     viewModel: ImportPlaylistViewModel = viewModel(factory = ImportPlaylistViewModel.Factory())
 ) {
@@ -126,7 +127,7 @@ fun ImportPlaylistScreen(
                                 Text("Tracks", style = MaterialTheme.typography.titleMedium)
                                 if (!uiState.isDownloading) {
                                     TextButton(
-                                        onClick = { viewModel.downloadAll(onDownloadTrack) },
+                                        onClick = { viewModel.downloadAll(onQueueComplete = onQueueComplete) },
                                         enabled = uiState.trackAvailability.any { it.value }
                                     ) {
                                         Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))

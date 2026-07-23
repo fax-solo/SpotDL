@@ -1,10 +1,12 @@
 package com.sinc.enhanced.ui.screens.queue
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,11 +17,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sinc.enhanced.data.local.entity.DownloadEntity
+import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.DownloadProgress
 import com.sinc.enhanced.ui.components.TrackItem
 
 @Composable
 fun QueueScreen(
+    onPlayTrack: (Track, String) -> Unit = { _, _ -> },
     viewModel: QueueViewModel = viewModel(factory = QueueViewModel.Factory(LocalContext.current))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -71,9 +75,22 @@ fun QueueScreen(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.downloads) { download ->
+                items(uiState.downloads, key = { it.trackId }) { download ->
                     DownloadItem(
                         download = download,
+                        onPlay = {
+                            val track = Track(
+                                id = download.trackId,
+                                title = download.title,
+                                artist = download.artist,
+                                album = download.album,
+                                artworkUrl = download.artworkUrl,
+                                durationMs = download.durationMs,
+                                isrc = download.isrc,
+                                source = download.source
+                            )
+                            download.filePath?.let { onPlayTrack(track, it) }
+                        },
                         onRemove = { viewModel.removeDownload(download.trackId) },
                         onRetry = { viewModel.retryDownload(download.trackId) }
                     )
@@ -86,10 +103,11 @@ fun QueueScreen(
 @Composable
 private fun DownloadItem(
     download: DownloadEntity,
+    onPlay: () -> Unit,
     onRemove: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val track = com.sinc.enhanced.data.model.Track(
+    val track = Track(
         id = download.trackId,
         title = download.title,
         artist = download.artist,
@@ -102,7 +120,11 @@ private fun DownloadItem(
 
     TrackItem(
         track = track,
-        onClick = {},
+        onClick = {
+            if (download.status == "completed") {
+                onPlay()
+            }
+        },
         trailing = {
             Column {
                 when (download.status) {
@@ -117,8 +139,13 @@ private fun DownloadItem(
                         }
                     }
                     "completed" -> {
-                        IconButton(onClick = onRemove) {
-                            Icon(Icons.Default.Delete, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row {
+                            IconButton(onClick = onPlay) {
+                                Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = onRemove) {
+                                Icon(Icons.Default.Delete, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }

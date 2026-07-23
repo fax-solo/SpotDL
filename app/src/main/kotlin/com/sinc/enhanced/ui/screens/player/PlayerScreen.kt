@@ -4,8 +4,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -56,11 +58,11 @@ fun PlayerScreen(
 
         Spacer(Modifier.height(32.dp))
 
-        var artworkUrl by remember { mutableStateOf(track.artworkUrl) }
+        var artworkUrl by remember(track.id, track.artworkUrl) { mutableStateOf(track.artworkUrl) }
         LaunchedEffect(track.id, track.artworkUrl) {
             if (track.artworkUrl == null) {
                 withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    val fallback = SincApp.instance.container.artworkClient.findArtwork(track.artist, track.title)
+                    val fallback = SincApp.instance.container.artworkClient.findArtwork(track.title, track.artist)
                     withContext(kotlinx.coroutines.Dispatchers.Main) {
                         if (fallback != null) artworkUrl = fallback
                     }
@@ -112,8 +114,7 @@ fun PlayerScreen(
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.clickable { onNavigateArtist(track.artist) }
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(Modifier.height(40.dp))
@@ -184,15 +185,27 @@ fun PlayerScreen(
         Spacer(Modifier.height(32.dp))
 
         val lyricsText = uiState.lyrics
-        if (lyricsText != null) {
+        if (uiState.isLoadingLyrics) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+        } else if (lyricsText == null && uiState.currentTrack != null) {
+            Text(
+                text = "No lyrics found",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        } else if (lyricsText != null) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f, fill = false),
+                    .weight(1f, fill = false)
+                    .padding(top = 16.dp),
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surface
             ) {
-                Box(modifier = Modifier.padding(16.dp)) {
+                Box(
+                    modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())
+                ) {
                     Text(
                         text = lyricsText,
                         style = MaterialTheme.typography.bodyMedium,

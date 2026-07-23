@@ -30,6 +30,7 @@ import com.sinc.enhanced.data.model.Track
 fun ArtistDetailScreen(
     artistId: String,
     onPlayTrack: (Track, String) -> Unit,
+    onNavigateArtist: (String) -> Unit = {},
     onNavigateBack: () -> Unit,
     viewModel: ArtistDetailViewModel = viewModel(factory = ArtistDetailViewModel.Factory(artistId))
 ) {
@@ -53,7 +54,11 @@ fun ArtistDetailScreen(
             }
         } else if (uiState.error != null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(uiState.error ?: "Error", color = MaterialTheme.colorScheme.error)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(uiState.error ?: "Error", color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = onNavigateBack) { Text("Go Back") }
+                }
             }
         } else {
             val artist = uiState.artist
@@ -109,10 +114,11 @@ fun ArtistDetailScreen(
                     item {
                         Text("Top Tracks", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
                     }
-                    items(uiState.topTracks) { track ->
+                    items(uiState.topTracks, key = { it.id }) { track ->
+                        val playUrl = track.previewUrl
                         TrackRow(
                             track = track,
-                            onPlay = { track.previewUrl?.let { onPlayTrack(track, it) } }
+                            onPlay = { if (playUrl != null) onPlayTrack(track, playUrl) }
                         )
                     }
                 }
@@ -123,11 +129,11 @@ fun ArtistDetailScreen(
                     }
                     item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(uiState.relatedArtists) { related ->
+                            items(uiState.relatedArtists, key = { it.id }) { related ->
                                 RelatedArtistCard(
                                     name = related.name,
                                     imageUrl = related.imageUrl,
-                                    onClick = { /* navigate to related artist - would need to recreate screen */ }
+                                    onClick = { onNavigateArtist(related.id) }
                                 )
                             }
                         }

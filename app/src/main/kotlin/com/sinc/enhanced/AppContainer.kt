@@ -77,7 +77,9 @@ class AppContainer(private val context: Context) {
         downloadDao = database.downloadDao(),
         historyDao = database.historyDao(),
         okHttpClient = okHttpClient,
-        findAudioUrl = { track -> searchRepository.findBestAudioForTrack(track) }
+        findAudioUrl = { track -> searchRepository.findBestAudioForTrack(track) },
+        lyricsClient = lyricsClient,
+        settingsManager = settingsManager
     )
     val playlistRepository: PlaylistRepository = PlaylistRepository(database.playlistDao())
 

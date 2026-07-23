@@ -13,9 +13,16 @@ import com.sinc.enhanced.MainActivity
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.service.MediaPlaybackService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class MusicPlayer(private val context: Context) {
 
@@ -45,18 +52,23 @@ class MusicPlayer(private val context: Context) {
         .build()
 
     private val mediaSession: MediaSession
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var positionJob: Job? = null
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             updateState()
+            updatePositionPolling()
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updateState()
+            updatePositionPolling()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             updateState()
+            updatePositionPolling()
         }
     }
 
@@ -96,8 +108,9 @@ class MusicPlayer(private val context: Context) {
             queue = updatedQueue
         )
 
-        val mediaItem = buildMediaItem(track)
-        player.setMediaItem(mediaItem)
+        val mediaItems = updatedQueue.map { buildMediaItem(it) }
+        val index = updatedQueue.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
+        player.setMediaItems(mediaItems, index, C.TIME_UNSET)
         player.prepare()
         player.play()
 
@@ -106,10 +119,11 @@ class MusicPlayer(private val context: Context) {
 
     fun playUrl(track: Track, url: String) {
         addToRecentlyPlayed(track)
-        _state.value = _state.value.copy(currentTrack = track)
+        val newQueue = listOf(track)
+        _state.value = _state.value.copy(currentTrack = track, queue = newQueue)
 
         val mediaItem = buildMediaItem(track, url)
-        player.setMediaItem(mediaItem)
+        player.setMediaItems(listOf(mediaItem))
         player.prepare()
         player.play()
 
@@ -149,6 +163,7 @@ class MusicPlayer(private val context: Context) {
 
     fun seekTo(positionMs: Long) {
         player.seekTo(positionMs)
+        updateState()
     }
 
     fun skipToNext() {
@@ -164,14 +179,34 @@ class MusicPlayer(private val context: Context) {
     }
 
     fun release() {
+        positionJob?.cancel()
         player.removeListener(playerListener)
         player.release()
         mediaSession.release()
         (context.applicationContext as SincApp).mediaSession = null
     }
 
+    private fun updatePositionPolling() {
+        positionJob?.cancel()
+        if (player.isPlaying && player.playbackState != Player.STATE_ENDED) {
+            positionJob = scope.launch {
+                while (isActive) {
+                    updateState()
+                    delay(250)
+                }
+            }
+        }
+    }
+
     private fun updateState() {
+        val currentIndex = player.currentMediaItemIndex
+        val queue = _state.value.queue
+        val currentTrack = if (currentIndex >= 0 && currentIndex < queue.size) {
+            queue[currentIndex]
+        } else _state.value.currentTrack
+
         _state.value = _state.value.copy(
+            currentTrack = currentTrack,
             isPlaying = player.isPlaying,
             position = player.currentPosition,
             duration = player.duration.coerceAtLeast(0)

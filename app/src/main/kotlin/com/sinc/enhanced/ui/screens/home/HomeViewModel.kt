@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val recentSearches: List<String> = emptyList(),
-    val recentResults: List<String> = emptyList(),
+    val recommendations: List<Track> = emptyList(),
     val recentlyPlayed: List<Track> = emptyList(),
     val recentlyDownloaded: List<DownloadEntity> = emptyList(),
     val isLoading: Boolean = true
@@ -58,20 +58,43 @@ class HomeViewModel(
             try {
                 val recent = searchHistoryDao.getRecentQueries()
                 val keywords = recent.flatMap { it.split(Regex("\\s+")) }
-                    .filter { it.length > 2 }
+                    .filter { it.length > 3 }
                     .distinct()
                     .shuffled()
                     .take(5)
-                val current = _uiState.value
-                _uiState.value = current.copy(
-                    recentSearches = recent.take(10),
-                    recentResults = keywords,
-                    isLoading = current.recentlyPlayed.isNotEmpty() || current.recentlyDownloaded.isNotEmpty()
+                _uiState.value = _uiState.value.copy(
+                    recentSearches = recent.take(10)
                 )
+                loadRecommendations(keywords)
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
+    }
+
+    private suspend fun loadRecommendations(keywords: List<String>) {
+        if (keywords.isEmpty()) {
+            _uiState.value = _uiState.value.copy(isLoading = false)
+            return
+        }
+        val allTracks = mutableListOf<Track>()
+        val seen = mutableSetOf<String>()
+        for (keyword in keywords) {
+            val results = searchRepository.searchAll(keyword)
+            for (enriched in results) {
+                val t = enriched.track
+                if (t.id !in seen && t.artworkUrl != null) {
+                    seen.add(t.id)
+                    allTracks.add(t)
+                    if (allTracks.size >= 20) break
+                }
+            }
+            if (allTracks.size >= 20) break
+        }
+        _uiState.value = _uiState.value.copy(
+            recommendations = allTracks,
+            isLoading = false
+        )
     }
 
     fun refresh() {

@@ -16,7 +16,12 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) {
         val SOURCE_JAMENDO_ENABLED = booleanPreferencesKey("source_jamendo_enabled")
         val SOURCE_FMA_ENABLED = booleanPreferencesKey("source_fma_enabled")
         val SOURCE_BANDCAMP_ENABLED = booleanPreferencesKey("source_bandcamp_enabled")
+        val DOWNLOAD_LYRICS = booleanPreferencesKey("download_lyrics")
         val DOWNLOAD_PATH = stringPreferencesKey("download_path")
+    }
+
+    val downloadLyrics: Flow<Boolean> = dataStore.data.map {
+        it[DOWNLOAD_LYRICS] ?: true
     }
 
     val jamendoClientId: Flow<String> = dataStore.data.map {
@@ -65,5 +70,9 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) {
 
     suspend fun setDownloadPath(path: String) {
         dataStore.edit { it[DOWNLOAD_PATH] = path }
+    }
+
+    suspend fun setDownloadLyrics(enabled: Boolean) {
+        dataStore.edit { it[DOWNLOAD_LYRICS] = enabled }
     }
 }

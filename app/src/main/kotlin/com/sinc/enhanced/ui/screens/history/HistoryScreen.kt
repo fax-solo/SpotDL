@@ -16,7 +16,7 @@ import com.sinc.enhanced.ui.components.TrackItem
 
 @Composable
 fun HistoryScreen(
-    onPlayHistory: (String) -> Unit,
+    onPlayTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
     viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory())
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -60,7 +60,7 @@ fun HistoryScreen(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.history) { item ->
+                items(uiState.history, key = { it.id }) { item ->
                     val track = com.sinc.enhanced.data.model.Track(
                         id = item.trackId,
                         title = item.title,
@@ -68,13 +68,14 @@ fun HistoryScreen(
                         album = item.album,
                         artworkUrl = item.artworkUrl,
                         durationMs = item.durationMs,
-                        source = item.source
+                        source = item.source,
+                        previewUrl = item.filePath
                     )
                     TrackItem(
                         track = track,
-                        onClick = { onPlayHistory(item.filePath) },
+                        onClick = { item.filePath?.let { onPlayTrack(track, it) } },
                         trailing = {
-                            IconButton(onClick = { onPlayHistory(item.filePath) }) {
+                            IconButton(onClick = { item.filePath?.let { onPlayTrack(track, it) } }) {
                                 Icon(
                                     Icons.Default.PlayArrow,
                                     "Play",

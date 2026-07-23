@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.remote.SpotifyClient
+import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.SearchRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -31,7 +32,8 @@ data class ImportPlaylistUiState(
 
 class ImportPlaylistViewModel(
     private val spotifyClient: SpotifyClient,
-    private val searchRepository: SearchRepository
+    private val searchRepository: SearchRepository,
+    private val downloadRepository: DownloadRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ImportPlaylistUiState())
@@ -95,7 +97,7 @@ class ImportPlaylistViewModel(
         }
     }
 
-    fun downloadAll(onDownloadTrack: (Track, String) -> Unit) {
+    fun downloadAll(onDownloadTrack: (Track, String) -> Unit = { _, _ -> }, onQueueComplete: () -> Unit = {}) {
         val state = _uiState.value
         val available = state.tracks.filter { state.trackAvailability[it.id] == true }
         if (available.isEmpty()) return
@@ -107,17 +109,18 @@ class ImportPlaylistViewModel(
             for (track in available) {
                 val audio = withContext(Dispatchers.IO) { searchRepository.findBestAudioForTrack(track) }
                 if (audio != null) {
-                    onDownloadTrack(track, audio.first)
+                    downloadRepository.addToQueue(track, audio.first)
                 }
                 count++
                 _uiState.value = _uiState.value.copy(
-                    downloadProgress = "Downloading track $count of $total"
+                    downloadProgress = "Finding track $count of $total"
                 )
             }
             _uiState.value = _uiState.value.copy(
                 isDownloading = false,
                 downloadProgress = "$count tracks queued for download"
             )
+            onQueueComplete()
         }
     }
 
@@ -143,7 +146,7 @@ class ImportPlaylistViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
             val c = SincApp.instance.container
-            return ImportPlaylistViewModel(c.spotifyClient, c.searchRepository) as T
+            return ImportPlaylistViewModel(c.spotifyClient, c.searchRepository, c.downloadRepository) as T
         }
     }
 }

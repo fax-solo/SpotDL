@@ -6,14 +6,17 @@ import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.sinc.enhanced.data.local.SettingsManager
 import com.sinc.enhanced.data.local.dao.DownloadDao
 import com.sinc.enhanced.data.local.dao.HistoryDao
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.local.entity.HistoryEntity
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.data.remote.LyricsClient
 import com.sinc.enhanced.data.util.robustCall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -26,7 +29,9 @@ class DownloadRepository(
     private val downloadDao: DownloadDao,
     private val historyDao: HistoryDao,
     private val okHttpClient: OkHttpClient,
-    private val findAudioUrl: suspend (Track) -> Pair<String, String>?
+    private val findAudioUrl: suspend (Track) -> Pair<String, String>?,
+    private val lyricsClient: LyricsClient,
+    private val settingsManager: SettingsManager
 ) {
 
     val allDownloads: Flow<List<DownloadEntity>> = downloadDao.getAllDownloads()
@@ -236,6 +241,12 @@ class DownloadRepository(
                         filePath = outputFile.absolutePath
                     )
                 )
+
+                if (settingsManager.downloadLyrics.first()) {
+                    try {
+                        lyricsClient.getLyrics(download.artist, download.title, download.album)
+                    } catch (_: Exception) {}
+                }
 
                 Pair(outputFile.absolutePath, bytesRead)
             }

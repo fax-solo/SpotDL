@@ -163,7 +163,7 @@ private fun LocalTab(
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(uiState.localTracks) { localTrack ->
+                    items(uiState.localTracks, key = { it.id }) { localTrack ->
                         val track = Track(
                             id = "local_${localTrack.id}",
                             title = localTrack.title,
@@ -240,7 +240,7 @@ private fun DownloadedTab(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                items(downloadedTracks) { download ->
+                items(downloadedTracks, key = { it.trackId }) { download ->
                     val track = Track(
                         id = download.trackId,
                         title = download.title,

@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val downloadQuality: Int = 128,
     val downloadFormat: String = "mp3",
-    val deezerArl: String = ""
+    val deezerArl: String = "",
+    val downloadLyrics: Boolean = true
 )
 
 class SettingsViewModel(
@@ -42,9 +43,17 @@ class SettingsViewModel(
                 _uiState.value = SettingsUiState(
                     downloadQuality = prefs[DOWNLOAD_QUALITY] ?: 128,
                     downloadFormat = prefs[DOWNLOAD_FORMAT] ?: "mp3",
-                    deezerArl = prefs[DEEZER_ARL] ?: ""
+                    deezerArl = prefs[DEEZER_ARL] ?: "",
+                    downloadLyrics = prefs[com.sinc.enhanced.data.local.SettingsManager.DOWNLOAD_LYRICS] ?: true
                 )
             }
+        }
+    }
+
+    fun setDownloadLyrics(enabled: Boolean) {
+        viewModelScope.launch {
+            val manager = SincApp.instance.container.settingsManager
+            manager.setDownloadLyrics(enabled)
         }
     }
 

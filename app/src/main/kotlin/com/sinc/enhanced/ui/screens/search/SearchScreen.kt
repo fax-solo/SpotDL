@@ -146,7 +146,7 @@ fun SearchScreen(
                         }
                         item {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                items(uiState.artists) { artist ->
+                                items(uiState.artists, key = { it.id }) { artist ->
                                     ArtistCard(
                                         artist = artist,
                                         onClick = { onNavigateArtist(artist.id) }
@@ -168,7 +168,7 @@ fun SearchScreen(
                         }
                         item {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                items(uiState.albums) { album ->
+                                items(uiState.albums, key = { it.id }) { album ->
                                     AlbumCard(
                                         album = album,
                                         onClick = { viewModel.selectAlbum(album) }
@@ -188,7 +188,7 @@ fun SearchScreen(
                                 modifier = Modifier.padding(vertical = 8.dp)
                             )
                         }
-                        items(uiState.results) { enriched ->
+                        items(uiState.results, key = { it.track.id }) { enriched ->
                             TrackItem(
                                 track = enriched.track,
                                 onClick = { onNavigateTrack(enriched.track.id) },

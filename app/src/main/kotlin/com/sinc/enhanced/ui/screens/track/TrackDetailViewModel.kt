@@ -19,6 +19,7 @@ data class TrackDetailUiState(
     val track: Track? = null,
     val artist: Artist? = null,
     val lyrics: String? = null,
+    val audioUrl: String? = null,
     val isLoading: Boolean = true,
     val error: String? = null
 )
@@ -41,16 +42,23 @@ class TrackDetailViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val track = withContext(Dispatchers.IO) { searchRepository.getTrack(trackId) }
-                val lyrics = if (track != null) {
-                    withContext(Dispatchers.IO) { lyricsClient.getLyrics(track.artist, track.title, track.album) }
-                } else null
-                val artist = if (track != null) {
-                    withContext(Dispatchers.IO) { searchRepository.searchArtists(track.artist).firstOrNull() }
-                } else null
+                if (track == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "Could not load track details."
+                    )
+                    return@launch
+                }
+                val lyrics = withContext(Dispatchers.IO) { lyricsClient.getLyrics(track.artist, track.title, track.album) }
+                val artist = withContext(Dispatchers.IO) { searchRepository.searchArtists(track.artist).firstOrNull() }
+                val audioUrl = withContext(Dispatchers.IO) {
+                    searchRepository.findBestAudioForTrack(track)?.first
+                }
                 _uiState.value = TrackDetailUiState(
                     track = track,
                     artist = artist,
                     lyrics = lyrics?.plainLyrics ?: lyrics?.syncedLyrics,
+                    audioUrl = audioUrl,
                     isLoading = false
                 )
             } catch (e: Exception) {
