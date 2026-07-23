@@ -72,17 +72,18 @@ class DownloadRepository(
     }
 
     private suspend fun isValidAudioUrl(url: String): Boolean = withContext(Dispatchers.IO) {
+        if (url.contains("googlevideo.com") || url.contains("youtube") || url.contains("piped")) return@withContext true
         try {
             val request = Request.Builder().url(url).method("HEAD", null).build()
             val response = okHttpClient.newCall(request).execute()
             response.use { resp ->
                 if (!resp.isSuccessful) return@use false
                 val contentType = resp.header("Content-Type", "")
-                if (contentType?.startsWith("audio/") == true) return@use true
-                if (url.contains("googlevideo.com") || url.contains("youtube")) return@use true
-                contentType.isNullOrEmpty() || contentType.startsWith("application/octet-stream")
+                contentType?.startsWith("audio/") == true ||
+                    contentType.isNullOrEmpty() ||
+                    contentType.startsWith("application/octet-stream")
             }
-        } catch (_: Exception) { false }
+        } catch (_: Exception) { true } // try anyway if HEAD fails
     }
 
     private fun isValidAudioFile(file: File): Boolean {
@@ -169,17 +170,20 @@ class DownloadRepository(
 
                 val body = resp.body ?: return@use null
                 val contentLength = body.contentLength()
+                val stream = body.byteStream()
 
                 val fileName = "${sanitizeFileName(download.artist)} - ${sanitizeFileName(download.title)}.mp3"
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-                val appDir = File(downloadsDir, "Sinc Enhanced")
-                if (!appDir.exists()) appDir.mkdirs()
 
-                val outputFile = File(appDir, fileName)
-                val tempFile = File(appDir, "${fileName}.tmp")
+                val downloadsDir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                    "Sinc Enhanced"
+                )
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val outputFile = File(downloadsDir, fileName)
+                val tempFile = File(downloadsDir, "${fileName}.tmp")
 
-                if (outputFile.exists()) outputFile.delete()
-                if (tempFile.exists()) tempFile.delete()
+                outputFile.delete()
+                tempFile.delete()
 
                 if (contentLength > 0 && !hasEnoughSpace(outputFile, contentLength)) {
                     downloadDao.markError(download.trackId, "Insufficient storage space")
@@ -189,30 +193,7 @@ class DownloadRepository(
                 var bytesRead: Long = 0
                 val buffer = ByteArray(8192)
                 var read: Int
-
-                FileOutputStream(tempFile).use { output ->
-                    while (body.byteStream().read(buffer).also { read = it } != -1) {
-                        output.write(buffer, 0, read)
-                        bytesRead += read
-                        if (contentLength > 0) {
-                            val progress = (bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f)
-                            onProgress(progress)
-                        }
-                    }
-                }
-
-                if (bytesRead == 0L) {
-                    tempFile.delete()
-                    return@use null
-                }
-
-                if (!isValidAudioFile(tempFile)) {
-                    tempFile.delete()
-                    downloadDao.markError(download.trackId, "Downloaded file is not valid audio")
-                    return@use null
-                }
-
-                tempFile.renameTo(outputFile)
+                var audioPath: String? = null
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     val values = ContentValues().apply {
@@ -224,9 +205,54 @@ class DownloadRepository(
                         put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/Sinc Enhanced")
                         put(MediaStore.Audio.Media.IS_MUSIC, true)
                     }
-                    context.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+                    val uri = context.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+                    if (uri != null) {
+                        context.contentResolver.openOutputStream(uri)?.use { output ->
+                            while (stream.read(buffer).also { read = it } != -1) {
+                                output.write(buffer, 0, read)
+                                bytesRead += read
+                                if (contentLength > 0) {
+                                    onProgress((bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                                }
+                            }
+                        }
+                        val cursor = context.contentResolver.query(uri, null, null, null, null)
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                audioPath = it.getString(it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA))
+                            }
+                        }
+                    } else {
+                        FileOutputStream(tempFile).use { output ->
+                            while (stream.read(buffer).also { read = it } != -1) {
+                                output.write(buffer, 0, read)
+                                bytesRead += read
+                                if (contentLength > 0) {
+                                    onProgress((bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                                }
+                            }
+                        }
+                        tempFile.renameTo(outputFile)
+                        MediaScannerConnection.scanFile(context, arrayOf(outputFile.absolutePath), null, null)
+                        audioPath = outputFile.absolutePath
+                    }
                 } else {
+                    FileOutputStream(tempFile).use { output ->
+                        while (stream.read(buffer).also { read = it } != -1) {
+                            output.write(buffer, 0, read)
+                            bytesRead += read
+                            if (contentLength > 0) {
+                                onProgress((bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                            }
+                        }
+                    }
+                    tempFile.renameTo(outputFile)
                     MediaScannerConnection.scanFile(context, arrayOf(outputFile.absolutePath), null, null)
+                    audioPath = outputFile.absolutePath
+                }
+
+                if (bytesRead == 0L) {
+                    return@use null
                 }
 
                 historyDao.insert(
@@ -238,7 +264,7 @@ class DownloadRepository(
                         artworkUrl = download.artworkUrl,
                         durationMs = download.durationMs,
                         source = download.source,
-                        filePath = outputFile.absolutePath
+                        filePath = audioPath ?: outputFile.absolutePath
                     )
                 )
 
@@ -248,7 +274,7 @@ class DownloadRepository(
                     } catch (_: Exception) {}
                 }
 
-                Pair(outputFile.absolutePath, bytesRead)
+                Pair(audioPath ?: outputFile.absolutePath, bytesRead)
             }
         } catch (_: Exception) { null }
     }

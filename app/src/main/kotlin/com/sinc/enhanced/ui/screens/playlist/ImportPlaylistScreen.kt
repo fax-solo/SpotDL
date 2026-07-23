@@ -138,7 +138,7 @@ fun ImportPlaylistScreen(
                             }
                         }
 
-                        items(uiState.tracks) { track ->
+                        items(uiState.tracks, key = { it.id }) { track ->
                             val isAvailable = uiState.trackAvailability[track.id] == true
                             TrackRow(
                                 track = track,

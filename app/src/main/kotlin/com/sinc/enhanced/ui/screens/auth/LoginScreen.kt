@@ -107,7 +107,7 @@ fun LoginScreen(
         if (error != null) {
             Spacer(Modifier.height(12.dp))
             Text(
-                text = error!!,
+                text = error ?: "",
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall
             )

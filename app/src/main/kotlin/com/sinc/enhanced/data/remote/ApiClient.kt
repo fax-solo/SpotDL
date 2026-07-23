@@ -106,7 +106,7 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
         val json = getArray("/api/admin/users") ?: return null
         return try {
             val arr = JSONObject("{\"items\":$json}").optJSONArray("items")
-            (0 until (arr?.length() ?: 0)).map { arr!!.getJSONObject(it) }
+            if (arr == null) null else (0 until arr.length()).map { arr.getJSONObject(it) }
         } catch (_: Exception) { null }
     }
 }

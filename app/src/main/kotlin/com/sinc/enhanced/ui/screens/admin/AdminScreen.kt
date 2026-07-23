@@ -161,7 +161,7 @@ fun AdminScreen() {
                 modifier = Modifier.fillMaxWidth().height(200.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(error!!, color = MaterialTheme.colorScheme.error)
+                Text(error ?: "Error", color = MaterialTheme.colorScheme.error)
             }
         } else {
             Surface(

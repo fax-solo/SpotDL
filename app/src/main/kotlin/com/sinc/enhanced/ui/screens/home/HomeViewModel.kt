@@ -79,17 +79,19 @@ class HomeViewModel(
         }
         val allTracks = mutableListOf<Track>()
         val seen = mutableSetOf<String>()
-        for (keyword in keywords) {
-            val results = searchRepository.searchAll(keyword)
-            for (enriched in results) {
-                val t = enriched.track
-                if (t.id !in seen && t.artworkUrl != null) {
-                    seen.add(t.id)
-                    allTracks.add(t)
-                    if (allTracks.size >= 20) break
+        for (keyword in keywords.take(3)) {
+            try {
+                val results = searchRepository.searchYouTubeOnly(keyword)
+                for (enriched in results) {
+                    val t = enriched.track
+                    if (t.id !in seen && t.artworkUrl != null) {
+                        seen.add(t.id)
+                        allTracks.add(t)
+                        if (allTracks.size >= 12) break
+                    }
                 }
-            }
-            if (allTracks.size >= 20) break
+            } catch (_: Exception) {}
+            if (allTracks.size >= 12) break
         }
         _uiState.value = _uiState.value.copy(
             recommendations = allTracks,

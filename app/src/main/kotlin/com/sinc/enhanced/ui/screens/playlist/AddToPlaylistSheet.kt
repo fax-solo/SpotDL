@@ -77,7 +77,7 @@ fun AddToPlaylistSheet(
                     modifier = Modifier.heightIn(max = 300.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(playlists) { playlist ->
+                    items(playlists, key = { it.id }) { playlist ->
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()

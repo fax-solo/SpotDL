@@ -131,7 +131,7 @@ fun HomeScreen(
                 item {
                     SectionHeader("Recent Searches")
                 }
-                items(uiState.recentSearches) { query ->
+                items(uiState.recentSearches, key = { it }) { query ->
                     Surface(
                         modifier = Modifier.fillMaxWidth().clickable { onSearch() },
                         shape = RoundedCornerShape(12.dp),

@@ -3,7 +3,6 @@ package com.sinc.enhanced
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.os.Build
 import androidx.media3.session.MediaSession
 import com.sinc.enhanced.service.NotificationHelper
 

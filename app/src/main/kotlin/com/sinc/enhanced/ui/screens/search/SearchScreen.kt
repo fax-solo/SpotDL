@@ -404,7 +404,7 @@ private fun AlbumDetailDialog(
                 Text("Loading tracks...")
             } else {
                 LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                    items(tracks) { track ->
+                    items(tracks, key = { it.id }) { track ->
                         val url = audioUrls[track.id] ?: track.previewUrl
                         TrackItem(
                             track = track,

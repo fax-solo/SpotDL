@@ -79,12 +79,14 @@ fun SettingsScreen(
                         Text("Not logged in", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "Server: ${authState.serverUrl.ifEmpty { "None (offline mode)" }}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (authState.isAdmin) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Server: ${authState.serverUrl.ifEmpty { "None (offline mode)" }}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (authState.isAdmin) {

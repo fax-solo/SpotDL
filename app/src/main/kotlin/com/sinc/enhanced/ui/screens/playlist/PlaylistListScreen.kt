@@ -69,7 +69,7 @@ fun PlaylistListScreen(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.playlists) { playlist ->
+                items(uiState.playlists, key = { it.id }) { playlist ->
                     PlaylistCard(
                         playlist = playlist,
                         onClick = { onPlaylistClick(playlist.id) },

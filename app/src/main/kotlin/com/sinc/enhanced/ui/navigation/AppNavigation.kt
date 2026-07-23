@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -81,7 +82,7 @@ fun AppNavigation() {
         val showBottomBar = !isAuthScreen && currentRoute in bottomTabRoutes
 
         val musicPlayer = SincApp.instance.container.musicPlayer
-        val playerState by musicPlayer.state.collectAsState()
+        val playerState by musicPlayer.state.collectAsStateWithLifecycle()
 
         Scaffold(
             bottomBar = {
