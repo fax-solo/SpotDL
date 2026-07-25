@@ -1,5 +1,6 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -63,7 +64,7 @@ class PipedClient(
                     lastWorkingInstance = instance
                     return result
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) { Log.e("PipedClient", "tryInstances failed", e) }
         }
         return null
     }

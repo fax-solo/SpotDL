@@ -1,8 +1,11 @@
 package com.sinc.enhanced.ui.screens.search
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.speech.RecognizerIntent
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -119,6 +122,7 @@ fun SearchScreen(
 
         Spacer(Modifier.height(16.dp))
 
+        val context = LocalContext.current
         val voiceSearchLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.StartActivityForResult()
         ) { result ->
@@ -141,7 +145,9 @@ fun SearchScreen(
                 }
                 try {
                     voiceSearchLauncher.launch(intent)
-                } catch (_: Exception) {
+                } catch (e: ActivityNotFoundException) {
+                    Log.e("SearchScreen", "Voice search not available", e)
+                    Toast.makeText(context, "Voice search is not available on this device", Toast.LENGTH_SHORT).show()
                 }
             }
         )
@@ -502,7 +508,7 @@ private fun SourceBadge(source: String, modifier: Modifier = Modifier) {
         "jamendo" -> "Jamendo" to Color(0xFF00B894)
         "fma" -> "FMA" to Color(0xFFE17055)
         "bandcamp" -> "BC" to Color(0xFF636E72)
-        else -> source.capitalize() to MaterialTheme.colorScheme.primary
+        else -> source.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } to MaterialTheme.colorScheme.primary
     }
     Surface(
         modifier = modifier,
@@ -894,46 +900,6 @@ private fun TrendingItem(
                 Icons.Default.ArrowRight, null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun AlbumCard(album: Album, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.width(150.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            if (album.artworkUrl != null) {
-                Image(
-                    painter = rememberAsyncImagePainter(album.artworkUrl!!),
-                    contentDescription = null,
-                    modifier = Modifier.size(134.dp).clip(RoundedCornerShape(10.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(modifier = Modifier.size(134.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Album, null, modifier = Modifier.size(48.dp))
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = album.name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = album.artist,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
             )
         }
     }

@@ -1,19 +1,10 @@
 package com.sinc.enhanced.data.local.entity
 
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "liked_tracks",
-    foreignKeys = [
-        ForeignKey(
-            entity = PlaylistEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["playlistId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [androidx.room.Index("trackId", unique = true)]
 )
 data class LikedTrackEntity(

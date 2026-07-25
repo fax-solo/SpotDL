@@ -18,7 +18,7 @@ interface UserLibraryDao {
     @Query("SELECT COUNT(*) FROM liked_tracks")
     suspend fun getLikedCount(): Int
 
-    @Query("SELECT * FROM liked_tracks WHERE trackId = :trackId")
+    @Query("SELECT EXISTS(SELECT 1 FROM liked_tracks WHERE trackId = :trackId LIMIT 1)")
     suspend fun isTrackLiked(trackId: String): Boolean
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -38,7 +38,7 @@ interface UserLibraryDao {
     suspend fun insertHistory(entity: HistoryEntity)
 
     // Save/unsave track (for library)
-    @Query("SELECT * FROM saved_tracks WHERE trackId = :trackId")
+    @Query("SELECT EXISTS(SELECT 1 FROM saved_tracks WHERE trackId = :trackId LIMIT 1)")
     suspend fun isTrackSaved(trackId: String): Boolean
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -53,32 +53,3 @@ interface UserLibraryDao {
     @Query("SELECT COUNT(*) FROM saved_tracks")
     suspend fun getSavedCount(): Int
 }
-
-@Entity(tableName = "saved_tracks")
-data class SavedTrackEntity(
-    @PrimaryKey
-    val trackId: String,
-    val title: String,
-    val artist: String,
-    val album: String = "",
-    val artworkUrl: String? = null,
-    val durationMs: Long = 0,
-    val source: String = "spotify",
-    val filePath: String? = null,
-    val addedAt: Long = System.currentTimeMillis()
-)
-
-@Entity(tableName = "history")
-data class HistoryEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
-    val trackId: String,
-    val title: String,
-    val artist: String,
-    val album: String = "",
-    val artworkUrl: String? = null,
-    val durationMs: Long = 0,
-    val source: String = "spotify",
-    val filePath: String? = null,
-    val playedAt: Long = System.currentTimeMillis()
-)

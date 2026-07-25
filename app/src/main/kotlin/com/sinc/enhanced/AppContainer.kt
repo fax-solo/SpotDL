@@ -48,7 +48,7 @@ class AppContainer(private val context: Context) {
         context,
         AppDatabase::class.java,
         "sinc-enhanced.db"
-    ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build()
+    ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4).build()
 
     val dataStore: DataStore<Preferences> = context.dataStore
 

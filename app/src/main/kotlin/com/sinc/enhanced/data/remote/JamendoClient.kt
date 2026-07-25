@@ -1,5 +1,7 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
+import com.sinc.enhanced.BuildConfig
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -19,7 +21,7 @@ class JamendoClient(private val client: OkHttpClient) {
     )
 
     companion object {
-        const val DEFAULT_CLIENT_ID = "4c9f79a7"
+        val DEFAULT_CLIENT_ID = BuildConfig.JAMENDO_CLIENT_ID
     }
 
     private var clientId: String = DEFAULT_CLIENT_ID
@@ -56,6 +58,6 @@ class JamendoClient(private val client: OkHttpClient) {
                     genre = (musicInfo?.optString("genre") ?: "").ifEmpty { null }
                 )
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (e: Exception) { Log.e("JamendoClient", "search failed", e); emptyList() }
     }
 }

@@ -13,7 +13,7 @@ data class Track(
     val source: String = "spotify",
     val trackNumber: Int = 0,
     val discNumber: Int = 1,
-    val artists: List<String> = listOf(artist),
+    val artists: List<String> = emptyList(),
     val genres: List<String> = emptyList(),
     val releaseYear: Int? = null
 ) {
@@ -42,7 +42,7 @@ data class Track(
                 album = albumMap["name"] as? String ?: "Unknown",
                 albumId = albumMap["id"] as? String,
                 durationMs = (item["duration_ms"] as? Number)?.toLong() ?: 0,
-                artworkUrl = images?.lastOrNull()?.get("url") as? String,
+                artworkUrl = images?.firstOrNull()?.get("url") as? String,
                 isrc = (item["external_ids"] as? Map<*, *>)?.get("isrc") as? String,
                 previewUrl = item["preview_url"] as? String,
                 source = "spotify",

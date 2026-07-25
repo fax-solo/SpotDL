@@ -6,28 +6,37 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DownloadDao {
+    companion object {
+        const val STATUS_DOWNLOADING = "downloading"
+        const val STATUS_QUEUED = "queued"
+        const val STATUS_COMPLETED = "completed"
+        const val STATUS_ERROR = "error"
+        const val STATUS_PAUSED = "paused"
+        const val STATUS_CANCELLED = "cancelled"
+    }
+
     @Query("SELECT * FROM downloads ORDER BY addedAt DESC")
     fun getAllDownloads(): Flow<List<DownloadEntity>>
 
     @Query("SELECT * FROM downloads WHERE status = :status ORDER BY addedAt DESC")
     fun getDownloadsByStatus(status: String): Flow<List<DownloadEntity>>
 
-    @Query("SELECT * FROM downloads WHERE status = 'completed' ORDER BY completedAt DESC")
+    @Query("SELECT * FROM downloads WHERE status = '$STATUS_COMPLETED' ORDER BY completedAt DESC")
     fun getCompletedDownloads(): Flow<List<DownloadEntity>>
 
     @Query("SELECT * FROM downloads WHERE trackId = :trackId")
     suspend fun getDownload(trackId: String): DownloadEntity?
 
-    @Query("SELECT * FROM downloads WHERE status = 'downloading' OR status = 'queued'")
+    @Query("SELECT * FROM downloads WHERE status = '$STATUS_DOWNLOADING' OR status = '$STATUS_QUEUED'")
     fun getActiveDownloads(): Flow<List<DownloadEntity>>
 
-    @Query("SELECT COUNT(*) FROM downloads WHERE status = 'completed'")
+    @Query("SELECT COUNT(*) FROM downloads WHERE status = '$STATUS_COMPLETED'")
     suspend fun totalCompleted(): Int
 
-    @Query("SELECT COUNT(*) FROM downloads WHERE status = 'completed' AND completedAt >= :since")
+    @Query("SELECT COUNT(*) FROM downloads WHERE status = '$STATUS_COMPLETED' AND completedAt >= :since")
     suspend fun completedSince(since: Long): Int
 
-    @Query("SELECT source, COUNT(*) as count FROM downloads WHERE status = 'completed' GROUP BY source ORDER BY count DESC")
+    @Query("SELECT source, COUNT(*) as count FROM downloads WHERE status = '$STATUS_COMPLETED' GROUP BY source ORDER BY count DESC")
     suspend fun completedBySource(): List<SourceCount>
 
     data class SourceCount(val source: String, val count: Int)
@@ -44,10 +53,10 @@ interface DownloadDao {
     @Query("UPDATE downloads SET isPaused = :isPaused WHERE trackId = :trackId")
     suspend fun updateIsPaused(trackId: String, isPaused: Boolean)
 
-    @Query("UPDATE downloads SET filePath = :filePath, fileSize = :fileSize, status = 'completed', completedAt = :completedAt, source = :source WHERE trackId = :trackId")
+    @Query("UPDATE downloads SET filePath = :filePath, fileSize = :fileSize, status = '$STATUS_COMPLETED', completedAt = :completedAt, source = :source WHERE trackId = :trackId")
     suspend fun markComplete(trackId: String, filePath: String, fileSize: Long, source: String, completedAt: Long = System.currentTimeMillis())
 
-    @Query("UPDATE downloads SET status = 'error', errorMessage = :error WHERE trackId = :trackId")
+    @Query("UPDATE downloads SET status = '$STATUS_ERROR', errorMessage = :error WHERE trackId = :trackId")
     suspend fun markError(trackId: String, error: String)
 
     @Query("UPDATE downloads SET progress = :progress, downloadSpeed = :speed WHERE trackId = :trackId")
@@ -59,6 +68,6 @@ interface DownloadDao {
     @Query("DELETE FROM downloads")
     suspend fun deleteAll()
 
-    @Query("DELETE FROM downloads WHERE status = 'completed'")
+    @Query("DELETE FROM downloads WHERE status = '$STATUS_COMPLETED'")
     suspend fun deleteCompleted()
 }

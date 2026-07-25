@@ -127,11 +127,6 @@ fun RegisterScreen(
                 scope.launch {
                     try {
                         val serverUrl = authRepository.serverUrl.first()
-                        if (serverUrl.isBlank()) {
-                            error = "Server URL is required. Set it in Settings."
-                            loading = false
-                            return@launch
-                        }
                         val trimmedUrl = serverUrl.trim()
                         apiClient.configure(trimmedUrl, "")
                         val result = apiClient.register(username, password)

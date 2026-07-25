@@ -1,5 +1,8 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
+import com.sinc.enhanced.BuildConfig
+import kotlin.jvm.Synchronized
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -8,15 +11,12 @@ import java.util.LinkedHashMap
 class ArtworkClient(private val client: OkHttpClient) {
 
     companion object {
-        private const val LASTFM_API_KEY = "7a5d0a2a4b1e8c3f6d9e0f1a2b3c4d5e"
+        private val LASTFM_API_KEY = BuildConfig.LASTFM_API_KEY
     }
 
-    private val cache = object : LinkedHashMap<String, String>(100, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>): Boolean {
-            return size > 200
-        }
-    }
+    private val cache = LinkedHashMap<String, String>(100, 0.75f, true)
 
+    @Synchronized
     fun findArtwork(title: String, artist: String, isrc: String? = null): String? {
         val cacheKey = "$artist||$title"
         cache[cacheKey]?.let { return it }
@@ -28,7 +28,13 @@ class ArtworkClient(private val client: OkHttpClient) {
             if (isrc != null) searchCoverArtArchive(isrc, title, artist) else null
         )
         val result = urls.firstOrNull()
-        if (result != null) cache[cacheKey] = result
+        if (result != null) {
+            cache[cacheKey] = result
+            if (cache.size > 200) {
+                val eldest = cache.keys.firstOrNull()
+                if (eldest != null) cache.remove(eldest)
+            }
+        }
         return result
     }
 
@@ -46,7 +52,7 @@ class ArtworkClient(private val client: OkHttpClient) {
                 .takeIf { !it.isNullOrEmpty() }
                 ?: track.optJSONObject("album")?.optString("cover_medium")
                     .takeIf { !it.isNullOrEmpty() }
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ArtworkClient", "searchDeezerArtwork failed", e); null }
     }
 
     private fun searchItunesArtwork(title: String, artist: String): String? {
@@ -68,7 +74,7 @@ class ArtworkClient(private val client: OkHttpClient) {
                 }
             }
             null
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ArtworkClient", "searchItunesArtwork failed", e); null }
     }
 
     private fun searchLastfmArtwork(title: String, artist: String): String? {
@@ -97,7 +103,7 @@ class ArtworkClient(private val client: OkHttpClient) {
                 }
             }
             null
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ArtworkClient", "searchLastfmArtwork failed", e); null }
     }
 
     private fun searchCoverArtArchive(isrc: String, title: String, artist: String): String? {
@@ -108,7 +114,7 @@ class ArtworkClient(private val client: OkHttpClient) {
                 .build()
             val response = client.newCall(request).execute()
             if (response.isSuccessful) "https://coverartarchive.org/release/$mbid/front-250" else null
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ArtworkClient", "searchCoverArtArchive failed", e); null }
     }
 
     private fun mbidFromIsrc(isrc: String): String? {
@@ -125,7 +131,7 @@ class ArtworkClient(private val client: OkHttpClient) {
                 ?.optJSONArray("releases")
                 ?.optJSONObject(0)
                 ?.optString("id")
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ArtworkClient", "mbidFromIsrc failed", e); null }
     }
 
     private fun mbidFromTrack(artist: String, title: String): String? {
@@ -146,6 +152,6 @@ class ArtworkClient(private val client: OkHttpClient) {
                 }
             }
             null
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ArtworkClient", "mbidFromTrack failed", e); null }
     }
 }

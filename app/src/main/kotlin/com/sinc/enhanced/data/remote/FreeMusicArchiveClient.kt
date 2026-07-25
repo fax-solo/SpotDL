@@ -1,5 +1,6 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -46,7 +47,7 @@ class FreeMusicArchiveClient(private val client: OkHttpClient) {
                     genre = item.optString("genre").ifEmpty { null }
                 )
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (e: Exception) { Log.e("FreeMusicArchiveClient", "search failed", e); emptyList() }
     }
 
     fun genres(): List<String> {
@@ -60,6 +61,6 @@ class FreeMusicArchiveClient(private val client: OkHttpClient) {
             (0 until data.length()).mapNotNull { i ->
                 data.getJSONObject(i).optString("slug").ifEmpty { null }
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (e: Exception) { Log.e("FreeMusicArchiveClient", "genres failed", e); emptyList() }
     }
 }

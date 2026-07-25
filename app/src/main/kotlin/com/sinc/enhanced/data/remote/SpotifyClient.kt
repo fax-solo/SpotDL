@@ -92,7 +92,7 @@ class SpotifyClient(private val client: OkHttpClient) {
                 artworkUrl = if (images != null && images.length() > 0) {
                     images.getJSONObject(images.length() - 1).optString("url")
                 } else null,
-                releaseYear = try { item.optString("release_date").take(4).toInt() } catch (_: Exception) { null },
+                releaseYear = try { item.optString("release_date").take(4).toInt() } catch (e: Exception) { Log.e("SpotifyClient", "searchAlbums releaseYear failed", e); null },
                 totalTracks = item.optInt("total_tracks")
             )
         }
@@ -142,7 +142,7 @@ class SpotifyClient(private val client: OkHttpClient) {
                 artists?.getJSONObject(it)?.optString("name")
             },
             artworkUrl = if (images != null && images.length() > 0) images.getJSONObject(0).optString("url") else null,
-            releaseYear = try { json.optString("release_date").take(4).toInt() } catch (_: Exception) { null },
+            releaseYear = try { json.optString("release_date").take(4).toInt() } catch (e: Exception) { Log.e("SpotifyClient", "getAlbum releaseYear failed", e); null },
             totalTracks = json.optInt("total_tracks"),
             tracks = (0 until items.length()).mapNotNull { i ->
                 Track.fromSpotify(toMap(items.getJSONObject(i)))

@@ -37,7 +37,7 @@ fun PlaylistDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    var lastDeletedTrackId by remember { mutableStateOf<String?>(null) }
+    var lastDeletedTrack by remember { mutableStateOf<PlaylistTrackEntity?>(null) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -226,26 +226,22 @@ fun PlaylistDetailScreen(
                                         }
                                     }
                                     IconButton(onClick = {
-                                        val id = trackEntity.trackId
-                                        viewModel.removeTrack(id)
-                                        lastDeletedTrackId = id
-                                            scope.launch {
-                                                val result = snackRef.showSnackbar("Track removed", actionLabel = "Undo")
-                                                if (result == SnackbarResult.ActionPerformed) {
-                                                    lastDeletedTrackId?.let { deletedId ->
-                                                        val repo = playlistRepositoryRef
-                                                        val p = uiState.playlist
-                                                        if (p != null) {
-                                                            val allTracks = uiState.tracks
-                                                            val restored = allTracks.find { it.trackId == deletedId }
-                                                            if (restored != null) {
-                                                                val t = Track(id = restored.trackId, title = restored.title, artist = restored.artist, album = restored.album, durationMs = restored.durationMs, artworkUrl = restored.artworkUrl, source = restored.source)
-                                                                repo.addTrack(p.id, t, restored.filePath)
-                                                            }
-                                                        }
+                                        val removedEntity = trackEntity
+                                        viewModel.removeTrack(removedEntity.trackId)
+                                        lastDeletedTrack = removedEntity
+                                        scope.launch {
+                                            val result = snackRef.showSnackbar("Track removed", actionLabel = "Undo")
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                lastDeletedTrack?.let { restored ->
+                                                    val repo = playlistRepositoryRef
+                                                    val p = uiState.playlist
+                                                    if (p != null) {
+                                                        val t = Track(id = restored.trackId, title = restored.title, artist = restored.artist, album = restored.album, durationMs = restored.durationMs, artworkUrl = restored.artworkUrl, source = restored.source)
+                                                        repo.addTrack(p.id, t, restored.filePath)
                                                     }
                                                 }
                                             }
+                                        }
                                     }) {
                                         Icon(Icons.Default.RemoveCircleOutline, "Remove", tint = MaterialTheme.colorScheme.error)
                                     }

@@ -29,13 +29,9 @@ fun AddToPlaylistSheet(
 ) {
     val scope = rememberCoroutineScope()
     val repo = remember { SincApp.instance.container.playlistRepository }
-    var playlists by remember { mutableStateOf<List<PlaylistEntity>>(emptyList()) }
+    val playlists by repo.allPlaylists.collectAsState(initial = emptyList())
     var showCreate by remember { mutableStateOf(false) }
     var addedConfirmation by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        repo.allPlaylists.collect { playlists = it }
-    }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(

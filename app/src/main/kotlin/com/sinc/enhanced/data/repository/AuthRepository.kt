@@ -37,8 +37,7 @@ class AuthRepository(
 
     override val authState: Flow<AuthState> = dataStore.data.map { prefs ->
         val token = prefs[KEY_TOKEN] ?: ""
-        val savedUrl = prefs[KEY_SERVER_URL] ?: ""
-        val url = if (savedUrl.isNotEmpty()) savedUrl else defaultUrl
+        val url = effectiveUrl(prefs[KEY_SERVER_URL] ?: "")
         AuthState(
             isLoggedIn = token.isNotEmpty(),
             isAdmin = prefs[KEY_ROLE] == "admin",
@@ -49,8 +48,12 @@ class AuthRepository(
     }
 
     override val serverUrl: Flow<String> = dataStore.data.map {
-        val saved = it[KEY_SERVER_URL] ?: ""
-        if (saved.isNotEmpty()) saved else defaultUrl
+        effectiveUrl(it[KEY_SERVER_URL] ?: "")
+    }
+
+    private fun effectiveUrl(savedUrl: String): String {
+        return if (savedUrl.isNotBlank()) savedUrl
+        else defaultUrl
     }
 
     override suspend fun saveAuth(token: String, username: String, userId: Long, role: String, serverUrl: String) {
@@ -70,6 +73,7 @@ class AuthRepository(
             prefs.remove(KEY_USERNAME)
             prefs.remove(KEY_USER_ID)
             prefs.remove(KEY_ROLE)
+            prefs.remove(HAS_AUTO_INIT)
         }
     }
 
@@ -77,23 +81,20 @@ class AuthRepository(
         dataStore.edit { prefs ->
             prefs[KEY_SERVER_URL] = url
         }
+        val token = dataStore.data.first()[KEY_TOKEN] ?: ""
+        apiClient.configure(url, token)
     }
 
     override suspend fun restoreSession(): Boolean {
         val prefs = dataStore.data.first()
         val token = prefs[KEY_TOKEN] ?: return false
-        var url = prefs[KEY_SERVER_URL] ?: ""
+        val savedUrl = prefs[KEY_SERVER_URL] ?: ""
 
-        val hasInit = prefs[HAS_AUTO_INIT] ?: false
-        if (hasInit != true && defaultUrl.isNotBlank()) {
-            url = defaultUrl
-            dataStore.edit {
-                it[KEY_SERVER_URL] = defaultUrl
-                it[HAS_AUTO_INIT] = true
-            }
-            url = defaultUrl
+        if (savedUrl.isBlank() && defaultUrl.isNotBlank()) {
+            dataStore.edit { it[KEY_SERVER_URL] = defaultUrl }
         }
 
+        val url = effectiveUrl(savedUrl)
         apiClient.configure(url, token)
         if (token.isEmpty() || url.isEmpty()) return false
 
@@ -106,8 +107,9 @@ class AuthRepository(
             }
             clearAuth()
             return false
-        } catch (_: Exception) {
-            return true
+        } catch (e: Exception) {
+            clearAuth()
+            return false
         }
     }
 }

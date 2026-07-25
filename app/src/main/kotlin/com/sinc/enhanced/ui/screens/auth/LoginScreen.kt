@@ -104,11 +104,6 @@ fun LoginScreen(
                 scope.launch {
                     try {
                         val serverUrl = authRepository.serverUrl.first()
-                        if (serverUrl.isBlank()) {
-                            error = "No server URL configured. Set BACKEND_URL in the .env file at project root and rebuild."
-                            loading = false
-                            return@launch
-                        }
                         apiClient.configure(serverUrl.trim(), "")
                         val result = apiClient.login(username.trim(), password)
                         if (result != null) {

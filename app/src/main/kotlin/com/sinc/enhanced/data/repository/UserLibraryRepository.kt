@@ -30,7 +30,7 @@ class UserLibraryRepository(
                 artworkUrl = track.artworkUrl,
                 durationMs = track.durationMs,
                 source = track.source,
-                filePath = track.previewUrl
+                filePath = null
             )
         )
     }
@@ -51,7 +51,7 @@ class UserLibraryRepository(
                 artworkUrl = track.artworkUrl,
                 durationMs = track.durationMs,
                 source = track.source,
-                filePath = track.previewUrl
+                filePath = null
             )
         )
     }
@@ -70,7 +70,7 @@ class UserLibraryRepository(
                 artworkUrl = track.artworkUrl,
                 durationMs = track.durationMs,
                 source = track.source,
-                filePath = track.previewUrl
+                filePath = null
             )
         )
     }

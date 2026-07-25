@@ -1,5 +1,6 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
 import com.sinc.enhanced.data.model.Track
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -13,7 +14,7 @@ class DeezerClient(private val client: OkHttpClient) {
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) return null
             JSONObject(response.body?.string() ?: return null)
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("DeezerClient", "deezerGet failed", e); null }
     }
 
     data class DeezerTrack(
@@ -46,7 +47,7 @@ class DeezerClient(private val client: OkHttpClient) {
                     artworkUrl = album.optString("cover_medium", album.optString("cover", null)),
                     isrc = item.optString("isrc", null)
                 )
-            } catch (_: Exception) { null }
+            } catch (e: Exception) { Log.e("DeezerClient", "searchTracks item failed", e); null }
         }
     }
 
@@ -65,7 +66,7 @@ class DeezerClient(private val client: OkHttpClient) {
                 artworkUrl = album.optString("cover_medium", album.optString("cover", null)),
                 isrc = json.optString("isrc", null)
             )
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("DeezerClient", "getTrack failed", e); null }
     }
 
     fun getTrackByIsrc(isrc: String): DeezerTrack? {
@@ -83,6 +84,6 @@ class DeezerClient(private val client: OkHttpClient) {
                 artworkUrl = album.optString("cover_medium", album.optString("cover", null)),
                 isrc = json.optString("isrc", null)
             )
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("DeezerClient", "getTrackByIsrc failed", e); null }
     }
 }

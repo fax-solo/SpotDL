@@ -2,11 +2,8 @@ package com.sinc.enhanced.data.repository
 
 import android.content.Context
 import com.sinc.enhanced.data.local.CacheManager
-import com.sinc.enhanced.data.local.SettingsManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -16,7 +13,6 @@ import java.io.FileOutputStream
 class CacheRepository(
     private val context: Context,
     private val cacheManager: CacheManager,
-    private val settingsManager: SettingsManager,
     private val okHttpClient: OkHttpClient
 ) {
 

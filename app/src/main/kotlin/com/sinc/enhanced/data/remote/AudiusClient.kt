@@ -1,5 +1,7 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
+import kotlin.jvm.Synchronized
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -20,6 +22,7 @@ class AudiusClient(private val client: OkHttpClient) {
     @Volatile private var cachedNode: String? = null
     @Volatile private var lastNodeCheck: Long = 0
 
+    @Synchronized
     private fun getNode(): String {
         cachedNode?.let {
             if (System.currentTimeMillis() - lastNodeCheck < 3600000L) return it
@@ -39,7 +42,7 @@ class AudiusClient(private val client: OkHttpClient) {
                 lastNodeCheck = System.currentTimeMillis()
                 node
             } else defaultNode
-        } catch (_: Exception) { defaultNode }
+        } catch (e: Exception) { Log.e("AudiusClient", "getNode failed", e); defaultNode }
     }
 
     fun search(query: String, limit: Int = 5): List<AudiusTrack> {
@@ -69,7 +72,7 @@ class AudiusClient(private val client: OkHttpClient) {
                     genre = item.optString("genre").ifEmpty { null }
                 )
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (e: Exception) { Log.e("AudiusClient", "search failed", e); emptyList() }
     }
 
     fun getStreamUrl(trackId: String): String? {
@@ -79,6 +82,6 @@ class AudiusClient(private val client: OkHttpClient) {
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
             if (response.isSuccessful) url else null
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("AudiusClient", "getStreamUrl failed", e); null }
     }
 }

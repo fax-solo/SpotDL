@@ -1,5 +1,6 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -53,8 +54,8 @@ class SoundCloudClient(private val client: OkHttpClient) {
                 }
             }
             "a3e059563d7fd3372b49b37f00a00bcf"
-        } catch (_: Exception) {
-            "a3e059563d7fd3372b49b37f00a00bcf"
+        } catch (e: Exception) {
+            Log.e("SoundCloudClient", "getClientId failed", e); "a3e059563d7fd3372b49b37f00a00bcf"
         }
     }
 
@@ -82,6 +83,6 @@ class SoundCloudClient(private val client: OkHttpClient) {
                     trackId = item.optString("id")
                 )
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (e: Exception) { Log.e("SoundCloudClient", "search failed", e); emptyList() }
     }
 }

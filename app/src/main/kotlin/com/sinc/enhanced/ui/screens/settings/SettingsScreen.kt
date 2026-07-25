@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
@@ -35,7 +36,9 @@ import org.json.JSONObject
 @Composable
 fun SettingsScreen(
     onLogout: () -> Unit = {},
+    onNavigateBack: () -> Unit = {},
     onNavigateAdmin: () -> Unit = {},
+    onNavigateLogin: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(LocalContext.current))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -52,6 +55,9 @@ fun SettingsScreen(
         Spacer(Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+            }
             Icon(
                 Icons.Default.Settings, null,
                 tint = MaterialTheme.colorScheme.onSurface,
@@ -128,51 +134,49 @@ fun SettingsScreen(
                             }
                         } else {
                             OutlinedButton(
-                                onClick = onLogout,
+                                onClick = onNavigateLogin,
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text("Login / Register")
                             }
                         }
                     }
-                    if (authState.isAdmin) {
-                        Spacer(Modifier.height(12.dp))
-                        var showServerField by remember { mutableStateOf(false) }
-                        if (!showServerField) {
-                            TextButton(onClick = { showServerField = true }) {
-                                Icon(Icons.Default.Cloud, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(if (authState.serverUrl.isEmpty()) "Set Server URL" else "Change Server URL")
-                            }
-                        } else {
-                            var serverInput by remember(authState.serverUrl) { mutableStateOf(authState.serverUrl) }
-                            OutlinedTextField(
-                                value = serverInput,
-                                onValueChange = { serverInput = it },
-                                label = { Text("Worker URL") },
-                                placeholder = { Text("https://your-worker.workers.dev") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            authRepository.setServerUrl(serverInput)
-                                            showServerField = false
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(8.dp),
-                                    enabled = serverInput.isNotBlank()
-                                ) { Text("Save") }
-                                OutlinedButton(
-                                    onClick = { showServerField = false },
-                                    shape = RoundedCornerShape(8.dp)
-                                ) { Text("Cancel") }
-                            }
+                    Spacer(Modifier.height(12.dp))
+                    var showServerField by remember { mutableStateOf(false) }
+                    if (!showServerField) {
+                        TextButton(onClick = { showServerField = true }) {
+                            Icon(Icons.Default.Cloud, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (authState.serverUrl.isEmpty()) "Set Server URL" else "Change Server URL")
+                        }
+                    } else {
+                        var serverInput by remember(authState.serverUrl) { mutableStateOf(authState.serverUrl) }
+                        OutlinedTextField(
+                            value = serverInput,
+                            onValueChange = { serverInput = it },
+                            label = { Text("Worker URL") },
+                            placeholder = { Text("https://your-worker.workers.dev") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        authRepository.setServerUrl(serverInput)
+                                        showServerField = false
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                enabled = serverInput.isNotBlank()
+                            ) { Text("Save") }
+                            OutlinedButton(
+                                onClick = { showServerField = false },
+                                shape = RoundedCornerShape(8.dp)
+                            ) { Text("Cancel") }
                         }
                     }
                 }
@@ -299,49 +303,50 @@ fun SettingsScreen(
             }
         }
 
+        // TODO: Audio Processing features not yet implemented
+        // Spacer(Modifier.height(16.dp))
+        // SettingsGroup(title = "Audio Processing", icon = Icons.Default.Tune) {
+        //     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        //         Column(modifier = Modifier.padding(16.dp)) {
+        //             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        //                 Text("Downmix to Mono", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+        //                 Switch(checked = false, onCheckedChange = { })
+        //             }
+        //             Spacer(Modifier.height(8.dp))
+        //             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        //                 Text("Dynamic Range Compression", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+        //                 Switch(checked = false, onCheckedChange = { })
+        //             }
+        //             Spacer(Modifier.height(8.dp))
+        //             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        //                 Text("Crossfeed (Headphones)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+        //                 Switch(checked = false, onCheckedChange = { })
+        //             }
+        //             Spacer(Modifier.height(8.dp))
+        //             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        //                 Text("Bit-perfect Playback", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+        //                 Switch(checked = false, onCheckedChange = { })
+        //             }
+        //         }
+        //     }
+        // }
+
         Spacer(Modifier.height(16.dp))
 
-        SettingsGroup(title = "Audio Processing", icon = Icons.Default.Tune) {
-            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Downmix to Mono", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                        Switch(checked = false, onCheckedChange = { })
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Dynamic Range Compression", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                        Switch(checked = false, onCheckedChange = { })
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Crossfeed (Headphones)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                        Switch(checked = false, onCheckedChange = { })
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Bit-perfect Playback", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                        Switch(checked = false, onCheckedChange = { })
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        SettingsGroup(title = "Scrobbling", icon = Icons.Default.MusicNote) {
-            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Scrobble to Last.fm", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                            Text("Send listening data to Last.fm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = false, onCheckedChange = { })
-                    }
-                }
-            }
-        }
+        // TODO: Scrobbling not yet implemented
+        // SettingsGroup(title = "Scrobbling", icon = Icons.Default.MusicNote) {
+        //     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        //         Column(modifier = Modifier.padding(16.dp)) {
+        //             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        //                 Column(modifier = Modifier.weight(1f)) {
+        //                     Text("Scrobble to Last.fm", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+        //                     Text("Send listening data to Last.fm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        //                 }
+        //                 Switch(checked = false, onCheckedChange = { })
+        //             }
+        //         }
+        //     }
+        // }
 
         Spacer(Modifier.height(16.dp))
 
@@ -354,12 +359,13 @@ fun SettingsScreen(
                         OutlinedButton(onClick = { SincApp.instance.container.searchRepository.invalidateCache() }, shape = RoundedCornerShape(8.dp)) {
                             Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Clear Cache")
                         }
-                        OutlinedButton(onClick = { }, shape = RoundedCornerShape(8.dp)) {
-                            Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Export Library")
-                        }
-                        OutlinedButton(onClick = { }, shape = RoundedCornerShape(8.dp)) {
-                            Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Import Library")
-                        }
+                        // TODO: Export/Import not yet implemented
+                        // OutlinedButton(onClick = { }, shape = RoundedCornerShape(8.dp)) {
+                        //     Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Export Library")
+                        // }
+                        // OutlinedButton(onClick = { }, shape = RoundedCornerShape(8.dp)) {
+                        //     Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Import Library")
+                        // }
                     }
                 }
             }
@@ -367,25 +373,26 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        SettingsGroup(title = "Language", icon = Icons.Default.Language) {
-            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("App Language", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                        Text("Requires app restart", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    var expanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-                        OutlinedTextField(value = "System Default", onValueChange = { }, readOnly = true, modifier = Modifier.menuAnchor().width(180.dp), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
-                        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            listOf("System Default", "English", "Spanish", "French", "German", "Arabic", "Hindi").forEach { lang ->
-                                DropdownMenuItem(text = { Text(lang) }, onClick = { expanded = false })
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // TODO: Language selection not yet implemented
+        // SettingsGroup(title = "Language", icon = Icons.Default.Language) {
+        //     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        //         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        //             Column(modifier = Modifier.weight(1f)) {
+        //                 Text("App Language", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+        //                 Text("Requires app restart", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        //             }
+        //             var expanded by remember { mutableStateOf(false) }
+        //             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        //                 OutlinedTextField(value = "System Default", onValueChange = { }, readOnly = true, modifier = Modifier.menuAnchor().width(180.dp), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
+        //                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        //                     listOf("System Default", "English", "Spanish", "French", "German", "Arabic", "Hindi").forEach { lang ->
+        //                         DropdownMenuItem(text = { Text(lang) }, onClick = { expanded = false })
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         Spacer(Modifier.height(24.dp))
 

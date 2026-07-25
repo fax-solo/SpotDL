@@ -15,8 +15,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -45,6 +43,7 @@ class PlayerViewModel(
 
     init {
         viewModelScope.launch {
+            var previousTrackId: String? = null
             musicPlayer.state.collect { playerState ->
                 _uiState.value = _uiState.value.copy(
                     currentTrack = playerState.currentTrack,
@@ -58,18 +57,13 @@ class PlayerViewModel(
                     speed = playerState.speed,
                     sleepTimerMinutes = playerState.sleepTimerMinutes
                 )
-            }
-        }
-        viewModelScope.launch {
-            musicPlayer.state
-                .map { it.currentTrack }
-                .distinctUntilChanged()
-                .collect { track ->
-                    if (track != null && track != _uiState.value.currentTrack) {
-                        _uiState.value = _uiState.value.copy(lyrics = null, isLoadingLyrics = false)
-                    }
-                    if (track != null) loadLyrics(track)
+                val track = playerState.currentTrack
+                if (track != null && track.id != previousTrackId) {
+                    previousTrackId = track.id
+                    _uiState.value = _uiState.value.copy(lyrics = null, isLoadingLyrics = false)
+                    loadLyrics(track)
                 }
+            }
         }
     }
 
@@ -91,27 +85,22 @@ class PlayerViewModel(
 
     fun setSpeed(speed: Float) {
         musicPlayer.setSpeed(speed)
-        _uiState.value = _uiState.value.copy(speed = speed)
     }
 
     fun setRepeatMode(mode: RepeatMode) {
         musicPlayer.setRepeatMode(mode)
-        _uiState.value = _uiState.value.copy(repeatMode = mode)
     }
 
     fun setShuffleMode(mode: ShuffleMode) {
         musicPlayer.setShuffleMode(mode)
-        _uiState.value = _uiState.value.copy(shuffleMode = mode)
     }
 
     fun setSleepTimer(minutes: Int) {
         musicPlayer.setSleepTimer(minutes)
-        _uiState.value = _uiState.value.copy(sleepTimerMinutes = minutes)
     }
 
     fun cancelSleepTimer() {
         musicPlayer.cancelSleepTimer()
-        _uiState.value = _uiState.value.copy(sleepTimerMinutes = 0)
     }
 
     fun clearQueue() {

@@ -4,7 +4,7 @@ data class Album(
     val id: String,
     val name: String,
     val artist: String,
-    val artists: List<String> = listOf(artist),
+    val artists: List<String> = emptyList(),
     val artworkUrl: String? = null,
     val releaseYear: Int? = null,
     val totalTracks: Int = 0,

@@ -135,13 +135,16 @@ class ImportPlaylistViewModel(
             Regex("""open\.spotify\.com/playlist/([a-zA-Z0-9]+)"""),
             Regex("""spotify\.com/playlist/([a-zA-Z0-9]+)"""),
             Regex("""spotify:playlist:([a-zA-Z0-9]+)"""),
-            Regex("""playlist/([a-zA-Z0-9]+)"""),
             Regex("""^([a-zA-Z0-9]{22})$""")
         )
-
+        
         for (pattern in patterns) {
             val match = pattern.find(trimmed)
-            if (match != null) return match.groupValues[1]
+            if (match != null) {
+                val id = match.groupValues[1]
+                if (pattern == patterns.last() && id.length != 22) return null
+                return id
+            }
         }
         return null
     }

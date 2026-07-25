@@ -1,5 +1,6 @@
 package com.sinc.enhanced.data.repository
 
+import android.util.Log
 import com.sinc.enhanced.data.model.Album
 import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
@@ -59,8 +60,8 @@ class SearchRepository(
 
         try {
             withTimeout(45000L) { searchAllUncached(normalized) }
-        } catch (_: TimeoutCancellationException) {
-            emptyList()
+        } catch (e: TimeoutCancellationException) {
+            Log.e("SearchRepository", "searchAllInternal timeout", e); emptyList()
         }
     }
 
@@ -143,7 +144,7 @@ class SearchRepository(
                         confidence = 0.9f
                     )
                 } else null
-            } catch (_: Exception) { null }
+            } catch (e: Exception) { Log.e("SearchRepository", "youtube stream failed", e); null }
         }
 
         val seenIds = mutableSetOf<String>()
@@ -185,7 +186,7 @@ class SearchRepository(
                         confidence = 1.0f
                     )
                 } else null
-            } catch (_: Exception) { null }
+            } catch (e: Exception) { Log.e("SearchRepository", "searchYouTubeOnly stream failed", e); null }
         }
     }
 
@@ -302,6 +303,20 @@ class SearchRepository(
     override suspend fun findBestAudioForTrack(track: Track): Pair<String, String>? = withContext(Dispatchers.IO) {
         try {
             withTimeout(25000L) {
+
+                if (track.previewUrl != null && isValidPreviewUrl(track.previewUrl)) {
+                    return@withTimeout Pair(track.previewUrl, track.source)
+                }
+
+                if (track.isrc != null) {
+                    try {
+                        val deezerTrack = deezerClient.getTrackByIsrc(track.isrc)
+                        if (deezerTrack?.previewUrl != null) {
+                            return@withTimeout Pair(deezerTrack.previewUrl, "deezer")
+                        }
+                    } catch (_: Exception) {}
+                }
+
                 val queries = generateQueries(track.artist, track.title)
                 val expectedDurationSec = if (track.durationMs > 0) track.durationMs / 1000 else null
 
@@ -321,9 +336,13 @@ class SearchRepository(
 
                 null
             }
-        } catch (_: TimeoutCancellationException) {
-            null
+        } catch (e: TimeoutCancellationException) {
+            Log.e("SearchRepository", "findBestAudioForTrack timeout", e); null
         }
+    }
+
+    private fun isValidPreviewUrl(url: String?): Boolean {
+        return url != null && url.isNotEmpty() && (url.startsWith("http://") || url.startsWith("https://"))
     }
 
     private suspend fun tryResolveAudio(
@@ -335,46 +354,97 @@ class SearchRepository(
     ): Pair<String, String>? {
         val candidates = mutableListOf<AudioCandidate>()
 
+        if (expectedIsrc != null) {
+            try {
+                val deezerTrack = deezerClient.getTrackByIsrc(expectedIsrc)
+                if (deezerTrack?.previewUrl != null) {
+                    val score = MatchScorer.computeScore(MatchOptions(
+                        expectedTitle = expectedTitle,
+                        expectedArtist = expectedArtist,
+                        foundTitle = deezerTrack.title,
+                        foundAuthor = deezerTrack.artist,
+                        foundDurationSec = deezerTrack.duration.toLong(),
+                        expectedDurationSec = expectedDurationSec,
+                        expectedIsrc = expectedIsrc,
+                        foundIsrc = deezerTrack.isrc
+                    ))
+                    candidates.add(AudioCandidate(deezerTrack.previewUrl, "deezer", score, isPreview = true))
+                    if (score >= MatchScorer.GOOD_CONFIDENCE) {
+                        return Pair(deezerTrack.previewUrl, "deezer")
+                    }
+                }
+            } catch (e: Exception) { Log.e("SearchRepository", "deezer isrc resolve failed", e) }
+        }
+
         try {
             val pipedResults = pipedClient.search(query, limit = 5, filter = "music")
-            val toResolve = if (pipedResults.isEmpty()) {
-                pipedClient.search(query, limit = 5, filter = null)
-            } else pipedResults
-            if (toResolve.isNotEmpty()) {
-                val streams = toResolve.mapNotNull { pr ->
+            if (pipedResults.isNotEmpty()) {
+                val musicResolved = pipedResults.mapNotNull { pr ->
                     try {
                         val stream = pipedClient.getStreams(pr.videoId)
                         if (stream != null) {
                             val audioUrl = stream.audioTrackUrl ?: stream.url
-                            if (audioUrl.isNotEmpty()) {
-                                val score = MatchScorer.computeScore(MatchOptions(
-                                    expectedTitle = expectedTitle,
-                                    expectedArtist = expectedArtist,
-                                    foundTitle = pr.title,
-                                    foundAuthor = pr.uploader,
-                                    foundDurationSec = pr.duration,
-                                    expectedDurationSec = expectedDurationSec,
-                                    expectedIsrc = expectedIsrc
-                                ))
-                                pr to AudioCandidate(audioUrl, "piped", score)
-                            } else null
+                            if (audioUrl.isNotEmpty()) Pair(pr, audioUrl) else null
                         } else null
-                    } catch (_: Exception) { null }
+                    } catch (e: Exception) { Log.e("SearchRepository", "piped stream resolve failed", e); null }
                 }
-                candidates.addAll(streams.map { it.second })
-
-                val goodPiped = streams.firstOrNull { (pr, _) ->
-                    val durOk = expectedDurationSec == null || kotlin.math.abs(pr.duration - expectedDurationSec) <= 30
-                    durOk
-                }?.second
-
-                val goodMatch = candidates.filter { !it.isPreview && it.score >= MatchScorer.GOOD_CONFIDENCE }
-                    .maxByOrNull { it.score }
-                if (goodMatch != null) return goodMatch.let { Pair(it.audioUrl, it.source) }
-
-                if (goodPiped != null) return Pair(goodPiped.audioUrl, goodPiped.source)
+                if (musicResolved.isNotEmpty()) {
+                    for ((pr, audioUrl) in musicResolved) {
+                        val score = MatchScorer.computeScore(MatchOptions(
+                            expectedTitle = expectedTitle,
+                            expectedArtist = expectedArtist,
+                            foundTitle = pr.title,
+                            foundAuthor = pr.uploader,
+                            foundDurationSec = pr.duration,
+                            expectedDurationSec = expectedDurationSec,
+                            expectedIsrc = expectedIsrc
+                        ))
+                        candidates.add(AudioCandidate(audioUrl, "piped", score))
+                        val durOk = expectedDurationSec == null || kotlin.math.abs(pr.duration - expectedDurationSec) <= 30
+                        if (score >= MatchScorer.GOOD_CONFIDENCE && durOk) {
+                            return Pair(audioUrl, "piped")
+                        }
+                    }
+                }
             }
-        } catch (_: Exception) {}
+            if (pipedResults.isEmpty()) {
+                val fallbackResults = pipedClient.search(query, limit = 5, filter = null)
+                if (fallbackResults.isNotEmpty()) {
+                    val streams = fallbackResults.mapNotNull { pr ->
+                        try {
+                            val stream = pipedClient.getStreams(pr.videoId)
+                            if (stream != null) {
+                                val audioUrl = stream.audioTrackUrl ?: stream.url
+                                if (audioUrl.isNotEmpty()) {
+                                    val score = MatchScorer.computeScore(MatchOptions(
+                                        expectedTitle = expectedTitle,
+                                        expectedArtist = expectedArtist,
+                                        foundTitle = pr.title,
+                                        foundAuthor = pr.uploader,
+                                        foundDurationSec = pr.duration,
+                                        expectedDurationSec = expectedDurationSec,
+                                        expectedIsrc = expectedIsrc
+                                    ))
+                                    pr to AudioCandidate(audioUrl, "piped", score)
+                                } else null
+                            } else null
+                        } catch (e: Exception) { Log.e("SearchRepository", "piped stream failed", e); null }
+                    }
+                    candidates.addAll(streams.map { it.second })
+
+                    val goodPiped = streams.firstOrNull { (pr, _) ->
+                        val durOk = expectedDurationSec == null || kotlin.math.abs(pr.duration - expectedDurationSec) <= 30
+                        durOk
+                    }?.second
+
+                    val goodMatch = candidates.filter { !it.isPreview && it.score >= MatchScorer.GOOD_CONFIDENCE }
+                        .maxByOrNull { it.score }
+                    if (goodMatch != null) return goodMatch.let { Pair(it.audioUrl, it.source) }
+
+                    if (goodPiped != null) return Pair(goodPiped.audioUrl, goodPiped.source)
+                }
+            }
+        } catch (e: Exception) { Log.e("SearchRepository", "piped resolve failed", e) }
 
         try {
             val audiusResults = audiusClient.search(query, limit = 3)
@@ -392,7 +462,7 @@ class SearchRepository(
                     candidates.add(AudioCandidate(ar.streamUrl, "audius", score))
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) { Log.e("SearchRepository", "audius resolve failed", e) }
 
         try {
             val jamendoResults = jamendoClient.search(query, limit = 3)
@@ -410,7 +480,7 @@ class SearchRepository(
                     candidates.add(AudioCandidate(jr.audioUrl, "jamendo", score))
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) { Log.e("SearchRepository", "jamendo resolve failed", e) }
 
         try {
             val fmaResults = fmaClient.search(query, limit = 3)
@@ -428,26 +498,7 @@ class SearchRepository(
                     candidates.add(AudioCandidate(fr.audioUrl, "fma", score))
                 }
             }
-        } catch (_: Exception) {}
-
-        if (expectedIsrc != null) {
-            try {
-                val deezerTrack = deezerClient.getTrackByIsrc(expectedIsrc)
-                if (deezerTrack?.previewUrl != null) {
-                    val score = MatchScorer.computeScore(MatchOptions(
-                        expectedTitle = expectedTitle,
-                        expectedArtist = expectedArtist,
-                        foundTitle = deezerTrack.title,
-                        foundAuthor = deezerTrack.artist,
-                        foundDurationSec = deezerTrack.duration.toLong(),
-                        expectedDurationSec = expectedDurationSec,
-                        expectedIsrc = expectedIsrc,
-                        foundIsrc = deezerTrack.isrc
-                    ))
-                    candidates.add(AudioCandidate(deezerTrack.previewUrl, "deezer", score, isPreview = true))
-                }
-            } catch (_: Exception) {}
-        }
+        } catch (e: Exception) { Log.e("SearchRepository", "fma resolve failed", e) }
 
         return candidates.filter { !it.isPreview && it.score >= MatchScorer.GOOD_CONFIDENCE }
             .maxByOrNull { it.score }

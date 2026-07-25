@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.entity.PlaylistEntity
 import com.sinc.enhanced.data.repository.PlaylistRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,12 +26,15 @@ class PlaylistListViewModel(
     private val _uiState = MutableStateFlow(PlaylistListUiState())
     val uiState: StateFlow<PlaylistListUiState> = _uiState.asStateFlow()
 
+    private var collectionJob: Job? = null
+
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        collectionJob?.cancel()
+        collectionJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 playlistRepository.allPlaylists.collect { playlists ->

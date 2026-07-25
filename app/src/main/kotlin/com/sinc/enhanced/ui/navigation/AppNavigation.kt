@@ -46,6 +46,7 @@ import com.sinc.enhanced.ui.screens.search.SearchScreen
 import com.sinc.enhanced.ui.screens.settings.SettingsScreen
 import com.sinc.enhanced.ui.components.TrackItem
 import java.net.URLEncoder
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -79,7 +80,14 @@ fun AppNavigation(intent: Intent? = null) {
         val sessionValid = authRepository.restoreSession()
         startDest = if (sessionValid) Routes.HOME else Routes.LOGIN
         if (intent != null) {
-            handleDeepLink(intent, navController)
+            var attempts = 0
+            while (navController.currentBackStackEntry == null && attempts < 10) {
+                delay(100)
+                attempts++
+            }
+            if (navController.currentBackStackEntry != null) {
+                handleDeepLink(intent, navController)
+            }
         }
     }
 
@@ -95,9 +103,7 @@ fun AppNavigation(intent: Intent? = null) {
 
     startDest?.let { start ->
         val isAuthScreen = currentRoute == Routes.LOGIN || currentRoute == Routes.REGISTER
-        val bottomTabRoutes = listOf(Routes.HOME, Routes.QUEUE, Routes.LIBRARY, Routes.SETTINGS)
-        val showBottomBar = !isAuthScreen
-        val showBottomNavBar = !isAuthScreen && currentRoute in bottomTabRoutes
+        val showBottomNavBar = !isAuthScreen && currentRoute != Routes.PLAYER
 
         val configuration = LocalConfiguration.current
         val isWideScreen = configuration.screenWidthDp >= 600
@@ -393,7 +399,8 @@ fun AppNavigation(intent: Intent? = null) {
                         onPlayTrack = { track, url ->
                             musicPlayer.playUrl(track, url)
                             navController.navigate(Routes.PLAYER)
-                        }
+                        },
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
                 composable(Routes.SETTINGS) {
@@ -406,11 +413,15 @@ fun AppNavigation(intent: Intent? = null) {
                                 }
                             }
                         },
-                        onNavigateAdmin = { navController.navigate(Routes.ADMIN) }
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateAdmin = { navController.navigate(Routes.ADMIN) },
+                        onNavigateLogin = { navController.navigate(Routes.LOGIN) }
                     )
                 }
                 composable(Routes.ADMIN) {
-                    AdminScreen()
+                    AdminScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
                 }
                 composable(Routes.PLAYLISTS) {
                     com.sinc.enhanced.ui.screens.playlist.PlaylistListScreen(

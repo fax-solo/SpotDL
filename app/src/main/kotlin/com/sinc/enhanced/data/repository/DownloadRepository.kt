@@ -131,46 +131,46 @@ class DownloadRepository(
 
     override suspend fun retryDownload(trackId: String) {
         val download = downloadDao.getDownload(trackId) ?: return
-        val newRetryCount = download.retryCount + 1
-        val newSource = when (download.source) {
-            "spotify" -> "youtube"
-            "youtube" -> "deezer"
-            "deezer" -> "soundcloud"
-            "soundcloud" -> "audius"
-            else -> "spotify"
+        val visited = mutableSetOf(download.source, download.lastSource ?: "")
+        val sources = listOf("spotify", "youtube", "deezer", "soundcloud", "audius")
+
+        for (newSource in sources) {
+            if (newSource in visited) continue
+            visited.add(newSource)
+
+            val track = Track(
+                id = download.trackId,
+                title = download.title,
+                artist = download.artist,
+                album = download.album,
+                artworkUrl = download.artworkUrl,
+                durationMs = download.durationMs,
+                isrc = download.isrc,
+                source = newSource
+            )
+
+            val resolved = findAudioUrl(track)
+            if (resolved != null) {
+                downloadDao.upsert(download.copy(
+                    status = "queued",
+                    errorMessage = null,
+                    progress = 0f,
+                    streamUrl = resolved.first,
+                    source = newSource,
+                    retryCount = download.retryCount + 1,
+                    lastSource = download.source
+                ))
+                return
+            }
         }
 
-        val track = Track(
-            id = download.trackId,
-            title = download.title,
-            artist = download.artist,
-            album = download.album,
-            artworkUrl = download.artworkUrl,
-            durationMs = download.durationMs,
-            isrc = download.isrc,
-            source = newSource
-        )
-
-        val resolved = findAudioUrl(track)
-        if (resolved != null) {
-            downloadDao.upsert(download.copy(
-                status = "queued",
-                errorMessage = null,
-                progress = 0f,
-                streamUrl = resolved.first,
-                source = newSource,
-                retryCount = newRetryCount,
-                lastSource = download.source
-            ))
-        } else {
-            downloadDao.upsert(download.copy(
-                status = "queued",
-                errorMessage = null,
-                progress = 0f,
-                retryCount = newRetryCount,
-                lastSource = download.source
-            ))
-        }
+        downloadDao.upsert(download.copy(
+            status = "error",
+            errorMessage = "All sources exhausted",
+            progress = 0f,
+            retryCount = download.retryCount + 1,
+            lastSource = download.source
+        ))
     }
 
     private fun hasEnoughSpace(file: File, requiredBytes: Long): Boolean {
@@ -178,19 +178,8 @@ class DownloadRepository(
         return usable > requiredBytes + (10 * 1024 * 1024)
     }
 
-    private suspend fun isValidAudioUrl(url: String): Boolean = withContext(Dispatchers.IO) {
-        if (url.contains("googlevideo.com") || url.contains("youtube") || url.contains("piped")) return@withContext true
-        try {
-            val request = Request.Builder().url(url).method("HEAD", null).build()
-            val response = okHttpClient.newCall(request).execute()
-            response.use { resp ->
-                if (!resp.isSuccessful) return@use false
-                val contentType = resp.header("Content-Type", "")
-                contentType?.startsWith("audio/") == true ||
-                    contentType.isNullOrEmpty() ||
-                    contentType.startsWith("application/octet-stream")
-            }
-        } catch (_: Exception) { true }
+    private fun isValidAudioUrl(url: String): Boolean {
+        return url.isNotEmpty() && (url.startsWith("http://") || url.startsWith("https://"))
     }
 
     private fun isValidAudioFile(file: File): Boolean {

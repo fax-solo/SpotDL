@@ -3,6 +3,7 @@ package com.sinc.enhanced.data.remote
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -11,6 +12,8 @@ class LyricsClient(
     private val client: OkHttpClient,
     private val context: Context
 ) {
+    // TODO: This class uses raw SQLite via SQLiteOpenHelper. 
+    // The rest of the app uses Room. Consider migrating to Room for consistency.
 
     data class LyricsResult(
         val plainLyrics: String?,
@@ -74,7 +77,7 @@ class LyricsClient(
                 syncedLyrics = json.optString("syncedLyrics", "").takeIf { it.isNotEmpty() },
                 source = "lrclib"
             )
-        } catch (_: Exception) { LyricsResult(null, null) }
+        } catch (e: Exception) { Log.e("LyricsClient", "fetchFromLrclib failed", e); LyricsResult(null, null) }
     }
 
     private fun fetchFromLyricsOvh(artist: String, title: String): LyricsResult {
@@ -91,7 +94,7 @@ class LyricsClient(
             val body = response.body?.string() ?: return LyricsResult(null, null)
             val lyrics = JSONObject(body).optString("lyrics", "").takeIf { it.isNotEmpty() }
             LyricsResult(plainLyrics = lyrics, syncedLyrics = null, source = "lyricsovh")
-        } catch (_: Exception) { LyricsResult(null, null) }
+        } catch (e: Exception) { Log.e("LyricsClient", "fetchFromLyricsOvh failed", e); LyricsResult(null, null) }
     }
 
     private fun fetchFromDeezer(artist: String, title: String): LyricsResult {
@@ -121,7 +124,7 @@ class LyricsClient(
             val lyricsJson = JSONObject(lyricsResp.body?.string() ?: return LyricsResult(null, null))
             val text = lyricsJson.optString("lyrics", "").takeIf { it.isNotEmpty() }
             LyricsResult(plainLyrics = text, syncedLyrics = null, source = "deezer")
-        } catch (_: Exception) { LyricsResult(null, null) }
+        } catch (e: Exception) { Log.e("LyricsClient", "fetchFromDeezer failed", e); LyricsResult(null, null) }
     }
 
     fun searchLyrics(query: String): List<LyricsResult> {
@@ -144,7 +147,7 @@ class LyricsClient(
                     source = "lrclib"
                 )
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (e: Exception) { Log.e("LyricsClient", "searchLyrics failed", e); emptyList() }
     }
 
     private fun buildCacheKey(artist: String, title: String): String {

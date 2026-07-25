@@ -1,5 +1,6 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -34,7 +35,7 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                 .build()
             val response = okHttpClient.newCall(request).execute()
             if (response.isSuccessful) JSONObject(response.body?.string() ?: return@withContext null) else null
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ApiClient", "post failed", e); null }
     }
 
     private suspend fun get(path: String): JSONObject? = withContext(Dispatchers.IO) {
@@ -46,7 +47,7 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                 .build()
             val response = okHttpClient.newCall(request).execute()
             if (response.isSuccessful) JSONObject(response.body?.string() ?: return@withContext null) else null
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ApiClient", "get failed", e); null }
     }
 
     private suspend fun getArray(path: String): String? = withContext(Dispatchers.IO) {
@@ -58,7 +59,7 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                 .build()
             val response = okHttpClient.newCall(request).execute()
             response.body?.string()
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ApiClient", "getArray failed", e); null }
     }
 
     suspend fun register(username: String, password: String): Pair<String, JSONObject>? {
@@ -107,6 +108,6 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
         return try {
             val arr = JSONObject("{\"items\":$json}").optJSONArray("items")
             if (arr == null) null else (0 until arr.length()).map { arr.getJSONObject(it) }
-        } catch (_: Exception) { null }
+        } catch (e: Exception) { Log.e("ApiClient", "getAdminUsers failed", e); null }
     }
 }

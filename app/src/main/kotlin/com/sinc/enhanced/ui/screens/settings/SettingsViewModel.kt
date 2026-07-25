@@ -12,6 +12,7 @@ import com.sinc.enhanced.data.local.SettingsManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -39,28 +40,22 @@ class SettingsViewModel(
 
     init {
         viewModelScope.launch {
-            settingsManager.downloadLyrics.collect { value ->
-                _uiState.value = _uiState.value.copy(downloadLyrics = value)
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.downloadQuality.collect { value ->
-                _uiState.value = _uiState.value.copy(downloadQuality = value)
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.audioQuality.collect { value ->
-                _uiState.value = _uiState.value.copy(streamingQuality = value)
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.downloadFormat.collect { value ->
-                _uiState.value = _uiState.value.copy(downloadFormat = value)
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.deezerArl.collect { value ->
-                _uiState.value = _uiState.value.copy(deezerArl = value)
+            combine(
+                settingsManager.downloadLyrics,
+                settingsManager.downloadQuality,
+                settingsManager.audioQuality,
+                settingsManager.downloadFormat,
+                settingsManager.deezerArl
+            ) { lyrics, quality, streaming, format, arl ->
+                _uiState.value.copy(
+                    downloadLyrics = lyrics,
+                    downloadQuality = quality,
+                    streamingQuality = streaming,
+                    downloadFormat = format,
+                    deezerArl = arl
+                )
+            }.collect { state ->
+                _uiState.value = state
             }
         }
     }

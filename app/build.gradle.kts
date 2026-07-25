@@ -6,7 +6,7 @@ plugins {
 }
 
 fun loadDotEnv(): Map<String, String> {
-    val envFile = rootProject.file(".env")
+    val envFile = project.file(".env")
     if (!envFile.exists()) return emptyMap()
     return envFile.readLines()
         .filter { it.contains("=") && !it.startsWith("#") }
@@ -34,6 +34,8 @@ android {
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"${env("SPOTIFY_CLIENT_ID", "YOUR_SPOTIFY_CLIENT_ID")}\"")
         buildConfigField("String", "SPOTIFY_CLIENT_SECRET", "\"${env("SPOTIFY_CLIENT_SECRET", "YOUR_SPOTIFY_CLIENT_SECRET")}\"")
         buildConfigField("String", "BACKEND_URL", "\"${env("BACKEND_URL")}\"")
+        buildConfigField("String", "LASTFM_API_KEY", "\"${env("LASTFM_API_KEY", "7a5d0a2a4b1e8c3f6d9e0f1a2b3c4d5e")}\"")
+        buildConfigField("String", "JAMENDO_CLIENT_ID", "\"${env("JAMENDO_CLIENT_ID", "4c9f79a7")}\"")
     }
 
     signingConfigs {

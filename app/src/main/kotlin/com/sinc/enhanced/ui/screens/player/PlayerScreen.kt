@@ -215,6 +215,9 @@ fun PlayerScreen(
                     queue = uiState.queue,
                     currentIndex = uiState.currentQueueIndex,
                     primaryColor = primaryColor,
+                    onClearQueue = { musicPlayer.clearQueue() },
+                    onPlayTrack = { index -> musicPlayer.play(uiState.queue[index]) },
+                    onRemoveTrack = { index -> musicPlayer.removeFromQueue(uiState.queue[index].id) },
                     onMoveUp = { index -> musicPlayer.reorderQueue(index, index - 1) },
                     onMoveDown = { index -> musicPlayer.reorderQueue(index, index + 1) }
                 )
@@ -508,12 +511,13 @@ private fun SecondaryControls(
             }
         }
 
-        IconButton(
-            onClick = { /* show speed control */ },
-            modifier = Modifier.size(48.dp)
-        ) {
-            Icon(Icons.Default.Speed, "Speed", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
-        }
+        // TODO: Speed control dialog not yet implemented
+        // IconButton(
+        //     onClick = { /* show speed control */ },
+        //     modifier = Modifier.size(48.dp)
+        // ) {
+        //     Icon(Icons.Default.Speed, "Speed", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
+        // }
 
         Text(
             text = "Speed: ${"%.2f".format(speed)}x",
@@ -521,12 +525,13 @@ private fun SecondaryControls(
             color = MaterialTheme.colorScheme.onSurface
         )
 
-        IconButton(
-            onClick = { /* show sleep timer */ },
-            modifier = Modifier.size(48.dp)
-        ) {
-            Icon(Icons.Default.Bedtime, "Sleep Timer", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
-        }
+        // TODO: Sleep timer dialog not yet implemented
+        // IconButton(
+        //     onClick = { /* show sleep timer */ },
+        //     modifier = Modifier.size(48.dp)
+        // ) {
+        //     Icon(Icons.Default.Bedtime, "Sleep Timer", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
+        // }
 
         if (sleepTimerMinutes > 0) {
             Text(
@@ -646,6 +651,9 @@ private fun QueueSection(
     queue: List<Track>,
     currentIndex: Int,
     primaryColor: androidx.compose.ui.graphics.Color,
+    onClearQueue: () -> Unit = {},
+    onPlayTrack: (Int) -> Unit = {},
+    onRemoveTrack: (Int) -> Unit = {},
     onMoveUp: ((Int) -> Unit)? = null,
     onMoveDown: ((Int) -> Unit)? = null
 ) {
@@ -662,7 +670,7 @@ private fun QueueSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = "Queue (${queue.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = primaryColor)
-                TextButton(onClick = { /* clear queue */ }) { Text("Clear All") }
+                TextButton(onClick = onClearQueue) { Text("Clear All") }
             }
             Spacer(Modifier.height(8.dp))
             Column {
@@ -672,7 +680,7 @@ private fun QueueSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
-                            .clickable { /* play this track */ },
+                            .clickable { onPlayTrack(index) },
                         color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -731,7 +739,7 @@ private fun QueueSection(
                                         Icon(Icons.Default.ArrowDropDown, "Move down", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                                     }
                                 }
-                                IconButton(onClick = { /* remove */ }) {
+                                IconButton(onClick = { onRemoveTrack(index) }) {
                                     Icon(Icons.Default.Close, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                                 }
                             }

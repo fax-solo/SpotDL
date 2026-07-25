@@ -1,5 +1,6 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -52,7 +53,7 @@ class BandcampClient(private val client: OkHttpClient) {
                 if (tracks.size >= limit) break
             }
             tracks
-        } catch (_: Exception) { emptyList() }
+        } catch (e: Exception) { Log.e("BandcampClient", "search failed", e); emptyList() }
     }
 
     fun getTrackInfo(trackUrl: String): BandcampTrack? {
@@ -83,6 +84,6 @@ class BandcampClient(private val client: OkHttpClient) {
                 artworkUrl = image,
                 url = trackUrl
             )
-        } catch (_: Exception) { return null }
+        } catch (e: Exception) { Log.e("BandcampClient", "getTrackInfo failed", e); return null }
     }
 }
