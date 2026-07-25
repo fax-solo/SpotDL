@@ -5,6 +5,21 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+fun loadDotEnv(): Map<String, String> {
+    val envFile = rootProject.file(".env")
+    if (!envFile.exists()) return emptyMap()
+    return envFile.readLines()
+        .filter { it.contains("=") && !it.startsWith("#") }
+        .associate {
+            val (key, value) = it.split("=", limit = 2)
+            key.trim() to value.trim()
+        }
+}
+
+val dotEnv = loadDotEnv()
+fun env(key: String, default: String = ""): String =
+    project.findProperty(key) as? String ?: dotEnv[key] ?: default
+
 android {
     namespace = "com.sinc.enhanced"
     compileSdk = 36
@@ -16,9 +31,9 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"${project.findProperty("SPOTIFY_CLIENT_ID") ?: "YOUR_SPOTIFY_CLIENT_ID"}\"")
-        buildConfigField("String", "SPOTIFY_CLIENT_SECRET", "\"${project.findProperty("SPOTIFY_CLIENT_SECRET") ?: "YOUR_SPOTIFY_CLIENT_SECRET"}\"")
-        buildConfigField("String", "BACKEND_URL", "\"${project.findProperty("BACKEND_URL") ?: ""}\"")
+        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"${env("SPOTIFY_CLIENT_ID", "YOUR_SPOTIFY_CLIENT_ID")}\"")
+        buildConfigField("String", "SPOTIFY_CLIENT_SECRET", "\"${env("SPOTIFY_CLIENT_SECRET", "YOUR_SPOTIFY_CLIENT_SECRET")}\"")
+        buildConfigField("String", "BACKEND_URL", "\"${env("BACKEND_URL")}\"")
     }
 
     signingConfigs {

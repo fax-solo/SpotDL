@@ -105,7 +105,7 @@ fun LoginScreen(
                     try {
                         val serverUrl = authRepository.serverUrl.first()
                         if (serverUrl.isBlank()) {
-                            error = "No server URL configured. Set BACKEND_URL in app/gradle.properties and rebuild."
+                            error = "No server URL configured. Set BACKEND_URL in the .env file at project root and rebuild."
                             loading = false
                             return@launch
                         }
