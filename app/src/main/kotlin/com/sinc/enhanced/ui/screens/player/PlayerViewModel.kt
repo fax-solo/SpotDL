@@ -6,6 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.remote.LyricsClient
+import com.sinc.enhanced.domain.player.PlayerController
+import com.sinc.enhanced.domain.player.PlayerState
+import com.sinc.enhanced.domain.player.RepeatMode
+import com.sinc.enhanced.domain.player.ShuffleMode
 import com.sinc.enhanced.player.MusicPlayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +26,13 @@ data class PlayerUiState(
     val position: Long = 0,
     val duration: Long = 0,
     val lyrics: String? = null,
-    val isLoadingLyrics: Boolean = false
+    val isLoadingLyrics: Boolean = false,
+    val speed: Float = 1.0f,
+    val sleepTimerMinutes: Int = 0,
+    val queue: List<Track> = emptyList(),
+    val currentQueueIndex: Int = 0,
+    val repeatMode: RepeatMode = RepeatMode.ALL,
+    val shuffleMode: ShuffleMode = ShuffleMode.OFF
 )
 
 class PlayerViewModel(
@@ -40,15 +50,21 @@ class PlayerViewModel(
                     currentTrack = playerState.currentTrack,
                     isPlaying = playerState.isPlaying,
                     position = playerState.position,
-                    duration = playerState.duration
+                    duration = playerState.duration,
+                    queue = playerState.queue,
+                    currentQueueIndex = playerState.queue.indexOfFirst { it.id == playerState.currentTrack?.id }.coerceAtLeast(0),
+                    repeatMode = playerState.repeatMode,
+                    shuffleMode = playerState.shuffleMode,
+                    speed = playerState.speed,
+                    sleepTimerMinutes = playerState.sleepTimerMinutes
                 )
             }
         }
         viewModelScope.launch {
-            musicPlayer.state.map { it.currentTrack?.let { it.id to it } }
+            musicPlayer.state
+                .map { it.currentTrack }
                 .distinctUntilChanged()
-                .collect { pair ->
-                    val track = pair?.second
+                .collect { track ->
                     if (track != null && track != _uiState.value.currentTrack) {
                         _uiState.value = _uiState.value.copy(lyrics = null, isLoadingLyrics = false)
                     }
@@ -71,6 +87,43 @@ class PlayerViewModel(
 
     fun skipToPrevious() {
         musicPlayer.skipToPrevious()
+    }
+
+    fun setSpeed(speed: Float) {
+        musicPlayer.setSpeed(speed)
+        _uiState.value = _uiState.value.copy(speed = speed)
+    }
+
+    fun setRepeatMode(mode: RepeatMode) {
+        musicPlayer.setRepeatMode(mode)
+        _uiState.value = _uiState.value.copy(repeatMode = mode)
+    }
+
+    fun setShuffleMode(mode: ShuffleMode) {
+        musicPlayer.setShuffleMode(mode)
+        _uiState.value = _uiState.value.copy(shuffleMode = mode)
+    }
+
+    fun setSleepTimer(minutes: Int) {
+        musicPlayer.setSleepTimer(minutes)
+        _uiState.value = _uiState.value.copy(sleepTimerMinutes = minutes)
+    }
+
+    fun cancelSleepTimer() {
+        musicPlayer.cancelSleepTimer()
+        _uiState.value = _uiState.value.copy(sleepTimerMinutes = 0)
+    }
+
+    fun clearQueue() {
+        musicPlayer.clearQueue()
+    }
+
+    fun removeFromQueue(trackId: String) {
+        musicPlayer.removeFromQueue(trackId)
+    }
+
+    fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        musicPlayer.reorderQueue(fromIndex, toIndex)
     }
 
     private fun loadLyrics(track: Track) {

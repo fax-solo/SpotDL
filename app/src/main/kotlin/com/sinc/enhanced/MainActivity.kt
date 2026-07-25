@@ -1,17 +1,21 @@
 package com.sinc.enhanced
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.navigation.NavDeepLinkRequest
 import com.sinc.enhanced.ui.navigation.AppNavigation
 import com.sinc.enhanced.ui.theme.SincEnhancedTheme
 
@@ -23,15 +27,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            android.util.Log.e("SincEnhanced", "Uncaught exception on thread ${thread.name}", throwable)
+        }
         requestNotificationPermission()
         enableEdgeToEdge()
         setContent {
-            SincEnhancedTheme {
+            SincEnhancedTheme(dynamicColor = true) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AppNavigation()
+                    ErrorBoundary {
+                        AppNavigation(intent)
+                    }
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 
     private fun requestNotificationPermission() {
@@ -43,4 +57,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+@Composable
+fun ErrorBoundary(content: @Composable () -> Unit) {
+    content()
 }

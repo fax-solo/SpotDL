@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -19,7 +20,8 @@ fun SearchBar(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "Search for music..."
+    placeholder: String = "Search for music...",
+    onVoiceSearch: (() -> Unit)? = null
 ) {
     OutlinedTextField(
         value = query,
@@ -35,6 +37,10 @@ fun SearchBar(
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else if (onVoiceSearch != null) {
+                IconButton(onClick = onVoiceSearch) {
+                    Icon(imageVector = Icons.Default.Mic, contentDescription = "Voice search", tint = MaterialTheme.colorScheme.primary)
                 }
             }
         },

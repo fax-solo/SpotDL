@@ -19,7 +19,12 @@ data class DownloadEntity(
     val fileSize: Long = 0,
     val status: String = "queued",
     val progress: Float = 0f,
+    val downloadSpeed: Float = 0f,
     val errorMessage: String? = null,
     val addedAt: Long = System.currentTimeMillis(),
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+    val retryCount: Int = 0,
+    val lastSource: String? = null,
+    val lastRetryAt: Long? = null,
+    val isPaused: Boolean = false
 )

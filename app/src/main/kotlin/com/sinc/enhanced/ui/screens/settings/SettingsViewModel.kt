@@ -18,7 +18,14 @@ data class SettingsUiState(
     val downloadQuality: Int = 128,
     val downloadFormat: String = "mp3",
     val deezerArl: String = "",
-    val downloadLyrics: Boolean = true
+    val downloadLyrics: Boolean = true,
+    val streamingQuality: Int = 128,
+    val downmixMono: Boolean = false,
+    val drc: Boolean = false,
+    val crossfeed: Boolean = false,
+    val bitPerfect: Boolean = false,
+    val scrobbleLastFm: Boolean = false,
+    val language: String = "System Default"
 )
 
 class SettingsViewModel(
@@ -42,6 +49,11 @@ class SettingsViewModel(
             }
         }
         viewModelScope.launch {
+            settingsManager.audioQuality.collect { value ->
+                _uiState.value = _uiState.value.copy(streamingQuality = value)
+            }
+        }
+        viewModelScope.launch {
             settingsManager.downloadFormat.collect { value ->
                 _uiState.value = _uiState.value.copy(downloadFormat = value)
             }
@@ -59,6 +71,10 @@ class SettingsViewModel(
 
     fun setDownloadQuality(quality: Int) {
         viewModelScope.launch { settingsManager.setDownloadQuality(quality) }
+    }
+
+    fun setStreamingQuality(quality: Int) {
+        viewModelScope.launch { settingsManager.setAudioQuality(quality) }
     }
 
     fun setDownloadFormat(format: String) {

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +34,7 @@ fun TrackDetailScreen(
     onPlayTrack: (Track, String) -> Unit,
     onNavigateArtist: (String) -> Unit,
     onNavigateBack: () -> Unit,
+    onTrackRadio: ((String) -> Unit)? = null,
     viewModel: TrackDetailViewModel = viewModel(factory = TrackDetailViewModel.Factory(trackId))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -118,11 +120,20 @@ fun TrackDetailScreen(
                             Text(track.durationFormatted, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(8.dp))
                             val playUrl = uiState.audioUrl ?: track.previewUrl
-                            if (playUrl != null) {
-                                Button(onClick = { onPlayTrack(track, playUrl) }) {
-                                    Icon(Icons.Default.PlayArrow, null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Play")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (playUrl != null) {
+                                    Button(onClick = { onPlayTrack(track, playUrl) }) {
+                                        Icon(Icons.Default.PlayArrow, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Play")
+                                    }
+                                }
+                                if (onTrackRadio != null) {
+                                    OutlinedButton(onClick = { onTrackRadio("${track.title} ${track.artist}") }, shape = RoundedCornerShape(8.dp)) {
+                                        Icon(Icons.Default.Radio, null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Track Radio")
+                                    }
                                 }
                             }
                         }

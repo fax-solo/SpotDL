@@ -16,4 +16,5 @@ interface PlaylistRepository {
     suspend fun removeTrack(playlistId: Int, trackId: String)
     suspend fun delete(id: Int)
     suspend fun rename(id: Int, name: String)
+    suspend fun reorderTracks(playlistId: Int, trackIds: List<String>)
 }

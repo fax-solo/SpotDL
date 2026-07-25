@@ -19,7 +19,9 @@ data class PlaylistDetailUiState(
     val tracks: List<PlaylistTrackEntity> = emptyList(),
     val isLoading: Boolean = true,
     val showEditDialog: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val isSelectionMode: Boolean = false,
+    val selectedTrackIds: Set<String> = emptySet()
 )
 
 class PlaylistDetailViewModel(
@@ -67,6 +69,21 @@ class PlaylistDetailViewModel(
         }
     }
 
+    fun reorderTrack(fromIndex: Int, toIndex: Int) {
+        viewModelScope.launch {
+            try {
+                val tracks = _uiState.value.tracks.toMutableList()
+                if (fromIndex < 0 || fromIndex >= tracks.size || toIndex < 0 || toIndex >= tracks.size) return@launch
+                val item = tracks.removeAt(fromIndex)
+                tracks.add(toIndex, item)
+                playlistRepository.reorderTracks(playlistId, tracks.map { it.trackId })
+                _uiState.value = _uiState.value.copy(tracks = tracks)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to reorder tracks")
+            }
+        }
+    }
+
     fun showEditDialog() {
         _uiState.value = _uiState.value.copy(showEditDialog = true)
     }
@@ -85,6 +102,32 @@ class PlaylistDetailViewModel(
                 hideEditDialog()
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to update playlist")
+            }
+        }
+    }
+
+    fun toggleSelectionMode() {
+        _uiState.value = _uiState.value.copy(
+            isSelectionMode = !_uiState.value.isSelectionMode,
+            selectedTrackIds = emptySet()
+        )
+    }
+
+    fun toggleTrackSelection(trackId: String) {
+        val current = _uiState.value.selectedTrackIds
+        _uiState.value = _uiState.value.copy(
+            selectedTrackIds = if (trackId in current) current - trackId else current + trackId
+        )
+    }
+
+    fun removeSelectedTracks() {
+        val selected = _uiState.value.selectedTrackIds.toList()
+        viewModelScope.launch {
+            try {
+                selected.forEach { playlistRepository.removeTrack(playlistId, it) }
+                _uiState.value = _uiState.value.copy(isSelectionMode = false, selectedTrackIds = emptySet())
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to remove tracks")
             }
         }
     }

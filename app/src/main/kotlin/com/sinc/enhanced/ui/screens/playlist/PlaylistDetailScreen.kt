@@ -3,6 +3,7 @@ package com.sinc.enhanced.ui.screens.playlist
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -12,10 +13,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.content.Intent
 import kotlinx.coroutines.launch
 import com.sinc.enhanced.data.local.entity.PlaylistTrackEntity
 import com.sinc.enhanced.data.model.Track
@@ -31,8 +34,13 @@ fun PlaylistDetailScreen(
     viewModel: PlaylistDetailViewModel = viewModel(factory = PlaylistDetailViewModel.Factory(playlistId))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var lastDeletedTrackId by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(uiState.playlist?.name ?: "Playlist") },
@@ -42,22 +50,48 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, "Refresh")
-                    }
                     val playlist = uiState.playlist
                     if (playlist != null) {
+                        val context = LocalContext.current
                         val scope = rememberCoroutineScope()
-                        IconButton(onClick = { viewModel.showEditDialog() }) {
-                            Icon(Icons.Default.Edit, "Edit")
-                        }
-                        IconButton(onClick = {
-                            scope.launch {
-                                com.sinc.enhanced.SincApp.instance.container.playlistRepository.delete(playlist.id)
-                                onNavigateBack()
+                        if (uiState.isSelectionMode) {
+                            if (uiState.selectedTrackIds.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.removeSelectedTracks() }) {
+                                    Icon(Icons.Default.Delete, "${uiState.selectedTrackIds.size} selected", tint = MaterialTheme.colorScheme.error)
+                                }
                             }
-                        }) {
-                            Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+                            IconButton(onClick = { viewModel.toggleSelectionMode() }) {
+                                Icon(Icons.Default.Close, "Done")
+                            }
+                        } else {
+                            IconButton(onClick = { viewModel.refresh() }) {
+                                Icon(Icons.Default.Refresh, "Refresh")
+                            }
+                            IconButton(onClick = {
+                                val shareText = buildString {
+                                    append("Check out my playlist \"${playlist.name}\" on Sinc Enhanced\n\n")
+                                    uiState.tracks.take(50).forEachIndexed { i, t ->
+                                        append("${i + 1}. ${t.title} - ${t.artist}\n")
+                                    }
+                                }
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Playlist: ${playlist.name}")
+                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Share playlist"))
+                            }) {
+                                Icon(Icons.Default.Share, "Share playlist")
+                            }
+                            IconButton(onClick = { viewModel.showEditDialog() }) {
+                                Icon(Icons.Default.Edit, "Edit")
+                            }
+                            IconButton(onClick = { viewModel.toggleSelectionMode() }) {
+                                Icon(Icons.Default.FormatListBulleted, "Select")
+                            }
+                            IconButton(onClick = { showDeleteConfirm = true }) {
+                                Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
@@ -95,6 +129,8 @@ fun PlaylistDetailScreen(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val playlistRepositoryRef = com.sinc.enhanced.SincApp.instance.container.playlistRepository
+                val snackRef = snackbarHostState
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -133,7 +169,7 @@ fun PlaylistDetailScreen(
                     }
                 }
 
-                items(uiState.tracks, key = { it.id }) { trackEntity ->
+                itemsIndexed(uiState.tracks, key = { _, item -> item.id }) { index, trackEntity ->
                     val url = trackEntity.filePath
                     val track = Track(
                         id = trackEntity.trackId,
@@ -145,18 +181,101 @@ fun PlaylistDetailScreen(
                         source = trackEntity.source,
                         previewUrl = url
                     )
-                    TrackItem(
-                        track = track,
-                        onClick = { if (url != null) onPlayTrack(track) },
-                        trailing = {
-                            IconButton(onClick = { viewModel.removeTrack(trackEntity.trackId) }) {
-                                Icon(Icons.Default.RemoveCircleOutline, "Remove", tint = MaterialTheme.colorScheme.error)
+                    if (uiState.isSelectionMode) {
+                        val isSelected = trackEntity.trackId in uiState.selectedTrackIds
+                        Surface(
+                            onClick = { viewModel.toggleTrackSelection(trackEntity.trackId) },
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { viewModel.toggleTrackSelection(trackEntity.trackId) }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                TrackItem(
+                                    track = track,
+                                    onClick = { viewModel.toggleTrackSelection(trackEntity.trackId) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
-                    )
+                    } else {
+                        TrackItem(
+                            track = track,
+                            onClick = { if (url != null) onPlayTrack(track) },
+                            trailing = {
+                                Row {
+                                    if (index > 0) {
+                                        IconButton(onClick = {
+                                            viewModel.reorderTrack(index, index - 1)
+                                        }) {
+                                            Icon(Icons.Default.ArrowDropUp, "Move up")
+                                        }
+                                    }
+                                    if (index < uiState.tracks.size - 1) {
+                                        IconButton(onClick = {
+                                            viewModel.reorderTrack(index, index + 1)
+                                        }) {
+                                            Icon(Icons.Default.ArrowDropDown, "Move down")
+                                        }
+                                    }
+                                    IconButton(onClick = {
+                                        val id = trackEntity.trackId
+                                        viewModel.removeTrack(id)
+                                        lastDeletedTrackId = id
+                                            scope.launch {
+                                                val result = snackRef.showSnackbar("Track removed", actionLabel = "Undo")
+                                                if (result == SnackbarResult.ActionPerformed) {
+                                                    lastDeletedTrackId?.let { deletedId ->
+                                                        val repo = playlistRepositoryRef
+                                                        val p = uiState.playlist
+                                                        if (p != null) {
+                                                            val allTracks = uiState.tracks
+                                                            val restored = allTracks.find { it.trackId == deletedId }
+                                                            if (restored != null) {
+                                                                val t = Track(id = restored.trackId, title = restored.title, artist = restored.artist, album = restored.album, durationMs = restored.durationMs, artworkUrl = restored.artworkUrl, source = restored.source)
+                                                                repo.addTrack(p.id, t, restored.filePath)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                    }) {
+                                        Icon(Icons.Default.RemoveCircleOutline, "Remove", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Playlist") },
+            text = { Text("Are you sure you want to delete this playlist? This action cannot be undone.") },
+            confirmButton = {
+                Button(onClick = {
+                    showDeleteConfirm = false
+                    scope.launch {
+                        com.sinc.enhanced.SincApp.instance.container.playlistRepository.delete(playlistId)
+                        onNavigateBack()
+                    }
+                }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                    Text("Delete", color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
+        )
     }
 
     if (uiState.showEditDialog) {

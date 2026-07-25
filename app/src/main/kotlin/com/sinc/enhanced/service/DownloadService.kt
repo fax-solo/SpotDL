@@ -101,7 +101,7 @@ class DownloadService : Service() {
                 } catch (_: Exception) {}
             } finally {
                 isProcessing = false
-                withContext(Dispatchers.Main) {
+                withContext(NonCancellable + Dispatchers.Main) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }
@@ -120,7 +120,7 @@ class DownloadService : Service() {
         )
         manager.notify(NotificationHelper.DOWNLOAD_NOTIFICATION_ID, initialNotif)
 
-        val success = repo.downloadFile(trackId) { progress ->
+        val success = repo.downloadFile(trackId) { progress, speed ->
             val notif = NotificationHelper.buildDownloadNotification(
                 this@DownloadService,
                 "${download.artist} - ${download.title}",

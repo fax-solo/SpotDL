@@ -31,6 +31,8 @@ import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.HomeShimmer
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun HomeScreen(
@@ -94,6 +96,14 @@ fun HomeScreen(
                 leadingIcon = { Icon(Icons.Default.Search, "Search") },
                 singleLine = true
             )
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                FilterChip(selected = false, onClick = { onSearchQuery("energetic workout music") }, label = { Text("⚡ Energetic") })
+                FilterChip(selected = false, onClick = { onSearchQuery("chill relaxing music") }, label = { Text("😌 Chill") })
+                FilterChip(selected = false, onClick = { onSearchQuery("focus study music") }, label = { Text("🎯 Focus") })
+            }
         }
 
         item { Spacer(Modifier.height(8.dp)) }
@@ -227,6 +237,26 @@ fun HomeScreen(
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(uiState.recommendations, key = { it.id }) { track ->
+                            RecommenderCard(track = track, onClick = {
+                                scope.launch {
+                                    val audio = viewModel.resolveAudioUrl(track)
+                                    if (audio != null) onPlayTrack(track, audio.first)
+                                }
+                            })
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(8.dp)) }
+            }
+
+            if (uiState.newReleases.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    SectionHeader("New Releases")
+                }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(uiState.newReleases, key = { it.id }) { track ->
                             RecommenderCard(track = track, onClick = {
                                 scope.launch {
                                     val audio = viewModel.resolveAudioUrl(track)

@@ -127,13 +127,19 @@ fun RegisterScreen(
                 scope.launch {
                     try {
                         val serverUrl = authRepository.serverUrl.first()
-                        apiClient.configure(serverUrl, "")
+                        if (serverUrl.isBlank()) {
+                            error = "Server URL is required. Set it in Settings."
+                            loading = false
+                            return@launch
+                        }
+                        val trimmedUrl = serverUrl.trim()
+                        apiClient.configure(trimmedUrl, "")
                         val result = apiClient.register(username, password)
                         if (result != null) {
                             val (token, json) = result
                             val role = json.optJSONObject("user")?.optString("role", "user") ?: "user"
                             val uid = json.optJSONObject("user")?.optLong("id", 0) ?: 0
-                            authRepository.saveAuth(token, username, uid, role, serverUrl)
+                            authRepository.saveAuth(token, username, uid, role, trimmedUrl)
                             onRegisterSuccess()
                         } else {
                             error = "Registration failed. Username may be taken."

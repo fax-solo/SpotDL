@@ -60,4 +60,11 @@ interface PlaylistDao {
 
     @Query("DELETE FROM playlists")
     suspend fun deleteAll()
+
+    // New methods for reordering
+    @Query("UPDATE playlist_tracks SET position = :newPosition WHERE id = :id")
+    suspend fun updatePosition(id: Int, newPosition: Int)
+
+    @Query("SELECT * FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
+    fun getPlaylistTracksForReorder(playlistId: Int): Flow<List<PlaylistTrackEntity>>
 }

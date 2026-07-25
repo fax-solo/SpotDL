@@ -10,10 +10,11 @@ data class HistoryEntity(
     val trackId: String,
     val title: String,
     val artist: String,
-    val album: String,
+    val album: String = "",
     val artworkUrl: String? = null,
     val durationMs: Long = 0,
     val source: String = "spotify",
-    val filePath: String,
-    val downloadedAt: Long = System.currentTimeMillis()
+    val filePath: String? = null,
+    val downloadedAt: Long = System.currentTimeMillis(),
+    val playedAt: Long = System.currentTimeMillis()
 )

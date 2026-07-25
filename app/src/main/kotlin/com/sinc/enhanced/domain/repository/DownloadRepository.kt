@@ -10,8 +10,13 @@ interface DownloadRepository {
     val completedDownloads: Flow<List<DownloadEntity>>
 
     suspend fun addToQueue(track: Track, audioUrl: String)
+    suspend fun addBatchToQueue(tracks: List<Track>, audioUrls: Map<String, String>)
     suspend fun removeFromQueue(trackId: String)
     suspend fun clearAll()
-    suspend fun downloadFile(trackId: String, onProgress: (Float) -> Unit): Boolean
+    suspend fun clearCompleted()
+    suspend fun pauseDownload(trackId: String)
+    suspend fun resumeDownload(trackId: String)
+    suspend fun cancelDownload(trackId: String)
+    suspend fun downloadFile(trackId: String, onProgress: (Float, Float) -> Unit): Boolean
     suspend fun retryDownload(trackId: String)
 }

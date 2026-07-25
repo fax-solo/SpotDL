@@ -3,6 +3,7 @@ package com.sinc.enhanced.data.repository
 import android.content.ContentValues
 import android.content.Context
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -17,13 +18,14 @@ import com.sinc.enhanced.data.util.robustCall
 import com.sinc.enhanced.domain.repository.DownloadRepository as DownloadRepositoryInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicLong
 
 class DownloadRepository(
     private val context: Context,
@@ -59,12 +61,116 @@ class DownloadRepository(
         )
     }
 
+    override suspend fun addBatchToQueue(tracks: List<Track>, audioUrls: Map<String, String>) {
+        val entities = tracks.mapNotNull { track ->
+            val url = audioUrls[track.id] ?: track.previewUrl
+            audioUrls[track.id]?.let { resolvedUrl ->
+                DownloadEntity(
+                    trackId = track.id,
+                    title = track.title,
+                    artist = track.artist,
+                    album = track.album,
+                    artworkUrl = track.artworkUrl,
+                    durationMs = track.durationMs,
+                    isrc = track.isrc,
+                    source = track.source,
+                    streamUrl = resolvedUrl,
+                    status = "queued"
+                )
+            } ?: (track.previewUrl?.let { url ->
+                DownloadEntity(
+                    trackId = track.id,
+                    title = track.title,
+                    artist = track.artist,
+                    album = track.album,
+                    artworkUrl = track.artworkUrl,
+                    durationMs = track.durationMs,
+                    isrc = track.isrc,
+                    source = track.source,
+                    streamUrl = url,
+                    status = "queued"
+                )
+            })
+        }
+        if (entities.isNotEmpty()) {
+            downloadDao.upsertBatch(entities)
+        }
+    }
+
     override suspend fun removeFromQueue(trackId: String) {
         downloadDao.delete(trackId)
     }
 
     override suspend fun clearAll() {
         downloadDao.deleteAll()
+    }
+
+    override suspend fun clearCompleted() {
+        downloadDao.deleteCompleted()
+    }
+
+    override suspend fun pauseDownload(trackId: String) {
+        val download = downloadDao.getDownload(trackId) ?: return
+        if (download.status == "downloading") {
+            downloadDao.updateStatus(trackId, "paused", download.progress)
+            downloadDao.updateIsPaused(trackId, true)
+        }
+    }
+
+    override suspend fun resumeDownload(trackId: String) {
+        val download = downloadDao.getDownload(trackId) ?: return
+        if (download.status == "paused") {
+            downloadDao.updateStatus(trackId, "queued", download.progress)
+            downloadDao.updateIsPaused(trackId, false)
+        }
+    }
+
+    override suspend fun cancelDownload(trackId: String) {
+        downloadDao.updateStatus(trackId, "cancelled", 0f)
+    }
+
+    override suspend fun retryDownload(trackId: String) {
+        val download = downloadDao.getDownload(trackId) ?: return
+        val newRetryCount = download.retryCount + 1
+        val newSource = when (download.source) {
+            "spotify" -> "youtube"
+            "youtube" -> "deezer"
+            "deezer" -> "soundcloud"
+            "soundcloud" -> "audius"
+            else -> "spotify"
+        }
+
+        val track = Track(
+            id = download.trackId,
+            title = download.title,
+            artist = download.artist,
+            album = download.album,
+            artworkUrl = download.artworkUrl,
+            durationMs = download.durationMs,
+            isrc = download.isrc,
+            source = newSource
+        )
+
+        val resolved = findAudioUrl(track)
+        if (resolved != null) {
+            downloadDao.upsert(download.copy(
+                status = "queued",
+                errorMessage = null,
+                progress = 0f,
+                streamUrl = resolved.first,
+                source = newSource,
+                retryCount = newRetryCount,
+                lastSource = download.source
+            ))
+        } else {
+            downloadDao.upsert(download.copy(
+                status = "queued",
+                errorMessage = null,
+                progress = 0f,
+                retryCount = newRetryCount,
+                lastSource = download.source
+            ))
+        }
     }
 
     private fun hasEnoughSpace(file: File, requiredBytes: Long): Boolean {
@@ -84,7 +190,7 @@ class DownloadRepository(
                     contentType.isNullOrEmpty() ||
                     contentType.startsWith("application/octet-stream")
             }
-        } catch (_: Exception) { true } // try anyway if HEAD fails
+        } catch (_: Exception) { true }
     }
 
     private fun isValidAudioFile(file: File): Boolean {
@@ -99,13 +205,14 @@ class DownloadRepository(
         } catch (_: Exception) { false }
     }
 
-    override suspend fun downloadFile(trackId: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun downloadFile(trackId: String, onProgress: (Float, Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         val download = downloadDao.getDownload(trackId) ?: return@withContext false
 
         downloadDao.updateStatus(trackId, "downloading", 0f)
 
         var url = download.streamUrl
         var usedSource = download.source
+        val startTime = AtomicLong(System.currentTimeMillis())
 
         for (attempt in 1..3) {
             if (url == null || url.isBlank()) {
@@ -138,11 +245,11 @@ class DownloadRepository(
                 continue
             }
 
-            val result = tryDownload(url, usedSource, download, onProgress)
+            val result = tryDownload(url, usedSource, download, onProgress, startTime)
             if (result != null) {
                 val file = File(result.first)
                 if (isValidAudioFile(file)) {
-                    downloadDao.markComplete(trackId, result.first, result.second)
+                    downloadDao.markComplete(trackId, result.first, result.second, usedSource)
                     return@withContext true
                 } else {
                     file.delete()
@@ -165,7 +272,8 @@ class DownloadRepository(
         url: String,
         source: String,
         download: DownloadEntity,
-        onProgress: (Float) -> Unit
+        onProgress: (Float, Float) -> Unit,
+        startTime: AtomicLong
     ): Pair<String, Long>? {
         return try {
             val request = Request.Builder().url(url).build()
@@ -218,7 +326,11 @@ class DownloadRepository(
                                 output.write(buffer, 0, read)
                                 bytesRead += read
                                 if (contentLength > 0) {
-                                    onProgress((bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                                    val progress = (bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f)
+                                    val elapsed = (System.currentTimeMillis() - startTime.get()) / 1000f
+                                    val speed = if (elapsed > 0) bytesRead.toFloat() / elapsed else 0f
+                                    downloadDao.updateProgress(download.trackId, progress, speed)
+                                    onProgress(progress, speed)
                                 }
                             }
                         }
@@ -234,7 +346,11 @@ class DownloadRepository(
                                 output.write(buffer, 0, read)
                                 bytesRead += read
                                 if (contentLength > 0) {
-                                    onProgress((bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                                    val progress = (bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f)
+                                    val elapsed = (System.currentTimeMillis() - startTime.get()) / 1000f
+                                    val speed = if (elapsed > 0) bytesRead.toFloat() / elapsed else 0f
+                                    downloadDao.updateProgress(download.trackId, progress, speed)
+                                    onProgress(progress, speed)
                                 }
                             }
                         }
@@ -248,7 +364,11 @@ class DownloadRepository(
                             output.write(buffer, 0, read)
                             bytesRead += read
                             if (contentLength > 0) {
-                                onProgress((bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                                val progress = (bytesRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f)
+                                val elapsed = (System.currentTimeMillis() - startTime.get()) / 1000f
+                                val speed = if (elapsed > 0) bytesRead.toFloat() / elapsed else 0f
+                                downloadDao.updateProgress(download.trackId, progress, speed)
+                                onProgress(progress, speed)
                             }
                         }
                     }
@@ -283,11 +403,6 @@ class DownloadRepository(
                 Pair(audioPath ?: outputFile.absolutePath, bytesRead)
             }
         } catch (_: Exception) { null }
-    }
-
-    override suspend fun retryDownload(trackId: String) {
-        val download = downloadDao.getDownload(trackId) ?: return
-        downloadDao.upsert(download.copy(status = "queued", errorMessage = null, progress = 0f))
     }
 
     private fun sanitizeFileName(name: String): String {

@@ -11,6 +11,7 @@ import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.QueryType
 import com.sinc.enhanced.data.repository.SearchRepository
+import com.sinc.enhanced.data.util.SearchCache
 import com.sinc.enhanced.domain.music.SearchResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -29,13 +30,15 @@ data class SearchUiState(
     val results: List<SearchResult> = emptyList(),
     val artists: List<Artist> = emptyList(),
     val albums: List<Album> = emptyList(),
-    val selectedAlbum: Album? = null,
+    val topResult: SearchResult? = null,
+    val expandedAlbum: Album? = null,
     val albumTracks: List<Track> = emptyList(),
     val albumAudioUrls: Map<String, String> = emptyMap(),
     val isSearching: Boolean = false,
     val isLoadingMore: Boolean = false,
     val hasMore: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val resolvedAudioUrls: Map<String, Pair<String, String>> = emptyMap()
 )
 
 class SearchViewModel(
@@ -53,7 +56,10 @@ class SearchViewModel(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
+    private var preResolveJob: Job? = null
     private var allResults: List<SearchResult> = emptyList()
+    private var allAlbums: List<Album> = emptyList()
+    private val searchResultCache = SearchCache<SearchResult>()
 
     fun onQueryChange(query: String) {
         _uiState.value = _uiState.value.copy(query = query)
@@ -72,7 +78,7 @@ class SearchViewModel(
         searchJob?.cancel()
         _uiState.value = _uiState.value.copy(query = query)
         if (query.isNotBlank()) {
-            viewModelScope.launch { performSearch(query) }
+            searchJob = viewModelScope.launch { performSearch(query) }
         }
     }
 
@@ -96,6 +102,10 @@ class SearchViewModel(
     }
 
     fun selectAlbum(album: Album) {
+        if (_uiState.value.expandedAlbum?.id == album.id) {
+            _uiState.value = _uiState.value.copy(expandedAlbum = null, albumTracks = emptyList())
+            return
+        }
         viewModelScope.launch {
             val albumWithTracks = searchRepository.getAlbum(album.id)
             val tracks = albumWithTracks?.tracks ?: emptyList()
@@ -108,7 +118,7 @@ class SearchViewModel(
                 }.toMap()
             }
             _uiState.value = _uiState.value.copy(
-                selectedAlbum = albumWithTracks ?: album,
+                expandedAlbum = albumWithTracks ?: album,
                 albumTracks = tracks,
                 albumAudioUrls = audioUrls
             )
@@ -116,34 +126,119 @@ class SearchViewModel(
     }
 
     fun dismissAlbum() {
-        _uiState.value = _uiState.value.copy(selectedAlbum = null, albumTracks = emptyList())
+        _uiState.value = _uiState.value.copy(expandedAlbum = null, albumTracks = emptyList())
+    }
+
+    private fun pickTopResult(query: String, results: List<SearchResult>): SearchResult? {
+        if (results.isEmpty()) return null
+        val lowerQ = query.lowercase().trim()
+        val qTokens = lowerQ.split(Regex("\\s+")).toSet()
+
+        val scored = results.map { r ->
+            val t = r.track
+            var score = r.confidence * 10f
+            val titleLower = t.title.lowercase()
+            val artistLower = t.artist.lowercase()
+            val combinedLower = "$titleLower $artistLower"
+
+            if (combinedLower.contains(lowerQ)) score += 5f
+            val tTokens = titleLower.split(Regex("\\s+")).toSet()
+            val aTokens = artistLower.split(Regex("\\s+")).toSet()
+            val matchCount = (qTokens intersect tTokens).size + (qTokens intersect aTokens).size
+            score += matchCount * 2f
+
+            if (t.source == "spotify") score += 3f
+            if (r.audioUrl != null) score += 2f
+
+            r to score
+        }
+        return scored.maxByOrNull { it.second }?.first
     }
 
     private suspend fun performSearch(query: String) {
-        _uiState.value = _uiState.value.copy(isSearching = true, error = null)
+        val isOnline = SincApp.instance.container.connectivityMonitor.isOnline
+        _uiState.value = _uiState.value.copy(isSearching = true, error = null, topResult = null)
+
+        val cached = searchResultCache.get(query)
+        if (cached != null && !isOnline) {
+            val grouped = cached
+            val topResult = pickTopResult(query, grouped)
+            val initialCount = minOf(PAGE_SIZE, grouped.size)
+            _uiState.value = _uiState.value.copy(
+                results = grouped.take(initialCount),
+                topResult = topResult,
+                isSearching = false,
+                hasMore = initialCount < grouped.size
+            )
+            return
+        }
+
         try {
             val queryType = searchRepository.classifyQuery(query)
             searchHistoryDao.insert(SearchHistoryEntity(query = query, resultType = queryType.name.lowercase()))
             allResults = searchRepository.searchAll(query)
             val albums = searchRepository.searchAlbums(query)
+            allAlbums = albums
             val artists = if (queryType == QueryType.ARTIST) {
                 searchRepository.searchArtists(query)
             } else emptyList()
 
-            val initialCount = minOf(PAGE_SIZE, allResults.size)
+            val spotifyResults = allResults.filter { it.track.source == "spotify" }
+            val nonSpotifyResults = allResults.filter { it.track.source != "spotify" }
+            val grouped = spotifyResults + nonSpotifyResults
+
+            searchResultCache.put(query, grouped)
+
+            if (!_uiState.value.isSearching) return
+
+            val topResult = pickTopResult(query, grouped)
+
+            val initialCount = minOf(PAGE_SIZE, grouped.size)
             _uiState.value = _uiState.value.copy(
                 queryType = queryType,
-                results = allResults.take(initialCount),
+                results = grouped.take(initialCount),
                 artists = artists,
                 albums = albums,
+                topResult = topResult,
                 isSearching = false,
-                hasMore = initialCount < allResults.size
+                hasMore = initialCount < grouped.size
             )
+
+            preResolveAudio(grouped)
         } catch (e: Exception) {
-            _uiState.value = _uiState.value.copy(
-                isSearching = false,
-                error = e.message ?: "Search failed"
-            )
+            if (!isOnline && cached != null) {
+                val grouped = cached
+                val topResult = pickTopResult(query, grouped)
+                val initialCount = minOf(PAGE_SIZE, grouped.size)
+                _uiState.value = _uiState.value.copy(
+                    results = grouped.take(initialCount),
+                    topResult = topResult,
+                    isSearching = false,
+                    hasMore = initialCount < grouped.size
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    isSearching = false,
+                    error = e.message ?: "Search failed"
+                )
+            }
+        }
+    }
+
+    private fun preResolveAudio(results: List<SearchResult>) {
+        preResolveJob?.cancel()
+        preResolveJob = viewModelScope.launch {
+            val toResolve = results.filter { it.audioUrl == null }.take(10)
+            for (sr in toResolve) {
+                launch {
+                    val resolved = searchRepository.findBestAudioForTrack(sr.track)
+                    if (resolved != null) {
+                        _uiState.value = _uiState.value.copy(
+                            resolvedAudioUrls = _uiState.value.resolvedAudioUrls + (sr.track.id to resolved)
+                        )
+                    }
+                }
+            }
         }
     }
 

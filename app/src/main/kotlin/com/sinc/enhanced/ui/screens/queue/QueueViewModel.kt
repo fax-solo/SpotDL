@@ -80,6 +80,34 @@ class QueueViewModel(
         }
     }
 
+    fun clearCompleted() {
+        viewModelScope.launch {
+            try {
+                downloadRepository.clearCompleted()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to clear completed downloads")
+            }
+        }
+    }
+
+    fun pauseDownload(trackId: String) {
+        viewModelScope.launch {
+            downloadRepository.pauseDownload(trackId)
+        }
+    }
+
+    fun resumeDownload(trackId: String) {
+        viewModelScope.launch {
+            downloadRepository.resumeDownload(trackId)
+        }
+    }
+
+    fun cancelDownload(trackId: String) {
+        viewModelScope.launch {
+            downloadRepository.cancelDownload(trackId)
+        }
+    }
+
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")

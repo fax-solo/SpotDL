@@ -23,6 +23,7 @@ import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.MusicRepository
 import com.sinc.enhanced.data.repository.PlaylistRepository
 import com.sinc.enhanced.data.repository.SearchRepository
+import com.sinc.enhanced.data.util.ConnectivityMonitor
 import com.sinc.enhanced.player.MusicPlayer
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -46,6 +47,8 @@ class AppContainer(private val context: Context) {
     val dataStore: DataStore<Preferences> = context.dataStore
 
     val settingsManager: SettingsManager = SettingsManager(dataStore)
+
+    val connectivityMonitor: ConnectivityMonitor = ConnectivityMonitor(context)
 
     val apiClient: ApiClient = ApiClient(okHttpClient)
     val authRepository: AuthRepository = AuthRepository(dataStore, apiClient, BuildConfig.BACKEND_URL)

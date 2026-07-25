@@ -14,6 +14,13 @@ interface SettingsRepository {
     val bandcampEnabled: Flow<Boolean>
     val downloadPath: Flow<String>
 
+    // Cache settings
+    val cacheEnabled: Flow<Boolean>
+    val cacheMaxSizeMb: Flow<Int>
+    val cacheOnlyWifi: Flow<Boolean>
+    val preloadNextTrack: Flow<Boolean>
+    val audioQuality: Flow<Int>
+
     suspend fun setJamendoClientId(id: String)
     suspend fun setAudiusEnabled(enabled: Boolean)
     suspend fun setJamendoEnabled(enabled: Boolean)
@@ -24,4 +31,11 @@ interface SettingsRepository {
     suspend fun setDownloadQuality(quality: Int)
     suspend fun setDownloadFormat(format: String)
     suspend fun setDeezerArl(arl: String)
+
+    // Cache setters
+    suspend fun setCacheEnabled(enabled: Boolean)
+    suspend fun setCacheMaxSizeMb(sizeMb: Int)
+    suspend fun setCacheOnlyWifi(enabled: Boolean)
+    suspend fun setPreloadNextTrack(enabled: Boolean)
+    suspend fun setAudioQuality(quality: Int)
 }

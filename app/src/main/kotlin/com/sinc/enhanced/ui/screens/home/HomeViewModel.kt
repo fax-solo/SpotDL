@@ -23,6 +23,7 @@ data class HomeUiState(
     val recommendations: List<Track> = emptyList(),
     val recentlyPlayed: List<Track> = emptyList(),
     val recentlyDownloaded: List<DownloadEntity> = emptyList(),
+    val newReleases: List<Track> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null
 )
@@ -40,6 +41,7 @@ class HomeViewModel(
     init {
         observePlayerAndDownloads()
         loadRecentSearches()
+        loadNewReleases()
     }
 
     private fun observePlayerAndDownloads() {
@@ -116,6 +118,18 @@ class HomeViewModel(
     suspend fun resolveAudioUrl(track: Track): Pair<String, String>? {
         return withContext(Dispatchers.IO) {
             searchRepository.findBestAudioForTrack(track)
+        }
+    }
+
+    private fun loadNewReleases() {
+        viewModelScope.launch {
+            try {
+                val results = withContext(Dispatchers.IO) {
+                    searchRepository.searchYouTubeOnly("new music releases 2026")
+                }
+                val tracks = results.map { it.track }.filter { it.artworkUrl != null }.take(10)
+                _uiState.value = _uiState.value.copy(newReleases = tracks)
+            } catch (_: Exception) {}
         }
     }
 

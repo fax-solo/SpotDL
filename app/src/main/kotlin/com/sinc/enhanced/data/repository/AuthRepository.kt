@@ -97,13 +97,17 @@ class AuthRepository(
         apiClient.configure(url, token)
         if (token.isEmpty() || url.isEmpty()) return false
 
-        val me = apiClient.getMe()
-        if (me != null) {
-            val role = me.optString("role", "user")
-            dataStore.edit { it[KEY_ROLE] = role }
+        try {
+            val me = apiClient.getMe()
+            if (me != null) {
+                val role = me.optString("role", "user")
+                dataStore.edit { it[KEY_ROLE] = role }
+                return true
+            }
+            clearAuth()
+            return false
+        } catch (_: Exception) {
             return true
         }
-        clearAuth()
-        return false
     }
 }

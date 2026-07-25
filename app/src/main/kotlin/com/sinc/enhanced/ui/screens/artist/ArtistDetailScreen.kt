@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,6 +33,7 @@ fun ArtistDetailScreen(
     onPlayTrack: (Track, String) -> Unit,
     onNavigateArtist: (String) -> Unit = {},
     onNavigateBack: () -> Unit,
+    onArtistRadio: ((String) -> Unit)? = null,
     viewModel: ArtistDetailViewModel = viewModel(factory = ArtistDetailViewModel.Factory(artistId))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -105,6 +107,16 @@ fun ArtistDetailScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (onArtistRadio != null) {
+                                    OutlinedButton(onClick = { onArtistRadio(artist.name) }, shape = RoundedCornerShape(8.dp)) {
+                                        Icon(Icons.Default.Radio, null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Artist Radio")
+                                    }
+                                }
                             }
                         }
                     }

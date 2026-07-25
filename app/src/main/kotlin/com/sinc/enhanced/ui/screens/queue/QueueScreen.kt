@@ -1,5 +1,6 @@
 package com.sinc.enhanced.ui.screens.queue
 
+import android.content.Context
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -22,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
@@ -57,9 +59,12 @@ fun QueueScreen(
                         TextButton(onClick = { viewModel.clearAll() }) {
                             Text("Clear all")
                         }
-                    }
-                    IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, "Refresh")
+                        TextButton(onClick = { viewModel.clearCompleted() }) {
+                            Text("Clear completed")
+                        }
+                        IconButton(onClick = { viewModel.refresh() }) {
+                            Icon(Icons.Default.Refresh, "Refresh")
+                        }
                     }
                 }
             )
@@ -92,7 +97,7 @@ fun QueueScreen(
                             )
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                text = uiState.error!!,
+                                text = uiState.error ?: "An error occurred",
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyLarge
                             )
@@ -179,7 +184,10 @@ fun QueueScreen(
                                         download.filePath?.let { onPlayTrack(track, it) }
                                     },
                                     onRemove = { viewModel.removeDownload(download.trackId) },
-                                    onRetry = { viewModel.retryDownload(download.trackId) }
+                                    onRetry = { viewModel.retryDownload(download.trackId) },
+                                    onPause = { viewModel.pauseDownload(download.trackId) },
+                                    onResume = { viewModel.resumeDownload(download.trackId) },
+                                    onCancel = { viewModel.cancelDownload(download.trackId) }
                                 )
                             }
                         }
@@ -195,7 +203,10 @@ private fun DownloadItem(
     download: DownloadEntity,
     onPlay: () -> Unit,
     onRemove: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onCancel: () -> Unit
 ) {
     val track = Track(
         id = download.trackId,
@@ -288,14 +299,47 @@ private fun DownloadItem(
                 Spacer(Modifier.width(4.dp))
 
                 when (download.status) {
-                    "downloading", "queued" -> {
+                    "downloading" -> {
+                        Row {
+                            if (download.downloadSpeed > 0) {
+                                Text(
+                                    text = formatSpeed(download.downloadSpeed),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
+                            }
+                            IconButton(onClick = onPause) {
+                                Icon(Icons.Default.Pause, "Pause", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = onCancel) {
+                                Icon(Icons.Default.Close, "Cancel", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                    "paused" -> {
+                        Row {
+                            IconButton(onClick = onResume) {
+                                Icon(Icons.Default.PlayArrow, "Resume", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = onRemove) {
+                                Icon(Icons.Default.Delete, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    "queued" -> {
                         IconButton(onClick = onRemove) {
                             Icon(Icons.Default.Close, "Cancel", tint = MaterialTheme.colorScheme.error)
                         }
                     }
                     "error" -> {
-                        IconButton(onClick = onRetry) {
-                            Icon(Icons.Default.Refresh, "Retry", tint = MaterialTheme.colorScheme.primary)
+                        Row {
+                            IconButton(onClick = onRetry) {
+                                Icon(Icons.Default.Refresh, "Retry", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = onRemove) {
+                                Icon(Icons.Default.Delete, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                     "completed" -> {
@@ -308,12 +352,33 @@ private fun DownloadItem(
                             }
                         }
                     }
+                    "cancelled" -> {
+                        Row {
+                            IconButton(onClick = onRetry) {
+                                Icon(Icons.Default.Refresh, "Retry", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = onRemove) {
+                                Icon(Icons.Default.Delete, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
             }
 
-            if (download.status == "downloading") {
-                DownloadProgress(progress = download.progress, status = download.status)
+            if (download.status == "downloading" || download.status == "paused") {
+                DownloadProgress(
+                    progress = download.progress,
+                    status = download.status
+                )
             }
         }
+    }
+}
+
+private fun formatSpeed(bytesPerSecond: Float): String {
+    return when {
+        bytesPerSecond < 1024 -> "${bytesPerSecond.toInt()} B/s"
+        bytesPerSecond < 1024 * 1024 -> "${(bytesPerSecond / 1024).toString().take(5)} KB/s"
+        else -> "${(bytesPerSecond / (1024 * 1024)).toString().take(5)} MB/s"
     }
 }

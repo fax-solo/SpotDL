@@ -23,6 +23,13 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
         val DOWNLOAD_QUALITY = intPreferencesKey("download_quality")
         val DOWNLOAD_FORMAT = stringPreferencesKey("download_format")
         val DEEZER_ARL = stringPreferencesKey("deezer_arl")
+
+        // Cache settings
+        val CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
+        val CACHE_MAX_SIZE_MB = intPreferencesKey("cache_max_size_mb")
+        val CACHE_ONLY_WIFI = booleanPreferencesKey("cache_only_wifi")
+        val PRELOAD_NEXT_TRACK = booleanPreferencesKey("preload_next_track")
+        val AUDIO_QUALITY = intPreferencesKey("audio_quality")
     }
 
     override val downloadLyrics: Flow<Boolean> = dataStore.data.map {
@@ -65,6 +72,26 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
         it[DOWNLOAD_PATH] ?: ""
     }
 
+    override val cacheEnabled: Flow<Boolean> = dataStore.data.map {
+        it[CACHE_ENABLED] ?: true
+    }
+
+    override val cacheMaxSizeMb: Flow<Int> = dataStore.data.map {
+        it[CACHE_MAX_SIZE_MB] ?: 500
+    }
+
+    override val cacheOnlyWifi: Flow<Boolean> = dataStore.data.map {
+        it[CACHE_ONLY_WIFI] ?: true
+    }
+
+    override val preloadNextTrack: Flow<Boolean> = dataStore.data.map {
+        it[PRELOAD_NEXT_TRACK] ?: true
+    }
+
+    override val audioQuality: Flow<Int> = dataStore.data.map {
+        it[AUDIO_QUALITY] ?: 128
+    }
+
     override suspend fun setJamendoClientId(id: String) {
         dataStore.edit { it[JAMENDO_CLIENT_ID] = id }
     }
@@ -103,5 +130,25 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
 
     override suspend fun setDeezerArl(arl: String) {
         dataStore.edit { it[DEEZER_ARL] = arl }
+    }
+
+    override suspend fun setCacheEnabled(enabled: Boolean) {
+        dataStore.edit { it[CACHE_ENABLED] = enabled }
+    }
+
+    override suspend fun setCacheMaxSizeMb(sizeMb: Int) {
+        dataStore.edit { it[CACHE_MAX_SIZE_MB] = sizeMb.coerceIn(50, 5000) }
+    }
+
+    override suspend fun setCacheOnlyWifi(enabled: Boolean) {
+        dataStore.edit { it[CACHE_ONLY_WIFI] = enabled }
+    }
+
+    override suspend fun setPreloadNextTrack(enabled: Boolean) {
+        dataStore.edit { it[PRELOAD_NEXT_TRACK] = enabled }
+    }
+
+    override suspend fun setAudioQuality(quality: Int) {
+        dataStore.edit { it[AUDIO_QUALITY] = quality }
     }
 }

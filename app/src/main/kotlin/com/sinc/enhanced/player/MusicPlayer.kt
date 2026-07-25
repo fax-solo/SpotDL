@@ -14,6 +14,8 @@ import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.domain.player.PlayerController
 import com.sinc.enhanced.domain.player.PlayerState
+import com.sinc.enhanced.domain.player.RepeatMode
+import com.sinc.enhanced.domain.player.ShuffleMode
 import com.sinc.enhanced.service.MediaPlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +50,11 @@ class MusicPlayer(private val context: Context) : PlayerController {
     private val mediaSession: MediaSession
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var positionJob: Job? = null
+    private var sleepTimerJob: Job? = null
+    private var previewJob: Job? = null
+    private var _speed: Float = 1.0f
+    private var _repeatMode: RepeatMode = RepeatMode.ALL
+    private var _shuffleMode: ShuffleMode = ShuffleMode.OFF
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -63,6 +70,10 @@ class MusicPlayer(private val context: Context) : PlayerController {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             updateState()
             updatePositionPolling()
+        }
+
+        override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+            updateState()
         }
     }
 
@@ -92,6 +103,7 @@ class MusicPlayer(private val context: Context) : PlayerController {
     }
 
     override fun play(track: Track) {
+        previewJob?.cancel()
         addToRecentlyPlayed(track)
         val updatedQueue = if (_state.value.queue.none { it.id == track.id }) {
             _state.value.queue + track
@@ -102,47 +114,49 @@ class MusicPlayer(private val context: Context) : PlayerController {
             queue = updatedQueue
         )
 
-        val mediaItems = updatedQueue.map { buildMediaItem(it) }
+        val mediaItems = updatedQueue.mapNotNull { buildMediaItem(it) }
         val index = updatedQueue.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
         player.setMediaItems(mediaItems, index, C.TIME_UNSET)
         player.prepare()
-        player.play()
-
+        player.playWhenReady = true
         startService()
     }
 
     override fun playUrl(track: Track, url: String) {
+        previewJob?.cancel()
         addToRecentlyPlayed(track)
         val newQueue = listOf(track)
         _state.value = _state.value.copy(currentTrack = track, queue = newQueue)
 
-        val mediaItem = buildMediaItem(track, url)
+        val mediaItem = buildMediaItem(track, url) ?: return
         player.setMediaItems(listOf(mediaItem))
         player.prepare()
-        player.play()
+        player.playWhenReady = true
 
         startService()
     }
 
     override fun playAll(tracks: List<Track>) {
+        previewJob?.cancel()
         if (tracks.isEmpty()) return
         tracks.forEach { addToRecentlyPlayed(it) }
         _state.value = _state.value.copy(
             currentTrack = tracks.first(),
             queue = tracks
         )
-        val mediaItems = tracks.map { buildMediaItem(it) }
+        val mediaItems = tracks.mapNotNull { buildMediaItem(it) }
         player.setMediaItems(mediaItems)
         player.prepare()
-        player.play()
+        player.playWhenReady = true
         startService()
     }
 
-    private fun buildMediaItem(track: Track, urlOverride: String? = null): MediaItem {
+    private fun buildMediaItem(track: Track, urlOverride: String? = null): MediaItem? {
         val uri = urlOverride ?: track.previewUrl
+        if (uri.isNullOrEmpty()) return null
         val builder = MediaItem.Builder()
             .setMediaId(track.id)
-            .apply { if (uri != null && uri.isNotEmpty()) setUri(uri) }
+            .setUri(uri)
             .setMediaMetadata(
                 androidx.media3.common.MediaMetadata.Builder()
                     .setTitle(track.title)
@@ -162,7 +176,7 @@ class MusicPlayer(private val context: Context) : PlayerController {
     }
 
     override fun togglePlayPause() {
-        if (player.isPlaying) {
+        if (player.playWhenReady) {
             player.pause()
         } else {
             player.play()
@@ -186,8 +200,87 @@ class MusicPlayer(private val context: Context) : PlayerController {
         player.volume = volume
     }
 
+    override fun setRepeatMode(mode: RepeatMode) {
+        _repeatMode = mode
+        when (mode) {
+            RepeatMode.OFF -> player.repeatMode = Player.REPEAT_MODE_OFF
+            RepeatMode.ONE -> player.repeatMode = Player.REPEAT_MODE_ONE
+            RepeatMode.ALL -> player.repeatMode = Player.REPEAT_MODE_ALL
+        }
+        _state.value = _state.value.copy(repeatMode = mode)
+    }
+
+    override fun setShuffleMode(mode: ShuffleMode) {
+        _shuffleMode = mode
+        player.shuffleModeEnabled = mode == ShuffleMode.ON
+        _state.value = _state.value.copy(shuffleMode = mode)
+    }
+
+    override fun setSpeed(speed: Float) {
+        _speed = speed.coerceIn(0.5f, 2.0f)
+        _state.value = _state.value.copy(speed = _speed)
+        player.setPlaybackSpeed(_speed)
+    }
+
+    override fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        val queue = _state.value.queue.toMutableList()
+        if (fromIndex < 0 || fromIndex >= queue.size || toIndex < 0 || toIndex >= queue.size) return
+        val item = queue.removeAt(fromIndex)
+        queue.add(toIndex, item)
+        _state.value = _state.value.copy(queue = queue)
+        val mediaItems = queue.mapNotNull { buildMediaItem(it) }
+        val currentIndex = queue.indexOfFirst { it.id == _state.value.currentTrack?.id }.coerceAtLeast(0)
+        player.setMediaItems(mediaItems, currentIndex, C.TIME_UNSET)
+    }
+
+    override fun clearQueue() {
+        _state.value = _state.value.copy(queue = emptyList())
+        player.stop()
+        player.clearMediaItems()
+    }
+
+    override fun removeFromQueue(trackId: String) {
+        val queue = _state.value.queue.filter { it.id != trackId }
+        _state.value = _state.value.copy(queue = queue)
+        player.setMediaItems(queue.mapNotNull { buildMediaItem(it) })
+    }
+
+    override fun previewTrack(track: Track, audioUrl: String) {
+        previewJob?.cancel()
+        val mediaItem = buildMediaItem(track, audioUrl) ?: return
+        player.stop()
+        player.setMediaItems(listOf(mediaItem))
+        player.prepare()
+        player.playWhenReady = true
+        startService()
+        previewJob = scope.launch {
+            delay(30_000)
+            if (player.isPlaying) {
+                player.stop()
+            }
+        }
+    }
+
+    override fun setSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        if (minutes > 0) {
+            sleepTimerJob = scope.launch {
+                delay(minutes * 60 * 1000L)
+                if (isActive) {
+                    player.pause()
+                }
+            }
+        }
+    }
+
+    override fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+    }
+
     override fun release() {
         positionJob?.cancel()
+        sleepTimerJob?.cancel()
         player.removeListener(playerListener)
         player.release()
         mediaSession.release()
@@ -196,7 +289,7 @@ class MusicPlayer(private val context: Context) : PlayerController {
 
     private fun updatePositionPolling() {
         positionJob?.cancel()
-        if (player.isPlaying && player.playbackState != Player.STATE_ENDED) {
+        if (player.playWhenReady && player.playbackState != Player.STATE_ENDED) {
             positionJob = scope.launch {
                 while (isActive) {
                     updateState()
@@ -215,7 +308,7 @@ class MusicPlayer(private val context: Context) : PlayerController {
 
         _state.value = _state.value.copy(
             currentTrack = currentTrack,
-            isPlaying = player.isPlaying,
+            isPlaying = player.playWhenReady,
             position = player.currentPosition,
             duration = player.duration.coerceAtLeast(0)
         )

@@ -1,5 +1,6 @@
 package com.sinc.enhanced.ui.screens.settings
 
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,8 +25,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sinc.enhanced.BuildConfig
 import com.sinc.enhanced.SincApp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onLogout: () -> Unit = {},
@@ -163,12 +169,7 @@ fun SettingsScreen(
                                     enabled = serverInput.isNotBlank()
                                 ) { Text("Save") }
                                 OutlinedButton(
-                                    onClick = {
-                                        if (serverInput.isBlank()) showServerField = false
-                                        else {
-                                            scope.launch { authRepository.setServerUrl(""); showServerField = false }
-                                        }
-                                    },
+                                    onClick = { showServerField = false },
                                     shape = RoundedCornerShape(8.dp)
                                 ) { Text("Cancel") }
                             }
@@ -180,7 +181,29 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        SettingsGroup(title = "Download Quality", icon = Icons.Default.Speed) {
+        SettingsGroup(title = "Audio Quality", icon = Icons.Default.Speed) {
+            Text("Streaming", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(128, 192, 320).forEach { quality ->
+                    FilterChip(
+                        selected = uiState.streamingQuality == quality,
+                        onClick = { viewModel.setStreamingQuality(quality) },
+                        label = { Text("${quality}kbps") },
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        val downloadCount by SincApp.instance.container.downloadRepository.completedDownloads.collectAsStateWithLifecycle(initialValue = emptyList())
+                        ProfileStat(label = "Downloads", value = downloadCount.size.toString())
+                        ProfileStat(label = "Sources", value = "7")
+                    }
+                    Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            Spacer(Modifier.height(12.dp))
+            Text("Download", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(128, 192, 320).forEach { quality ->
                     FilterChip(
@@ -197,7 +220,7 @@ fun SettingsScreen(
 
         SettingsGroup(title = "Download Format", icon = Icons.Default.AudioFile) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("mp3", "aac", "flac").forEach { format ->
+                listOf("mp3", "aac", "opus", "flac").forEach { format ->
                     FilterChip(
                         selected = uiState.downloadFormat == format,
                         onClick = { viewModel.setDownloadFormat(format) },
@@ -272,6 +295,94 @@ fun SettingsScreen(
                         },
                         shape = RoundedCornerShape(12.dp)
                     )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SettingsGroup(title = "Audio Processing", icon = Icons.Default.Tune) {
+            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Downmix to Mono", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Switch(checked = false, onCheckedChange = { })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Dynamic Range Compression", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Switch(checked = false, onCheckedChange = { })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Crossfeed (Headphones)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Switch(checked = false, onCheckedChange = { })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Bit-perfect Playback", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Switch(checked = false, onCheckedChange = { })
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SettingsGroup(title = "Scrobbling", icon = Icons.Default.MusicNote) {
+            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Scrobble to Last.fm", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Text("Send listening data to Last.fm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = false, onCheckedChange = { })
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SettingsGroup(title = "Cache Management", icon = Icons.Default.Storage) {
+            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Cache stores resolved audio URLs for faster loading.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { SincApp.instance.container.searchRepository.invalidateCache() }, shape = RoundedCornerShape(8.dp)) {
+                            Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Clear Cache")
+                        }
+                        OutlinedButton(onClick = { }, shape = RoundedCornerShape(8.dp)) {
+                            Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Export Library")
+                        }
+                        OutlinedButton(onClick = { }, shape = RoundedCornerShape(8.dp)) {
+                            Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Import Library")
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SettingsGroup(title = "Language", icon = Icons.Default.Language) {
+            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("App Language", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Requires app restart", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    var expanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                        OutlinedTextField(value = "System Default", onValueChange = { }, readOnly = true, modifier = Modifier.menuAnchor().width(180.dp), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
+                        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            listOf("System Default", "English", "Spanish", "French", "German", "Arabic", "Hindi").forEach { lang ->
+                                DropdownMenuItem(text = { Text(lang) }, onClick = { expanded = false })
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -351,5 +462,13 @@ private fun SettingsGroup(
         }
         Spacer(Modifier.height(8.dp))
         content()
+    }
+}
+
+@Composable
+private fun ProfileStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
