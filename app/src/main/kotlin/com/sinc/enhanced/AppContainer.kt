@@ -33,9 +33,15 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class AppContainer(private val context: Context) {
 
     val okHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .build()
+
+    val probeClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.SECONDS)
+        .writeTimeout(5, TimeUnit.SECONDS)
         .build()
 
     val database: AppDatabase = Room.databaseBuilder(
@@ -55,7 +61,7 @@ class AppContainer(private val context: Context) {
 
     val spotifyClient: SpotifyClient = SpotifyClient(okHttpClient)
     val deezerClient: DeezerClient = DeezerClient(okHttpClient)
-    val pipedClient: PipedClient = PipedClient(okHttpClient)
+    val pipedClient: PipedClient = PipedClient(okHttpClient, probeClient)
     val lyricsClient: LyricsClient = LyricsClient(okHttpClient, context)
     val soundCloudClient: SoundCloudClient = SoundCloudClient(okHttpClient)
     val audiusClient: AudiusClient = AudiusClient(okHttpClient)

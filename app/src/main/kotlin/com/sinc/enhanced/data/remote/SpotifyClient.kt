@@ -1,5 +1,6 @@
 package com.sinc.enhanced.data.remote
 
+import android.util.Log
 import com.sinc.enhanced.BuildConfig
 import com.sinc.enhanced.data.model.Album
 import com.sinc.enhanced.data.model.Artist
@@ -35,7 +36,8 @@ class SpotifyClient(private val client: OkHttpClient) {
             accessToken = token
             tokenExpiresAt = System.currentTimeMillis() + (json.optLong("expires_in", 3600) * 1000) - 60000
             token
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("SpotifyClient", "getToken failed", e)
             ""
         }
     }
@@ -43,15 +45,24 @@ class SpotifyClient(private val client: OkHttpClient) {
     private fun jsonGet(url: String): JSONObject? {
         return try {
             val token = getToken()
-            if (token.isEmpty()) return null
+            if (token.isEmpty()) {
+                Log.w("SpotifyClient", "jsonGet: empty token for $url")
+                return null
+            }
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
                 .build()
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
+            if (!response.isSuccessful) {
+                Log.w("SpotifyClient", "jsonGet: HTTP ${response.code} for $url")
+                return null
+            }
             JSONObject(response.body?.string() ?: return null)
-        } catch (_: Exception) { null }
+        } catch (e: Exception) {
+            Log.e("SpotifyClient", "jsonGet failed: $url", e)
+            null
+        }
     }
 
     fun searchTracks(query: String, limit: Int = 10): List<Track> {
@@ -191,7 +202,14 @@ private fun toMap(obj: JSONObject): Map<String, Any?> {
         val value = obj.get(key)
         map[key] = when (value) {
             is JSONObject -> toMap(value)
-            is JSONArray -> (0 until value.length()).map { value.get(it) }
+            is JSONArray -> (0 until value.length()).map { i ->
+                val el = value.get(i)
+                when (el) {
+                    is JSONObject -> toMap(el)
+                    is JSONArray -> (0 until (el as JSONArray).length()).map { j -> (el as JSONArray).get(j) }
+                    else -> el
+                }
+            }
             else -> value
         }
     }

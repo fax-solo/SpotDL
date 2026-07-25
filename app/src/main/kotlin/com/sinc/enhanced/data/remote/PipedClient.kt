@@ -5,7 +5,10 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
-class PipedClient(private val client: OkHttpClient) {
+class PipedClient(
+    private val client: OkHttpClient,
+    private val probeClient: OkHttpClient
+) {
 
     companion object {
         private val INSTANCES = listOf(
@@ -70,7 +73,7 @@ class PipedClient(private val client: OkHttpClient) {
             val filterParam = if (filter != null) "&filter=$filter" else ""
             val url = "$instance/search?q=${URLEncoder.encode(query, "UTF-8")}$filterParam"
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
+            val response = probeClient.newCall(request).execute()
             if (!response.isSuccessful) return@tryInstances null
             val json = JSONObject(response.body?.string() ?: return@tryInstances null)
             val items = json.optJSONArray("items") ?: return@tryInstances null
@@ -94,7 +97,7 @@ class PipedClient(private val client: OkHttpClient) {
         return tryInstances { instance ->
             val url = "$instance/streams/$videoId"
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
+            val response = probeClient.newCall(request).execute()
             if (!response.isSuccessful) return@tryInstances null
             val json = JSONObject(response.body?.string() ?: return@tryInstances null)
             val audioStreams = json.optJSONArray("audioStreams") ?: return@tryInstances null

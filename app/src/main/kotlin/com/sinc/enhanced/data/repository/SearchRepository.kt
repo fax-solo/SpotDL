@@ -57,6 +57,15 @@ class SearchRepository(
 
         enrichedCache.get(normalized)?.let { return@withContext it }
 
+        try {
+            withTimeout(45000L) { searchAllUncached(normalized) }
+        } catch (_: TimeoutCancellationException) {
+            emptyList()
+        }
+    }
+
+    private suspend fun searchAllUncached(normalized: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
+
         val spotifyDeferred = async { robustCall(label = "spotify") { spotifyClient.searchTracks(normalized) } }
         val pipedDeferred = async { robustCall(label = "piped") { pipedClient.search(normalized, limit = 10) } }
         val deezerDeferred = async { robustCall(label = "deezer") { deezerClient.searchTracks(normalized) } }
