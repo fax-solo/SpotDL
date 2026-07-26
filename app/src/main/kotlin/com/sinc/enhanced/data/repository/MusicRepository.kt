@@ -70,17 +70,4 @@ class MusicRepository(private val context: Context) {
         return tracks
     }
 
-    fun getTrackCount(): Int {
-        val cursor = context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            arrayOf("COUNT(*) AS track_count"),
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
-            null,
-            null
-        )
-        return cursor?.use {
-            it.moveToFirst()
-            it.getInt(it.getColumnIndexOrThrow("track_count"))
-        } ?: 0
-    }
 }

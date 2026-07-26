@@ -52,9 +52,6 @@ fun LibraryScreen(
         onPermissionResult = { newState ->
             permissionState = newState
             viewModel.setPermissionState(newState)
-            if (newState is AudioPermissionState.Granted) {
-                viewModel.loadLocalMusic()
-            }
         }
     )
 

@@ -53,19 +53,24 @@ class LibraryViewModel(
         }
     }
 
+    private var loadingLocal = false
+
     fun loadLocalMusic() {
+        if (loadingLocal) return
+        loadingLocal = true
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val tracks = musicRepository.scanLocalMusic()
-                val count = musicRepository.getTrackCount()
                 _uiState.value = _uiState.value.copy(
                     localTracks = tracks,
-                    localCount = count,
+                    localCount = tracks.size,
                     isLoading = false
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message ?: "Unknown error")
+            } finally {
+                loadingLocal = false
             }
         }
     }
