@@ -18,6 +18,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun RegisterScreen(
     onRegisterSuccess: () -> Unit,
     onNavigateLogin: () -> Unit,
+    onNavigateSettings: () -> Unit = {},
     viewModel: RegisterViewModel = viewModel(factory = RegisterViewModel.Factory())
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -114,6 +115,17 @@ fun RegisterScreen(
         }
 
         Spacer(Modifier.height(12.dp))
+
+        if (uiState.needsServerUrl) {
+            Text(
+                text = "Server not configured. Set your server URL in Settings.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+            TextButton(onClick = onNavigateSettings) {
+                Text("Open Settings")
+            }
+        }
 
         TextButton(onClick = onNavigateLogin) {
             Text("Already have an account? Login")

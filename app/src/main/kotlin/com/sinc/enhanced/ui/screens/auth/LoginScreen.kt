@@ -1,6 +1,5 @@
 package com.sinc.enhanced.ui.screens.auth
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -20,25 +19,18 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.sinc.enhanced.SincApp
-import kotlinx.coroutines.flow.first
-
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onNavigateRegister: () -> Unit,
     onSkip: () -> Unit,
+    onNavigateSettings: () -> Unit = {},
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory())
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var showServerUrl by remember { mutableStateOf(false) }
-    var serverUrlInput by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) {
-        serverUrlInput = SincApp.instance.container.authRepository.serverUrl.first()
-    }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(uiState.isSuccess) {
@@ -68,26 +60,6 @@ fun LoginScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        Spacer(Modifier.height(8.dp))
-
-        TextButton(onClick = { showServerUrl = !showServerUrl }) {
-            Text(if (showServerUrl) "Hide server settings" else "Server settings", style = MaterialTheme.typography.bodySmall)
-        }
-
-        AnimatedVisibility(visible = showServerUrl) {
-            OutlinedTextField(
-                value = serverUrlInput,
-                onValueChange = { serverUrlInput = it },
-                label = { Text("Server URL") },
-                placeholder = { Text("https://your-server.workers.dev") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                shape = RoundedCornerShape(12.dp)
-            )
-        }
 
         Spacer(Modifier.height(24.dp))
 
@@ -139,10 +111,7 @@ fun LoginScreen(
         Spacer(Modifier.height(24.dp))
 
         Button(
-            onClick = {
-                val serverUrl = if (showServerUrl && serverUrlInput.isNotBlank()) serverUrlInput.trim() else null
-                viewModel.login(username, password, serverUrl)
-            },
+            onClick = { viewModel.login(username, password) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             enabled = !uiState.isLoading,
             shape = RoundedCornerShape(12.dp)
@@ -162,6 +131,18 @@ fun LoginScreen(
 
         TextButton(onClick = onSkip) {
             Text("Skip — use offline")
+        }
+
+        if (uiState.needsServerUrl) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Server not configured. Set your server URL in Settings.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+            TextButton(onClick = onNavigateSettings) {
+                Text("Open Settings")
+            }
         }
     }
 }

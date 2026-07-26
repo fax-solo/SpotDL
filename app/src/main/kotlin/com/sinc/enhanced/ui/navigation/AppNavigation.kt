@@ -228,7 +228,8 @@ fun AppNavigation(intent: Intent? = null) {
                             navController.navigate(Routes.HOME) {
                                 popUpTo(Routes.LOGIN) { inclusive = true }
                             }
-                        }
+                        },
+                        onNavigateSettings = { navController.navigate(Routes.SETTINGS) }
                     )
                 }
                 composable(Routes.REGISTER) {
@@ -239,7 +240,8 @@ fun AppNavigation(intent: Intent? = null) {
                             }
                             scope.launch { schedulePing() }
                         },
-                        onNavigateLogin = { navController.popBackStack() }
+                        onNavigateLogin = { navController.popBackStack() },
+                        onNavigateSettings = { navController.navigate(Routes.SETTINGS) }
                     )
                 }
                 composable(Routes.HOME) {

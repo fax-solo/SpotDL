@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 data class RegisterUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSuccess: Boolean = false
+    val isSuccess: Boolean = false,
+    val needsServerUrl: Boolean = false
 )
 
 class RegisterViewModel(
@@ -47,6 +48,10 @@ class RegisterViewModel(
         viewModelScope.launch {
             try {
                 val serverUrl = authRepository.serverUrl.first()
+                if (serverUrl.isBlank()) {
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = null, needsServerUrl = true)
+                    return@launch
+                }
                 val trimmedUrl = serverUrl.trim()
                 apiClient.configure(trimmedUrl, apiClient.token)
                 val result = apiClient.register(username, password)

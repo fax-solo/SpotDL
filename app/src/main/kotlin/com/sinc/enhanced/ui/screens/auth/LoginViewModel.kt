@@ -17,7 +17,8 @@ data class LoginUiState(
     val isAuthenticating: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSuccess: Boolean = false
+    val isSuccess: Boolean = false,
+    val needsServerUrl: Boolean = false
 )
 
 class LoginViewModel(
@@ -28,7 +29,7 @@ class LoginViewModel(
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
-    fun login(username: String, password: String, serverUrlOverride: String? = null) {
+    fun login(username: String, password: String) {
         if (username.isBlank() || password.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "Enter username and password")
             return
@@ -36,9 +37,10 @@ class LoginViewModel(
         _uiState.value = _uiState.value.copy(isConnecting = true, isLoading = true, error = null)
         viewModelScope.launch {
             try {
-                val serverUrl = serverUrlOverride ?: authRepository.serverUrl.first()
-                if (serverUrlOverride != null) {
-                    authRepository.setServerUrl(serverUrl)
+                val serverUrl = authRepository.serverUrl.first()
+                if (serverUrl.isBlank()) {
+                    _uiState.value = _uiState.value.copy(isLoading = false, isConnecting = false, error = null, needsServerUrl = true)
+                    return@launch
                 }
                 apiClient.configure(serverUrl.trim(), apiClient.token)
                 _uiState.value = _uiState.value.copy(isConnecting = false, isAuthenticating = true)

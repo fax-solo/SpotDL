@@ -12,11 +12,13 @@ import com.sinc.enhanced.data.repository.SearchRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 data class ImportPlaylistUiState(
     val url: String = "",
@@ -173,12 +175,20 @@ class ImportPlaylistViewModel(
     }
 
     private suspend fun resolveAudioUrls(tracks: List<Track>): Map<String, String> = coroutineScope {
-        tracks.map { track ->
+        val results = mutableMapOf<String, String>()
+        val deferreds = tracks.map { track ->
             async { track.id to searchRepository.findBestAudioForTrack(track) }
-        }.mapNotNull { deferred ->
-            val (id, audioInfo) = deferred.await()
-            if (audioInfo != null) id to audioInfo.first else null
-        }.toMap()
+        }
+        val deadline = System.currentTimeMillis() + 60000L
+        for (deferred in deferreds) {
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0) break
+            try {
+                val (id, audioInfo) = withTimeout(remaining) { deferred.await() }
+                if (audioInfo != null) results[id] = audioInfo.first
+            } catch (_: Exception) {}
+        }
+        results
     }
 
     fun downloadAll(onQueueComplete: () -> Unit = {}) {
