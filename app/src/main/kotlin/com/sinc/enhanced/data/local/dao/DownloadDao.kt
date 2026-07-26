@@ -62,6 +62,18 @@ interface DownloadDao {
     @Query("UPDATE downloads SET progress = :progress, downloadSpeed = :speed WHERE trackId = :trackId")
     suspend fun updateProgress(trackId: String, progress: Float, speed: Float)
 
+    @Transaction
+    suspend fun pauseDownload(trackId: String) {
+        updateStatus(trackId, "paused", 0f)
+        updateIsPaused(trackId, true)
+    }
+
+    @Transaction
+    suspend fun resumeDownload(trackId: String) {
+        updateStatus(trackId, "queued", 0f)
+        updateIsPaused(trackId, false)
+    }
+
     @Query("DELETE FROM downloads WHERE trackId = :trackId")
     suspend fun delete(trackId: String)
 

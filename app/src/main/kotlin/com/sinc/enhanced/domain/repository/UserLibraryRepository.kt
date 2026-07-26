@@ -12,14 +12,14 @@ interface UserLibraryRepository {
     val allSavedTracks: Flow<List<SavedTrackEntity>>
 
     suspend fun isTrackLiked(trackId: String): Boolean
-    suspend fun likeTrack(track: Track)
+    suspend fun likeTrack(track: Track, filePath: String? = null)
     suspend fun unlikeTrack(trackId: String)
 
     suspend fun isTrackSaved(trackId: String): Boolean
-    suspend fun saveTrack(track: Track)
+    suspend fun saveTrack(track: Track, filePath: String? = null)
     suspend fun unsaveTrack(trackId: String)
 
-    suspend fun addToRecentlyPlayed(track: Track)
+    suspend fun addToRecentlyPlayed(track: Track, filePath: String? = null)
     suspend fun getRecentlyPlayed(limit: Int = 50): List<HistoryEntity>
 
     suspend fun addTrackToPlaylist(playlistId: Int, track: Track, filePath: String?)

@@ -6,14 +6,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 
+/** TODO: Convert all public methods to suspend functions */
 class DeezerClient(private val client: OkHttpClient) {
 
     private fun deezerGet(url: String): JSONObject? {
         return try {
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            JSONObject(response.body?.string() ?: return null)
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                JSONObject(response.body?.string() ?: return@use null)
+            }
         } catch (e: Exception) { Log.e("DeezerClient", "deezerGet failed", e); null }
     }
 

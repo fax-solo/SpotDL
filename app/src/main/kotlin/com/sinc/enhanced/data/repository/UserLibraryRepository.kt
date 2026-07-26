@@ -20,7 +20,7 @@ class UserLibraryRepository(
 
     override suspend fun isTrackLiked(trackId: String): Boolean = userLibraryDao.isTrackLiked(trackId)
 
-    override suspend fun likeTrack(track: Track) = withContext(Dispatchers.IO) {
+    override suspend fun likeTrack(track: Track, filePath: String?) = withContext(Dispatchers.IO) {
         userLibraryDao.insertLikedTrack(
             LikedTrackEntity(
                 trackId = track.id,
@@ -30,7 +30,7 @@ class UserLibraryRepository(
                 artworkUrl = track.artworkUrl,
                 durationMs = track.durationMs,
                 source = track.source,
-                filePath = null
+                filePath = filePath
             )
         )
     }
@@ -41,7 +41,7 @@ class UserLibraryRepository(
 
     override suspend fun isTrackSaved(trackId: String): Boolean = userLibraryDao.isTrackSaved(trackId)
 
-    override suspend fun saveTrack(track: Track) = withContext(Dispatchers.IO) {
+    override suspend fun saveTrack(track: Track, filePath: String?) = withContext(Dispatchers.IO) {
         userLibraryDao.saveTrack(
             SavedTrackEntity(
                 trackId = track.id,
@@ -51,7 +51,7 @@ class UserLibraryRepository(
                 artworkUrl = track.artworkUrl,
                 durationMs = track.durationMs,
                 source = track.source,
-                filePath = null
+                filePath = filePath
             )
         )
     }
@@ -60,7 +60,7 @@ class UserLibraryRepository(
         userLibraryDao.unsaveTrack(trackId)
     }
 
-    override suspend fun addToRecentlyPlayed(track: Track) = withContext(Dispatchers.IO) {
+    override suspend fun addToRecentlyPlayed(track: Track, filePath: String?) = withContext(Dispatchers.IO) {
         userLibraryDao.insertHistory(
             com.sinc.enhanced.data.local.entity.HistoryEntity(
                 trackId = track.id,
@@ -70,7 +70,7 @@ class UserLibraryRepository(
                 artworkUrl = track.artworkUrl,
                 durationMs = track.durationMs,
                 source = track.source,
-                filePath = null
+                filePath = filePath
             )
         )
     }
@@ -109,9 +109,6 @@ class UserLibraryRepository(
             if (fromIndex !in tracks.indices || toIndex !in tracks.indices) return@withContext
             val track = tracks.removeAt(fromIndex)
             tracks.add(toIndex, track)
-            for (index in tracks.indices) {
-                val t = tracks[index]
-                playlistDao.updatePosition(t.id, index)
-            }
+            playlistDao.reorderByIndices(tracks)
         }
 }

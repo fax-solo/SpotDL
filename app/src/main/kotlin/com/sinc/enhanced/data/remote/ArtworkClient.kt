@@ -8,6 +8,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.util.LinkedHashMap
 
+/** TODO: Convert all public methods to suspend functions */
 class ArtworkClient(private val client: OkHttpClient) {
 
     companion object {
@@ -44,14 +45,15 @@ class ArtworkClient(private val client: OkHttpClient) {
             val request = Request.Builder()
                 .url("https://api.deezer.com/search?q=$query&limit=3&order=RANKING")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val json = JSONObject(response.body?.string() ?: return null)
-            val track = json.optJSONArray("data")?.optJSONObject(0) ?: return null
-            track.optJSONObject("album")?.optString("cover_big")
-                .takeIf { !it.isNullOrEmpty() }
-                ?: track.optJSONObject("album")?.optString("cover_medium")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val json = JSONObject(response.body?.string() ?: return@use null)
+                val track = json.optJSONArray("data")?.optJSONObject(0) ?: return@use null
+                track.optJSONObject("album")?.optString("cover_big")
                     .takeIf { !it.isNullOrEmpty() }
+                    ?: track.optJSONObject("album")?.optString("cover_medium")
+                        .takeIf { !it.isNullOrEmpty() }
+            }
         } catch (e: Exception) { Log.e("ArtworkClient", "searchDeezerArtwork failed", e); null }
     }
 
@@ -62,18 +64,19 @@ class ArtworkClient(private val client: OkHttpClient) {
                 .url("https://itunes.apple.com/search?term=$query&media=music&limit=3")
                 .header("Accept", "application/json")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val json = JSONObject(response.body?.string() ?: return null)
-            val results = json.optJSONArray("results") ?: return null
-            for (i in 0 until results.length()) {
-                val item = results.getJSONObject(i)
-                if (item.optString("kind") == "song") {
-                    return item.optString("artworkUrl100", "")
-                        .replace("100x100", "600x600")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val json = JSONObject(response.body?.string() ?: return@use null)
+                val results = json.optJSONArray("results") ?: return@use null
+                for (i in 0 until results.length()) {
+                    val item = results.getJSONObject(i)
+                    if (item.optString("kind") == "song") {
+                        return@use item.optString("artworkUrl100", "")
+                            .replace("100x100", "600x600")
+                    }
                 }
+                null
             }
-            null
         } catch (e: Exception) { Log.e("ArtworkClient", "searchItunesArtwork failed", e); null }
     }
 
@@ -86,23 +89,24 @@ class ArtworkClient(private val client: OkHttpClient) {
             val request = Request.Builder()
                 .url("https://ws.audioscrobbler.com/2.0/?$params")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val json = JSONObject(response.body?.string() ?: return null)
-            val images = json.optJSONObject("track")
-                ?.optJSONObject("album")
-                ?.optJSONArray("image") ?: return null
-            val sizes = listOf("extralarge", "large", "medium")
-            for (size in sizes) {
-                for (i in 0 until images.length()) {
-                    val img = images.getJSONObject(i)
-                    if (img.optString("size") == size) {
-                        val url = img.optString("#text")
-                        if (url.isNotEmpty()) return url
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val json = JSONObject(response.body?.string() ?: return@use null)
+                val images = json.optJSONObject("track")
+                    ?.optJSONObject("album")
+                    ?.optJSONArray("image") ?: return@use null
+                val sizes = listOf("extralarge", "large", "medium")
+                for (size in sizes) {
+                    for (i in 0 until images.length()) {
+                        val img = images.getJSONObject(i)
+                        if (img.optString("size") == size) {
+                            val url = img.optString("#text")
+                            if (url.isNotEmpty()) return@use url
+                        }
                     }
                 }
+                null
             }
-            null
         } catch (e: Exception) { Log.e("ArtworkClient", "searchLastfmArtwork failed", e); null }
     }
 
@@ -112,8 +116,9 @@ class ArtworkClient(private val client: OkHttpClient) {
             val request = Request.Builder()
                 .url("https://coverartarchive.org/release/$mbid/front-250")
                 .build()
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) "https://coverartarchive.org/release/$mbid/front-250" else null
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) "https://coverartarchive.org/release/$mbid/front-250" else null
+            }
         } catch (e: Exception) { Log.e("ArtworkClient", "searchCoverArtArchive failed", e); null }
     }
 
@@ -123,14 +128,15 @@ class ArtworkClient(private val client: OkHttpClient) {
                 .url("https://musicbrainz.org/ws/2/recording/?query=isrc:$isrc&limit=1&fmt=json")
                 .header("User-Agent", "SincEnhanced/1.0")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val json = JSONObject(response.body?.string() ?: return null)
-            json.optJSONArray("recordings")
-                ?.optJSONObject(0)
-                ?.optJSONArray("releases")
-                ?.optJSONObject(0)
-                ?.optString("id")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val json = JSONObject(response.body?.string() ?: return@use null)
+                json.optJSONArray("recordings")
+                    ?.optJSONObject(0)
+                    ?.optJSONArray("releases")
+                    ?.optJSONObject(0)
+                    ?.optString("id")
+            }
         } catch (e: Exception) { Log.e("ArtworkClient", "mbidFromIsrc failed", e); null }
     }
 
@@ -141,17 +147,18 @@ class ArtworkClient(private val client: OkHttpClient) {
                 .url("https://musicbrainz.org/ws/2/recording/?query=$query&limit=3&fmt=json")
                 .header("User-Agent", "SincEnhanced/1.0")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val json = JSONObject(response.body?.string() ?: return null)
-            val recordings = json.optJSONArray("recordings") ?: return null
-            for (i in 0 until recordings.length()) {
-                val releases = recordings.getJSONObject(i).optJSONArray("releases")
-                if (releases != null && releases.length() > 0) {
-                    return releases.getJSONObject(0).optString("id")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val json = JSONObject(response.body?.string() ?: return@use null)
+                val recordings = json.optJSONArray("recordings") ?: return@use null
+                for (i in 0 until recordings.length()) {
+                    val releases = recordings.getJSONObject(i).optJSONArray("releases")
+                    if (releases != null && releases.length() > 0) {
+                        return@use releases.getJSONObject(0).optString("id")
+                    }
                 }
+                null
             }
-            null
         } catch (e: Exception) { Log.e("ArtworkClient", "mbidFromTrack failed", e); null }
     }
 }

@@ -1,7 +1,7 @@
 package com.sinc.enhanced.data.repository
 
 import android.content.Context
-import com.sinc.enhanced.data.local.CacheManager
+import com.sinc.enhanced.data.local.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -12,7 +12,7 @@ import java.io.FileOutputStream
 
 class CacheRepository(
     private val context: Context,
-    private val cacheManager: CacheManager,
+    private val settingsManager: SettingsManager,
     private val okHttpClient: OkHttpClient
 ) {
 
@@ -92,7 +92,7 @@ class CacheRepository(
     }
 
     private suspend fun enforceCacheSizeLimit() {
-        val maxSizeMb = cacheManager.cacheMaxSizeMb.first()
+        val maxSizeMb = settingsManager.cacheMaxSizeMb.first()
         val maxBytes = maxSizeMb.toLong() * 1024L * 1024L
         val currentSize = getCacheSize()
         if (currentSize > maxBytes) {

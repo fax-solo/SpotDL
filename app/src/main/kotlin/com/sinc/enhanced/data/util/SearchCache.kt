@@ -1,7 +1,5 @@
 package com.sinc.enhanced.data.util
 
-import java.util.LinkedList
-
 class SearchCache<T>(private val maxSize: Int = 20) {
 
     private data class Entry<T>(
@@ -9,8 +7,7 @@ class SearchCache<T>(private val maxSize: Int = 20) {
         val timestamp: Long
     )
 
-    private val map = LinkedHashMap<String, Entry<T>>(maxSize, 0.75f, true)
-    private val order = LinkedList<String>()
+    private val map = LinkedHashMap<String, Entry<T>>(maxSize, 0.75f, false)
 
     @Synchronized
     fun get(query: String): List<T>? {
@@ -25,18 +22,16 @@ class SearchCache<T>(private val maxSize: Int = 20) {
     @Synchronized
     fun put(query: String, results: List<T>) {
         val key = normalize(query)
-        if (map.size >= maxSize) {
-            val oldest = order.pollFirst()
-            if (oldest != null) map.remove(oldest)
-        }
         map[key] = Entry(results, System.currentTimeMillis())
-        order.add(key)
+        if (map.size > maxSize) {
+            val oldest = map.keys.first()
+            map.remove(oldest)
+        }
     }
 
     @Synchronized
     fun invalidateAll() {
         map.clear()
-        order.clear()
     }
 
     private fun normalize(query: String) = query.lowercase().trim()

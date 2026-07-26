@@ -32,14 +32,18 @@ class AuthRepository(
         private val KEY_USER_ID = longPreferencesKey("auth_user_id")
         private val KEY_ROLE = stringPreferencesKey("auth_role")
         private val KEY_SERVER_URL = stringPreferencesKey("server_url")
+        private val KEY_TOKEN_SAVED_AT = longPreferencesKey("auth_token_saved_at")
         private val HAS_AUTO_INIT = booleanPreferencesKey("has_auto_init_url")
+        private const val TOKEN_MAX_AGE_MS = 30L * 24 * 60 * 60 * 1000
     }
 
     override val authState: Flow<AuthState> = dataStore.data.map { prefs ->
         val token = prefs[KEY_TOKEN] ?: ""
+        val savedAt = prefs[KEY_TOKEN_SAVED_AT] ?: 0L
+        val expired = savedAt > 0 && (System.currentTimeMillis() - savedAt) > TOKEN_MAX_AGE_MS
         val url = effectiveUrl(prefs[KEY_SERVER_URL] ?: "")
         AuthState(
-            isLoggedIn = token.isNotEmpty(),
+            isLoggedIn = token.isNotEmpty() && !expired,
             isAdmin = prefs[KEY_ROLE] == "admin",
             username = prefs[KEY_USERNAME] ?: "",
             userId = prefs[KEY_USER_ID] ?: 0,
@@ -63,6 +67,7 @@ class AuthRepository(
             prefs[KEY_USER_ID] = userId
             prefs[KEY_ROLE] = role
             prefs[KEY_SERVER_URL] = serverUrl
+            prefs[KEY_TOKEN_SAVED_AT] = System.currentTimeMillis()
         }
         apiClient.configure(serverUrl, token)
     }
@@ -78,11 +83,21 @@ class AuthRepository(
     }
 
     override suspend fun setServerUrl(url: String) {
-        dataStore.edit { prefs ->
-            prefs[KEY_SERVER_URL] = url
-        }
+        val trimmed = url.trim()
+        if (trimmed.isBlank()) return
         val token = dataStore.data.first()[KEY_TOKEN] ?: ""
-        apiClient.configure(url, token)
+        val savedUrl = apiClient.baseUrl
+        val savedToken = apiClient.token
+        apiClient.configure(trimmed, token)
+        try {
+            apiClient.ping()
+        } catch (_: Exception) {
+            apiClient.configure(savedUrl, savedToken)
+            throw Exception("Server unreachable at $trimmed")
+        }
+        dataStore.edit { prefs ->
+            prefs[KEY_SERVER_URL] = trimmed
+        }
     }
 
     override suspend fun restoreSession(): Boolean {
@@ -98,18 +113,20 @@ class AuthRepository(
         apiClient.configure(url, token)
         if (token.isEmpty() || url.isEmpty()) return false
 
-        try {
+        return try {
             val me = apiClient.getMe()
             if (me != null) {
                 val role = me.optString("role", "user")
                 dataStore.edit { it[KEY_ROLE] = role }
-                return true
+                true
+            } else {
+                true
             }
+        } catch (e: com.sinc.enhanced.data.remote.ApiClient.ApiException) {
             clearAuth()
-            return false
-        } catch (e: Exception) {
-            clearAuth()
-            return false
+            false
+        } catch (_: Exception) {
+            true
         }
     }
 }

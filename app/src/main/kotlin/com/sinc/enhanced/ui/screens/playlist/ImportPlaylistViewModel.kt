@@ -127,7 +127,7 @@ class ImportPlaylistViewModel(
         }
     }
 
-    private fun parsePlaylistId(input: String): String? {
+    fun parsePlaylistId(input: String): String? {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return null
 

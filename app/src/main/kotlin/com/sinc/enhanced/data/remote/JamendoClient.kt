@@ -7,6 +7,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
+/** TODO: Convert all public methods to suspend functions */
 class JamendoClient(private val client: OkHttpClient) {
 
     data class JamendoTrack(
@@ -40,23 +41,24 @@ class JamendoClient(private val client: OkHttpClient) {
                 "audioformat=mp32"
         return try {
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
-            val json = JSONObject(response.body?.string() ?: return emptyList())
-            val tracks = json.optJSONArray("results") ?: return emptyList()
-            (0 until minOf(tracks.length(), limit)).mapNotNull { i ->
-                val item = tracks.getJSONObject(i)
-                val musicInfo = item.optJSONObject("musicinfo")
-                JamendoTrack(
-                    id = item.optString("id"),
-                    title = item.optString("name"),
-                    artist = item.optString("artist_name"),
-                    album = item.optString("album_name"),
-                    duration = item.optInt("duration"),
-                    audioUrl = item.optString("audio"),
-                    artworkUrl = item.optString("image"),
-                    genre = (musicInfo?.optString("genre") ?: "").ifEmpty { null }
-                )
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use emptyList()
+                val json = JSONObject(response.body?.string() ?: return@use emptyList())
+                val tracks = json.optJSONArray("results") ?: return@use emptyList()
+                (0 until minOf(tracks.length(), limit)).mapNotNull { i ->
+                    val item = tracks.getJSONObject(i)
+                    val musicInfo = item.optJSONObject("musicinfo")
+                    JamendoTrack(
+                        id = item.optString("id"),
+                        title = item.optString("name"),
+                        artist = item.optString("artist_name"),
+                        album = item.optString("album_name"),
+                        duration = item.optInt("duration"),
+                        audioUrl = item.optString("audio"),
+                        artworkUrl = item.optString("image"),
+                        genre = (musicInfo?.optString("genre") ?: "").ifEmpty { null }
+                    )
+                }
             }
         } catch (e: Exception) { Log.e("JamendoClient", "search failed", e); emptyList() }
     }

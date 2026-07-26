@@ -3,6 +3,7 @@ package com.sinc.enhanced.ui.screens.library
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileDownload
@@ -233,12 +234,9 @@ private fun LocalTab(
                     }
                 }
                 else -> {
-                    LazyColumn(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(uiState.localTracks, key = { it.id }) { localTrack ->
-                            val track = Track(
+                    val localTracks = remember(uiState.localTracks) {
+                        uiState.localTracks.map { localTrack ->
+                            Track(
                                 id = "local_${localTrack.id}",
                                 title = localTrack.title,
                                 artist = localTrack.artist,
@@ -247,6 +245,14 @@ private fun LocalTab(
                                 artworkUrl = localTrack.albumArtUri,
                                 source = "local"
                             )
+                        }
+                    }
+                    LazyColumn(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        itemsIndexed(uiState.localTracks, key = { _, item -> item.id }) { index, localTrack ->
+                            val track = localTracks[index]
                             var showMenu by remember { mutableStateOf(false) }
                             TrackItem(
                                 track = track,
@@ -317,6 +323,19 @@ private fun DownloadedTab(
                 }
             }
         } else {
+            val downloadTracks = remember(downloadedTracks) {
+                downloadedTracks.map { download ->
+                    Track(
+                        id = download.trackId,
+                        title = download.title,
+                        artist = download.artist,
+                        album = download.album,
+                        durationMs = download.durationMs,
+                        artworkUrl = download.artworkUrl,
+                        source = download.source
+                    )
+                }
+            }
             LazyColumn(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -334,16 +353,8 @@ private fun DownloadedTab(
                         )
                     }
                 }
-                items(downloadedTracks, key = { it.trackId }) { download ->
-                    val track = Track(
-                        id = download.trackId,
-                        title = download.title,
-                        artist = download.artist,
-                        album = download.album,
-                        durationMs = download.durationMs,
-                        artworkUrl = download.artworkUrl,
-                        source = download.source
-                    )
+                itemsIndexed(downloadedTracks, key = { _, item -> item.trackId }) { index, download ->
+                    val track = downloadTracks[index]
                     var showMenu by remember { mutableStateOf(false) }
                     TrackItem(
                         track = track,

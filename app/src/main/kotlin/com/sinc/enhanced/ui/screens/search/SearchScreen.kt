@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +83,15 @@ fun SearchScreen(
         if (shouldLoadMore) viewModel.loadMore()
     }
 
+    var isRefreshing by remember { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) {
+            viewModel.onSearch(uiState.query)
+            isRefreshing = false
+        }
+    }
+
     val spotifyResults = remember(uiState.results) {
         uiState.results.filter { it.track.source == "spotify" }
     }
@@ -88,9 +99,15 @@ fun SearchScreen(
         uiState.results.filter { it.track.source != "spotify" }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { isRefreshing = true },
+        state = pullToRefreshState,
+        modifier = Modifier.fillMaxSize()
     ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp)
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -194,6 +211,7 @@ fun SearchScreen(
                 renderResults(uiState, spotifyResults, nonSpotifyResults, listState, onPlayTrack, onDownloadTrack, onNavigateTrack, onNavigateArtist, viewModel, onPreview)
             }
         }
+    }
     }
 }
 

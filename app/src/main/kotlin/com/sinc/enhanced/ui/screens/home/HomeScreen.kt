@@ -125,8 +125,9 @@ fun HomeScreen(
                             modifier = Modifier.size(40.dp)
                         )
                         Spacer(Modifier.height(8.dp))
+                        val errorText = uiState.error ?: "Unknown error"
                         Text(
-                            text = uiState.error!!,
+                            text = errorText,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )

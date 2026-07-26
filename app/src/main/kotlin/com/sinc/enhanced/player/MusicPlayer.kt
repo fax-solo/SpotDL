@@ -55,6 +55,7 @@ class MusicPlayer(private val context: Context) : PlayerController {
     private var _speed: Float = 1.0f
     private var _repeatMode: RepeatMode = RepeatMode.ALL
     private var _shuffleMode: ShuffleMode = ShuffleMode.OFF
+    private var currentAudioUrl: String? = null
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -109,8 +110,10 @@ class MusicPlayer(private val context: Context) : PlayerController {
             _state.value.queue + track
         } else _state.value.queue
 
+        currentAudioUrl = track.previewUrl
         _state.value = _state.value.copy(
             currentTrack = track,
+            currentAudioSource = track.previewUrl,
             queue = updatedQueue
         )
 
@@ -126,7 +129,8 @@ class MusicPlayer(private val context: Context) : PlayerController {
         previewJob?.cancel()
         addToRecentlyPlayed(track)
         val newQueue = listOf(track)
-        _state.value = _state.value.copy(currentTrack = track, queue = newQueue)
+        currentAudioUrl = url
+        _state.value = _state.value.copy(currentTrack = track, currentAudioSource = url, queue = newQueue)
 
         val mediaItem = buildMediaItem(track, url) ?: return
         player.setMediaItems(listOf(mediaItem))
@@ -247,6 +251,8 @@ class MusicPlayer(private val context: Context) : PlayerController {
 
     override fun previewTrack(track: Track, audioUrl: String) {
         previewJob?.cancel()
+        currentAudioUrl = audioUrl
+        _state.value = _state.value.copy(currentTrack = track, currentAudioSource = audioUrl)
         val mediaItem = buildMediaItem(track, audioUrl) ?: return
         player.stop()
         player.setMediaItems(listOf(mediaItem))
@@ -308,6 +314,7 @@ class MusicPlayer(private val context: Context) : PlayerController {
 
         _state.value = _state.value.copy(
             currentTrack = currentTrack,
+            currentAudioSource = currentAudioUrl,
             isPlaying = player.playWhenReady,
             position = player.currentPosition,
             duration = player.duration.coerceAtLeast(0)

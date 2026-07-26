@@ -30,7 +30,8 @@ data class PlayerUiState(
     val queue: List<Track> = emptyList(),
     val currentQueueIndex: Int = 0,
     val repeatMode: RepeatMode = RepeatMode.ALL,
-    val shuffleMode: ShuffleMode = ShuffleMode.OFF
+    val shuffleMode: ShuffleMode = ShuffleMode.OFF,
+    val isLiked: Boolean = false
 )
 
 class PlayerViewModel(
@@ -40,6 +41,7 @@ class PlayerViewModel(
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
+    private val userLibraryRepository = SincApp.instance.container.userLibraryRepository
 
     init {
         viewModelScope.launch {
@@ -60,9 +62,25 @@ class PlayerViewModel(
                 val track = playerState.currentTrack
                 if (track != null && track.id != previousTrackId) {
                     previousTrackId = track.id
-                    _uiState.value = _uiState.value.copy(lyrics = null, isLoadingLyrics = false)
+                    _uiState.value = _uiState.value.copy(
+                        lyrics = null, isLoadingLyrics = false,
+                        isLiked = userLibraryRepository.isTrackLiked(track.id)
+                    )
                     loadLyrics(track)
                 }
+            }
+        }
+    }
+
+    fun toggleLike() {
+        val track = _uiState.value.currentTrack ?: return
+        viewModelScope.launch {
+            if (_uiState.value.isLiked) {
+                userLibraryRepository.unlikeTrack(track.id)
+                _uiState.value = _uiState.value.copy(isLiked = false)
+            } else {
+                userLibraryRepository.likeTrack(track)
+                _uiState.value = _uiState.value.copy(isLiked = true)
             }
         }
     }

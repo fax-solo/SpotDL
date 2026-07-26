@@ -1,6 +1,8 @@
 package com.sinc.enhanced.data.remote
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -69,8 +71,8 @@ class PipedClient(
         return null
     }
 
-    fun search(query: String, limit: Int = 5, filter: String? = "music"): List<PipedSearchResult> {
-        return tryInstances { instance ->
+    suspend fun search(query: String, limit: Int = 5, filter: String? = "music"): List<PipedSearchResult> = withContext(Dispatchers.IO) {
+        tryInstances { instance ->
             val filterParam = if (filter != null) "&filter=$filter" else ""
             val url = "$instance/search?q=${URLEncoder.encode(query, "UTF-8")}$filterParam"
             val request = Request.Builder().url(url).build()
@@ -94,8 +96,8 @@ class PipedClient(
         } ?: emptyList()
     }
 
-    fun getStreams(videoId: String): PipedStream? {
-        return tryInstances { instance ->
+    suspend fun getStreams(videoId: String): PipedStream? = withContext(Dispatchers.IO) {
+        tryInstances { instance ->
             val url = "$instance/streams/$videoId"
             val request = Request.Builder().url(url).build()
             val response = probeClient.newCall(request).execute()

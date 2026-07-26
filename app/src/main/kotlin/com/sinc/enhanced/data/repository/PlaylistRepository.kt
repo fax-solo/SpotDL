@@ -65,13 +65,7 @@ class PlaylistRepository(private val playlistDao: PlaylistDao) : PlaylistReposit
     }
 
     override suspend fun reorderTracks(playlistId: Int, trackIds: List<String>) = withContext(Dispatchers.IO) {
-        val tracks = playlistDao.getPlaylistTracks(playlistId)
-        tracks.forEach { entity ->
-            val newPos = trackIds.indexOf(entity.trackId)
-            if (newPos >= 0 && newPos != entity.position) {
-                playlistDao.updateTrackPosition(entity.id, newPos)
-            }
-        }
+        playlistDao.reorderTracks(playlistId, trackIds)
     }
 
     override suspend fun delete(id: Int) = withContext(Dispatchers.IO) {

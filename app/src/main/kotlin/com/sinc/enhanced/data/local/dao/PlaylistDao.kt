@@ -40,6 +40,9 @@ interface PlaylistDao {
     @Query("UPDATE playlist_tracks SET position = :position WHERE id = :id")
     suspend fun updateTrackPosition(id: Int, position: Int)
 
+    @Query("UPDATE playlist_tracks SET position = :position WHERE playlistId = :playlistId AND trackId = :trackId")
+    suspend fun setTrackPosition(playlistId: Int, trackId: String, position: Int)
+
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun nextPosition(playlistId: Int): Int
 
@@ -61,7 +64,25 @@ interface PlaylistDao {
     @Query("DELETE FROM playlists")
     suspend fun deleteAll()
 
+    @Transaction
+    suspend fun reorderTracks(playlistId: Int, trackIds: List<String>) {
+        val tracks = getPlaylistTracks(playlistId)
+        tracks.forEach { entity: PlaylistTrackEntity ->
+            val newPos = trackIds.indexOf(entity.trackId)
+            if (newPos >= 0 && newPos != entity.position) {
+                setTrackPosition(playlistId, entity.trackId, newPos)
+            }
+        }
+    }
+
     // New methods for reordering
+    @Transaction
+    suspend fun reorderByIndices(tracks: List<PlaylistTrackEntity>) {
+        tracks.forEachIndexed { index, t ->
+            setTrackPosition(t.playlistId, t.trackId, index)
+        }
+    }
+
     @Query("UPDATE playlist_tracks SET position = :newPosition WHERE id = :id")
     suspend fun updatePosition(id: Int, newPosition: Int)
 

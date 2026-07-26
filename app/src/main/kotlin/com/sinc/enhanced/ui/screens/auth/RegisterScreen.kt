@@ -11,24 +11,23 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.sinc.enhanced.SincApp
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun RegisterScreen(
     onRegisterSuccess: () -> Unit,
-    onNavigateLogin: () -> Unit
+    onNavigateLogin: () -> Unit,
+    viewModel: RegisterViewModel = viewModel(factory = RegisterViewModel.Factory())
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
-    val apiClient = SincApp.instance.container.apiClient
-    val authRepository = SincApp.instance.container.authRepository
+    LaunchedEffect(uiState.isSuccess) {
+        if (uiState.isSuccess) onRegisterSuccess()
+    }
 
     Column(
         modifier = Modifier
@@ -53,7 +52,7 @@ fun RegisterScreen(
 
         OutlinedTextField(
             value = username,
-            onValueChange = { username = it },
+            onValueChange = { username = it; viewModel.clearError() },
             label = { Text("Username (min 3 chars)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -65,7 +64,7 @@ fun RegisterScreen(
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; viewModel.clearError() },
             label = { Text("Password (min 6 chars)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -81,7 +80,7 @@ fun RegisterScreen(
 
         OutlinedTextField(
             value = confirmPassword,
-            onValueChange = { confirmPassword = it },
+            onValueChange = { confirmPassword = it; viewModel.clearError() },
             label = { Text("Confirm Password") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -93,10 +92,10 @@ fun RegisterScreen(
             shape = RoundedCornerShape(12.dp)
         )
 
-        if (error != null) {
+        if (uiState.error != null) {
             Spacer(Modifier.height(12.dp))
             Text(
-                text = error ?: "",
+                text = uiState.error ?: "",
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall
             )
@@ -105,52 +104,12 @@ fun RegisterScreen(
         Spacer(Modifier.height(24.dp))
 
         Button(
-            onClick = {
-                if (username.isBlank() || password.isBlank()) {
-                    error = "All fields required"
-                    return@Button
-                }
-                if (password != confirmPassword) {
-                    error = "Passwords do not match"
-                    return@Button
-                }
-                if (password.length < 6) {
-                    error = "Password must be at least 6 characters"
-                    return@Button
-                }
-                if (username.length < 3) {
-                    error = "Username must be at least 3 characters"
-                    return@Button
-                }
-                loading = true
-                error = null
-                scope.launch {
-                    try {
-                        val serverUrl = authRepository.serverUrl.first()
-                        val trimmedUrl = serverUrl.trim()
-                        apiClient.configure(trimmedUrl, "")
-                        val result = apiClient.register(username, password)
-                        if (result != null) {
-                            val (token, json) = result
-                            val role = json.optJSONObject("user")?.optString("role", "user") ?: "user"
-                            val uid = json.optJSONObject("user")?.optLong("id", 0) ?: 0
-                            authRepository.saveAuth(token, username, uid, role, trimmedUrl)
-                            onRegisterSuccess()
-                        } else {
-                            error = "Registration failed. Username may be taken."
-                        }
-                    } catch (e: Exception) {
-                        error = "Connection error: ${e.message}"
-                    } finally {
-                        loading = false
-                    }
-                }
-            },
+            onClick = { viewModel.register(username, password, confirmPassword) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            enabled = !loading,
+            enabled = !uiState.isLoading,
             shape = RoundedCornerShape(12.dp)
         ) {
-            if (loading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+            if (uiState.isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
             else Text("Register")
         }
 

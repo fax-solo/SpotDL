@@ -17,6 +17,6 @@ interface DownloadRepository {
     suspend fun pauseDownload(trackId: String)
     suspend fun resumeDownload(trackId: String)
     suspend fun cancelDownload(trackId: String)
-    suspend fun downloadFile(trackId: String, onProgress: (Float, Float) -> Unit): Boolean
+    suspend fun downloadFile(trackId: String, onProgress: (progress: Float, speedBps: Float) -> Unit): Boolean
     suspend fun retryDownload(trackId: String)
 }

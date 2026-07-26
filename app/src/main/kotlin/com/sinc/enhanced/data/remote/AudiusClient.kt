@@ -7,6 +7,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
+/** TODO: Convert all public methods to suspend functions */
 class AudiusClient(private val client: OkHttpClient) {
 
     data class AudiusTrack(
@@ -32,16 +33,17 @@ class AudiusClient(private val client: OkHttpClient) {
             val request = Request.Builder()
                 .url("https://api.audius.co")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return defaultNode
-            val json = JSONObject(response.body?.string() ?: return defaultNode)
-            val nodes = json.optJSONArray("data") ?: return defaultNode
-            val node = nodes.optString(0, "").trimEnd('/')
-            if (node.isNotEmpty()) {
-                cachedNode = node
-                lastNodeCheck = System.currentTimeMillis()
-                node
-            } else defaultNode
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use defaultNode
+                val json = JSONObject(response.body?.string() ?: return@use defaultNode)
+                val nodes = json.optJSONArray("data") ?: return@use defaultNode
+                val node = nodes.optString(0, "").trimEnd('/')
+                if (node.isNotEmpty()) {
+                    cachedNode = node
+                    lastNodeCheck = System.currentTimeMillis()
+                    node
+                } else defaultNode
+            }
         } catch (e: Exception) { Log.e("AudiusClient", "getNode failed", e); defaultNode }
     }
 
@@ -53,24 +55,25 @@ class AudiusClient(private val client: OkHttpClient) {
                 .url(url)
                 .header("Accept", "application/json")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
-            val json = JSONObject(response.body?.string() ?: return emptyList())
-            val data = json.optJSONObject("data") ?: return emptyList()
-            val tracks = data.optJSONArray("tracks") ?: return emptyList()
-            (0 until minOf(tracks.length(), limit)).mapNotNull { i ->
-                val item = tracks.getJSONObject(i)
-                val user = item.optJSONObject("user")
-                AudiusTrack(
-                    id = item.optString("track_id") ?: item.optString("id"),
-                    title = item.optString("title"),
-                    artist = user?.optString("name") ?: item.optString("handle") ?: "Unknown",
-                    duration = item.optLong("duration") ?: 0L,
-                    artworkUrl = item.optString("artwork").ifEmpty { null },
-                    streamUrl = item.optString("download_url")
-                        ?: "$node/v1/tracks/${item.optString("track_id") ?: item.optString("id")}/stream?app_name=SincEnhanced",
-                    genre = item.optString("genre").ifEmpty { null }
-                )
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use emptyList()
+                val json = JSONObject(response.body?.string() ?: return@use emptyList())
+                val data = json.optJSONObject("data") ?: return@use emptyList()
+                val tracks = data.optJSONArray("tracks") ?: return@use emptyList()
+                (0 until minOf(tracks.length(), limit)).mapNotNull { i ->
+                    val item = tracks.getJSONObject(i)
+                    val user = item.optJSONObject("user")
+                    AudiusTrack(
+                        id = item.optString("track_id") ?: item.optString("id"),
+                        title = item.optString("title"),
+                        artist = user?.optString("name") ?: item.optString("handle") ?: "Unknown",
+                        duration = item.optLong("duration") ?: 0L,
+                        artworkUrl = item.optString("artwork").ifEmpty { null },
+                        streamUrl = item.optString("download_url")
+                            ?: "$node/v1/tracks/${item.optString("track_id") ?: item.optString("id")}/stream?app_name=SincEnhanced",
+                        genre = item.optString("genre").ifEmpty { null }
+                    )
+                }
             }
         } catch (e: Exception) { Log.e("AudiusClient", "search failed", e); emptyList() }
     }
@@ -80,8 +83,9 @@ class AudiusClient(private val client: OkHttpClient) {
         val url = "$node/v1/tracks/$trackId/stream?app_name=SincEnhanced"
         return try {
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) url else null
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) url else null
+            }
         } catch (e: Exception) { Log.e("AudiusClient", "getStreamUrl failed", e); null }
     }
 }

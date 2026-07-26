@@ -20,6 +20,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 private const val PAGE_SIZE = 20
@@ -60,6 +62,21 @@ class SearchViewModel(
     private var allResults: List<SearchResult> = emptyList()
     private var allAlbums: List<Album> = emptyList()
     private val searchResultCache = SearchCache<SearchResult>()
+    private val albumAudioCache = mutableMapOf<String, Pair<List<Track>, Map<String, String>>>()
+    private val seenHistoryQueries = mutableSetOf<String>()
+
+    init {
+        viewModelScope.launch {
+            SincApp.instance.container.connectivityMonitor.networkState
+                .distinctUntilChanged()
+                .collect { online ->
+                    if (online) {
+                        searchRepository.invalidateCache()
+                        searchResultCache.invalidateAll()
+                    }
+                }
+        }
+    }
 
     fun onQueryChange(query: String) {
         _uiState.value = _uiState.value.copy(query = query)
@@ -107,6 +124,16 @@ class SearchViewModel(
             return
         }
         viewModelScope.launch {
+            val cached = albumAudioCache[album.id]
+            if (cached != null) {
+                val (tracks, audioUrls) = cached
+                _uiState.value = _uiState.value.copy(
+                    expandedAlbum = album,
+                    albumTracks = tracks,
+                    albumAudioUrls = audioUrls
+                )
+                return@launch
+            }
             val albumWithTracks = searchRepository.getAlbum(album.id)
             val tracks = albumWithTracks?.tracks ?: emptyList()
             val audioUrls = coroutineScope {
@@ -117,6 +144,7 @@ class SearchViewModel(
                     if (result != null) id to result.first else null
                 }.toMap()
             }
+            albumAudioCache[album.id] = tracks to audioUrls
             _uiState.value = _uiState.value.copy(
                 expandedAlbum = albumWithTracks ?: album,
                 albumTracks = tracks,
@@ -147,7 +175,7 @@ class SearchViewModel(
             val matchCount = (qTokens intersect tTokens).size + (qTokens intersect aTokens).size
             score += matchCount * 2f
 
-            if (t.source == "spotify") score += 3f
+            if (t.source == "spotify") score += 1f
             if (r.audioUrl != null) score += 2f
 
             r to score
@@ -175,7 +203,9 @@ class SearchViewModel(
 
         try {
             val queryType = searchRepository.classifyQuery(query)
-            searchHistoryDao.insert(SearchHistoryEntity(query = query, resultType = queryType.name.lowercase()))
+            if (seenHistoryQueries.add(query.lowercase().trim())) {
+                searchHistoryDao.insert(SearchHistoryEntity(query = query, resultType = queryType.name.lowercase()))
+            }
             allResults = searchRepository.searchAll(query)
             val albums = searchRepository.searchAlbums(query)
             allAlbums = albums
@@ -230,13 +260,11 @@ class SearchViewModel(
         preResolveJob = viewModelScope.launch {
             val toResolve = results.filter { it.audioUrl == null }.take(10)
             for (sr in toResolve) {
-                launch {
-                    val resolved = searchRepository.findBestAudioForTrack(sr.track)
-                    if (resolved != null) {
-                        _uiState.value = _uiState.value.copy(
-                            resolvedAudioUrls = _uiState.value.resolvedAudioUrls + (sr.track.id to resolved)
-                        )
-                    }
+                val resolved = searchRepository.findBestAudioForTrack(sr.track)
+                if (resolved != null) {
+                    _uiState.value = _uiState.value.copy(
+                        resolvedAudioUrls = _uiState.value.resolvedAudioUrls + (sr.track.id to resolved)
+                    )
                 }
             }
         }

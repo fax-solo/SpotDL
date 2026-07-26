@@ -6,6 +6,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
+/** TODO: Convert all public methods to suspend functions */
 class FreeMusicArchiveClient(private val client: OkHttpClient) {
 
     data class FmaTrack(
@@ -29,23 +30,24 @@ class FreeMusicArchiveClient(private val client: OkHttpClient) {
                 .header("Accept", "application/json")
                 .header("User-Agent", "SincEnhanced/1.0")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
-            val json = JSONObject(response.body?.string() ?: return emptyList())
-            val dataset = json.optJSONArray("dataset") ?: return emptyList()
-            (0 until minOf(dataset.length(), limit)).mapNotNull { i ->
-                val item = dataset.getJSONObject(i)
-                val trackId = item.optString("track_id")
-                FmaTrack(
-                    id = trackId,
-                    title = item.optString("track_title"),
-                    artist = item.optString("artist_name"),
-                    album = item.optString("album_title").ifEmpty { null },
-                    duration = item.optLong("track_duration"),
-                    audioUrl = "https://freemusicarchive.org/music/${item.optString("artist_name")?.replace(" ", "-")}/download/$trackId/${item.optString("track_title")?.replace(" ", "-")}.mp3",
-                    artworkUrl = item.optString("album_image_url").ifEmpty { null },
-                    genre = item.optString("genre").ifEmpty { null }
-                )
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use emptyList()
+                val json = JSONObject(response.body?.string() ?: return@use emptyList())
+                val dataset = json.optJSONArray("dataset") ?: return@use emptyList()
+                (0 until minOf(dataset.length(), limit)).mapNotNull { i ->
+                    val item = dataset.getJSONObject(i)
+                    val trackId = item.optString("track_id")
+                    FmaTrack(
+                        id = trackId,
+                        title = item.optString("track_title"),
+                        artist = item.optString("artist_name"),
+                        album = item.optString("album_title").ifEmpty { null },
+                        duration = item.optLong("track_duration"),
+                        audioUrl = "https://freemusicarchive.org/music/${item.optString("artist_name")?.replace(" ", "-")}/download/$trackId/${item.optString("track_title")?.replace(" ", "-")}.mp3",
+                        artworkUrl = item.optString("album_image_url").ifEmpty { null },
+                        genre = item.optString("genre").ifEmpty { null }
+                    )
+                }
             }
         } catch (e: Exception) { Log.e("FreeMusicArchiveClient", "search failed", e); emptyList() }
     }
@@ -54,12 +56,13 @@ class FreeMusicArchiveClient(private val client: OkHttpClient) {
         val url = "https://freemusicarchive.org/api/v2/genres"
         return try {
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
-            val json = JSONObject(response.body?.string() ?: return emptyList())
-            val data = json.optJSONArray("data") ?: return emptyList()
-            (0 until data.length()).mapNotNull { i ->
-                data.getJSONObject(i).optString("slug").ifEmpty { null }
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use emptyList()
+                val json = JSONObject(response.body?.string() ?: return@use emptyList())
+                val data = json.optJSONArray("data") ?: return@use emptyList()
+                (0 until data.length()).mapNotNull { i ->
+                    data.getJSONObject(i).optString("slug").ifEmpty { null }
+                }
             }
         } catch (e: Exception) { Log.e("FreeMusicArchiveClient", "genres failed", e); emptyList() }
     }

@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,11 +104,11 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                var liked by remember { mutableStateOf(false) }
                 AnimatedArtwork(
                     artworkUrl = track.artworkUrl,
                     primaryColor = primaryColor,
-                    onDoubleTap = { liked = !liked },
+                    onDoubleTap = { viewModel.toggleLike() },
+                    indicator = if (uiState.isLiked) Icons.Default.Favorite else null,
                     modifier = Modifier.sizeIn(maxWidth = 240.dp)
                 )
                 Spacer(Modifier.width(16.dp))
@@ -147,11 +145,11 @@ fun PlayerScreen(
 
                 Spacer(Modifier.height(8.dp))
 
-                var liked by remember { mutableStateOf(false) }
                 AnimatedArtwork(
                     artworkUrl = track.artworkUrl,
                     primaryColor = primaryColor,
-                    onDoubleTap = { liked = !liked }
+                    onDoubleTap = { viewModel.toggleLike() },
+                    indicator = if (uiState.isLiked) Icons.Default.Favorite else null
                 )
 
             Spacer(Modifier.height(24.dp))
@@ -287,6 +285,7 @@ private fun AnimatedArtwork(
     artworkUrl: String?,
     primaryColor: androidx.compose.ui.graphics.Color,
     onDoubleTap: (() -> Unit)? = null,
+    indicator: androidx.compose.ui.graphics.vector.ImageVector? = null,
     modifier: Modifier = Modifier
 ) {
     var scale by remember { mutableStateOf(1f) }
@@ -305,6 +304,17 @@ private fun AnimatedArtwork(
             },
         contentAlignment = androidx.compose.ui.Alignment.Center
     ) {
+        if (indicator != null) {
+            Icon(
+                imageVector = indicator,
+                contentDescription = "Liked",
+                tint = Color(0xFFE91E63),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(32.dp)
+                    .padding(4.dp)
+            )
+        }
         if (artworkUrl != null) {
             Image(
                 painter = rememberAsyncImagePainter(artworkUrl),
@@ -587,6 +597,7 @@ private fun LyricsSection(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
                 tonalElevation = 2.dp
             ) {
+                val currentLineTime = if (currentLineIndex < parsed.size) parsed[currentLineIndex].first else -1L
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(text = "Lyrics", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = primaryColor)
                     Spacer(Modifier.height(8.dp))
@@ -595,7 +606,7 @@ private fun LyricsSection(
                         modifier = Modifier.heightIn(max = 300.dp)
                     ) {
                         items(parsed, key = { it.first }) { (time, text) ->
-                            val isCurrent = parsed.indexOfFirst { it.first >= time } == currentLineIndex || (time == parsed[currentLineIndex].first)
+                            val isCurrent = time == currentLineTime
                             Text(
                                 text = text,
                                 style = MaterialTheme.typography.bodyMedium,

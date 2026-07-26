@@ -68,7 +68,8 @@ class DownloadService : Service() {
 
                 val initialTrackId = startFrom
                 if (initialTrackId != null) {
-                    val download = repo.allDownloads.first().find { it.trackId == initialTrackId }
+                    val all = repo.allDownloads.first()
+                    val download = all.find { it.trackId == initialTrackId }
                     if (download != null && download.status != "completed") {
                         val result = downloadTrack(repo, initialTrackId)
                         processedCount++
@@ -77,7 +78,8 @@ class DownloadService : Service() {
                 }
 
                 while (!shouldStop) {
-                    val nextQueued = repo.allDownloads.first().firstOrNull { it.status == "queued" }
+                    val all = repo.allDownloads.first()
+                    val nextQueued = all.firstOrNull { it.status == "queued" }
                     if (nextQueued == null) break
 
                     val result = downloadTrack(repo, nextQueued.trackId)

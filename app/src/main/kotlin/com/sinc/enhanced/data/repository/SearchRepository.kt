@@ -4,6 +4,7 @@ import android.util.Log
 import com.sinc.enhanced.data.model.Album
 import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.data.local.SettingsManager
 import com.sinc.enhanced.data.remote.AudiusClient
 import com.sinc.enhanced.data.remote.BandcampClient
 import com.sinc.enhanced.data.remote.DeezerClient
@@ -19,6 +20,7 @@ import com.sinc.enhanced.data.util.robustCall
 import com.sinc.enhanced.domain.music.SearchResult
 import com.sinc.enhanced.domain.music.MusicSource
 import com.sinc.enhanced.domain.repository.SearchRepository as SearchRepositoryInterface
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -36,7 +38,8 @@ class SearchRepository(
     private val audiusClient: AudiusClient,
     private val jamendoClient: JamendoClient,
     private val fmaClient: FreeMusicArchiveClient,
-    private val bandcampClient: BandcampClient
+    private val bandcampClient: BandcampClient,
+    private val settingsManager: SettingsManager
 ) : SearchRepositoryInterface {
     private val cache = SearchCache<SearchResult>()
     private val enrichedCache = SearchCache<EnrichedTrack>()
@@ -59,7 +62,7 @@ class SearchRepository(
         enrichedCache.get(normalized)?.let { return@withContext it }
 
         try {
-            withTimeout(45000L) { searchAllUncached(normalized) }
+            withTimeout(60000L) { searchAllUncached(normalized) }
         } catch (e: TimeoutCancellationException) {
             Log.e("SearchRepository", "searchAllInternal timeout", e); emptyList()
         }
@@ -67,18 +70,22 @@ class SearchRepository(
 
     private suspend fun searchAllUncached(normalized: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
 
+        val audiusOn = settingsManager.audiusEnabled.first()
+        val jamendoOn = settingsManager.jamendoEnabled.first()
+        val fmaOn = settingsManager.fmaEnabled.first()
+        val bandcampOn = settingsManager.bandcampEnabled.first()
+
         val spotifyDeferred = async { robustCall(label = "spotify") { spotifyClient.searchTracks(normalized) } }
         val pipedDeferred = async { robustCall(label = "piped") { pipedClient.search(normalized, limit = 10) } }
         val deezerDeferred = async { robustCall(label = "deezer") { deezerClient.searchTracks(normalized) } }
 
         val additionalDeferred = async {
-            val deferreds: List<kotlinx.coroutines.Deferred<List<EnrichedTrack>?>> = listOf(
-                async { robustCall(label = "audius") { searchAudius(normalized) } },
-                async { robustCall(label = "jamendo") { searchJamendo(normalized) } },
-                async { robustCall(label = "fma") { searchFma(normalized) } },
-                async { robustCall(label = "soundcloud") { searchSoundCloud(normalized) } },
-                async { robustCall(label = "bandcamp") { searchBandcamp(normalized) } }
-            )
+            val deferreds = mutableListOf<kotlinx.coroutines.Deferred<List<EnrichedTrack>?>>()
+            if (audiusOn) deferreds.add(async { robustCall(label = "audius") { searchAudius(normalized) } })
+            if (jamendoOn) deferreds.add(async { robustCall(label = "jamendo") { searchJamendo(normalized) } })
+            if (fmaOn) deferreds.add(async { robustCall(label = "fma") { searchFma(normalized) } })
+            deferreds.add(async { robustCall(label = "soundcloud") { searchSoundCloud(normalized) } })
+            if (bandcampOn) deferreds.add(async { robustCall(label = "bandcamp") { searchBandcamp(normalized) } })
             deferreds.awaitAll().filterNotNull().flatten()
         }
 
@@ -148,13 +155,16 @@ class SearchRepository(
         }
 
         val seenIds = mutableSetOf<String>()
+        val seenTitleArtist = mutableSetOf<String>()
         val all = spotifyEnriched + deezerEnriched + youtubeResults + additional
         val results = all.filter { enriched ->
-            val key = enriched.track.id
-            if (key in seenIds) false else {
-                seenIds.add(key)
-                true
-            }
+            val idKey = enriched.track.id
+            if (idKey in seenIds) return@filter false
+            val taKey = "${enriched.track.title.lowercase().trim()}|${enriched.track.artist.lowercase().trim()}"
+            if (taKey in seenTitleArtist) return@filter false
+            seenIds.add(idKey)
+            seenTitleArtist.add(taKey)
+            true
         }.sortedByDescending { e -> e.confidence }
 
         enrichedCache.put(normalized, results)
@@ -302,9 +312,17 @@ class SearchRepository(
 
     override suspend fun findBestAudioForTrack(track: Track): Pair<String, String>? = withContext(Dispatchers.IO) {
         try {
-            withTimeout(25000L) {
+            withTimeout(35000L) {
 
                 if (track.previewUrl != null && isValidPreviewUrl(track.previewUrl)) {
+                    if (track.isrc != null) {
+                        try {
+                            val deezerTrack = deezerClient.getTrackByIsrc(track.isrc)
+                            if (deezerTrack?.previewUrl != null) {
+                                return@withTimeout Pair(deezerTrack.previewUrl, "deezer")
+                            }
+                        } catch (_: Exception) {}
+                    }
                     return@withTimeout Pair(track.previewUrl, track.source)
                 }
 
@@ -378,8 +396,8 @@ class SearchRepository(
 
         try {
             val pipedResults = pipedClient.search(query, limit = 5, filter = "music")
-            if (pipedResults.isNotEmpty()) {
-                val musicResolved = pipedResults.mapNotNull { pr ->
+            val musicResolved = if (pipedResults.isNotEmpty()) {
+                pipedResults.mapNotNull { pr ->
                     try {
                         val stream = pipedClient.getStreams(pr.videoId)
                         if (stream != null) {
@@ -388,26 +406,28 @@ class SearchRepository(
                         } else null
                     } catch (e: Exception) { Log.e("SearchRepository", "piped stream resolve failed", e); null }
                 }
-                if (musicResolved.isNotEmpty()) {
-                    for ((pr, audioUrl) in musicResolved) {
-                        val score = MatchScorer.computeScore(MatchOptions(
-                            expectedTitle = expectedTitle,
-                            expectedArtist = expectedArtist,
-                            foundTitle = pr.title,
-                            foundAuthor = pr.uploader,
-                            foundDurationSec = pr.duration,
-                            expectedDurationSec = expectedDurationSec,
-                            expectedIsrc = expectedIsrc
-                        ))
-                        candidates.add(AudioCandidate(audioUrl, "piped", score))
-                        val durOk = expectedDurationSec == null || kotlin.math.abs(pr.duration - expectedDurationSec) <= 30
-                        if (score >= MatchScorer.GOOD_CONFIDENCE && durOk) {
-                            return Pair(audioUrl, "piped")
-                        }
+            } else emptyList()
+
+            if (musicResolved.isNotEmpty()) {
+                for ((pr, audioUrl) in musicResolved) {
+                    val score = MatchScorer.computeScore(MatchOptions(
+                        expectedTitle = expectedTitle,
+                        expectedArtist = expectedArtist,
+                        foundTitle = pr.title,
+                        foundAuthor = pr.uploader,
+                        foundDurationSec = pr.duration,
+                        expectedDurationSec = expectedDurationSec,
+                        expectedIsrc = expectedIsrc
+                    ))
+                    candidates.add(AudioCandidate(audioUrl, "piped", score))
+                    val durOk = expectedDurationSec == null || kotlin.math.abs(pr.duration - expectedDurationSec) <= 30
+                    if (score >= MatchScorer.GOOD_CONFIDENCE && durOk) {
+                        return Pair(audioUrl, "piped")
                     }
                 }
             }
-            if (pipedResults.isEmpty()) {
+
+            if (musicResolved.isEmpty()) {
                 val fallbackResults = pipedClient.search(query, limit = 5, filter = null)
                 if (fallbackResults.isNotEmpty()) {
                     val streams = fallbackResults.mapNotNull { pr ->
@@ -529,7 +549,15 @@ class SearchRepository(
         if (lower.startsWith("artist ") || lower.startsWith("singer ")) return QueryType.ARTIST
         if (lower.startsWith("album ")) return QueryType.ALBUM
         val wordCount = lower.split(Regex("\\s+")).size
-        if (wordCount <= 3) return QueryType.ARTIST
+        if (wordCount <= 2) return QueryType.ARTIST
+        if (wordCount == 3) {
+            val commonTracks = setOf("let it be", "hey jude", "billie jean", "shape of you",
+                "bad guy", "rolling deep", "bohemian rhapsody", "stairway to heaven",
+                "smells like teen", "welcome to the", "hotel california", "sweet child mine",
+                "back in black", "thunderstruck", "enter sandman", "nothing else matters",
+                "peace sells", "master of puppets", "one more time")
+            if (lower in commonTracks) return QueryType.TRACK
+        }
         return QueryType.GENERIC
     }
 

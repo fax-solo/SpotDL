@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 
+/** TODO: Convert all public methods to suspend functions */
 class LyricsClient(
     private val client: OkHttpClient,
     private val context: Context
@@ -68,15 +69,16 @@ class LyricsClient(
                 .url(url)
                 .header("User-Agent", "SincEnhanced/1.0 (Android)")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return LyricsResult(null, null)
-            val body = response.body?.string() ?: return LyricsResult(null, null)
-            val json = JSONObject(body)
-            LyricsResult(
-                plainLyrics = json.optString("plainLyrics", "").takeIf { it.isNotEmpty() },
-                syncedLyrics = json.optString("syncedLyrics", "").takeIf { it.isNotEmpty() },
-                source = "lrclib"
-            )
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use LyricsResult(null, null)
+                val body = response.body?.string() ?: return@use LyricsResult(null, null)
+                val json = JSONObject(body)
+                LyricsResult(
+                    plainLyrics = json.optString("plainLyrics", "").takeIf { it.isNotEmpty() },
+                    syncedLyrics = json.optString("syncedLyrics", "").takeIf { it.isNotEmpty() },
+                    source = "lrclib"
+                )
+            }
         } catch (e: Exception) { Log.e("LyricsClient", "fetchFromLrclib failed", e); LyricsResult(null, null) }
     }
 
@@ -89,11 +91,12 @@ class LyricsClient(
                 .url(url)
                 .header("User-Agent", "SincEnhanced/1.0 (Android)")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return LyricsResult(null, null)
-            val body = response.body?.string() ?: return LyricsResult(null, null)
-            val lyrics = JSONObject(body).optString("lyrics", "").takeIf { it.isNotEmpty() }
-            LyricsResult(plainLyrics = lyrics, syncedLyrics = null, source = "lyricsovh")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use LyricsResult(null, null)
+                val body = response.body?.string() ?: return@use LyricsResult(null, null)
+                val lyrics = JSONObject(body).optString("lyrics", "").takeIf { it.isNotEmpty() }
+                LyricsResult(plainLyrics = lyrics, syncedLyrics = null, source = "lyricsovh")
+            }
         } catch (e: Exception) { Log.e("LyricsClient", "fetchFromLyricsOvh failed", e); LyricsResult(null, null) }
     }
 
@@ -102,28 +105,33 @@ class LyricsClient(
         return try {
             val searchUrl = "https://api.deezer.com/search/track?q=$query&limit=3&output=json"
             val searchReq = Request.Builder().url(searchUrl).build()
-            val searchResp = client.newCall(searchReq).execute()
-            if (!searchResp.isSuccessful) return LyricsResult(null, null)
-            val searchJson = JSONObject(searchResp.body?.string() ?: return LyricsResult(null, null))
-            val data = searchJson.optJSONArray("data") ?: return LyricsResult(null, null)
-            if (data.length() == 0) return LyricsResult(null, null)
-            val trackId = data.getJSONObject(0).optLong("id", -1)
-            if (trackId < 0) return LyricsResult(null, null)
+            val trackId = client.newCall(searchReq).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val searchJson = JSONObject(response.body?.string() ?: return@use null)
+                val data = searchJson.optJSONArray("data") ?: return@use null
+                if (data.length() == 0) return@use null
+                val id = data.getJSONObject(0).optLong("id", -1)
+                if (id < 0) return@use null
+                id
+            } ?: return LyricsResult(null, null)
 
             val trackUrl = "https://api.deezer.com/track/$trackId"
             val trackReq = Request.Builder().url(trackUrl).build()
-            val trackResp = client.newCall(trackReq).execute()
-            if (!trackResp.isSuccessful) return LyricsResult(null, null)
-            val trackJson = JSONObject(trackResp.body?.string() ?: return LyricsResult(null, null))
-            val explicitLyrics = trackJson.optInt("explicit_lyrics", 0)
+            client.newCall(trackReq).execute().use { response ->
+                if (!response.isSuccessful) return LyricsResult(null, null)
+                val trackJson = JSONObject(response.body?.string() ?: return LyricsResult(null, null))
+                @Suppress("UNUSED_VARIABLE")
+                val explicitLyrics = trackJson.optInt("explicit_lyrics", 0)
+            }
 
             val lyricsUrl = "https://api.deezer.com/track/$trackId/lyrics"
             val lyricsReq = Request.Builder().url(lyricsUrl).build()
-            val lyricsResp = client.newCall(lyricsReq).execute()
-            if (!lyricsResp.isSuccessful) return LyricsResult(null, null)
-            val lyricsJson = JSONObject(lyricsResp.body?.string() ?: return LyricsResult(null, null))
-            val text = lyricsJson.optString("lyrics", "").takeIf { it.isNotEmpty() }
-            LyricsResult(plainLyrics = text, syncedLyrics = null, source = "deezer")
+            client.newCall(lyricsReq).execute().use { response ->
+                if (!response.isSuccessful) return LyricsResult(null, null)
+                val lyricsJson = JSONObject(response.body?.string() ?: return LyricsResult(null, null))
+                val text = lyricsJson.optString("lyrics", "").takeIf { it.isNotEmpty() }
+                LyricsResult(plainLyrics = text, syncedLyrics = null, source = "deezer")
+            }
         } catch (e: Exception) { Log.e("LyricsClient", "fetchFromDeezer failed", e); LyricsResult(null, null) }
     }
 
@@ -135,17 +143,18 @@ class LyricsClient(
                 .url(url)
                 .header("User-Agent", "SincEnhanced/1.0 (Android)")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
-            val body = response.body?.string() ?: return emptyList()
-            val arr = JSONObject("{\"items\":$body}").optJSONArray("items") ?: return emptyList()
-            (0 until arr.length()).mapNotNull { i ->
-                val json = arr.getJSONObject(i)
-                LyricsResult(
-                    plainLyrics = json.optString("plainLyrics", "").takeIf { it.isNotEmpty() },
-                    syncedLyrics = json.optString("syncedLyrics", "").takeIf { it.isNotEmpty() },
-                    source = "lrclib"
-                )
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use emptyList()
+                val body = response.body?.string() ?: return@use emptyList()
+                val arr = JSONObject("{\"items\":$body}").optJSONArray("items") ?: return@use emptyList()
+                (0 until arr.length()).mapNotNull { i ->
+                    val json = arr.getJSONObject(i)
+                    LyricsResult(
+                        plainLyrics = json.optString("plainLyrics", "").takeIf { it.isNotEmpty() },
+                        syncedLyrics = json.optString("syncedLyrics", "").takeIf { it.isNotEmpty() },
+                        source = "lrclib"
+                    )
+                }
             }
         } catch (e: Exception) { Log.e("LyricsClient", "searchLyrics failed", e); emptyList() }
     }
@@ -154,6 +163,7 @@ class LyricsClient(
         return "${artist.lowercase().trim()}|${title.lowercase().trim()}"
     }
 
+    @Deprecated("Use Room-based caching instead of raw SQLite")
     private class LyricsCacheDb(context: Context) : SQLiteOpenHelper(
         context, "lyrics_cache.db", null, 1
     ) {

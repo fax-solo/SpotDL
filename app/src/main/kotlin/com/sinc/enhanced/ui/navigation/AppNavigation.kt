@@ -80,14 +80,8 @@ fun AppNavigation(intent: Intent? = null) {
         val sessionValid = authRepository.restoreSession()
         startDest = if (sessionValid) Routes.HOME else Routes.LOGIN
         if (intent != null) {
-            var attempts = 0
-            while (navController.currentBackStackEntry == null && attempts < 10) {
-                delay(100)
-                attempts++
-            }
-            if (navController.currentBackStackEntry != null) {
-                handleDeepLink(intent, navController)
-            }
+            if (navController.currentBackStackEntry == null) return@LaunchedEffect
+            handleDeepLink(intent, navController)
         }
     }
 

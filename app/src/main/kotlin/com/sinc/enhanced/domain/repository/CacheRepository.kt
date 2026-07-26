@@ -1,6 +1,5 @@
 package com.sinc.enhanced.domain.repository
 
-import com.sinc.enhanced.data.local.CacheManager
 import kotlinx.coroutines.flow.Flow
 
 interface CacheRepository {

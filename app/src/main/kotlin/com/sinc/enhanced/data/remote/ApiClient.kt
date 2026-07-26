@@ -33,10 +33,24 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                 .header("Authorization", "Bearer $token")
                 .post(body.toString().toRequestBody(jsonMediaType))
                 .build()
-            val response = okHttpClient.newCall(request).execute()
-            if (response.isSuccessful) JSONObject(response.body?.string() ?: return@withContext null) else null
-        } catch (e: Exception) { Log.e("ApiClient", "post failed", e); null }
+            okHttpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    JSONObject(response.body?.string() ?: return@withContext null)
+                } else {
+                    throw ApiException(response.code)
+                }
+            }
+        } catch (e: ApiException) { throw e }
+        catch (e: Exception) { Log.e("ApiClient", "post failed", e); null }
     }
+
+    class ApiException(val code: Int) : Exception(when (code) {
+        401 -> "Invalid credentials"
+        409 -> "Username already taken"
+        in 400..499 -> "Request failed ($code)"
+        in 500..599 -> "Server error ($code)"
+        else -> "Unexpected error ($code)"
+    })
 
     private suspend fun get(path: String): JSONObject? = withContext(Dispatchers.IO) {
         if (baseUrl.isEmpty()) return@withContext null
@@ -45,9 +59,15 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                 .url("$baseUrl$path")
                 .header("Authorization", "Bearer $token")
                 .build()
-            val response = okHttpClient.newCall(request).execute()
-            if (response.isSuccessful) JSONObject(response.body?.string() ?: return@withContext null) else null
-        } catch (e: Exception) { Log.e("ApiClient", "get failed", e); null }
+            okHttpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    JSONObject(response.body?.string() ?: return@withContext null)
+                } else {
+                    throw ApiException(response.code)
+                }
+            }
+        } catch (e: ApiException) { throw e }
+        catch (e: Exception) { Log.e("ApiClient", "get failed", e); null }
     }
 
     private suspend fun getArray(path: String): String? = withContext(Dispatchers.IO) {
@@ -57,8 +77,9 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                 .url("$baseUrl$path")
                 .header("Authorization", "Bearer $token")
                 .build()
-            val response = okHttpClient.newCall(request).execute()
-            response.body?.string()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) response.body?.string() else null
+            }
         } catch (e: Exception) { Log.e("ApiClient", "getArray failed", e); null }
     }
 
@@ -85,18 +106,20 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
     }
 
     suspend fun ping(): Boolean {
-        val result = post("/api/stats/ping", JSONObject())
-        return result != null
+        return try {
+            post("/api/stats/ping", JSONObject()) != null
+        } catch (_: ApiException) { false }
     }
 
     suspend fun trackDownload(title: String, artist: String, source: String): Boolean {
-        val body = JSONObject().apply {
-            put("title", title)
-            put("artist", artist)
-            put("source", source)
-        }
-        val result = post("/api/stats/download", body)
-        return result != null
+        return try {
+            val body = JSONObject().apply {
+                put("title", title)
+                put("artist", artist)
+                put("source", source)
+            }
+            post("/api/stats/download", body) != null
+        } catch (_: ApiException) { false }
     }
 
     suspend fun getAdminStats(): JSONObject? {

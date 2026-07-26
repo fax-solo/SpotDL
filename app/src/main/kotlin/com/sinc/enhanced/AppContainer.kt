@@ -23,6 +23,7 @@ import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.MusicRepository
 import com.sinc.enhanced.data.repository.PlaylistRepository
 import com.sinc.enhanced.data.repository.SearchRepository
+import com.sinc.enhanced.data.repository.UserLibraryRepository
 import com.sinc.enhanced.data.util.ConnectivityMonitor
 import com.sinc.enhanced.player.MusicPlayer
 import okhttp3.OkHttpClient
@@ -79,7 +80,8 @@ class AppContainer(private val context: Context) {
         audiusClient = audiusClient,
         jamendoClient = jamendoClient,
         fmaClient = fmaClient,
-        bandcampClient = bandcampClient
+        bandcampClient = bandcampClient,
+        settingsManager = settingsManager
     )
     val downloadRepository: DownloadRepository = DownloadRepository(
         context = context,
@@ -91,6 +93,11 @@ class AppContainer(private val context: Context) {
         settingsManager = settingsManager
     )
     val playlistRepository: PlaylistRepository = PlaylistRepository(database.playlistDao())
+
+    val userLibraryRepository: UserLibraryRepository = UserLibraryRepository(
+        userLibraryDao = database.userLibraryDao(),
+        playlistDao = database.playlistDao()
+    )
 
     val musicPlayer: MusicPlayer = MusicPlayer(context)
 }

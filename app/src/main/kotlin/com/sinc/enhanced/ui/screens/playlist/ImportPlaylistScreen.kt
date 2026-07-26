@@ -203,20 +203,20 @@ private fun TrackRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (track.artworkUrl != null) {
-                AsyncImage(
-                    model = track.artworkUrl,
+                Image(
+                    painter = rememberAsyncImagePainter(track.artworkUrl),
                     contentDescription = null,
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Surface(
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(56.dp),
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(24.dp))
                     }
                 }
             }
