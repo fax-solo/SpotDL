@@ -1,12 +1,13 @@
 package com.sinc.enhanced.data.remote
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
-/** TODO: Convert all public methods to suspend functions */
 class FreeMusicArchiveClient(private val client: OkHttpClient) {
 
     data class FmaTrack(
@@ -20,11 +21,11 @@ class FreeMusicArchiveClient(private val client: OkHttpClient) {
         val genre: String? = null
     )
 
-    fun search(query: String, limit: Int = 5): List<FmaTrack> {
+    suspend fun search(query: String, limit: Int = 5): List<FmaTrack> = withContext(Dispatchers.IO) {
         val url = "https://freemusicarchive.org/api/v1/tracks.json?" +
                 "q=${URLEncoder.encode(query, "UTF-8")}&" +
                 "limit=$limit"
-        return try {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")
@@ -52,9 +53,9 @@ class FreeMusicArchiveClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("FreeMusicArchiveClient", "search failed", e); emptyList() }
     }
 
-    fun genres(): List<String> {
+    suspend fun genres(): List<String> = withContext(Dispatchers.IO) {
         val url = "https://freemusicarchive.org/api/v2/genres"
-        return try {
+        try {
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use emptyList()

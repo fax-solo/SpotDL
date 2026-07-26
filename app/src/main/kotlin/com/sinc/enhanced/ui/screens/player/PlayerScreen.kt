@@ -1,7 +1,6 @@
 package com.sinc.enhanced.ui.screens.player
 
 import android.content.res.Configuration
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,8 +45,6 @@ import coil.compose.rememberAsyncImagePainter
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.DownloadProgress
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -61,6 +58,9 @@ fun PlayerScreen(
     val track = uiState.currentTrack
     val scrollState = rememberScrollState()
 
+    var showSpeedDialog by remember { mutableStateOf(false) }
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
+
     val primaryColor = Color(0xFF1DB954)
     val secondaryColor = Color(0xFF10B981)
 
@@ -68,6 +68,32 @@ fun PlayerScreen(
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    if (showSpeedDialog) {
+        SpeedDialog(
+            currentSpeed = uiState.speed,
+            onSpeedSelected = { speed ->
+                viewModel.setSpeed(speed)
+                showSpeedDialog = false
+            },
+            onDismiss = { showSpeedDialog = false }
+        )
+    }
+
+    if (showSleepTimerDialog) {
+        SleepTimerDialog(
+            currentMinutes = uiState.sleepTimerMinutes,
+            onTimerSelected = { minutes ->
+                viewModel.setSleepTimer(minutes)
+                showSleepTimerDialog = false
+            },
+            onCancel = {
+                viewModel.cancelSleepTimer()
+                showSleepTimerDialog = false
+            },
+            onDismiss = { showSleepTimerDialog = false }
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -127,7 +153,7 @@ fun PlayerScreen(
                     Spacer(Modifier.height(16.dp))
                     PlaybackControls(isPlaying = uiState.isPlaying, onPlayPause = { viewModel.togglePlayPause() }, onSkipNext = { viewModel.skipToNext() }, onSkipPrevious = { viewModel.skipToPrevious() }, primaryColor = primaryColor)
                     Spacer(Modifier.height(16.dp))
-                    SecondaryControls(speed = uiState.speed, sleepTimerMinutes = uiState.sleepTimerMinutes, repeatMode = uiState.repeatMode, shuffleMode = uiState.shuffleMode, onSpeedChange = { viewModel.setSpeed(it) }, onSleepTimerChange = { viewModel.setSleepTimer(it) }, onRepeatChange = { viewModel.setRepeatMode(it) }, onShuffleChange = { viewModel.setShuffleMode(it) }, onNavigateQueue = onNavigateQueue, onShare = if (onShareTrack != null) { { onShareTrack(track.title, track.artist) } } else null, primaryColor = primaryColor)
+                    SecondaryControls(speed = uiState.speed, sleepTimerMinutes = uiState.sleepTimerMinutes, repeatMode = uiState.repeatMode, shuffleMode = uiState.shuffleMode, onSpeedChange = { viewModel.setSpeed(it) }, onSleepTimerChange = { viewModel.setSleepTimer(it) }, onRepeatChange = { viewModel.setRepeatMode(it) }, onShuffleChange = { viewModel.setShuffleMode(it) }, onSpeedClick = { showSpeedDialog = true }, onSleepTimerClick = { showSleepTimerDialog = true }, onNavigateQueue = onNavigateQueue, onShare = if (onShareTrack != null) { { onShareTrack(track.title, track.artist) } } else null, primaryColor = primaryColor)
                 }
             }
         } else {
@@ -192,8 +218,10 @@ fun PlayerScreen(
                 onSleepTimerChange = { viewModel.setSleepTimer(it) },
                 onRepeatChange = { viewModel.setRepeatMode(it) },
                 onShuffleChange = { viewModel.setShuffleMode(it) },
+                onSpeedClick = { showSpeedDialog = true },
+                onSleepTimerClick = { showSleepTimerDialog = true },
                 onNavigateQueue = onNavigateQueue,
-                onShare = if (onShareTrack != null) { { onShareTrack(track!!.title, track!!.artist) } } else null,
+                onShare = if (onShareTrack != null) { { onShareTrack(track.title, track.artist) } } else null,
                 primaryColor = primaryColor
             )
 
@@ -506,6 +534,8 @@ private fun SecondaryControls(
     onSleepTimerChange: (Int) -> Unit,
     onRepeatChange: (com.sinc.enhanced.domain.player.RepeatMode) -> Unit,
     onShuffleChange: (com.sinc.enhanced.domain.player.ShuffleMode) -> Unit,
+    onSpeedClick: () -> Unit,
+    onSleepTimerClick: () -> Unit,
     onNavigateQueue: (() -> Unit)?,
     onShare: (() -> Unit)? = null,
     primaryColor: androidx.compose.ui.graphics.Color
@@ -521,13 +551,9 @@ private fun SecondaryControls(
             }
         }
 
-        // TODO: Speed control dialog not yet implemented
-        // IconButton(
-        //     onClick = { /* show speed control */ },
-        //     modifier = Modifier.size(48.dp)
-        // ) {
-        //     Icon(Icons.Default.Speed, "Speed", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
-        // }
+        IconButton(onClick = onSpeedClick, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Default.FastForward, "Speed", modifier = Modifier.size(24.dp), tint = if (speed != 1.0f) primaryColor else MaterialTheme.colorScheme.onSurface)
+        }
 
         Text(
             text = "Speed: ${"%.2f".format(speed)}x",
@@ -535,13 +561,9 @@ private fun SecondaryControls(
             color = MaterialTheme.colorScheme.onSurface
         )
 
-        // TODO: Sleep timer dialog not yet implemented
-        // IconButton(
-        //     onClick = { /* show sleep timer */ },
-        //     modifier = Modifier.size(48.dp)
-        // ) {
-        //     Icon(Icons.Default.Bedtime, "Sleep Timer", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
-        // }
+        IconButton(onClick = onSleepTimerClick, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Default.Alarm, "Sleep Timer", modifier = Modifier.size(24.dp), tint = if (sleepTimerMinutes > 0) primaryColor else MaterialTheme.colorScheme.onSurface)
+        }
 
         if (sleepTimerMinutes > 0) {
             Text(
@@ -551,6 +573,79 @@ private fun SecondaryControls(
             )
         }
     }
+}
+
+@Composable
+private fun SpeedDialog(
+    currentSpeed: Float,
+    onSpeedSelected: (Float) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val speeds = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 3.0f)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Playback Speed") },
+        text = {
+            Column {
+                speeds.forEach { speed ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onSpeedSelected(speed) }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = speed == currentSpeed,
+                            onClick = { onSpeedSelected(speed) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("${"%.2f".format(speed)}x", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
+}
+
+@Composable
+private fun SleepTimerDialog(
+    currentMinutes: Int,
+    onTimerSelected: (Int) -> Unit,
+    onCancel: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val options = listOf(5 to "5 minutes", 10 to "10 minutes", 15 to "15 minutes", 30 to "30 minutes", 45 to "45 minutes", 60 to "1 hour", 90 to "1.5 hours", 120 to "2 hours")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sleep Timer") },
+        text = {
+            Column {
+                if (currentMinutes > 0) {
+                    Text("Timer active: ${currentMinutes}min", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                        Text("Cancel Timer")
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(8.dp))
+                }
+                options.forEach { (minutes, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onTimerSelected(minutes) }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = minutes == currentMinutes,
+                            onClick = { onTimerSelected(minutes) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
 }
 
 @Composable
@@ -648,7 +743,7 @@ private fun LyricsSection(
             Box(modifier = Modifier.padding(16.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     @Suppress("DEPRECATION")
-                    Icon(Icons.Default.QueueMusic, "No lyrics available", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
+                    Icon(Icons.AutoMirrored.Filled.QueueMusic, "No lyrics available", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
                     Spacer(Modifier.height(4.dp))
                     Text(text = "No lyrics found", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                 }

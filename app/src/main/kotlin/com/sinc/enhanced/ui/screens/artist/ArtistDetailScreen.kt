@@ -127,7 +127,7 @@ fun ArtistDetailScreen(
                         Text("Top Tracks", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
                     }
                     items(uiState.topTracks, key = { it.id }) { track ->
-                        val playUrl = track.previewUrl
+                        val playUrl = uiState.resolvedAudioUrls[track.id] ?: track.previewUrl
                         TrackRow(
                             track = track,
                             onPlay = { if (playUrl != null) onPlayTrack(track, playUrl) }

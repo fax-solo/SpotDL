@@ -168,7 +168,9 @@ fun AppNavigation(intent: Intent? = null) {
                             BottomNavBar(
                                 currentRoute = currentRoute,
                                 onNavigate = { route ->
-                                    if (route != currentRoute) {
+                                    if (route == Routes.HOME) {
+                                        navController.popBackStack(Routes.HOME, false)
+                                    } else if (route != currentRoute) {
                                         navController.navigate(route) {
                                             popUpTo(Routes.HOME) { saveState = true }
                                             launchSingleTop = true
@@ -273,21 +275,6 @@ fun AppNavigation(intent: Intent? = null) {
                         },
                         onNavigateSettings = { navController.navigate(Routes.SETTINGS) },
                         onNavigateHistory = { navController.navigate(Routes.HISTORY) },
-                        onRetryPlayback = { track ->
-                            val repo = SincApp.instance.container.searchRepository
-                            scope.launch {
-                                val sources = listOf("piped", "audius", "jamendo", "fma", "soundcloud", "bandcamp", "deezer")
-                                var found: Pair<String, String>? = null
-                                for (source in sources) {
-                                    found = repo.findBestAudioForTrack(track)
-                                    if (found != null) break
-                                }
-                                if (found != null) {
-                                    musicPlayer.playUrl(track, found.first)
-                                    navController.navigate(Routes.PLAYER)
-                                }
-                            }
-                        },
                         onPreview = { track, url ->
                             musicPlayer.previewTrack(track, url)
                         }
@@ -313,21 +300,6 @@ fun AppNavigation(intent: Intent? = null) {
                         },
                         onNavigateSettings = { navController.navigate(Routes.SETTINGS) },
                         onNavigateHistory = { navController.navigate(Routes.HISTORY) },
-                        onRetryPlayback = { track ->
-                            val repo = SincApp.instance.container.searchRepository
-                            scope.launch {
-                                val sources = listOf("piped", "audius", "jamendo", "fma", "soundcloud", "bandcamp", "deezer")
-                                var found: Pair<String, String>? = null
-                                for (source in sources) {
-                                    found = repo.findBestAudioForTrack(track)
-                                    if (found != null) break
-                                }
-                                if (found != null) {
-                                    musicPlayer.playUrl(track, found.first)
-                                    navController.navigate(Routes.PLAYER)
-                                }
-                            }
-                        },
                         onPreview = { track, url ->
                             musicPlayer.previewTrack(track, url)
                         }
@@ -385,6 +357,15 @@ fun AppNavigation(intent: Intent? = null) {
                     PlayerScreen(
                         onNavigateArtist = { artistName ->
                             navController.navigate("artist/$artistName")
+                        },
+                        onNavigateQueue = { navController.navigate(Routes.QUEUE) },
+                        onShareTrack = { title, artist ->
+                            val sendIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                putExtra(Intent.EXTRA_TEXT, "$title by $artist — shared via Sinc Enhanced")
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Share track"))
                         }
                     )
                 }
@@ -434,10 +415,9 @@ fun AppNavigation(intent: Intent? = null) {
                         onPlayTrack = { track ->
                             val repo = SincApp.instance.container.searchRepository
                             scope.launch {
-                                val url = track.previewUrl
-                                    ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                        repo.findBestAudioForTrack(track)?.first
-                                    }
+                                val url = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    repo.findBestAudioForTrack(track)?.first
+                                } ?: track.previewUrl
                                 if (url != null) {
                                     musicPlayer.playUrl(track, url)
                                     navController.navigate(Routes.PLAYER)
@@ -447,13 +427,10 @@ fun AppNavigation(intent: Intent? = null) {
                         onPlayAll = { tracks ->
                             scope.launch {
                                 val loaded = tracks.map { t ->
-                                    if (t.previewUrl != null) t
-                                    else {
-                                        val url = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                            SincApp.instance.container.searchRepository.findBestAudioForTrack(t)?.first
-                                        }
-                                        if (url != null) t.copy(previewUrl = url) else t
-                                    }
+                                    val url = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        SincApp.instance.container.searchRepository.findBestAudioForTrack(t)?.first
+                                    } ?: t.previewUrl
+                                    if (url != null) t.copy(previewUrl = url) else t
                                 }
                                 musicPlayer.playAll(loaded)
                                 navController.navigate(Routes.PLAYER)

@@ -59,21 +59,6 @@ export const onRequest: PagesFunction = async (context) => {
     results.checks.database = { ok: false, error: e instanceof Error ? e.message : 'Query failed' }
   }
 
-  // 4. Check Render backend
-  try {
-    const renderRes = await fetch('https://sinc-api.onrender.com/api/ping', {
-      signal: AbortSignal.timeout(10000),
-    })
-    const renderBody = await renderRes.json().catch(() => null)
-    results.checks.render = {
-      ok: renderRes.ok,
-      status: renderRes.status,
-      body: renderBody,
-    }
-  } catch (e) {
-    results.checks.render = { ok: false, error: e instanceof Error ? e.message : 'Unreachable' }
-  }
-
   results.ok = Object.values(results.checks).every((c: any) => c.ok !== false)
   results.summary = Object.entries(results.checks).reduce((acc, [key, val]: [string, any]) => {
     acc[key] = val.ok ? 'ok' : val.error || 'down'

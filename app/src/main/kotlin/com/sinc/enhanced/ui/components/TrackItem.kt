@@ -194,7 +194,7 @@ fun SourceBadge(source: String, modifier: Modifier = Modifier) {
         "jamendo" -> "Jamendo" to Color(0xFF00B894)
         "fma" -> "FMA" to Color(0xFFE17055)
         "bandcamp" -> "BC" to Color(0xFF636E72)
-        else -> source.capitalize() to MaterialTheme.colorScheme.primary
+        else -> source.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } to MaterialTheme.colorScheme.primary
     }
     Surface(
         modifier = modifier,

@@ -1,11 +1,12 @@
 package com.sinc.enhanced.data.remote
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 
-/** TODO: Convert all public methods to suspend functions */
 class SoundCloudClient(private val client: OkHttpClient) {
 
     @Volatile private var resolvedClientId: String? = null
@@ -26,17 +27,17 @@ class SoundCloudClient(private val client: OkHttpClient) {
         val bitrate: Int = 0
     )
 
-    private fun getClientId(): String {
+    private suspend fun getClientId(): String = withContext(Dispatchers.IO) {
         resolvedClientId?.let {
-            if (System.currentTimeMillis() - lastResolved < 86400000L) return it
+            if (System.currentTimeMillis() - lastResolved < 86400000L) return@withContext it
         }
-        return try {
+        try {
             val request = Request.Builder()
                 .url("https://soundcloud.com")
                 .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
                 .build()
             client.newCall(request).execute().use { response ->
-                val html = response.body?.string() ?: return "a3e059563d7fd3372b49b37f00a00bcf"
+                val html = response.body?.string() ?: return@use "a3e059563d7fd3372b49b37f00a00bcf"
 
                 val patterns = listOf(
                     Regex("""client_id["']?\s*[:=]\s*["']([a-f0-9]+)["']""", RegexOption.IGNORE_CASE),
@@ -50,7 +51,7 @@ class SoundCloudClient(private val client: OkHttpClient) {
                         if (id.length >= 10) {
                             resolvedClientId = id
                             lastResolved = System.currentTimeMillis()
-                            return id
+                            return@use id
                         }
                     }
                 }
@@ -61,10 +62,10 @@ class SoundCloudClient(private val client: OkHttpClient) {
         }
     }
 
-    fun search(query: String, limit: Int = 5): List<SoundCloudResult> {
+    suspend fun search(query: String, limit: Int = 5): List<SoundCloudResult> = withContext(Dispatchers.IO) {
         val clientId = getClientId()
         val url = "https://api-v2.soundcloud.com/search/tracks?q=${java.net.URLEncoder.encode(query, "UTF-8")}&client_id=$clientId&limit=$limit"
-        return try {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")

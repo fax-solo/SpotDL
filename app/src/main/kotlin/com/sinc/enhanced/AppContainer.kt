@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.sinc.enhanced.data.local.AppDatabase
+import com.sinc.enhanced.data.local.CacheManager
+import com.sinc.enhanced.data.local.RoomLyricsCache
 import com.sinc.enhanced.data.local.SettingsManager
 import com.sinc.enhanced.data.remote.ArtworkClient
 import com.sinc.enhanced.data.remote.AudiusClient
@@ -49,13 +51,14 @@ class AppContainer(private val context: Context) {
         context,
         AppDatabase::class.java,
         "sinc-enhanced.db"
-    ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4).build()
+    ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5).build()
 
     val dataStore: DataStore<Preferences> = context.dataStore
 
     val settingsManager: SettingsManager = SettingsManager(dataStore)
 
     val connectivityMonitor: ConnectivityMonitor = ConnectivityMonitor(context)
+    val cacheManager: CacheManager = CacheManager(database.cacheDao())
 
     val apiClient: ApiClient = ApiClient(okHttpClient)
     val authRepository: AuthRepository = AuthRepository(dataStore, apiClient, BuildConfig.BACKEND_URL)
@@ -63,7 +66,8 @@ class AppContainer(private val context: Context) {
     val spotifyClient: SpotifyClient = SpotifyClient(okHttpClient)
     val deezerClient: DeezerClient = DeezerClient(okHttpClient)
     val pipedClient: PipedClient = PipedClient(okHttpClient, probeClient)
-    val lyricsClient: LyricsClient = LyricsClient(okHttpClient, context)
+    val lyricsCacheDb = RoomLyricsCache(database.lyricsCacheDao())
+    val lyricsClient: LyricsClient = LyricsClient(okHttpClient, lyricsCacheDb)
     val soundCloudClient: SoundCloudClient = SoundCloudClient(okHttpClient)
     val audiusClient: AudiusClient = AudiusClient(okHttpClient)
     val jamendoClient: JamendoClient = JamendoClient(okHttpClient)

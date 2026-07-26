@@ -1,12 +1,13 @@
 package com.sinc.enhanced.data.remote
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
-/** TODO: Convert all public methods to suspend functions */
 class BandcampClient(private val client: OkHttpClient) {
 
     data class BandcampTrack(
@@ -19,10 +20,10 @@ class BandcampClient(private val client: OkHttpClient) {
         val url: String
     )
 
-    fun search(query: String, limit: Int = 5): List<BandcampTrack> {
+    suspend fun search(query: String, limit: Int = 5): List<BandcampTrack> = withContext(Dispatchers.IO) {
         val url = "https://bandcamp.com/api/autocomplete/1/autocomplete?" +
                 "q=${URLEncoder.encode(query, "UTF-8")}"
-        return try {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")
@@ -57,8 +58,8 @@ class BandcampClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("BandcampClient", "search failed", e); emptyList() }
     }
 
-    fun getTrackInfo(trackUrl: String): BandcampTrack? {
-        return try {
+    suspend fun getTrackInfo(trackUrl: String): BandcampTrack? = withContext(Dispatchers.IO) {
+        try {
             val apiUrl = trackUrl.replace("http://", "https://")
             val request = Request.Builder()
                 .url(apiUrl)

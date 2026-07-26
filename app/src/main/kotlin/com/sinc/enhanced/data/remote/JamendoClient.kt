@@ -2,12 +2,13 @@ package com.sinc.enhanced.data.remote
 
 import android.util.Log
 import com.sinc.enhanced.BuildConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
-/** TODO: Convert all public methods to suspend functions */
 class JamendoClient(private val client: OkHttpClient) {
 
     data class JamendoTrack(
@@ -31,7 +32,7 @@ class JamendoClient(private val client: OkHttpClient) {
         clientId = id
     }
 
-    fun search(query: String, limit: Int = 5): List<JamendoTrack> {
+    suspend fun search(query: String, limit: Int = 5): List<JamendoTrack> = withContext(Dispatchers.IO) {
         val url = "https://api.jamendo.com/v3.0/tracks/?" +
                 "client_id=$clientId&" +
                 "format=json&" +
@@ -39,7 +40,7 @@ class JamendoClient(private val client: OkHttpClient) {
                 "limit=$limit&" +
                 "include=musicinfo&" +
                 "audioformat=mp32"
-        return try {
+        try {
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use emptyList()

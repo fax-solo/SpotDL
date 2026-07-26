@@ -62,7 +62,6 @@ fun SearchScreen(
     onNavigateTrack: (String) -> Unit = {},
     onNavigateSettings: () -> Unit = {},
     onNavigateHistory: () -> Unit = {},
-    onRetryPlayback: ((Track) -> Unit)? = null,
     onPreview: ((Track, String) -> Unit)? = null,
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory()),
     historyViewModel: SearchHistoryViewModel = viewModel(factory = SearchHistoryViewModel.Factory(SincApp.instance.container.database.searchHistoryDao()))

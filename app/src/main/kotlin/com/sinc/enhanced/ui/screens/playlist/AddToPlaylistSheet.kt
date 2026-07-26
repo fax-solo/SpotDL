@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.entity.PlaylistEntity
-import com.sinc.enhanced.data.local.entity.PlaylistTrackEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.PlaylistRepository
 import kotlinx.coroutines.launch

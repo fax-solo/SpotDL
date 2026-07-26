@@ -1,13 +1,14 @@
 package com.sinc.enhanced.data.remote
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.jvm.Synchronized
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
-/** TODO: Convert all public methods to suspend functions */
 class AudiusClient(private val client: OkHttpClient) {
 
     data class AudiusTrack(
@@ -47,10 +48,10 @@ class AudiusClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("AudiusClient", "getNode failed", e); defaultNode }
     }
 
-    fun search(query: String, limit: Int = 5): List<AudiusTrack> {
+    suspend fun search(query: String, limit: Int = 5): List<AudiusTrack> = withContext(Dispatchers.IO) {
         val node = getNode()
         val url = "$node/v1/full/tracks/search?query=${URLEncoder.encode(query, "UTF-8")}&limit=$limit&app_name=SincEnhanced"
-        return try {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")
@@ -78,10 +79,10 @@ class AudiusClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("AudiusClient", "search failed", e); emptyList() }
     }
 
-    fun getStreamUrl(trackId: String): String? {
+    suspend fun getStreamUrl(trackId: String): String? = withContext(Dispatchers.IO) {
         val node = getNode()
         val url = "$node/v1/tracks/$trackId/stream?app_name=SincEnhanced"
-        return try {
+        try {
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) url else null

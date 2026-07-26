@@ -2,13 +2,15 @@ package com.sinc.enhanced.data.remote
 
 import android.util.Log
 import com.sinc.enhanced.BuildConfig
-import kotlin.jvm.Synchronized
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.util.LinkedHashMap
 
-/** TODO: Convert all public methods to suspend functions */
 class ArtworkClient(private val client: OkHttpClient) {
 
     companion object {
@@ -16,31 +18,33 @@ class ArtworkClient(private val client: OkHttpClient) {
     }
 
     private val cache = LinkedHashMap<String, String>(100, 0.75f, true)
+    private val mutex = Mutex()
 
-    @Synchronized
-    fun findArtwork(title: String, artist: String, isrc: String? = null): String? {
-        val cacheKey = "$artist||$title"
-        cache[cacheKey]?.let { return it }
+    suspend fun findArtwork(title: String, artist: String, isrc: String? = null): String? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val cacheKey = "$artist||$title"
+            cache[cacheKey]?.let { return@withContext it }
 
-        val urls = listOfNotNull(
-            searchDeezerArtwork(title, artist),
-            searchItunesArtwork(title, artist),
-            searchLastfmArtwork(title, artist),
-            if (isrc != null) searchCoverArtArchive(isrc, title, artist) else null
-        )
-        val result = urls.firstOrNull()
-        if (result != null) {
-            cache[cacheKey] = result
-            if (cache.size > 200) {
-                val eldest = cache.keys.firstOrNull()
-                if (eldest != null) cache.remove(eldest)
+            val urls = listOfNotNull(
+                searchDeezerArtwork(title, artist),
+                searchItunesArtwork(title, artist),
+                searchLastfmArtwork(title, artist),
+                if (isrc != null) searchCoverArtArchive(isrc, title, artist) else null
+            )
+            val result = urls.firstOrNull()
+            if (result != null) {
+                cache[cacheKey] = result
+                if (cache.size > 200) {
+                    val eldest = cache.keys.firstOrNull()
+                    if (eldest != null) cache.remove(eldest)
+                }
             }
+            result
         }
-        return result
     }
 
-    private fun searchDeezerArtwork(title: String, artist: String): String? {
-        return try {
+    private suspend fun searchDeezerArtwork(title: String, artist: String): String? = withContext(Dispatchers.IO) {
+        try {
             val query = java.net.URLEncoder.encode("$artist $title", "UTF-8")
             val request = Request.Builder()
                 .url("https://api.deezer.com/search?q=$query&limit=3&order=RANKING")
@@ -57,8 +61,8 @@ class ArtworkClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("ArtworkClient", "searchDeezerArtwork failed", e); null }
     }
 
-    private fun searchItunesArtwork(title: String, artist: String): String? {
-        return try {
+    private suspend fun searchItunesArtwork(title: String, artist: String): String? = withContext(Dispatchers.IO) {
+        try {
             val query = java.net.URLEncoder.encode("$artist $title", "UTF-8")
             val request = Request.Builder()
                 .url("https://itunes.apple.com/search?term=$query&media=music&limit=3")
@@ -80,8 +84,8 @@ class ArtworkClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("ArtworkClient", "searchItunesArtwork failed", e); null }
     }
 
-    private fun searchLastfmArtwork(title: String, artist: String): String? {
-        return try {
+    private suspend fun searchLastfmArtwork(title: String, artist: String): String? = withContext(Dispatchers.IO) {
+        try {
             val params = java.net.URLEncoder.encode(
                 "method=track.getInfo&api_key=$LASTFM_API_KEY&artist=$artist&track=$title&format=json&autocorrect=1",
                 "UTF-8"
@@ -110,9 +114,9 @@ class ArtworkClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("ArtworkClient", "searchLastfmArtwork failed", e); null }
     }
 
-    private fun searchCoverArtArchive(isrc: String, title: String, artist: String): String? {
-        return try {
-            val mbid = mbidFromIsrc(isrc) ?: mbidFromTrack(artist, title) ?: return null
+    private suspend fun searchCoverArtArchive(isrc: String, title: String, artist: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val mbid = mbidFromIsrc(isrc) ?: mbidFromTrack(artist, title) ?: return@withContext null
             val request = Request.Builder()
                 .url("https://coverartarchive.org/release/$mbid/front-250")
                 .build()
@@ -122,8 +126,8 @@ class ArtworkClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("ArtworkClient", "searchCoverArtArchive failed", e); null }
     }
 
-    private fun mbidFromIsrc(isrc: String): String? {
-        return try {
+    private suspend fun mbidFromIsrc(isrc: String): String? = withContext(Dispatchers.IO) {
+        try {
             val request = Request.Builder()
                 .url("https://musicbrainz.org/ws/2/recording/?query=isrc:$isrc&limit=1&fmt=json")
                 .header("User-Agent", "SincEnhanced/1.0")
@@ -140,8 +144,8 @@ class ArtworkClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("ArtworkClient", "mbidFromIsrc failed", e); null }
     }
 
-    private fun mbidFromTrack(artist: String, title: String): String? {
-        return try {
+    private suspend fun mbidFromTrack(artist: String, title: String): String? = withContext(Dispatchers.IO) {
+        try {
             val query = java.net.URLEncoder.encode("artist:\"$artist\" AND recording:\"$title\"", "UTF-8")
             val request = Request.Builder()
                 .url("https://musicbrainz.org/ws/2/recording/?query=$query&limit=3&fmt=json")

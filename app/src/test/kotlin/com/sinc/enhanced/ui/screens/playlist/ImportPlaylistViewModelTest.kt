@@ -1,5 +1,6 @@
 package com.sinc.enhanced.ui.screens.playlist
 
+import com.sinc.enhanced.data.remote.DeezerClient
 import com.sinc.enhanced.data.remote.SpotifyClient
 import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.SearchRepository
@@ -10,66 +11,69 @@ import org.mockito.kotlin.mock
 class ImportPlaylistViewModelTest {
 
     @Test
-    fun `parsePlaylistId with full spotify URL returns ID`() {
+    fun `parsePlaylistUrl with full spotify URL returns ID`() {
         val vm = createViewModel()
-        val id = vm.parsePlaylistId("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M")
+        val (source, id) = vm.parsePlaylistUrl("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M")
+        assertEquals("spotify", source)
         assertEquals("37i9dQZF1DXcBWIGoYBM5M", id)
     }
 
     @Test
-    fun `parsePlaylistId with URL without www returns ID`() {
+    fun `parsePlaylistUrl with spotify URI returns ID`() {
         val vm = createViewModel()
-        val id = vm.parsePlaylistId("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M")
+        val (source, id) = vm.parsePlaylistUrl("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M")
+        assertEquals("spotify", source)
         assertEquals("37i9dQZF1DXcBWIGoYBM5M", id)
     }
 
     @Test
-    fun `parsePlaylistId with spotify URI returns ID`() {
+    fun `parsePlaylistUrl with bare 22-char ID returns ID`() {
         val vm = createViewModel()
-        val id = vm.parsePlaylistId("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M")
+        val (source, id) = vm.parsePlaylistUrl("37i9dQZF1DXcBWIGoYBM5M")
+        assertEquals("spotify", source)
         assertEquals("37i9dQZF1DXcBWIGoYBM5M", id)
     }
 
     @Test
-    fun `parsePlaylistId with bare 22-char ID returns ID`() {
+    fun `parsePlaylistUrl with deezer URL returns ID`() {
         val vm = createViewModel()
-        val id = vm.parsePlaylistId("37i9dQZF1DXcBWIGoYBM5M")
-        assertEquals("37i9dQZF1DXcBWIGoYBM5M", id)
+        val (source, id) = vm.parsePlaylistUrl("https://deezer.com/playlist/123456789")
+        assertEquals("deezer", source)
+        assertEquals("123456789", id)
     }
 
     @Test
-    fun `parsePlaylistId with empty string returns null`() {
+    fun `parsePlaylistUrl with empty string returns null`() {
         val vm = createViewModel()
-        assertNull(vm.parsePlaylistId(""))
+        val (_, id) = vm.parsePlaylistUrl("")
+        assertNull(id)
     }
 
     @Test
-    fun `parsePlaylistId with invalid URL returns null`() {
+    fun `parsePlaylistUrl with invalid URL returns null`() {
         val vm = createViewModel()
-        assertNull(vm.parsePlaylistId("https://example.com/not-a-playlist"))
+        val (_, id) = vm.parsePlaylistUrl("https://example.com/not-a-playlist")
+        assertNull(id)
     }
 
     @Test
-    fun `parsePlaylistId with invalid length bare ID returns null`() {
+    fun `parsePlaylistUrl with invalid length bare ID returns null`() {
         val vm = createViewModel()
-        assertNull(vm.parsePlaylistId("abc123"))
+        val (_, id) = vm.parsePlaylistUrl("abc123")
+        assertNull(id)
     }
 
     @Test
-    fun `parsePlaylistId with spotifycom without dot returns null`() {
+    fun `parsePlaylistUrl with track URL returns null`() {
         val vm = createViewModel()
-        assertNull(vm.parsePlaylistId("spotifycom/playlist/123"))
-    }
-
-    @Test
-    fun `parsePlaylistId with track URL returns null`() {
-        val vm = createViewModel()
-        assertNull(vm.parsePlaylistId("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"))
+        val (_, id) = vm.parsePlaylistUrl("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT")
+        assertNull(id)
     }
 
     private fun createViewModel(): ImportPlaylistViewModel {
         return ImportPlaylistViewModel(
             spotifyClient = mock(),
+            deezerClient = mock(),
             searchRepository = mock(),
             downloadRepository = mock()
         )

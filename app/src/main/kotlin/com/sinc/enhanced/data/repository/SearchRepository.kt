@@ -18,13 +18,13 @@ import com.sinc.enhanced.data.util.MatchScorer.MatchOptions
 import com.sinc.enhanced.data.util.SearchCache
 import com.sinc.enhanced.data.util.robustCall
 import com.sinc.enhanced.domain.music.SearchResult
-import com.sinc.enhanced.domain.music.MusicSource
 import com.sinc.enhanced.domain.repository.SearchRepository as SearchRepositoryInterface
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
@@ -53,6 +53,19 @@ class SearchRepository(
 
     private fun List<EnrichedTrack>.asResults() = map { SearchResult(it.track, it.audioUrl, it.audioSource, it.confidence) }
 
+    private suspend fun resolveAudioParallel(tracks: List<Track>, timeoutMs: Long = 15000L): Map<String, EnrichedTrack> = coroutineScope {
+        tracks.map { track ->
+            async {
+                try {
+                    withTimeout(timeoutMs) { findBestAudioForTrack(track) }
+                } catch (_: Exception) { null }
+            }
+        }.awaitAll().mapIndexedNotNull { i, result ->
+            if (result != null) tracks[i].id to EnrichedTrack(tracks[i], result.first, result.second, 1.0f)
+            else null
+        }.toMap()
+    }
+
     override suspend fun searchAll(query: String): List<SearchResult> = searchAllInternal(query).asResults()
 
     private suspend fun searchAllInternal(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
@@ -62,7 +75,7 @@ class SearchRepository(
         enrichedCache.get(normalized)?.let { return@withContext it }
 
         try {
-            withTimeout(60000L) { searchAllUncached(normalized) }
+            withTimeout(90000L) { searchAllUncached(normalized) }
         } catch (e: TimeoutCancellationException) {
             Log.e("SearchRepository", "searchAllInternal timeout", e); emptyList()
         }
@@ -94,41 +107,25 @@ class SearchRepository(
         val deezerResults = deezerDeferred.await() ?: emptyList()
         val additional = additionalDeferred.await()
 
-        val deezerEnriched = deezerResults.mapNotNull { d ->
-            val track = Track(
-                id = "dz_${d.id}",
-                title = d.title,
-                artist = d.artist,
-                album = d.album,
-                durationMs = d.duration * 1000L,
-                artworkUrl = d.artworkUrl,
-                isrc = d.isrc,
-                source = "deezer"
-            )
-            val bestAudio = findBestAudioForTrack(track)
-            EnrichedTrack(
-                track = track,
-                audioUrl = bestAudio?.first,
-                audioSource = bestAudio?.second ?: "deezer",
-                confidence = if (bestAudio != null) 0.7f else 0.4f
+        val deezerTracks = deezerResults.take(3).map { d ->
+            Track(id = "dz_${d.id}", title = d.title, artist = d.artist, album = d.album,
+                durationMs = d.duration * 1000L, artworkUrl = d.artworkUrl, isrc = d.isrc, source = "deezer")
+        }
+        val deezerResolved = resolveAudioParallel(deezerTracks)
+        val deezerEnriched = deezerResults.map { d ->
+            val id = "dz_${d.id}"
+            deezerResolved[id] ?: EnrichedTrack(
+                Track(id = id, title = d.title, artist = d.artist, album = d.album,
+                    durationMs = d.duration * 1000L, artworkUrl = d.artworkUrl, isrc = d.isrc, source = "deezer"),
+                null, null, 0.4f
             )
         }
 
-        val spotifyEnriched = if (spotifyTracks.isNotEmpty()) {
-            spotifyTracks.mapNotNull { track ->
-                val bestAudio = findBestAudioForTrack(track)
-                if (bestAudio != null) {
-                    EnrichedTrack(
-                        track = track,
-                        audioUrl = bestAudio.first,
-                        audioSource = bestAudio.second,
-                        confidence = 1.0f
-                    )
-                } else {
-                    EnrichedTrack(track = track, audioUrl = null, audioSource = null, confidence = 0.5f)
-                }
-            }
-        } else emptyList()
+        val spotifyTop = spotifyTracks.take(5)
+        val spotifyResolved = resolveAudioParallel(spotifyTop)
+        val spotifyEnriched = spotifyTracks.map { track ->
+            spotifyResolved[track.id] ?: EnrichedTrack(track, null, null, 0.5f)
+        }
 
         val youtubeResults = pipedResults.mapNotNull { yt ->
             try {
@@ -137,18 +134,9 @@ class SearchRepository(
                     val audioUrl = stream.audioTrackUrl ?: stream.url
                     if (audioUrl.isEmpty()) return@mapNotNull null
                     EnrichedTrack(
-                        track = Track(
-                            id = "yt_${yt.videoId}",
-                            title = yt.title,
-                            artist = yt.uploader,
-                            album = yt.uploader,
-                            durationMs = yt.duration * 1000,
-                            artworkUrl = yt.thumbnailUrl,
-                            source = "youtube"
-                        ),
-                        audioUrl = audioUrl,
-                        audioSource = "youtube",
-                        confidence = 0.9f
+                        track = Track(id = "yt_${yt.videoId}", title = yt.title, artist = yt.uploader,
+                            album = yt.uploader, durationMs = yt.duration * 1000, artworkUrl = yt.thumbnailUrl, source = "youtube"),
+                        audioUrl = audioUrl, audioSource = "youtube", confidence = 0.9f
                     )
                 } else null
             } catch (e: Exception) { Log.e("SearchRepository", "youtube stream failed", e); null }
@@ -313,33 +301,12 @@ class SearchRepository(
     override suspend fun findBestAudioForTrack(track: Track): Pair<String, String>? = withContext(Dispatchers.IO) {
         try {
             withTimeout(35000L) {
-
-                if (track.previewUrl != null && isValidPreviewUrl(track.previewUrl)) {
-                    if (track.isrc != null) {
-                        try {
-                            val deezerTrack = deezerClient.getTrackByIsrc(track.isrc)
-                            if (deezerTrack?.previewUrl != null) {
-                                return@withTimeout Pair(deezerTrack.previewUrl, "deezer")
-                            }
-                        } catch (_: Exception) {}
-                    }
-                    return@withTimeout Pair(track.previewUrl, track.source)
-                }
-
-                if (track.isrc != null) {
-                    try {
-                        val deezerTrack = deezerClient.getTrackByIsrc(track.isrc)
-                        if (deezerTrack?.previewUrl != null) {
-                            return@withTimeout Pair(deezerTrack.previewUrl, "deezer")
-                        }
-                    } catch (_: Exception) {}
-                }
-
-                val queries = generateQueries(track.artist, track.title)
                 val expectedDurationSec = if (track.durationMs > 0) track.durationMs / 1000 else null
+                val queries = generateQueries(track.artist, track.title)
+                val isrc = track.isrc
 
                 for (query in queries) {
-                    val result = tryResolveAudio(query, track.title, track.artist, expectedDurationSec, track.isrc)
+                    val result = tryResolveAudio(query, track.title, track.artist, expectedDurationSec, isrc)
                     if (result != null) return@withTimeout result
                 }
 
@@ -348,8 +315,21 @@ class SearchRepository(
                     .distinct()
                     .filter { it !in queries }
                 for (query in stripped) {
-                    val result = tryResolveAudio(query, track.title, track.artist, expectedDurationSec, track.isrc)
+                    val result = tryResolveAudio(query, track.title, track.artist, expectedDurationSec, isrc)
                     if (result != null) return@withTimeout result
+                }
+
+                if (isrc != null) {
+                    try {
+                        val deezerTrack = deezerClient.getTrackByIsrc(isrc)
+                        if (deezerTrack?.previewUrl != null) {
+                            return@withTimeout Pair(deezerTrack.previewUrl, "deezer")
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                if (track.previewUrl != null && isValidPreviewUrl(track.previewUrl)) {
+                    return@withTimeout Pair(track.previewUrl, track.source)
                 }
 
                 null

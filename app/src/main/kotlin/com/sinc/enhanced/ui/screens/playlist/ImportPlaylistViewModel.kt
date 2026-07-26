@@ -5,11 +5,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.data.remote.DeezerClient
 import com.sinc.enhanced.data.remote.SpotifyClient
 import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.SearchRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +20,7 @@ import kotlinx.coroutines.withContext
 
 data class ImportPlaylistUiState(
     val url: String = "",
+    val source: String = "spotify",
     val isLoading: Boolean = false,
     val playlistName: String? = null,
     val playlistDescription: String? = null,
@@ -32,6 +35,7 @@ data class ImportPlaylistUiState(
 
 class ImportPlaylistViewModel(
     private val spotifyClient: SpotifyClient,
+    private val deezerClient: DeezerClient,
     private val searchRepository: SearchRepository,
     private val downloadRepository: DownloadRepository
 ) : ViewModel() {
@@ -44,52 +48,30 @@ class ImportPlaylistViewModel(
     }
 
     fun fetchPlaylist() {
-        val playlistId = parsePlaylistId(_uiState.value.url.trim())
+        val (source, playlistId) = parsePlaylistUrl(_uiState.value.url.trim())
         if (playlistId == null) {
-            _uiState.value = _uiState.value.copy(error = "Invalid Spotify playlist URL")
+            _uiState.value = _uiState.value.copy(error = "Invalid playlist URL. Supports Spotify and Deezer links.")
             return
         }
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null, tracks = emptyList())
             try {
-                val playlist = withContext(Dispatchers.IO) { spotifyClient.getPlaylist(playlistId) }
-                if (playlist == null) {
+                val result = withContext(Dispatchers.IO) { fetchFromSource(source, playlistId) }
+                if (result == null) {
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Could not fetch playlist. Check the URL and try again.")
                     return@launch
                 }
 
-                var allTracks = mutableListOf<Track>()
-                var offset = 0
-                val limit = 100
-                var hasMore = true
-
-                while (hasMore) {
-                    val batch = withContext(Dispatchers.IO) {
-                        spotifyClient.getPlaylistTracks(playlistId, offset, limit)
-                    }
-                    allTracks.addAll(batch)
-                    offset += limit
-                    hasMore = batch.size >= limit
-                }
-
-                val audioUrls = withContext(Dispatchers.IO) {
-                    allTracks.map { track ->
-                        async { track.id to searchRepository.findBestAudioForTrack(track) }
-                    }.mapNotNull { deferred ->
-                        val (id, result) = deferred.await()
-                        if (result != null) id to result.first else null
-                    }.toMap()
-                }
-
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    playlistName = playlist["name"] as? String,
-                    playlistDescription = playlist["description"] as? String,
-                    playlistImage = playlist["imageUrl"] as? String,
-                    playlistOwner = playlist["owner"] as? String,
-                    tracks = allTracks,
-                    trackAudioUrls = audioUrls
+                    source = result.source,
+                    playlistName = result.name,
+                    playlistDescription = result.description,
+                    playlistImage = result.imageUrl,
+                    playlistOwner = result.owner,
+                    tracks = result.tracks,
+                    trackAudioUrls = result.audioUrls
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -98,6 +80,105 @@ class ImportPlaylistViewModel(
                 )
             }
         }
+    }
+
+    private data class FetchResult(
+        val source: String,
+        val name: String,
+        val description: String,
+        val imageUrl: String?,
+        val owner: String,
+        val tracks: List<Track>,
+        val audioUrls: Map<String, String>
+    )
+
+    private suspend fun fetchFromSource(source: String, playlistId: String): FetchResult? {
+        return when (source) {
+            "spotify" -> fetchFromSpotify(playlistId)
+            "deezer" -> fetchFromDeezer(playlistId.toLongOrNull() ?: return null)
+            else -> null
+        }
+    }
+
+    private suspend fun fetchFromSpotify(playlistId: String): FetchResult? {
+        val playlist = spotifyClient.getPlaylist(playlistId) ?: return null
+
+        var allTracks = mutableListOf<Track>()
+        var offset = 0
+        val limit = 100
+
+        while (true) {
+            val result = spotifyClient.getPlaylistTracks(playlistId, offset, limit)
+            allTracks.addAll(result.tracks)
+            val nextOffset = result.nextOffset ?: break
+            offset = nextOffset
+        }
+
+        val audioUrls = resolveAudioUrls(allTracks)
+
+        return FetchResult(
+            source = "spotify",
+            name = playlist["name"] as? String ?: "Unknown",
+            description = playlist["description"] as? String ?: "",
+            imageUrl = playlist["imageUrl"] as? String,
+            owner = playlist["owner"] as? String ?: "Unknown",
+            tracks = allTracks,
+            audioUrls = audioUrls
+        )
+    }
+
+    private suspend fun fetchFromDeezer(deezerId: Long): FetchResult? {
+        val playlist = deezerClient.getPlaylist(deezerId) ?: return null
+
+        var allDzTracks = mutableListOf<com.sinc.enhanced.data.remote.DeezerClient.DeezerTrack>()
+        var index = 0
+        val limit = 100
+        var hasMore = true
+
+        while (hasMore) {
+            val batch = deezerClient.getPlaylistTracks(deezerId, index, limit)
+            allDzTracks.addAll(batch)
+            index += limit
+            hasMore = batch.size >= limit
+        }
+
+        val trackMap = mutableMapOf<String, Track>()
+        val tracks = allDzTracks.map { dz ->
+            val id = "dz_${dz.id}"
+            val track = Track(
+                id = id,
+                title = dz.title,
+                artist = dz.artist,
+                album = dz.album,
+                durationMs = dz.duration * 1000L,
+                artworkUrl = dz.artworkUrl,
+                isrc = dz.isrc,
+                source = "deezer"
+            )
+            trackMap[id] = track
+            track
+        }
+
+        val audioUrls = resolveAudioUrls(tracks)
+
+        return FetchResult(
+            source = "deezer",
+            name = playlist.title,
+            description = playlist.description,
+            imageUrl = playlist.imageUrl,
+            owner = playlist.creator,
+            tracks = tracks,
+            audioUrls = audioUrls
+        )
+    }
+
+    private suspend fun resolveAudioUrls(tracks: List<Track>): Map<String, String> = coroutineScope {
+        tracks.map { track ->
+            async { track.id to searchRepository.findBestAudioForTrack(track) }
+        }.mapNotNull { deferred ->
+            val (id, audioInfo) = deferred.await()
+            if (audioInfo != null) id to audioInfo.first else null
+        }.toMap()
     }
 
     fun downloadAll(onQueueComplete: () -> Unit = {}) {
@@ -127,33 +208,45 @@ class ImportPlaylistViewModel(
         }
     }
 
-    fun parsePlaylistId(input: String): String? {
+    fun parsePlaylistUrl(input: String): Pair<String, String?> {
         val trimmed = input.trim()
-        if (trimmed.isEmpty()) return null
+        if (trimmed.isEmpty()) return "" to null
 
-        val patterns = listOf(
+        val spotifyPatterns = listOf(
             Regex("""open\.spotify\.com/playlist/([a-zA-Z0-9]+)"""),
             Regex("""spotify\.com/playlist/([a-zA-Z0-9]+)"""),
             Regex("""spotify:playlist:([a-zA-Z0-9]+)"""),
             Regex("""^([a-zA-Z0-9]{22})$""")
         )
-        
-        for (pattern in patterns) {
+        for (pattern in spotifyPatterns) {
             val match = pattern.find(trimmed)
             if (match != null) {
                 val id = match.groupValues[1]
-                if (pattern == patterns.last() && id.length != 22) return null
-                return id
+                if (pattern == spotifyPatterns.last() && id.length != 22) continue
+                return "spotify" to id
             }
         }
-        return null
+
+        val deezerPatterns = listOf(
+            Regex("""deezer\.com/(?:[a-z]{2}/)?playlist/(\d+)"""),
+            Regex("""deezer:playlist:(\d+)"""),
+            Regex("""^(\d+)$""")
+        )
+        for (pattern in deezerPatterns) {
+            val match = pattern.find(trimmed)
+            if (match != null) {
+                return "deezer" to match.groupValues[1]
+            }
+        }
+
+        return "" to null
     }
 
     class Factory : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
             val c = SincApp.instance.container
-            return ImportPlaylistViewModel(c.spotifyClient, c.searchRepository, c.downloadRepository) as T
+            return ImportPlaylistViewModel(c.spotifyClient, c.deezerClient, c.searchRepository, c.downloadRepository) as T
         }
     }
 }
