@@ -14,6 +14,7 @@ import com.sinc.enhanced.data.audio.AudiusAudioResolver
 import com.sinc.enhanced.data.audio.FmaAudioResolver
 import com.sinc.enhanced.data.audio.JamendoAudioResolver
 import com.sinc.enhanced.data.audio.PipedAudioResolver
+import com.sinc.enhanced.data.audio.YtDlpAudioResolver
 import com.sinc.enhanced.data.recommendation.RecommendationEngine
 import com.sinc.enhanced.data.remote.ArtworkClient
 import com.sinc.enhanced.data.sync.RecommendationSyncManager
@@ -97,6 +98,7 @@ class AppContainer(private val context: Context) {
 
     val audioPipeline: AudioResolverPipeline = AudioResolverPipeline(
         resolvers = listOf(
+            YtDlpAudioResolver(),
             PipedAudioResolver(pipedClient),
             AudiusAudioResolver(audiusClient),
             JamendoAudioResolver(jamendoClient),

@@ -24,6 +24,11 @@ The following frontend env vars are inlined at build time (set in `.env` or CI):
 - `VITE_GOOGLE_CLIENT_ID` — Google OAuth client ID
 - `VITE_API_URL` — API base URL (empty for same-origin)
 
+## Env vars for Android app build
+Set in CI or `.env` before building the APK:
+- `BACKEND_URL` — Cloudflare Worker URL for auth/recommendation sync
+- `YTDLP_BACKEND_URL` — FastAPI backend URL for yt-dlp audio resolution (can be empty, falls through to Piped)
+
 ## MCP servers configured
 - `gcloud` — Google Cloud via gcloud CLI (needs `gcloud auth login`)
 - `cloudflare-bindings` — Cloudflare Workers/D1/KV/R2 (needs OAuth login on first use)
@@ -54,6 +59,8 @@ Never commit the `.keystore` file or its passwords to the repo.
 - The `functions/` directory contains CF Pages Functions served at `/api/*`
 - After making changes, run `deploy` to build and push to Cloudflare Pages
 - The FastAPI backend (`api/`) handles downloads while auth/API routes use CF Functions
+- `POST /api/resolve-audio` on the FastAPI backend uses yt-dlp to extract the best audio URL for a track (takes `title`, `artist`, `album`, `isrc`, `duration_ms`; returns `url`, `source`, `title`, `artist`, `duration`, `thumbnail`). Protected by `SPOTDL_API_KEY` (Bearer auth).
+- The Android app's `AudioResolverPipeline` tries `YtDlpAudioResolver` (calls FastAPI `/api/resolve-audio`) first, then falls through to Piped → Audius → Jamendo → FMA
 
 ## Cloudflare Worker (auth/stats backend)
 

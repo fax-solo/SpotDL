@@ -35,6 +35,7 @@ from routes.downloads import router as downloads_router
 from routes.metadata import router as metadata_router
 from routes.sync import router as sync_router
 from routes.scraping import router as scraping_router
+from routes.resolve import router as resolve_router
 from shared import DEBUG_MODE
 from routes.debug import router as debug_router
 from routes.spotify_auth import router as spotify_auth_router
@@ -70,6 +71,7 @@ app.include_router(downloads_router)
 app.include_router(metadata_router)
 app.include_router(sync_router)
 app.include_router(scraping_router)
+app.include_router(resolve_router)
 if DEBUG_MODE:
     app.include_router(debug_router)
 app.include_router(spotify_auth_router)

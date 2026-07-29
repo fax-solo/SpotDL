@@ -425,3 +425,91 @@ def _embed_cover(audio, artwork_url: str, fmt: str):
                 audio["covr"] = [MP4Cover(resp.content, MP4Cover.FORMAT_JPEG)]
     except requests.RequestException as e:
         logger.debug("Failed to embed cover art: %s", e)
+
+
+def resolve_audio(
+    title: str,
+    artist: str,
+    album: str | None = None,
+    isrc: str | None = None,
+    duration_ms: int | None = None,
+) -> dict | None:
+    cache_key = f"resolve:{title}|{artist}|{album or ''}|{isrc or ''}"
+    cached = get_cache(cache_key)
+    if cached:
+        logger.info("resolve_audio: cache hit for '%s'", cache_key)
+        return cached
+
+    logger.info("resolve_audio: searching '%s' by '%s'", title, artist)
+    entries = search_track(f"{artist} {title}", "youtube", "ytsearch1")
+    if not entries:
+        entries = search_track(title, "youtube", "ytsearch1")
+    if not entries:
+        logger.warning("resolve_audio: no results for '%s' by '%s'", title, artist)
+        return None
+
+    best_entry = None
+    for entry in entries:
+        if title_matches(title, artist, entry.get("title"), entry.get("uploader")):
+            best_entry = entry
+            break
+    
+    if not best_entry and entries:
+        for entry in entries:
+            if title_matches(title, "", entry.get("title"), entry.get("uploader")):
+                best_entry = entry
+                break
+    
+    if not best_entry:
+        best_entry = entries[0]
+
+    track_url = best_entry["url"]
+    logger.info("resolve_audio: matched %s -> %s", best_entry.get("title"), track_url)
+
+    try:
+        opts = {
+            **_get_base_opts(),
+            "format": "bestaudio[ext=m4a]/bestaudio",
+            "extract_flat": False,
+            "extractor_args": {
+                "youtube": {
+                    "client": ["android", "ios", "web_music"],
+                    "player_client": ["android", "ios", "web_music"],
+                }
+            },
+        }
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(track_url, download=False)
+            if not info:
+                logger.warning("resolve_audio: extract_info returned None for %s", track_url)
+                return None
+
+            audio_url = info.get("url")
+            if not audio_url:
+                formats = info.get("formats", [])
+                if formats:
+                    audio_fmts = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec") != "none"]
+                    if audio_fmts:
+                        audio_fmts.sort(key=lambda f: f.get("abr", 0) or 0, reverse=True)
+                        audio_url = audio_fmts[0].get("url")
+            
+            if not audio_url:
+                logger.warning("resolve_audio: no audio URL found in extract_info for %s", track_url)
+                return None
+
+            result = {
+                "url": audio_url,
+                "source": "youtube",
+                "title": info.get("title", title),
+                "artist": info.get("uploader", artist),
+                "duration": info.get("duration", 0),
+                "thumbnail": info.get("thumbnail"),
+                "ext": info.get("ext", "m4a"),
+            }
+            set_cache(cache_key, result)
+            logger.info("resolve_audio: success for '%s' by '%s'", title, artist)
+            return result
+
+    except Exception as e:
+        logger.error("resolve_audio: failed for %s: %s", track_url, e)
+        return None
