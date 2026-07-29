@@ -51,8 +51,13 @@ class AuthRepository(
         )
     }
 
-    override val serverUrl: Flow<String> = dataStore.data.map {
-        effectiveUrl(it[KEY_SERVER_URL] ?: "")
+    override val serverUrl: Flow<String> = dataStore.data.map { prefs ->
+        val saved = prefs[KEY_SERVER_URL]
+        if (saved.isNullOrBlank() && defaultUrl.isNotBlank()) {
+            effectiveUrl("")
+        } else {
+            effectiveUrl(saved ?: "")
+        }
     }
 
     private fun effectiveUrl(savedUrl: String): String {
@@ -102,14 +107,14 @@ class AuthRepository(
 
     override suspend fun restoreSession(): Boolean {
         val prefs = dataStore.data.first()
-        val token = prefs[KEY_TOKEN] ?: return false
         val savedUrl = prefs[KEY_SERVER_URL] ?: ""
 
         if (savedUrl.isBlank() && defaultUrl.isNotBlank()) {
             dataStore.edit { it[KEY_SERVER_URL] = defaultUrl }
         }
 
-        val url = effectiveUrl(savedUrl)
+        val token = prefs[KEY_TOKEN] ?: return false
+        val url = effectiveUrl(prefs[KEY_SERVER_URL] ?: "")
         apiClient.configure(url, token)
         if (token.isEmpty() || url.isEmpty()) return false
 
