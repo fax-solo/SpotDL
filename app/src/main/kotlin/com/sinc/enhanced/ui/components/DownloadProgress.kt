@@ -1,10 +1,8 @@
 package com.sinc.enhanced.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -15,8 +13,6 @@ fun DownloadProgress(
     status: String,
     modifier: Modifier = Modifier
 ) {
-    val animatedProgress by animateFloatAsState(targetValue = progress, label = "downloadProgress")
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -24,7 +20,7 @@ fun DownloadProgress(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         LinearProgressIndicator(
-            progress = { animatedProgress },
+            progress = { progress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(4.dp),

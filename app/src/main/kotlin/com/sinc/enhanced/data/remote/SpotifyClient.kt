@@ -226,8 +226,43 @@ class SpotifyClient(private val client: OkHttpClient) {
         return Track.fromSpotify(mapped)
     }
 
+    private suspend fun fetchPageData(url: String): JSONObject? = withContext(Dispatchers.IO) {
+        val html = fetchUrl(url) ?: return@withContext null
+        val matcher = Pattern.compile(
+            """<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""",
+            Pattern.DOTALL
+        ).matcher(html)
+        if (!matcher.find()) return@withContext null
+        try { JSONObject(matcher.group(1) ?: return@withContext null) } catch (_: Exception) { null }
+    }
+
     suspend fun searchAlbums(query: String, limit: Int = 5): List<Album> = withContext(Dispatchers.IO) {
-        emptyList()
+        try { getAnonymousToken() } catch (_: Exception) { return@withContext emptyList() }
+        val vars = JSONObject().apply {
+            put("searchTerm", query); put("offset", 0); put("limit", limit)
+            put("numberOfTopResults", 3); put("includeAudiobooks", false)
+            put("includePreReleases", false); put("includeAlbumPreReleases", false)
+            put("includeAuthors", false); put("includeEpisodeContentRatingsV2", false)
+        }
+        val json = pathfinderGet("searchDesktop", SEARCH_HASH, vars) ?: return@withContext emptyList()
+        val albumsV2 = json.optJSONObject("data")?.optJSONObject("searchV2")?.optJSONObject("albumsV2") ?: return@withContext emptyList()
+        val items = albumsV2.optJSONArray("items") ?: return@withContext emptyList()
+        (0 until items.length()).mapNotNull { i ->
+            val item = items.getJSONObject(i).optJSONObject("item")?.optJSONObject("data") ?: return@mapNotNull null
+            val albumId = item.optString("uri").removePrefix("spotify:album:")
+            val coverArt = item.optJSONObject("coverArt")
+            val coverUrl = coverArt?.optJSONArray("sources")?.optJSONObject(0)?.optString("url")
+            val artists = item.optJSONObject("artists")?.optJSONArray("items") ?: return@mapNotNull null
+            val firstArtist = artists.optJSONObject(0)?.optJSONObject("profile")?.optString("name") ?: "Unknown"
+            val allArtists = (0 until artists.length()).mapNotNull { artists.getJSONObject(it).optJSONObject("profile")?.optString("name") }
+            val date = item.optJSONObject("date")?.optString("isoString")
+            Album(
+                id = albumId, name = item.optString("name"), artist = firstArtist,
+                artists = allArtists, artworkUrl = coverUrl,
+                releaseYear = date?.take(4)?.toIntOrNull(),
+                totalTracks = item.optInt("totalTracks", 0), source = "spotify"
+            )
+        }
     }
 
     suspend fun getPlaylist(playlistId: String): Map<String, Any?>? = withContext(Dispatchers.IO) {
@@ -342,22 +377,114 @@ class SpotifyClient(private val client: OkHttpClient) {
     }
 
     suspend fun getAlbum(albumId: String): Album? = withContext(Dispatchers.IO) {
-        null
+        val page = fetchPageData("https://open.spotify.com/album/$albumId") ?: return@withContext null
+        try {
+            val state = page.getJSONObject("props").getJSONObject("pageProps").getJSONObject("state")
+            val entity = state.getJSONObject("entity") ?: return@withContext null
+            val coverArt = entity.optJSONObject("coverArt")
+            val coverUrl = coverArt?.optJSONArray("sources")?.optJSONObject(0)?.optString("url")
+            val artistsArray = entity.optJSONObject("artists")?.optJSONArray("items") ?: return@withContext null
+            val firstArtist = artistsArray.optJSONObject(0)?.optString("name") ?: "Unknown"
+            val allArtists = (0 until artistsArray.length()).mapNotNull { i -> artistsArray.optJSONObject(i)?.optString("name") }
+            val tracksList = entity.optJSONObject("tracks")?.optJSONArray("items") ?: JSONArray()
+            val tracks = (0 until tracksList.length()).mapNotNull { i ->
+                val td = tracksList.getJSONObject(i)
+                val trackUri = td.optString("uri")
+                if (trackUri.isEmpty()) return@mapNotNull null
+                Track(
+                    id = trackUri.removePrefix("spotify:track:"),
+                    title = td.optString("name"), artist = firstArtist, album = entity.optString("name"),
+                    durationMs = td.optLong("duration", 0), artworkUrl = coverUrl, source = "spotify",
+                    trackNumber = td.optInt("trackNumber", 0)
+                )
+            }
+            Album(
+                id = albumId, name = entity.optString("name"), artist = firstArtist,
+                artists = allArtists, artworkUrl = coverUrl,
+                releaseYear = entity.optString("releaseDate", "").take(4).toIntOrNull(),
+                totalTracks = entity.optInt("totalTracks", tracks.size), tracks = tracks, source = "spotify"
+            )
+        } catch (e: Exception) { Log.e("SpotifyClient", "getAlbum failed", e); null }
     }
 
     suspend fun searchArtists(query: String, limit: Int = 5): List<Artist> = withContext(Dispatchers.IO) {
-        emptyList()
+        try { getAnonymousToken() } catch (_: Exception) { return@withContext emptyList() }
+        val vars = JSONObject().apply {
+            put("searchTerm", query); put("offset", 0); put("limit", 5)
+            put("numberOfTopResults", 3); put("includeAudiobooks", false)
+            put("includePreReleases", false); put("includeAlbumPreReleases", false)
+            put("includeAuthors", false); put("includeEpisodeContentRatingsV2", false)
+        }
+        val json = pathfinderGet("searchDesktop", SEARCH_HASH, vars) ?: return@withContext emptyList()
+        val artistsV2 = json.optJSONObject("data")?.optJSONObject("searchV2")?.optJSONObject("artistsV2") ?: return@withContext emptyList()
+        val items = artistsV2.optJSONArray("items") ?: return@withContext emptyList()
+        (0 until items.length()).mapNotNull { i ->
+            val artistData = items.getJSONObject(i).optJSONObject("item")?.optJSONObject("data") ?: return@mapNotNull null
+            val image = artistData.optJSONObject("visuals")?.optJSONArray("avatarImage")?.optJSONObject(0)
+                ?.optJSONArray("sources")?.optJSONObject(0)?.optString("url")
+            Artist(
+                id = artistData.optString("uri").removePrefix("spotify:artist:"),
+                name = artistData.optJSONObject("profile")?.optString("name") ?: "Unknown",
+                imageUrl = image, genres = emptyList()
+            )
+        }
     }
 
     suspend fun getArtist(artistId: String): Artist? = withContext(Dispatchers.IO) {
-        null
+        val page = fetchPageData("https://open.spotify.com/artist/$artistId") ?: return@withContext null
+        try {
+            val state = page.getJSONObject("props").getJSONObject("pageProps").getJSONObject("state")
+            val entity = state.getJSONObject("entity") ?: return@withContext null
+            val visuals = entity.optJSONArray("visuals")?.optJSONObject(0)?.optJSONArray("sources")
+            val imageUrl = visuals?.optJSONObject(0)?.optString("url")
+            val genresArr = entity.optJSONArray("genres") ?: JSONArray()
+            val genres = (0 until genresArr.length()).mapNotNull { genresArr.optString(it, null)?.ifEmpty { null } }
+            Artist(
+                id = artistId, name = entity.optString("name") ?: "Unknown",
+                imageUrl = imageUrl, genres = genres,
+                followers = entity.optInt("followers", 0), popularity = entity.optInt("popularity", 0)
+            )
+        } catch (e: Exception) { Log.e("SpotifyClient", "getArtist failed", e); null }
     }
 
     suspend fun getArtistTopTracks(artistId: String, market: String = "US"): List<Track> = withContext(Dispatchers.IO) {
-        emptyList()
+        val page = fetchPageData("https://open.spotify.com/artist/$artistId") ?: return@withContext emptyList()
+        try {
+            val state = page.getJSONObject("props").getJSONObject("pageProps").getJSONObject("state")
+            val entity = state.getJSONObject("entity") ?: return@withContext emptyList()
+            val discography = entity.optJSONObject("discography")?.optJSONObject("topTracks")
+                ?: entity.optJSONObject("discography")
+            val items = discography?.optJSONArray("items") ?: return@withContext emptyList()
+            val artistName = entity.optString("name")
+            (0 until items.length()).mapNotNull { i ->
+                val td = items.getJSONObject(i)
+                val trackData = td.optJSONObject("track") ?: td
+                val uri = trackData.optString("uri")
+                if (uri.isEmpty()) return@mapNotNull null
+                val albumData = trackData.optJSONObject("album")
+                Track(
+                    id = uri.removePrefix("spotify:track:"), title = trackData.optString("name"),
+                    artist = artistName, album = albumData?.optString("name") ?: "Unknown",
+                    durationMs = trackData.optLong("duration", 0),
+                    artworkUrl = albumData?.optJSONObject("coverArt")?.optJSONArray("sources")?.optJSONObject(0)?.optString("url"),
+                    source = "spotify"
+                )
+            }
+        } catch (e: Exception) { Log.e("SpotifyClient", "getArtistTopTracks failed", e); emptyList() }
     }
 
     suspend fun getRelatedArtists(artistId: String): List<Artist> = withContext(Dispatchers.IO) {
-        emptyList()
+        val page = fetchPageData("https://open.spotify.com/artist/$artistId") ?: return@withContext emptyList()
+        try {
+            val state = page.getJSONObject("props").getJSONObject("pageProps").getJSONObject("state")
+            val entity = state.getJSONObject("entity") ?: return@withContext emptyList()
+            val related = entity.optJSONObject("relatedContent")?.optJSONArray("artists") ?: return@withContext emptyList()
+            (0 until related.length()).mapNotNull { i ->
+                val r = related.getJSONObject(i)
+                val visuals = r.optJSONArray("visuals")?.optJSONObject(0)?.optJSONArray("sources")
+                Artist(id = r.optString("id"), name = r.optString("name"),
+                    imageUrl = visuals?.optJSONObject(0)?.optString("url"))
+            }
+        } catch (e: Exception) { Log.e("SpotifyClient", "getRelatedArtists failed", e); emptyList() }
     }
 }

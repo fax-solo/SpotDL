@@ -363,9 +363,14 @@ class MusicPlayer(private val context: Context) : PlayerController {
         positionJob?.cancel()
         if (player.playWhenReady && player.playbackState != Player.STATE_ENDED) {
             positionJob = scope.launch {
+                var lastPosition = -1L
                 while (isActive) {
-                    updateState()
-                    delay(250)
+                    val pos = player.currentPosition
+                    if (pos != lastPosition) {
+                        lastPosition = pos
+                        updateState()
+                    }
+                    delay(500)
                 }
             }
         }

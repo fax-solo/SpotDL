@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.sinc.enhanced.data.model.Track
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -73,7 +75,13 @@ fun TrackItem(
                     alpha = 1f
                 }
                 Image(
-                        painter = rememberAsyncImagePainter(track.artworkUrl ?: ""),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(track.artworkUrl ?: "")
+                            .size(96)
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = "${track.title} by ${track.artist}",
                     modifier = Modifier
                         .size(48.dp)

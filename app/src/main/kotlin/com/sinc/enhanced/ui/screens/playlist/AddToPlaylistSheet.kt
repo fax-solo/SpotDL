@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.entity.PlaylistEntity
 import com.sinc.enhanced.data.model.Track
@@ -28,7 +29,7 @@ fun AddToPlaylistSheet(
 ) {
     val scope = rememberCoroutineScope()
     val repo = remember { SincApp.instance.container.playlistRepository }
-    val playlists by repo.allPlaylists.collectAsState(initial = emptyList())
+    val playlists by repo.allPlaylists.collectAsStateWithLifecycle(initialValue = emptyList())
     var showCreate by remember { mutableStateOf(false) }
     var addedConfirmation by remember { mutableStateOf(false) }
 

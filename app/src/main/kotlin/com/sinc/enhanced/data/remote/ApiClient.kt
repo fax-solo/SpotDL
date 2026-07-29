@@ -136,8 +136,8 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
     suspend fun getAdminUsers(): List<JSONObject>? {
         val json = getArray("/api/admin/users") ?: return null
         return try {
-            val arr = JSONObject("{\"items\":$json}").optJSONArray("items")
-            if (arr == null) null else (0 until arr.length()).map { arr.getJSONObject(it) }
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { arr.getJSONObject(it) }
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { Log.e("ApiClient", "getAdminUsers failed", e); null }
     }
@@ -164,7 +164,7 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
     suspend fun getPlays(): List<PlayCountPayload>? {
         return try {
             val json = getArray("/api/recommendations/plays") ?: return null
-            val arr = JSONArray(json)
+            val arr = try { JSONArray(json) } catch (_: Exception) { return null }
             (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
                 PlayCountPayload(

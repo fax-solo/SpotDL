@@ -19,6 +19,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun PlayerMiniBar(
@@ -49,7 +51,13 @@ fun PlayerMiniBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (artworkUrl != null) {
-                    val painter = rememberAsyncImagePainter(artworkUrl)
+                    val painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(artworkUrl)
+                            .size(80)
+                            .crossfade(true)
+                            .build()
+                    )
                     val state = painter.state
                     if (state is AsyncImagePainter.State.Success || state is AsyncImagePainter.State.Loading) {
                         Image(

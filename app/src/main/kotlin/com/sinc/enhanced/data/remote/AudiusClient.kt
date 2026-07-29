@@ -64,14 +64,17 @@ class AudiusClient(private val client: OkHttpClient) {
                 (0 until minOf(tracks.length(), limit)).mapNotNull { i ->
                     val item = tracks.getJSONObject(i)
                     val user = item.optJSONObject("user")
+                    val trackId = item.optString("track_id").ifEmpty { item.optString("id") }
+                    if (trackId.isEmpty() && item.optString("id").isEmpty()) return@mapNotNull null
                     AudiusTrack(
-                        id = item.optString("track_id") ?: item.optString("id"),
-                        title = item.optString("title"),
-                        artist = user?.optString("name") ?: item.optString("handle") ?: "Unknown",
-                        duration = item.optLong("duration") ?: 0L,
+                        id = trackId,
+                        title = item.optString("title", ""),
+                        artist = user?.optString("name")?.ifEmpty { null } ?: item.optString("handle", "Unknown"),
+                        duration = item.optLong("duration", 0L),
                         artworkUrl = item.optString("artwork").ifEmpty { null },
-                        streamUrl = item.optString("download_url")
-                            ?: "$node/v1/tracks/${item.optString("track_id") ?: item.optString("id")}/stream?app_name=SincEnhanced",
+                        streamUrl = item.optString("download_url").ifEmpty {
+                            "$node/v1/tracks/$trackId/stream?app_name=SincEnhanced"
+                        },
                         genre = item.optString("genre").ifEmpty { null }
                     )
                 }

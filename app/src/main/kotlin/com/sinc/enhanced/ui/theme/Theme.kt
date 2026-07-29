@@ -29,7 +29,7 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun SincEnhancedTheme(
-    dynamicColor: Boolean = false,
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

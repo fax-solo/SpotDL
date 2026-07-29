@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 
 class LyricsClient(
@@ -128,7 +129,7 @@ class LyricsClient(
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
                 val body = response.body?.string() ?: return@use null
-                val arr = JSONObject("{\"items\":$body}").optJSONArray("items") ?: return@use null
+                val arr = try { JSONArray(body) } catch (_: Exception) { return@use null }
                 if (arr.length() == 0) return@use null
                 val json = arr.getJSONObject(0)
                 LyricsResult(
@@ -204,7 +205,7 @@ class LyricsClient(
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use emptyList()
                 val body = response.body?.string() ?: return@use emptyList()
-                val arr = JSONObject("{\"items\":$body}").optJSONArray("items") ?: return@use emptyList()
+                val arr = try { JSONArray(body) } catch (_: Exception) { return@use emptyList() }
                 (0 until arr.length()).mapNotNull { i ->
                     val json = arr.getJSONObject(i)
                     LyricsResult(

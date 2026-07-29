@@ -22,6 +22,10 @@ class DeezerClient(private val client: OkHttpClient) {
         catch (e: Exception) { Log.e("DeezerClient", "deezerGet failed", e); null }
     }
 
+    companion object {
+        const val DEFAULT_ARTWORK_SIZE = "cover_big"
+    }
+
     data class DeezerTrack(
         val id: Long,
         val title: String,
@@ -30,7 +34,8 @@ class DeezerClient(private val client: OkHttpClient) {
         val duration: Int,
         val previewUrl: String?,
         val artworkUrl: String?,
-        val isrc: String?
+        val isrc: String?,
+        val releaseDate: String? = null
     )
 
     data class DeezerPlaylist(
@@ -58,8 +63,9 @@ class DeezerClient(private val client: OkHttpClient) {
                     album = album.getString("title"),
                     duration = item.getInt("duration"),
                     previewUrl = item.optString("preview", null),
-                    artworkUrl = album.optString("cover_medium", album.optString("cover", null)),
-                    isrc = item.optString("isrc", null)
+                    artworkUrl = album.optString("cover_big", album.optString("cover_medium", album.optString("cover", null))),
+                    isrc = item.optString("isrc", null),
+                    releaseDate = album.optString("release_date", null)
                 )
             } catch (e: Exception) { Log.e("DeezerClient", "searchTracks item failed", e); null }
         }
@@ -77,8 +83,9 @@ class DeezerClient(private val client: OkHttpClient) {
                 album = album.getString("title"),
                 duration = json.getInt("duration"),
                 previewUrl = json.optString("preview", null),
-                artworkUrl = album.optString("cover_medium", album.optString("cover", null)),
-                isrc = json.optString("isrc", null)
+                artworkUrl = album.optString("cover_big", album.optString("cover_medium", album.optString("cover", null))),
+                isrc = json.optString("isrc", null),
+                releaseDate = album.optString("release_date", null)
             )
         } catch (e: Exception) { Log.e("DeezerClient", "getTrack failed", e); null }
     }
@@ -95,8 +102,9 @@ class DeezerClient(private val client: OkHttpClient) {
                 album = album.getString("title"),
                 duration = json.getInt("duration"),
                 previewUrl = json.optString("preview", null),
-                artworkUrl = album.optString("cover_medium", album.optString("cover", null)),
-                isrc = json.optString("isrc", null)
+                artworkUrl = album.optString("cover_big", album.optString("cover_medium", album.optString("cover", null))),
+                isrc = json.optString("isrc", null),
+                releaseDate = album.optString("release_date", null)
             )
         } catch (e: Exception) { Log.e("DeezerClient", "getTrackByIsrc failed", e); null }
     }
@@ -131,8 +139,9 @@ class DeezerClient(private val client: OkHttpClient) {
                     album = album.getString("title"),
                     duration = item.getInt("duration"),
                     previewUrl = item.optString("preview", null),
-                    artworkUrl = album.optString("cover_medium", album.optString("cover", null)),
-                    isrc = item.optString("isrc", null)
+                    artworkUrl = album.optString("cover_big", album.optString("cover_medium", album.optString("cover", null))),
+                    isrc = item.optString("isrc", null),
+                    releaseDate = album.optString("release_date", null)
                 )
             } catch (e: Exception) { Log.e("DeezerClient", "getPlaylistTracks item failed", e); null }
         }

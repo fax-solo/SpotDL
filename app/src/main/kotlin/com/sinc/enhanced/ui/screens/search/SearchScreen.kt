@@ -41,8 +41,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.entity.SearchHistoryEntity
 import com.sinc.enhanced.data.model.Album
@@ -51,6 +53,8 @@ import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.domain.music.SearchResult
 import com.sinc.enhanced.ui.components.SearchBar
 import com.sinc.enhanced.ui.components.TrackItem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -249,7 +253,7 @@ private fun renderEmptyState(
                         }
                     }
                 }
-                items(searchHistoryList) { entry ->
+                items(searchHistoryList, key = { it.query }) { entry ->
                     SearchHistoryItem(
                         entry = entry,
                         onClick = { viewModel.onSearch(entry.query) }
@@ -330,12 +334,26 @@ private fun renderResults(
                     onPlay = {
                         val url = uiState.resolvedAudioUrls[topResult.track.id]?.first
                             ?: topResult.audioUrl
-                        if (url != null) onPlayTrack(topResult.track, url)
+                        if (url != null) {
+                            onPlayTrack(topResult.track, url)
+                        } else {
+                            viewModel.viewModelScope.launch {
+                                val resolved = viewModel.resolveAudioUrl(topResult.track)
+                                if (resolved != null) onPlayTrack(topResult.track, resolved.first)
+                            }
+                        }
                     },
                     onDownload = {
                         val url = uiState.resolvedAudioUrls[topResult.track.id]?.first
                             ?: topResult.audioUrl
-                        if (url != null) onDownloadTrack(topResult.track, url)
+                        if (url != null) {
+                            onDownloadTrack(topResult.track, url)
+                        } else {
+                            viewModel.viewModelScope.launch {
+                                val resolved = viewModel.resolveAudioUrl(topResult.track)
+                                if (resolved != null) onDownloadTrack(topResult.track, resolved.first)
+                            }
+                        }
                     }
                 )
             }
@@ -398,19 +416,29 @@ private fun renderResults(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             SourceBadge(enriched.track.source)
                             Spacer(Modifier.width(4.dp))
-                            if (displayUrl != null) {
-                                IconButton(onClick = { onPlayTrack(enriched.track, displayUrl) }) {
-                                    Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                            IconButton(onClick = {
+                                if (displayUrl != null) {
+                                    onPlayTrack(enriched.track, displayUrl)
+                                } else {
+                                    viewModel.viewModelScope.launch {
+                                        val resolved = viewModel.resolveAudioUrl(enriched.track)
+                                        if (resolved != null) onPlayTrack(enriched.track, resolved.first)
+                                    }
                                 }
-                                IconButton(onClick = { onDownloadTrack(enriched.track, displayUrl) }) {
-                                    Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)
+                            }) {
+                                Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = {
+                                if (displayUrl != null) {
+                                    onDownloadTrack(enriched.track, displayUrl)
+                                } else {
+                                    viewModel.viewModelScope.launch {
+                                        val resolved = viewModel.resolveAudioUrl(enriched.track)
+                                        if (resolved != null) onDownloadTrack(enriched.track, resolved.first)
+                                    }
                                 }
-                            } else {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp).padding(2.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                            }) {
+                                Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -448,19 +476,29 @@ private fun renderResults(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             SourceBadge(enriched.track.source)
                             Spacer(Modifier.width(4.dp))
-                            if (displayUrl != null) {
-                                IconButton(onClick = { onPlayTrack(enriched.track, displayUrl) }) {
-                                    Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                            IconButton(onClick = {
+                                if (displayUrl != null) {
+                                    onPlayTrack(enriched.track, displayUrl)
+                                } else {
+                                    viewModel.viewModelScope.launch {
+                                        val resolved = viewModel.resolveAudioUrl(enriched.track)
+                                        if (resolved != null) onPlayTrack(enriched.track, resolved.first)
+                                    }
                                 }
-                                IconButton(onClick = { onDownloadTrack(enriched.track, displayUrl) }) {
-                                    Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)
+                            }) {
+                                Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = {
+                                if (displayUrl != null) {
+                                    onDownloadTrack(enriched.track, displayUrl)
+                                } else {
+                                    viewModel.viewModelScope.launch {
+                                        val resolved = viewModel.resolveAudioUrl(enriched.track)
+                                        if (resolved != null) onDownloadTrack(enriched.track, resolved.first)
+                                    }
                                 }
-                            } else {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp).padding(2.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                            }) {
+                                Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -572,7 +610,13 @@ private fun TopResultCard(
         ) {
             if (track.artworkUrl != null) {
                 Image(
-                    painter = rememberAsyncImagePainter(track.artworkUrl ?: ""),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(track.artworkUrl ?: "")
+                            .size(128)
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = null,
                     modifier = Modifier
                         .size(64.dp)
@@ -720,7 +764,13 @@ private fun AlbumInlineItem(
             ) {
                 if (album.artworkUrl != null) {
                     Image(
-                        painter = rememberAsyncImagePainter(album.artworkUrl ?: ""),
+                        painter = rememberAsyncImagePainter(
+                            ImageRequest.Builder(LocalContext.current)
+                                .data(album.artworkUrl ?: "")
+                                .size(112)
+                                .crossfade(true)
+                                .build()
+                        ),
                         contentDescription = null,
                         modifier = Modifier
                             .size(56.dp)
@@ -934,7 +984,13 @@ private fun ArtistCard(artist: Artist, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (artist.imageUrl != null) {
                 Image(
-                    painter = rememberAsyncImagePainter(artist.imageUrl ?: ""),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(artist.imageUrl ?: "")
+                            .size(240)
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = null,
                     modifier = Modifier.size(120.dp).clip(CircleShape),
                     contentScale = ContentScale.Crop

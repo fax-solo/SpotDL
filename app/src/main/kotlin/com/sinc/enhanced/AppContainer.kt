@@ -82,7 +82,7 @@ class AppContainer(private val context: Context) {
     val cacheManager: CacheManager = CacheManager(database.cacheDao())
 
     val apiClient: ApiClient = ApiClient(okHttpClient)
-    val authRepository: AuthRepository = AuthRepository(dataStore, apiClient, BuildConfig.BACKEND_URL)
+    val authRepository: AuthRepository = AuthRepository(context, dataStore, apiClient, BuildConfig.BACKEND_URL)
 
     val spotifyClient: SpotifyClient = SpotifyClient(okHttpClient)
     val deezerClient: DeezerClient = DeezerClient(okHttpClient)
@@ -98,11 +98,11 @@ class AppContainer(private val context: Context) {
 
     val audioPipeline: AudioResolverPipeline = AudioResolverPipeline(
         resolvers = listOf(
-            YtDlpAudioResolver(),
             PipedAudioResolver(pipedClient),
             AudiusAudioResolver(audiusClient),
             JamendoAudioResolver(jamendoClient),
-            FmaAudioResolver(fmaClient)
+            FmaAudioResolver(fmaClient),
+            YtDlpAudioResolver()
         ),
         overallTimeoutMs = 6000L
     )

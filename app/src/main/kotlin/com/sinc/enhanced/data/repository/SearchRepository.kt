@@ -22,7 +22,6 @@ import com.sinc.enhanced.data.util.SearchCache
 import com.sinc.enhanced.data.util.robustCall
 import com.sinc.enhanced.domain.music.SearchResult
 import com.sinc.enhanced.domain.repository.SearchRepository as SearchRepositoryInterface
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -30,7 +29,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
@@ -79,11 +77,11 @@ class SearchRepository(
         emit(searchAllInternal(normalized).asResults())
     }
 
-    private suspend fun searchAllInternal(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
+    private suspend fun searchAllInternal(query: String): List<EnrichedTrack> {
         val normalized = query.trim()
-        if (normalized.isEmpty()) return@withContext emptyList()
+        if (normalized.isEmpty()) return emptyList()
 
-        enrichedCache.get(normalized)?.let { return@withContext it }
+        enrichedCache.get(normalized)?.let { return it }
 
         val roomCached = cacheDao.get("search:$normalized")
         if (roomCached != null) {
@@ -92,7 +90,7 @@ class SearchRepository(
                     enrichedCache.put(normalized, it)
                 }
                 if (roomCached.expiresAt > System.currentTimeMillis()) {
-                    return@withContext cached
+                    return cached
                 }
             } catch (_: Exception) {
                 cacheDao.remove("search:$normalized")
@@ -102,9 +100,9 @@ class SearchRepository(
         try {
             val results = withTimeout(30000L) { searchAllUncached(normalized) }
             cacheDao.put(CacheEntryEntity("search:$normalized", serializeEnrichedTracks(results), System.currentTimeMillis() + 900_000L))
-            results
+            return results
         } catch (e: TimeoutCancellationException) {
-            Log.e("SearchRepository", "searchAllInternal timeout", e); emptyList()
+            Log.e("SearchRepository", "searchAllInternal timeout", e); return emptyList()
         }
     }
 
@@ -152,65 +150,45 @@ class SearchRepository(
         }
     }
 
-    private suspend fun searchAllUncached(normalized: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
-
-        val audiusOn = settingsManager.audiusEnabled.first()
-        val jamendoOn = settingsManager.jamendoEnabled.first()
-        val fmaOn = settingsManager.fmaEnabled.first()
-        val bandcampOn = settingsManager.bandcampEnabled.first()
+    private suspend fun searchAllUncached(normalized: String): List<EnrichedTrack> = coroutineScope {
+        val results = mutableListOf<EnrichedTrack>()
 
         val spotifyDeferred = async { robustCall(label = "spotify") { spotifyClient.searchTracks(normalized) } }
-        val pipedDeferred = async { robustCall(label = "piped") { pipedClient.search(normalized, limit = 10) } }
         val deezerDeferred = async { robustCall(label = "deezer") { deezerClient.searchTracks(normalized) } }
 
-        val additionalDeferred: kotlinx.coroutines.Deferred<List<EnrichedTrack>> = async {
-            val deferreds = mutableListOf<kotlinx.coroutines.Deferred<List<EnrichedTrack>?>>()
-            if (audiusOn) deferreds.add(async { robustCall(label = "audius") { searchAudius(normalized) } })
-            if (jamendoOn) deferreds.add(async { robustCall(label = "jamendo") { searchJamendo(normalized) } })
-            if (fmaOn) deferreds.add(async { robustCall(label = "fma") { searchFma(normalized) } })
-            deferreds.add(async { robustCall(label = "soundcloud") { searchSoundCloud(normalized) } })
-            if (bandcampOn) deferreds.add(async { robustCall(label = "bandcamp") { searchBandcamp(normalized) } })
-            deferreds.awaitAll().filterNotNull().flatten()
-        }
-
         val spotifyTracks = spotifyDeferred.await() ?: emptyList()
-        val pipedResults = pipedDeferred.await() ?: emptyList()
-        val deezerResults = deezerDeferred.await() ?: emptyList()
-        val additional = additionalDeferred.await()
+        results.addAll(spotifyTracks.map { EnrichedTrack(it, null, null, 0.5f) })
 
-        val deezerEnriched = deezerResults.map { d ->
+        val deezerResults = deezerDeferred.await() ?: emptyList()
+        results.addAll(deezerResults.map { d ->
             EnrichedTrack(
                 Track(id = "dz_${d.id}", title = d.title, artist = d.artist, album = d.album,
                     durationMs = d.duration * 1000L, artworkUrl = d.artworkUrl, isrc = d.isrc, source = "deezer"),
                 null, null, 0.4f
             )
-        }
+        })
 
-        val spotifyEnriched = spotifyTracks.map { track ->
-            EnrichedTrack(track, null, null, 0.5f)
-        }
-
-        val youtubeResults = pipedResults.take(5).map { yt ->
-            async {
-                try {
-                    val stream = robustCall(timeoutMs = 8000, label = "yt_stream") { pipedClient.getStreams(yt.videoId) }
-                    if (stream != null) {
-                        val audioUrl = stream.audioTrackUrl ?: stream.url
-                        if (audioUrl.isEmpty()) return@async null
-                        EnrichedTrack(
-                            track = Track(id = "yt_${yt.videoId}", title = yt.title, artist = yt.uploader,
-                                album = yt.uploader, durationMs = yt.duration * 1000, artworkUrl = yt.thumbnailUrl, source = "youtube"),
-                            audioUrl = audioUrl, audioSource = "youtube", confidence = 0.9f
-                        )
-                    } else null
-                } catch (e: Exception) { Log.e("SearchRepository", "youtube stream failed", e); null }
+        if (results.size < 5) {
+            val pipedResults = robustCall(label = "piped") { pipedClient.search(normalized, limit = 5) }
+            if (pipedResults != null) {
+                results.addAll(pipedResults.map { yt ->
+                    EnrichedTrack(
+                        track = Track(id = "yt_${yt.videoId}", title = yt.title, artist = yt.uploader,
+                            album = yt.uploader, durationMs = yt.duration * 1000, artworkUrl = yt.thumbnailUrl, source = "youtube"),
+                        null, null, 0.3f
+                    )
+                })
             }
-        }.awaitAll().filterNotNull()
+        }
+
+        if (results.size < 5) {
+            val fallbackResult = runFallbackSource(normalized)
+            if (fallbackResult != null) results.addAll(fallbackResult)
+        }
 
         val seenIds = mutableSetOf<String>()
         val seenTitleArtist = mutableSetOf<String>()
-        val all = spotifyEnriched + deezerEnriched + youtubeResults + additional
-        val results = all.filter { enriched ->
+        results.filter { enriched ->
             val idKey = enriched.track.id
             if (idKey in seenIds) return@filter false
             val taKey = "${enriched.track.title.lowercase().trim()}|${enriched.track.artist.lowercase().trim()}"
@@ -218,16 +196,30 @@ class SearchRepository(
             seenIds.add(idKey)
             seenTitleArtist.add(taKey)
             true
-        }.sortedByDescending { e -> e.confidence }
+        }.sortedByDescending { e -> e.confidence }.also {
+            enrichedCache.put(normalized, it)
+        }
+    }
 
-        enrichedCache.put(normalized, results)
-        results
+    private suspend fun runFallbackSource(query: String): List<EnrichedTrack>? {
+        val audiusOn = settingsManager.audiusEnabled.first()
+        val jamendoOn = settingsManager.jamendoEnabled.first()
+        val fmaOn = settingsManager.fmaEnabled.first()
+        val bandcampOn = settingsManager.bandcampEnabled.first()
+
+        return when {
+            audiusOn -> try { searchAudius(query) } catch (_: Exception) { null }
+            jamendoOn -> try { searchJamendo(query) } catch (_: Exception) { null }
+            fmaOn -> try { searchFma(query) } catch (_: Exception) { null }
+            bandcampOn -> try { searchBandcamp(query) } catch (_: Exception) { null }
+            else -> try { searchSoundCloud(query) } catch (_: Exception) { null }
+        }
     }
 
     override suspend fun searchYouTubeOnly(query: String): List<SearchResult> = searchYouTubeOnlyInternal(query).asResults()
 
-    private suspend fun searchYouTubeOnlyInternal(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
-        val results = robustCall(label = "piped_search") { pipedClient.search(query) } ?: return@withContext emptyList()
+    private suspend fun searchYouTubeOnlyInternal(query: String): List<EnrichedTrack> = coroutineScope {
+        val results = robustCall(label = "piped_search") { pipedClient.search(query) } ?: return@coroutineScope emptyList()
         results.map { yt ->
             async {
                 try {
@@ -358,11 +350,11 @@ class SearchRepository(
         }
     }
 
-    override suspend fun findBestAudioForTrack(track: Track): Pair<String, String>? = withContext(Dispatchers.IO) {
-        audioUrlCache.get(track.id)?.firstOrNull()?.let { return@withContext it }
+    override suspend fun findBestAudioForTrack(track: Track): Pair<String, String>? {
+        audioUrlCache.get(track.id)?.firstOrNull()?.let { return it }
 
         try {
-            withTimeout(6000L) {
+            return withTimeout(6000L) {
                 val result = audioPipeline.resolve(track)
                     ?: if (track.previewUrl != null && track.previewUrl.startsWith("http")) {
                         Pair(track.previewUrl, track.source)
@@ -372,7 +364,7 @@ class SearchRepository(
                 result
             }
         } catch (e: TimeoutCancellationException) {
-            Log.e("SearchRepository", "findBestAudioForTrack timeout", e); null
+            Log.e("SearchRepository", "findBestAudioForTrack timeout", e); return null
         }
     }
 
@@ -382,12 +374,12 @@ class SearchRepository(
         audioUrlCache.invalidateAll()
     }
 
-    override suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
-        spotifyClient.searchAlbums(query) ?: emptyList()
+    override suspend fun searchAlbums(query: String): List<Album> {
+        return spotifyClient.searchAlbums(query) ?: emptyList()
     }
 
-    override suspend fun getAlbum(albumId: String): Album? = withContext(Dispatchers.IO) {
-        spotifyClient.getAlbum(albumId)
+    override suspend fun getAlbum(albumId: String): Album? {
+        return spotifyClient.getAlbum(albumId)
     }
 
     override fun classifyQuery(query: String): QueryType {
@@ -408,23 +400,23 @@ class SearchRepository(
         return QueryType.GENERIC
     }
 
-    override suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
-        spotifyClient.searchArtists(query) ?: emptyList()
+    override suspend fun searchArtists(query: String): List<Artist> {
+        return spotifyClient.searchArtists(query) ?: emptyList()
     }
 
-    override suspend fun getArtist(artistId: String): Artist? = withContext(Dispatchers.IO) {
-        spotifyClient.getArtist(artistId)
+    override suspend fun getArtist(artistId: String): Artist? {
+        return spotifyClient.getArtist(artistId)
     }
 
-    override suspend fun getArtistTopTracks(artistId: String): List<Track> = withContext(Dispatchers.IO) {
-        spotifyClient.getArtistTopTracks(artistId) ?: emptyList()
+    override suspend fun getArtistTopTracks(artistId: String): List<Track> {
+        return spotifyClient.getArtistTopTracks(artistId) ?: emptyList()
     }
 
-    override suspend fun getRelatedArtists(artistId: String): List<Artist> = withContext(Dispatchers.IO) {
-        spotifyClient.getRelatedArtists(artistId) ?: emptyList()
+    override suspend fun getRelatedArtists(artistId: String): List<Artist> {
+        return spotifyClient.getRelatedArtists(artistId) ?: emptyList()
     }
 
-    override suspend fun getTrack(trackId: String): Track? = withContext(Dispatchers.IO) {
-        robustCall(label = "spotify_track") { spotifyClient.getTrack(trackId) }
+    override suspend fun getTrack(trackId: String): Track? {
+        return robustCall(label = "spotify_track") { spotifyClient.getTrack(trackId) }
     }
 }

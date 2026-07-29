@@ -11,8 +11,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +37,6 @@ fun TrackDetailScreen(
     onDownloadTrack: ((Track, String) -> Unit)? = null,
     onNavigateArtist: (String) -> Unit,
     onNavigateBack: () -> Unit,
-    onTrackRadio: ((String) -> Unit)? = null,
     viewModel: TrackDetailViewModel = viewModel(factory = TrackDetailViewModel.Factory(trackId))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -93,7 +92,13 @@ fun TrackDetailScreen(
                         ) {
                             if (artworkUrl != null) {
                                 Image(
-                                    painter = rememberAsyncImagePainter(artworkUrl),
+                                    painter = rememberAsyncImagePainter(
+                                        ImageRequest.Builder(LocalContext.current)
+                                            .data(artworkUrl)
+                                            .size(500)
+                                            .crossfade(true)
+                                            .build()
+                                    ),
                                     contentDescription = null,
                                     modifier = Modifier.size(250.dp).clip(RoundedCornerShape(24.dp)),
                                     contentScale = ContentScale.Crop
@@ -124,18 +129,23 @@ fun TrackDetailScreen(
                             }
                             Text(track.durationFormatted, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(8.dp))
-                            val playUrl = uiState.audioUrl ?: track.previewUrl
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (playUrl != null) {
-                                    Button(onClick = { onPlayTrack(track, playUrl) }) {
+                                Button(
+                                    onClick = { viewModel.playOrResolve(onPlayTrack) },
+                                    enabled = !uiState.isResolving
+                                ) {
+                                    if (uiState.isResolving) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    } else {
                                         Icon(Icons.Default.PlayArrow, null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Listen")
                                     }
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(if (uiState.isResolving) "Resolving..." else "Listen")
                                 }
-                                if (playUrl != null) {
+                                val downloadUrl = uiState.audioUrl ?: track.previewUrl
+                                if (downloadUrl != null) {
                                     OutlinedButton(
-                                        onClick = { viewModel.download(playUrl) },
+                                        onClick = { viewModel.download(downloadUrl) },
                                         enabled = !uiState.isDownloading
                                     ) {
                                         if (uiState.isDownloading) {
@@ -147,75 +157,11 @@ fun TrackDetailScreen(
                                         Text("Download")
                                     }
                                 }
-                                if (onTrackRadio != null) {
-                                    OutlinedButton(onClick = { onTrackRadio("${track.title} ${track.artist}") }, shape = RoundedCornerShape(8.dp)) {
-                                        Icon(Icons.Default.Radio, null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Track Radio")
-                                    }
-                                }
                             }
                         }
                     }
 
                     val artist = uiState.artist
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Lyrics", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
-                            if (uiState.lyrics == null) {
-                                TextButton(onClick = viewModel::retryLyrics) {
-                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("Retry")
-                                }
-                            }
-                        }
-                    }
-                    if (uiState.lyrics != null) {
-                        item {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant
-                            ) {
-                                Text(
-                                    text = uiState.lyrics ?: "",
-                                    modifier = Modifier.padding(16.dp),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                    } else {
-                        item {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "No lyrics found",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        text = "Tap retry to search again",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
                     if (artist != null) {
                         item {
                             Text("Artist", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
@@ -232,7 +178,13 @@ fun TrackDetailScreen(
                                 ) {
                                     if (artist.imageUrl != null) {
                                         Image(
-                                            painter = rememberAsyncImagePainter(artist.imageUrl),
+                                            painter = rememberAsyncImagePainter(
+                                                ImageRequest.Builder(LocalContext.current)
+                                                    .data(artist.imageUrl)
+                                                    .size(112)
+                                                    .crossfade(true)
+                                                    .build()
+                                            ),
                                             contentDescription = null,
                                             modifier = Modifier.size(56.dp).clip(RoundedCornerShape(28.dp)),
                                             contentScale = ContentScale.Crop

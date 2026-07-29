@@ -66,13 +66,15 @@ class SearchViewModel(
 
     init {
         viewModelScope.launch {
+            var wasOffline = false
             SincApp.instance.container.connectivityMonitor.networkState
                 .distinctUntilChanged()
                 .collect { online ->
-                    if (online) {
+                    if (online && wasOffline) {
                         searchRepository.invalidateCache()
                         searchResultCache.invalidateAll()
                     }
+                    wasOffline = !online
                 }
         }
     }
@@ -262,6 +264,10 @@ class SearchViewModel(
                 )
             }
         }
+    }
+
+    suspend fun resolveAudioUrl(track: Track): Pair<String, String>? {
+        return searchRepository.findBestAudioForTrack(track)
     }
 
     class Factory(private val initialQuery: String = "") : ViewModelProvider.Factory {

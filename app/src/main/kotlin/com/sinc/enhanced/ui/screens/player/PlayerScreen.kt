@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.DownloadProgress
@@ -117,7 +119,13 @@ fun PlayerScreen(
 
         if (track != null && track.artworkUrl != null) {
             Image(
-                painter = rememberAsyncImagePainter(track.artworkUrl),
+                painter = rememberAsyncImagePainter(
+                    ImageRequest.Builder(LocalContext.current)
+                        .data(track.artworkUrl)
+                        .size(256)
+                        .crossfade(true)
+                        .build()
+                ),
                 contentDescription = "Album artwork background",
                 modifier = Modifier.fillMaxSize().blur(50.dp).scale(1.2f),
                 contentScale = ContentScale.Crop,
@@ -345,7 +353,13 @@ private fun AnimatedArtwork(
         }
         if (artworkUrl != null) {
             Image(
-                painter = rememberAsyncImagePainter(artworkUrl),
+                painter = rememberAsyncImagePainter(
+                    ImageRequest.Builder(LocalContext.current)
+                        .data(artworkUrl)
+                        .size(560)
+                        .crossfade(true)
+                        .build()
+                ),
                 contentDescription = "Album artwork",
                 modifier = Modifier
                     .size(280.dp)
@@ -793,7 +807,13 @@ private fun QueueSection(
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (track.artworkUrl != null) {
                                 Image(
-                                    painter = rememberAsyncImagePainter(track.artworkUrl ?: ""),
+                                    painter = rememberAsyncImagePainter(
+                                        ImageRequest.Builder(LocalContext.current)
+                                            .data(track.artworkUrl ?: "")
+                                            .size(80)
+                                            .crossfade(true)
+                                            .build()
+                                    ),
                                     contentDescription = null,
                                     modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)),
                                     contentScale = ContentScale.Crop

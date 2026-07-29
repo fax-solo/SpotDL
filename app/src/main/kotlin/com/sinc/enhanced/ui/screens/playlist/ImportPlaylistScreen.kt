@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,7 +101,13 @@ fun ImportPlaylistScreen(
                             Row(modifier = Modifier.padding(16.dp)) {
                                 if (uiState.playlistImage != null) {
                                     Image(
-                                        painter = rememberAsyncImagePainter(uiState.playlistImage),
+                                        painter = rememberAsyncImagePainter(
+                                            ImageRequest.Builder(LocalContext.current)
+                                                .data(uiState.playlistImage)
+                                                .size(160)
+                                                .crossfade(true)
+                                                .build()
+                                        ),
                                         contentDescription = null,
                                         modifier = Modifier.size(80.dp).clip(RoundedCornerShape(12.dp)),
                                         contentScale = ContentScale.Crop
@@ -228,7 +236,13 @@ private fun TrackRow(
         ) {
             if (track.artworkUrl != null) {
                 Image(
-                    painter = rememberAsyncImagePainter(track.artworkUrl),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(track.artworkUrl)
+                            .size(112)
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = null,
                     modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop

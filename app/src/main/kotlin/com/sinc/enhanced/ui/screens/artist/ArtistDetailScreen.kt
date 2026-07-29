@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.sinc.enhanced.data.model.Track
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,7 +35,6 @@ fun ArtistDetailScreen(
     onPlayTrack: (Track, String) -> Unit,
     onNavigateArtist: (String) -> Unit = {},
     onNavigateBack: () -> Unit,
-    onArtistRadio: ((String) -> Unit)? = null,
     viewModel: ArtistDetailViewModel = viewModel(factory = ArtistDetailViewModel.Factory(artistId))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -76,7 +77,13 @@ fun ArtistDetailScreen(
                         ) {
                             if (artist.imageUrl != null) {
                                 Image(
-                                    painter = rememberAsyncImagePainter(artist.imageUrl),
+                                    painter = rememberAsyncImagePainter(
+                                        ImageRequest.Builder(LocalContext.current)
+                                            .data(artist.imageUrl)
+                                            .size(400)
+                                            .crossfade(true)
+                                            .build()
+                                    ),
                                     contentDescription = null,
                                     modifier = Modifier.size(200.dp).clip(CircleShape),
                                     contentScale = ContentScale.Crop
@@ -109,15 +116,7 @@ fun ArtistDetailScreen(
                                 )
                             }
                             Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (onArtistRadio != null) {
-                                    OutlinedButton(onClick = { onArtistRadio(artist.name) }, shape = RoundedCornerShape(8.dp)) {
-                                        Icon(Icons.Default.Radio, null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Artist Radio")
-                                    }
-                                }
-                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { }
                         }
                     }
                 }
@@ -188,7 +187,13 @@ private fun RelatedArtistCard(name: String, imageUrl: String?, onClick: () -> Un
         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (imageUrl != null) {
                 Image(
-                    painter = rememberAsyncImagePainter(imageUrl),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(imageUrl)
+                            .size(160)
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = null,
                     modifier = Modifier.size(80.dp).clip(CircleShape),
                     contentScale = ContentScale.Crop

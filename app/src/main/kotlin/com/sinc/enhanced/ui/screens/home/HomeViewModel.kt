@@ -75,9 +75,7 @@ class HomeViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val recentSearches = withContext(Dispatchers.IO) {
-                    searchHistoryDao.getRecentQueries().filterNotNull().take(10).distinct()
-                }
+                val recentSearches = searchHistoryDao.getRecentQueries().filterNotNull().take(10).distinct()
                 val playlists = withContext(Dispatchers.Default) {
                     recommendationEngine.generateHomePlaylists()
                 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.DownloadProgress
@@ -236,7 +237,13 @@ private fun DownloadItem(
             ) {
                 if (download.artworkUrl != null) {
                     Image(
-                        painter = rememberAsyncImagePainter(download.artworkUrl),
+                        painter = rememberAsyncImagePainter(
+                            ImageRequest.Builder(LocalContext.current)
+                                .data(download.artworkUrl)
+                                .size(96)
+                                .crossfade(true)
+                                .build()
+                        ),
                         contentDescription = null,
                         modifier = Modifier
                             .size(48.dp)

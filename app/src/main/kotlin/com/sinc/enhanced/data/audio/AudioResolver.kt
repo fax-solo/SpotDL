@@ -5,6 +5,7 @@ import com.sinc.enhanced.data.util.MatchScorer
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeout
 
 data class AudioCandidate(
@@ -96,15 +97,15 @@ private suspend fun <T> List<kotlinx.coroutines.Deferred<T?>>.firstCompletedOrNu
 ): T? {
     val remaining = this.toMutableList()
     while (remaining.isNotEmpty()) {
-        val (done, rest) = remaining.partition { it.isCompleted }
-        for (d in done) {
-            val result = d.await()
-            if (result != null && predicate(result)) return result
+        val result = select<T?> {
+            remaining.forEach { deferred ->
+                deferred.onAwait { value ->
+                    if (value != null && predicate(value)) value else null
+                }
+            }
         }
-        remaining.clear()
-        remaining.addAll(rest)
-        if (remaining.isEmpty()) break
-        kotlinx.coroutines.yield()
+        if (result != null) return result
+        remaining.removeAll { it.isCompleted }
     }
     return null
 }

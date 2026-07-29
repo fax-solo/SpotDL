@@ -7,7 +7,6 @@ import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
-import com.sinc.enhanced.data.remote.LyricsClient
 import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.SearchRepository
 import kotlinx.coroutines.Dispatchers
@@ -21,17 +20,16 @@ import kotlinx.coroutines.withContext
 data class TrackDetailUiState(
     val track: Track? = null,
     val artist: Artist? = null,
-    val lyrics: String? = null,
     val audioUrl: String? = null,
     val isLoading: Boolean = true,
     val isDownloading: Boolean = false,
+    val isResolving: Boolean = false,
     val error: String? = null
 )
 
 class TrackDetailViewModel(
     private val trackId: String,
     private val searchRepository: SearchRepository,
-    private val lyricsClient: LyricsClient,
     private val downloadRepository: DownloadRepository
 ) : ViewModel() {
 
@@ -46,24 +44,38 @@ class TrackDetailViewModel(
         loadTrack()
     }
 
-    fun retryLyrics() {
-        val track = _uiState.value.track ?: return
-        viewModelScope.launch {
-            val lyrics = withContext(Dispatchers.IO) {
-                lyricsClient.getLyrics(track.artist, track.title, track.album, track.durationMs)
-            }
-            _uiState.value = _uiState.value.copy(
-                lyrics = lyrics?.plainLyrics ?: lyrics?.syncedLyrics
-            )
-        }
-    }
-
     fun download(audioUrl: String) {
         val track = _uiState.value.track ?: return
         _uiState.value = _uiState.value.copy(isDownloading = true)
         viewModelScope.launch {
-            downloadRepository.addToQueue(track, audioUrl)
+            downloadRepository.addToQueue(track, audioUrl) 
             _uiState.value = _uiState.value.copy(isDownloading = false)
+        }
+    }
+
+    fun playOrResolve(onPlay: (Track, String) -> Unit) {
+        val state = _uiState.value
+        val track = state.track ?: return
+        val url = state.audioUrl ?: track.previewUrl
+        if (url != null) {
+            onPlay(track, url)
+        } else {
+            _uiState.value = state.copy(isResolving = true)
+            viewModelScope.launch {
+                try {
+                    val resolved = withContext(Dispatchers.IO) {
+                        searchRepository.findBestAudioForTrack(track)
+                    }
+                    if (resolved != null) {
+                        _uiState.value = _uiState.value.copy(audioUrl = resolved.first, isResolving = false)
+                        onPlay(track, resolved.first)
+                    } else {
+                        _uiState.value = _uiState.value.copy(isResolving = false)
+                    }
+                } catch (_: Exception) {
+                    _uiState.value = _uiState.value.copy(isResolving = false)
+                }
+            }
         }
     }
 
@@ -96,11 +108,6 @@ class TrackDetailViewModel(
                 }
 
                 val trackRef = track
-                val lyricsDeferred = async {
-                    withContext(Dispatchers.IO) {
-                        lyricsClient.getLyrics(trackRef.artist, trackRef.title, trackRef.album, trackRef.durationMs)
-                    }
-                }
                 val artistDeferred = async {
                     withContext(Dispatchers.IO) {
                         searchRepository.searchArtists(trackRef.artist).firstOrNull()
@@ -112,14 +119,12 @@ class TrackDetailViewModel(
                     }
                 }
 
-                val lyrics = lyricsDeferred.await()
                 val artist = artistDeferred.await()
                 val audioUrl = audioDeferred.await()
 
                 _uiState.value = TrackDetailUiState(
                     track = track,
                     artist = artist,
-                    lyrics = lyrics?.plainLyrics ?: lyrics?.syncedLyrics,
                     audioUrl = audioUrl,
                     isLoading = false
                 )
@@ -136,7 +141,7 @@ class TrackDetailViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val container = SincApp.instance.container
-            return TrackDetailViewModel(trackId, container.searchRepository, container.lyricsClient, container.downloadRepository) as T
+            return TrackDetailViewModel(trackId, container.searchRepository, container.downloadRepository) as T
         }
     }
 }

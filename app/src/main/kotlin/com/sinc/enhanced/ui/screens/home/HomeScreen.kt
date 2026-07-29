@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.recommendation.RecommendedPlaylist
@@ -190,8 +192,7 @@ fun HomeScreen(
                 item {
                     SectionHeader("Recent Searches")
                 }
-                items(uiState.recentSearches.size) { index ->
-                    val query = uiState.recentSearches[index]
+                items(uiState.recentSearches, key = { it }) { query ->
                     Surface(
                         modifier = Modifier.fillMaxWidth().clickable { onSearchQuery(query) },
                         shape = RoundedCornerShape(12.dp),
@@ -313,7 +314,13 @@ private fun TrackCard(track: Track, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(8.dp)) {
             if (track.artworkUrl != null) {
                 androidx.compose.foundation.Image(
-                    painter = rememberAsyncImagePainter(track.artworkUrl),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(track.artworkUrl)
+                            .size(268)
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = null,
                     modifier = Modifier.size(134.dp).clip(RoundedCornerShape(10.dp)),
                     contentScale = ContentScale.Crop
@@ -358,7 +365,13 @@ private fun DownloadedCard(download: DownloadEntity, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(8.dp)) {
             if (download.artworkUrl != null) {
                 androidx.compose.foundation.Image(
-                    painter = rememberAsyncImagePainter(download.artworkUrl),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(download.artworkUrl)
+                            .size(268)
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = null,
                     modifier = Modifier.size(134.dp).clip(RoundedCornerShape(10.dp)),
                     contentScale = ContentScale.Crop
@@ -403,7 +416,13 @@ private fun RecommenderCard(track: Track, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(8.dp)) {
             if (track.artworkUrl != null) {
                 androidx.compose.foundation.Image(
-                    painter = rememberAsyncImagePainter(track.artworkUrl),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(track.artworkUrl)
+                            .size(288)
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = null,
                     modifier = Modifier
                         .width(144.dp)

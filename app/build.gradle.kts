@@ -88,7 +88,6 @@ dependencies {
     implementation(libs.compose.material.icons)
     implementation(libs.compose.animation)
     implementation(libs.compose.foundation)
-    implementation(libs.compose.palette)
 
     implementation(libs.navigation.compose)
 
@@ -108,10 +107,9 @@ dependencies {
     implementation(libs.coil.compose)
 
     implementation(libs.datastore.preferences)
+    implementation(libs.security.crypto)
 
     implementation(libs.kotlinx.coroutines.android)
-
-    implementation(libs.newpipe.extractor)
 
     debugImplementation(libs.compose.ui.tooling)
 

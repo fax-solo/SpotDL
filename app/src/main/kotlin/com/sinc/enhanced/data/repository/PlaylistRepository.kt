@@ -5,34 +5,32 @@ import com.sinc.enhanced.data.local.entity.PlaylistEntity
 import com.sinc.enhanced.data.local.entity.PlaylistTrackEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.domain.repository.PlaylistRepository as PlaylistRepositoryInterface
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withContext
 
 class PlaylistRepository(private val playlistDao: PlaylistDao) : PlaylistRepositoryInterface {
 
     override val allPlaylists: Flow<List<PlaylistEntity>> = playlistDao.getAllPlaylists()
 
-    override suspend fun create(name: String, description: String): Int = withContext(Dispatchers.IO) {
+    override suspend fun create(name: String, description: String): Int {
         val now = System.currentTimeMillis()
-        playlistDao.upsertPlaylist(
+        return playlistDao.upsertPlaylist(
             PlaylistEntity(name = name.trim(), description = description.trim(), createdAt = now, updatedAt = now)
         ).toInt()
     }
 
     override suspend fun get(id: Int): PlaylistEntity? = playlistDao.getPlaylist(id)
 
-    override suspend fun getTracks(playlistId: Int): List<PlaylistTrackEntity> = withContext(Dispatchers.IO) {
-        playlistDao.getPlaylistTracks(playlistId)
+    override suspend fun getTracks(playlistId: Int): List<PlaylistTrackEntity> {
+        return playlistDao.getPlaylistTracks(playlistId)
     }
 
     override fun getTracksFlow(playlistId: Int): Flow<List<PlaylistTrackEntity>> = playlistDao.getPlaylistTracksFlow(playlistId)
 
-    override suspend fun update(playlist: PlaylistEntity) = withContext(Dispatchers.IO) {
+    override suspend fun update(playlist: PlaylistEntity) {
         playlistDao.updatePlaylist(playlist)
     }
 
-    override suspend fun addTrack(playlistId: Int, track: Track, filePath: String?) = withContext(Dispatchers.IO) {
+    override suspend fun addTrack(playlistId: Int, track: Track, filePath: String?) {
         val position = playlistDao.nextPosition(playlistId)
         playlistDao.addTrackAndUpdateCount(
             PlaylistTrackEntity(
@@ -51,7 +49,7 @@ class PlaylistRepository(private val playlistDao: PlaylistDao) : PlaylistReposit
         )
     }
 
-    suspend fun addTrackByEntity(entity: PlaylistTrackEntity) = withContext(Dispatchers.IO) {
+    suspend fun addTrackByEntity(entity: PlaylistTrackEntity) {
         playlistDao.addTrackAndUpdateCount(
             entity.copy(
                 position = playlistDao.nextPosition(entity.playlistId),
@@ -60,20 +58,20 @@ class PlaylistRepository(private val playlistDao: PlaylistDao) : PlaylistReposit
         )
     }
 
-    override suspend fun removeTrack(playlistId: Int, trackId: String) = withContext(Dispatchers.IO) {
+    override suspend fun removeTrack(playlistId: Int, trackId: String) {
         playlistDao.removeTrackByKey(playlistId, trackId)
     }
 
-    override suspend fun reorderTracks(playlistId: Int, trackIds: List<String>) = withContext(Dispatchers.IO) {
+    override suspend fun reorderTracks(playlistId: Int, trackIds: List<String>) {
         playlistDao.reorderTracks(playlistId, trackIds)
     }
 
-    override suspend fun delete(id: Int) = withContext(Dispatchers.IO) {
+    override suspend fun delete(id: Int) {
         playlistDao.deletePlaylist(id)
     }
 
-    override suspend fun rename(id: Int, name: String) = withContext(Dispatchers.IO) {
-        val p = playlistDao.getPlaylist(id) ?: return@withContext
+    override suspend fun rename(id: Int, name: String) {
+        val p = playlistDao.getPlaylist(id) ?: return
         playlistDao.updatePlaylist(p.copy(name = name.trim(), updatedAt = System.currentTimeMillis()))
     }
 }

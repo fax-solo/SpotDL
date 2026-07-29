@@ -26,7 +26,23 @@ class RecommendationEngine(
     private val recommendationDao: RecommendationDao,
     private val syncManager: RecommendationSyncManager
 ) {
+    private var cachedPlaylists: Pair<Long, List<RecommendedPlaylist>>? = null
+    private val cacheTtlMs = 60_000L
+
     suspend fun generateHomePlaylists(limit: Int = 5): List<RecommendedPlaylist> = withContext(Dispatchers.Default) {
+        cachedPlaylists?.let { (timestamp, playlists) ->
+            if (System.currentTimeMillis() - timestamp < cacheTtlMs) {
+                return@withContext playlists.take(limit)
+            }
+        }
+
+        val playlists = generatePlaylists()
+
+        cachedPlaylists = System.currentTimeMillis() to playlists
+        playlists.take(limit)
+    }
+
+    private suspend fun generatePlaylists(): List<RecommendedPlaylist> {
         val playlists = mutableListOf<RecommendedPlaylist>()
 
         val topArtists = recommendationDao.getTopArtists()
@@ -46,23 +62,25 @@ class RecommendationEngine(
             }
         }
 
-        for (genre in topGenres.take(3)) {
-            val tracks = searchRepository.searchYouTubeOnly(genre)
-                .take(10)
-                .map { it.track }
-            if (tracks.isNotEmpty()) {
-                playlists.add(RecommendedPlaylist(
-                    id = "rec_genre_${genre.hashCode().toLong()}",
-                    name = genre.replaceFirstChar { it.uppercase() },
-                    description = "Top tracks in your favorite genre",
-                    tracks = tracks,
-                    reason = "genre"
-                ))
+        if (playlists.size < 3) {
+            for (genre in topGenres.take(2)) {
+                val tracks = searchRepository.searchYouTubeOnly(genre)
+                    .take(10)
+                    .map { it.track }
+                if (tracks.isNotEmpty()) {
+                    playlists.add(RecommendedPlaylist(
+                        id = "rec_genre_${genre.hashCode().toLong()}",
+                        name = genre.replaceFirstChar { it.uppercase() },
+                        description = "Top tracks in your favorite genre",
+                        tracks = tracks,
+                        reason = "genre"
+                    ))
+                }
             }
         }
 
-        if (topArtists.isNotEmpty()) {
-            for (artist in topArtists.take(3)) {
+        if (playlists.size < 3 && topArtists.isNotEmpty()) {
+            for (artist in topArtists.take(2)) {
                 val moreTracks = searchRepository.searchYouTubeOnly(artist)
                     .take(10).map { it.track }
                 if (moreTracks.isNotEmpty()) {
@@ -77,9 +95,9 @@ class RecommendationEngine(
             }
         }
 
-        if (topGenres.isNotEmpty()) {
+        if (playlists.size < 3 && topGenres.isNotEmpty()) {
             val year = Calendar.getInstance().get(Calendar.YEAR)
-            val newReleases = topGenres.flatMap { genre ->
+            val newReleases = topGenres.take(2).flatMap { genre ->
                 searchRepository.searchYouTubeOnly("new ${genre} music $year")
                     .take(5).map { it.track }
             }.distinctBy { it.id }.take(15)
@@ -95,7 +113,7 @@ class RecommendationEngine(
         }
 
         if (recentSearches.isNotEmpty() && topArtists.isEmpty() && topGenres.isEmpty()) {
-            val searchBased = recentSearches.take(3).flatMap { query ->
+            val searchBased = recentSearches.take(2).flatMap { query ->
                 searchRepository.searchYouTubeOnly(query).take(5).map { it.track }
             }.distinctBy { it.id }.take(15)
             if (searchBased.isNotEmpty()) {
@@ -109,7 +127,7 @@ class RecommendationEngine(
             }
         }
 
-        playlists.take(limit)
+        return playlists.take(3)
     }
 
     suspend fun recordPlay(track: Track) {
@@ -133,6 +151,10 @@ class RecommendationEngine(
                 recommendationDao.recordGenreInteraction(genre, 0.3f)
             }
         }
+    }
+
+    fun invalidateCache() {
+        cachedPlaylists = null
     }
 
     private suspend fun findSimilarArtists(artists: List<String>, maxTracks: Int = 10): List<Track> {
