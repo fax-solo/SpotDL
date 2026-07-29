@@ -47,7 +47,7 @@ class RegisterViewModel(
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
         viewModelScope.launch {
             try {
-                val serverUrl = authRepository.serverUrl.first()
+                val serverUrl = authRepository.serverUrl.value
                 if (serverUrl.isBlank()) {
                     _uiState.value = _uiState.value.copy(isLoading = false, error = null, needsServerUrl = true)
                     return@launch

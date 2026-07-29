@@ -37,7 +37,7 @@ class LoginViewModel(
         _uiState.value = _uiState.value.copy(isConnecting = true, isLoading = true, error = null)
         viewModelScope.launch {
             try {
-                val serverUrl = authRepository.serverUrl.first()
+                val serverUrl = authRepository.serverUrl.value
                 if (serverUrl.isBlank()) {
                     _uiState.value = _uiState.value.copy(isLoading = false, isConnecting = false, error = null, needsServerUrl = true)
                     return@launch
