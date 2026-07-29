@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 
 @Composable
@@ -48,26 +49,23 @@ fun PlayerMiniBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (artworkUrl != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(artworkUrl),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(Modifier.width(12.dp))
-                } else {
-                    Surface(
-                        modifier = Modifier.size(40.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(20.dp))
-                        }
+                    val painter = rememberAsyncImagePainter(artworkUrl)
+                    val state = painter.state
+                    if (state is AsyncImagePainter.State.Success || state is AsyncImagePainter.State.Loading) {
+                        Image(
+                            painter = painter,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(Modifier.width(12.dp))
+                    } else {
+                        ArtworkPlaceholder()
                     }
-                    Spacer(Modifier.width(12.dp))
+                } else {
+                    ArtworkPlaceholder()
                 }
                 Column(
                     modifier = Modifier.weight(1f)
@@ -113,4 +111,18 @@ fun PlayerMiniBar(
             }
         }
     }
+}
+
+@Composable
+private fun ArtworkPlaceholder() {
+    Surface(
+        modifier = Modifier.size(40.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(20.dp))
+        }
+    }
+    Spacer(Modifier.width(12.dp))
 }

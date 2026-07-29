@@ -58,7 +58,6 @@ class SearchViewModel(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
-    private var preResolveJob: Job? = null
     private var allResults: List<SearchResult> = emptyList()
     private var allAlbums: List<Album> = emptyList()
     private val searchResultCache = SearchCache<SearchResult>()
@@ -81,7 +80,6 @@ class SearchViewModel(
     fun onQueryChange(query: String) {
         _uiState.value = _uiState.value.copy(query = query)
         searchJob?.cancel()
-        preResolveJob?.cancel()
         if (query.isBlank()) {
             _uiState.value = SearchUiState()
             return
@@ -106,7 +104,6 @@ class SearchViewModel(
 
     fun onSearch(query: String) {
         searchJob?.cancel()
-        preResolveJob?.cancel()
         _uiState.value = _uiState.value.copy(query = query)
         if (query.isNotBlank()) {
             searchJob = viewModelScope.launch { performSearch(query) }
@@ -190,7 +187,6 @@ class SearchViewModel(
             score += matchCount * 2f
 
             if (t.source == "spotify") score += 1f
-            if (r.audioUrl != null) score += 2f
 
             r to score
         }
@@ -248,7 +244,6 @@ class SearchViewModel(
                 hasMore = initialCount < grouped.size
             )
 
-            preResolveAudio(grouped)
         } catch (e: Exception) {
             if (!isOnline && cached != null) {
                 val grouped = cached
@@ -265,28 +260,6 @@ class SearchViewModel(
                     isSearching = false,
                     error = e.message ?: "Search failed"
                 )
-            }
-        }
-    }
-
-    private fun preResolveAudio(results: List<SearchResult>) {
-        preResolveJob?.cancel()
-        preResolveJob = viewModelScope.launch {
-            val toResolve = results.filter { it.audioUrl == null }.take(30)
-            toResolve.map { sr ->
-                async {
-                    val resolved = searchRepository.findBestAudioForTrack(sr.track)
-                    sr.track.id to resolved
-                }
-            }.also { deferreds ->
-                deferreds.forEach { deferred ->
-                    val (id, resolved) = deferred.await()
-                    if (resolved != null) {
-                        _uiState.value = _uiState.value.copy(
-                            resolvedAudioUrls = _uiState.value.resolvedAudioUrls + (id to resolved)
-                        )
-                    }
-                }
             }
         }
     }

@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -11,6 +12,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import com.sinc.enhanced.MainActivity
 import com.sinc.enhanced.SincApp
+import com.sinc.enhanced.data.audio.AudioResolverPipeline
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.domain.player.PlayerController
 import com.sinc.enhanced.domain.player.PlayerState
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MusicPlayer(private val context: Context) : PlayerController {
 
@@ -49,9 +52,13 @@ class MusicPlayer(private val context: Context) : PlayerController {
 
     private val mediaSession: MediaSession
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val fallbackPipeline: AudioResolverPipeline? by lazy {
+        try { (context.applicationContext as SincApp).container.audioPipeline } catch (_: Exception) { null }
+    }
     private var positionJob: Job? = null
     private var sleepTimerJob: Job? = null
     private var previewJob: Job? = null
+    private var loadTimeoutJob: Job? = null
     private var _speed: Float = 1.0f
     private var _repeatMode: RepeatMode = RepeatMode.ALL
     private var _shuffleMode: ShuffleMode = ShuffleMode.OFF
@@ -61,11 +68,15 @@ class MusicPlayer(private val context: Context) : PlayerController {
         override fun onPlaybackStateChanged(playbackState: Int) {
             updateState()
             updatePositionPolling()
+            if (playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
+                loadTimeoutJob?.cancel()
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updateState()
             updatePositionPolling()
+            if (isPlaying) loadTimeoutJob?.cancel()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -75,6 +86,15 @@ class MusicPlayer(private val context: Context) : PlayerController {
 
         override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
             updateState()
+        }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            Log.e("MusicPlayer", "Playback error: ${error.message}")
+            loadTimeoutJob?.cancel()
+            val track = _state.value.currentTrack ?: return
+            scope.launch {
+                tryFallback(track)
+            }
         }
     }
 
@@ -96,6 +116,27 @@ class MusicPlayer(private val context: Context) : PlayerController {
         player.addListener(playerListener)
     }
 
+    private suspend fun tryFallback(track: Track) {
+        val pipeline = fallbackPipeline ?: return
+        try {
+            val fallbackUrl = withContext(Dispatchers.IO) {
+                pipeline.resolveWithLowerThreshold(track)
+            }
+            if (fallbackUrl != null) {
+                currentAudioUrl = fallbackUrl.first
+                val fbItem = buildMediaItem(track, fallbackUrl.first) ?: return
+                player.stop()
+                player.clearMediaItems()
+                player.setMediaItems(listOf(fbItem))
+                player.prepare()
+                player.playWhenReady = true
+                startService()
+            }
+        } catch (_: Exception) {
+            _state.value = _state.value.copy(currentAudioSource = null)
+        }
+    }
+
     private fun addToRecentlyPlayed(track: Track) {
         val current = _recentlyPlayed.value.toMutableList()
         current.removeAll { it.id == track.id }
@@ -105,6 +146,7 @@ class MusicPlayer(private val context: Context) : PlayerController {
 
     override fun play(track: Track) {
         previewJob?.cancel()
+        loadTimeoutJob?.cancel()
         addToRecentlyPlayed(track)
         val updatedQueue = if (_state.value.queue.none { it.id == track.id }) {
             _state.value.queue + track
@@ -123,10 +165,21 @@ class MusicPlayer(private val context: Context) : PlayerController {
         player.prepare()
         player.playWhenReady = true
         startService()
+
+        loadTimeoutJob = scope.launch {
+            delay(12_000)
+            val current = _state.value.currentTrack ?: return@launch
+            if (!player.isPlaying && player.playbackState != Player.STATE_ENDED) {
+                Log.w("MusicPlayer", "Track stalled, resolving fallback: ${current.title}")
+                player.stop()
+                tryFallback(current)
+            }
+        }
     }
 
     override fun playUrl(track: Track, url: String) {
         previewJob?.cancel()
+        loadTimeoutJob?.cancel()
         addToRecentlyPlayed(track)
         val newQueue = listOf(track)
         currentAudioUrl = url
@@ -138,10 +191,20 @@ class MusicPlayer(private val context: Context) : PlayerController {
         player.playWhenReady = true
 
         startService()
+
+        loadTimeoutJob = scope.launch {
+            delay(12_000)
+            if (!player.isPlaying && player.playbackState != Player.STATE_ENDED) {
+                Log.w("MusicPlayer", "playUrl stalled, resolving fallback: ${track.title}")
+                player.stop()
+                tryFallback(track)
+            }
+        }
     }
 
     override fun playAll(tracks: List<Track>) {
         previewJob?.cancel()
+        loadTimeoutJob?.cancel()
         if (tracks.isEmpty()) return
         tracks.forEach { addToRecentlyPlayed(it) }
         _state.value = _state.value.copy(
@@ -288,6 +351,7 @@ class MusicPlayer(private val context: Context) : PlayerController {
         positionJob?.cancel()
         sleepTimerJob?.cancel()
         previewJob?.cancel()
+        loadTimeoutJob?.cancel()
         scope.coroutineContext[Job]?.cancel()
         player.removeListener(playerListener)
         player.release()

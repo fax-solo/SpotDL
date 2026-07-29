@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.data.recommendation.RecommendedPlaylist
 import com.sinc.enhanced.ui.components.HomeShimmer
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -218,59 +219,46 @@ fun HomeScreen(
                 }
             }
 
-            if (uiState.recommendations.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SectionHeader("You Might Also Like")
-                        @Suppress("DEPRECATION")
-                    Icon(
-                            Icons.Default.TrendingUp, null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-                item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(uiState.recommendations, key = { it.id }) { track ->
-                            RecommenderCard(track = track, onClick = {
-                                scope.launch {
-                                    val audio = viewModel.resolveAudioUrl(track)
-                                    if (audio != null) onPlayTrack(track, audio.first)
-                                }
-                            })
+            if (uiState.recommendedPlaylists.isNotEmpty()) {
+                item { Spacer(Modifier.height(16.dp)) }
+                uiState.recommendedPlaylists.forEach { playlist ->
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = playlist.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = playlist.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
-                }
-                item { Spacer(Modifier.height(8.dp)) }
-            }
-
-            if (uiState.newReleases.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(16.dp))
-                    SectionHeader("New Releases")
-                }
-                item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(uiState.newReleases, key = { it.id }) { track ->
-                            RecommenderCard(track = track, onClick = {
-                                scope.launch {
-                                    val audio = viewModel.resolveAudioUrl(track)
-                                    if (audio != null) onPlayTrack(track, audio.first)
-                                }
-                            })
+                    item {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(playlist.tracks, key = { it.id }) { track ->
+                                RecommenderCard(track = track, onClick = {
+                                    scope.launch {
+                                        val audio = viewModel.resolveAudioUrl(track)
+                                        if (audio != null) onPlayTrack(track, audio.first)
+                                    }
+                                })
+                            }
                         }
                     }
+                    item { Spacer(Modifier.height(8.dp)) }
                 }
-                item { Spacer(Modifier.height(8.dp)) }
             }
 
-            if (uiState.recentSearches.isEmpty() && uiState.recommendations.isEmpty()
+            if (uiState.recentSearches.isEmpty() && uiState.recommendedPlaylists.isEmpty()
                 && uiState.recentlyPlayed.isEmpty() && uiState.recentlyDownloaded.isEmpty()) {
                 item {
                     Box(

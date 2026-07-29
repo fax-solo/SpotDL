@@ -79,6 +79,9 @@ fun AppNavigation(intent: Intent? = null) {
     LaunchedEffect(Unit) {
         val sessionValid = authRepository.restoreSession()
         startDest = if (sessionValid) Routes.HOME else Routes.LOGIN
+        if (sessionValid) {
+            SincApp.instance.container.recommendationSyncManager.pullFromServer()
+        }
         if (intent != null) {
             if (navController.currentBackStackEntry == null) return@LaunchedEffect
             handleDeepLink(intent, navController)
@@ -156,7 +159,7 @@ fun AppNavigation(intent: Intent? = null) {
                                 title = playerState.currentTrack?.title,
                                 artist = playerState.currentTrack?.artist,
                                 artworkUrl = playerState.currentTrack?.artworkUrl,
-                                audioSource = playerState.currentAudioSource,
+                                audioSource = playerState.currentTrack?.source,
                                 isPlaying = playerState.isPlaying,
                                 onPlayPause = { musicPlayer.togglePlayPause() },
                                 onSkipNext = { musicPlayer.skipToNext() },

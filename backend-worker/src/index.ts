@@ -5,6 +5,7 @@ import { jwt } from "hono/jwt";
 import { register, login, me } from "./auth";
 import { ping, trackDownload } from "./stats";
 import { adminStats, adminUsers } from "./admin";
+import { syncPlays, getPlays, syncGenres, getGenres, clearAll } from "./recommendations";
 
 type Env = {
   DB: D1Database;
@@ -45,6 +46,37 @@ app.post("/api/stats/download", auth, async (c) => {
   const payload = c.get("jwtPayload") as { userId: number };
   c.set("userId", payload.userId);
   return trackDownload(c);
+});
+
+// Recommendation sync
+app.post("/api/recommendations/plays", auth, async (c) => {
+  const payload = c.get("jwtPayload") as { userId: number };
+  c.set("userId", payload.userId);
+  return syncPlays(c);
+});
+
+app.get("/api/recommendations/plays", auth, async (c) => {
+  const payload = c.get("jwtPayload") as { userId: number };
+  c.set("userId", payload.userId);
+  return getPlays(c);
+});
+
+app.post("/api/recommendations/genres", auth, async (c) => {
+  const payload = c.get("jwtPayload") as { userId: number };
+  c.set("userId", payload.userId);
+  return syncGenres(c);
+});
+
+app.get("/api/recommendations/genres", auth, async (c) => {
+  const payload = c.get("jwtPayload") as { userId: number };
+  c.set("userId", payload.userId);
+  return getGenres(c);
+});
+
+app.post("/api/recommendations/clear", auth, async (c) => {
+  const payload = c.get("jwtPayload") as { userId: number };
+  c.set("userId", payload.userId);
+  return clearAll(c);
 });
 
 // Admin only

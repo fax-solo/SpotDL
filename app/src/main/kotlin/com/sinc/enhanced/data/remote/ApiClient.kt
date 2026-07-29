@@ -8,6 +8,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -140,4 +141,94 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { Log.e("ApiClient", "getAdminUsers failed", e); null }
     }
+
+    // Recommendation sync
+    suspend fun syncPlays(plays: List<PlayCountPayload>): Boolean {
+        return try {
+            val arr = JSONArray()
+            plays.forEach { p ->
+                arr.put(JSONObject().apply {
+                    put("track_id", p.trackId)
+                    put("artist", p.artist)
+                    put("title", p.title)
+                    put("count", p.count)
+                    put("last_played", p.lastPlayed)
+                })
+            }
+            post("/api/recommendations/plays", JSONObject().apply { put("plays", arr) }) != null
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: ApiException) { false }
+        catch (_: Exception) { false }
+    }
+
+    suspend fun getPlays(): List<PlayCountPayload>? {
+        return try {
+            val json = getArray("/api/recommendations/plays") ?: return null
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                PlayCountPayload(
+                    trackId = obj.getString("track_id"),
+                    artist = obj.optString("artist", ""),
+                    title = obj.optString("title", ""),
+                    count = obj.optInt("count", 1),
+                    lastPlayed = obj.optLong("last_played", 0)
+                )
+            }
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: ApiException) { null }
+        catch (_: Exception) { null }
+    }
+
+    suspend fun syncGenres(genres: List<GenreAffinityPayload>): Boolean {
+        return try {
+            val arr = JSONArray()
+            genres.forEach { g ->
+                arr.put(JSONObject().apply {
+                    put("genre", g.genre)
+                    put("affinity", g.affinity.toDouble())
+                })
+            }
+            post("/api/recommendations/genres", JSONObject().apply { put("genres", arr) }) != null
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: ApiException) { false }
+        catch (_: Exception) { false }
+    }
+
+    suspend fun getGenres(): List<GenreAffinityPayload>? {
+        return try {
+            val json = getArray("/api/recommendations/genres") ?: return null
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                GenreAffinityPayload(
+                    genre = obj.getString("genre"),
+                    affinity = obj.getDouble("affinity").toFloat()
+                )
+            }
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: ApiException) { null }
+        catch (_: Exception) { null }
+    }
+
+    suspend fun clearRecommendations(): Boolean {
+        return try {
+            post("/api/recommendations/clear", JSONObject()) != null
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: ApiException) { false }
+        catch (_: Exception) { false }
+    }
 }
+
+data class PlayCountPayload(
+    val trackId: String,
+    val artist: String,
+    val title: String,
+    val count: Int,
+    val lastPlayed: Long
+)
+
+data class GenreAffinityPayload(
+    val genre: String,
+    val affinity: Float
+)

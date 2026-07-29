@@ -7,23 +7,22 @@ import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.dao.SearchHistoryDao
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.data.recommendation.RecommendationEngine
+import com.sinc.enhanced.data.recommendation.RecommendedPlaylist
 import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.SearchRepository
 import com.sinc.enhanced.player.MusicPlayer
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Calendar
 
 data class HomeUiState(
     val recentSearches: List<String> = emptyList(),
-    val recommendations: List<Track> = emptyList(),
+    val recommendedPlaylists: List<RecommendedPlaylist> = emptyList(),
     val recentlyPlayed: List<Track> = emptyList(),
     val recentlyDownloaded: List<DownloadEntity> = emptyList(),
     val newReleases: List<Track> = emptyList(),
@@ -35,7 +34,8 @@ class HomeViewModel(
     private val searchHistoryDao: SearchHistoryDao,
     private val searchRepository: SearchRepository,
     private val musicPlayer: MusicPlayer,
-    private val downloadRepository: DownloadRepository
+    private val downloadRepository: DownloadRepository,
+    private val recommendationEngine: RecommendationEngine
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -43,8 +43,7 @@ class HomeViewModel(
 
     init {
         observePlayerAndDownloads()
-        loadRecentSearches()
-        loadNewReleases()
+        loadHomeContent()
     }
 
     private fun observePlayerAndDownloads() {
@@ -72,78 +71,38 @@ class HomeViewModel(
         }
     }
 
-    private fun loadRecentSearches() {
+    private fun loadHomeContent() {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val recent = searchHistoryDao.getRecentQueries()
-                val safe = recent.filterNotNull().take(10).distinct()
-                _uiState.value = _uiState.value.copy(recentSearches = safe)
-
-                val keywords = safe.flatMap { it.split(Regex("\\s+")) }
-                    .filter { it.length > 3 }
-                    .distinct()
-                    .shuffled()
-                    .take(5)
-                loadRecommendations(keywords)
-            } catch (_: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = "Failed to load data")
-            }
-        }
-    }
-
-    private suspend fun loadRecommendations(keywords: List<String>) {
-        if (keywords.isEmpty()) {
-            _uiState.value = _uiState.value.copy(isLoading = false)
-            return
-        }
-        val allTracks = mutableListOf<Track>()
-        val seen = mutableSetOf<String>()
-        coroutineScope {
-            val deferreds = keywords.take(3).map { keyword ->
-                async {
-                    try {
-                        searchRepository.searchYouTubeOnly(keyword).map { it.track }
-                            .filter { it.artworkUrl != null }
-                    } catch (_: Exception) { emptyList() }
+                val recentSearches = withContext(Dispatchers.IO) {
+                    searchHistoryDao.getRecentQueries().filterNotNull().take(10).distinct()
                 }
-            }
-            for (deferred in deferreds) {
-                for (t in deferred.await()) {
-                    if (t.id !in seen) {
-                        seen.add(t.id)
-                        allTracks.add(t)
-                        if (allTracks.size >= 12) break
-                    }
+                val playlists = withContext(Dispatchers.Default) {
+                    recommendationEngine.generateHomePlaylists()
                 }
-                if (allTracks.size >= 12) break
+                _uiState.value = _uiState.value.copy(
+                    recentSearches = recentSearches,
+                    recommendedPlaylists = playlists,
+                    error = null,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Could not load recommendations",
+                    isLoading = false
+                )
             }
         }
-        _uiState.value = _uiState.value.copy(
-            recommendations = allTracks,
-            isLoading = false
-        )
     }
 
     suspend fun resolveAudioUrl(track: Track): Pair<String, String>? {
         return searchRepository.findBestAudioForTrack(track)
     }
 
-    private fun loadNewReleases() {
-        viewModelScope.launch {
-            try {
-                val year = Calendar.getInstance().get(Calendar.YEAR)
-                val results = withContext(Dispatchers.IO) {
-                    searchRepository.searchYouTubeOnly("new music releases $year")
-                }
-                val tracks = results.map { it.track }.filter { it.artworkUrl != null }.take(10)
-                _uiState.value = _uiState.value.copy(newReleases = tracks)
-            } catch (_: Exception) {}
-        }
-    }
-
     fun refresh() {
         _uiState.value = _uiState.value.copy(error = null, isLoading = true)
-        loadRecentSearches()
+        loadHomeContent()
     }
 
     class Factory : ViewModelProvider.Factory {
@@ -154,7 +113,8 @@ class HomeViewModel(
                 container.database.searchHistoryDao(),
                 container.searchRepository,
                 container.musicPlayer,
-                container.downloadRepository
+                container.downloadRepository,
+                container.recommendationEngine
             ) as T
         }
     }

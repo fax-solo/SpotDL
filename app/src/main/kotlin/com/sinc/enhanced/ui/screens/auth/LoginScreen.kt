@@ -133,16 +133,5 @@ fun LoginScreen(
             Text("Skip — use offline")
         }
 
-        if (uiState.needsServerUrl) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Server not configured. Set your server URL in Settings.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error
-            )
-            TextButton(onClick = onNavigateSettings) {
-                Text("Open Settings")
-            }
-        }
     }
 }

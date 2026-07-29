@@ -1,6 +1,7 @@
 package com.sinc.enhanced.data.repository
 
 import android.util.Log
+import com.sinc.enhanced.data.audio.AudioResolverPipeline
 import com.sinc.enhanced.data.local.dao.CacheDao
 import com.sinc.enhanced.data.local.entity.CacheEntryEntity
 import com.sinc.enhanced.data.model.Album
@@ -46,7 +47,8 @@ class SearchRepository(
     private val fmaClient: FreeMusicArchiveClient,
     private val bandcampClient: BandcampClient,
     private val settingsManager: SettingsManager,
-    private val cacheDao: CacheDao
+    private val cacheDao: CacheDao,
+    private val audioPipeline: AudioResolverPipeline
 ) : SearchRepositoryInterface {
     private val cache = SearchCache<SearchResult>()
     private val enrichedCache = SearchCache<EnrichedTrack>()
@@ -60,19 +62,6 @@ class SearchRepository(
     )
 
     private fun List<EnrichedTrack>.asResults() = map { SearchResult(it.track, it.audioUrl, it.audioSource, it.confidence) }
-
-    private suspend fun resolveAudioParallel(tracks: List<Track>, timeoutMs: Long = 6000L): Map<String, EnrichedTrack> = coroutineScope {
-        tracks.map { track ->
-            async {
-                try {
-                    withTimeout(timeoutMs) { findBestAudioForTrack(track) }
-                } catch (_: Exception) { null }
-            }
-        }.awaitAll().mapIndexedNotNull { i, result ->
-            if (result != null) tracks[i].id to EnrichedTrack(tracks[i], result.first, result.second, 1.0f)
-            else null
-        }.toMap()
-    }
 
     override suspend fun searchAll(query: String): List<SearchResult> = searchAllInternal(query).asResults()
 
@@ -102,7 +91,9 @@ class SearchRepository(
                 val cached = deserializeEnrichedTracks(roomCached.value).also {
                     enrichedCache.put(normalized, it)
                 }
-                return@withContext cached
+                if (roomCached.expiresAt > System.currentTimeMillis()) {
+                    return@withContext cached
+                }
             } catch (_: Exception) {
                 cacheDao.remove("search:$normalized")
             }
@@ -110,7 +101,7 @@ class SearchRepository(
 
         try {
             val results = withTimeout(30000L) { searchAllUncached(normalized) }
-            cacheDao.put(CacheEntryEntity("search:$normalized", serializeEnrichedTracks(results), System.currentTimeMillis() + 300_000L))
+            cacheDao.put(CacheEntryEntity("search:$normalized", serializeEnrichedTracks(results), System.currentTimeMillis() + 900_000L))
             results
         } catch (e: TimeoutCancellationException) {
             Log.e("SearchRepository", "searchAllInternal timeout", e); emptyList()
@@ -187,40 +178,34 @@ class SearchRepository(
         val deezerResults = deezerDeferred.await() ?: emptyList()
         val additional = additionalDeferred.await()
 
-        val deezerTracks = deezerResults.take(3).map { d ->
-            Track(id = "dz_${d.id}", title = d.title, artist = d.artist, album = d.album,
-                durationMs = d.duration * 1000L, artworkUrl = d.artworkUrl, isrc = d.isrc, source = "deezer")
-        }
-        val deezerResolved = resolveAudioParallel(deezerTracks)
         val deezerEnriched = deezerResults.map { d ->
-            val id = "dz_${d.id}"
-            deezerResolved[id] ?: EnrichedTrack(
-                Track(id = id, title = d.title, artist = d.artist, album = d.album,
+            EnrichedTrack(
+                Track(id = "dz_${d.id}", title = d.title, artist = d.artist, album = d.album,
                     durationMs = d.duration * 1000L, artworkUrl = d.artworkUrl, isrc = d.isrc, source = "deezer"),
                 null, null, 0.4f
             )
         }
 
-        val spotifyTop = spotifyTracks.take(3)
-        val spotifyResolved = resolveAudioParallel(spotifyTop)
         val spotifyEnriched = spotifyTracks.map { track ->
-            spotifyResolved[track.id] ?: EnrichedTrack(track, null, null, 0.5f)
+            EnrichedTrack(track, null, null, 0.5f)
         }
 
-        val youtubeResults = pipedResults.mapNotNull { yt ->
-            try {
-                val stream = robustCall(timeoutMs = 10000, label = "yt_stream") { pipedClient.getStreams(yt.videoId) }
-                if (stream != null) {
-                    val audioUrl = stream.audioTrackUrl ?: stream.url
-                    if (audioUrl.isEmpty()) return@mapNotNull null
-                    EnrichedTrack(
-                        track = Track(id = "yt_${yt.videoId}", title = yt.title, artist = yt.uploader,
-                            album = yt.uploader, durationMs = yt.duration * 1000, artworkUrl = yt.thumbnailUrl, source = "youtube"),
-                        audioUrl = audioUrl, audioSource = "youtube", confidence = 0.9f
-                    )
-                } else null
-            } catch (e: Exception) { Log.e("SearchRepository", "youtube stream failed", e); null }
-        }
+        val youtubeResults = pipedResults.take(5).map { yt ->
+            async {
+                try {
+                    val stream = robustCall(timeoutMs = 8000, label = "yt_stream") { pipedClient.getStreams(yt.videoId) }
+                    if (stream != null) {
+                        val audioUrl = stream.audioTrackUrl ?: stream.url
+                        if (audioUrl.isEmpty()) return@async null
+                        EnrichedTrack(
+                            track = Track(id = "yt_${yt.videoId}", title = yt.title, artist = yt.uploader,
+                                album = yt.uploader, durationMs = yt.duration * 1000, artworkUrl = yt.thumbnailUrl, source = "youtube"),
+                            audioUrl = audioUrl, audioSource = "youtube", confidence = 0.9f
+                        )
+                    } else null
+                } catch (e: Exception) { Log.e("SearchRepository", "youtube stream failed", e); null }
+            }
+        }.awaitAll().filterNotNull()
 
         val seenIds = mutableSetOf<String>()
         val seenTitleArtist = mutableSetOf<String>()
@@ -243,29 +228,31 @@ class SearchRepository(
 
     private suspend fun searchYouTubeOnlyInternal(query: String): List<EnrichedTrack> = withContext(Dispatchers.IO) {
         val results = robustCall(label = "piped_search") { pipedClient.search(query) } ?: return@withContext emptyList()
-        results.mapNotNull { yt ->
-            try {
-                val stream = robustCall(timeoutMs = 10000, label = "piped_stream") { pipedClient.getStreams(yt.videoId) }
-                if (stream != null) {
-                    val audioUrl = stream.audioTrackUrl ?: stream.url
-                    if (audioUrl.isEmpty()) return@mapNotNull null
-                    EnrichedTrack(
-                        track = Track(
-                            id = "yt_${yt.videoId}",
-                            title = yt.title,
-                            artist = yt.uploader,
-                            album = yt.uploader,
-                            durationMs = yt.duration * 1000,
-                            artworkUrl = yt.thumbnailUrl,
-                            source = "youtube"
-                        ),
-                        audioUrl = audioUrl,
-                        audioSource = "youtube",
-                        confidence = 1.0f
-                    )
-                } else null
-            } catch (e: Exception) { Log.e("SearchRepository", "searchYouTubeOnly stream failed", e); null }
-        }
+        results.map { yt ->
+            async {
+                try {
+                    val stream = robustCall(timeoutMs = 10000, label = "piped_stream") { pipedClient.getStreams(yt.videoId) }
+                    if (stream != null) {
+                        val audioUrl = stream.audioTrackUrl ?: stream.url
+                        if (audioUrl.isEmpty()) return@async null
+                        EnrichedTrack(
+                            track = Track(
+                                id = "yt_${yt.videoId}",
+                                title = yt.title,
+                                artist = yt.uploader,
+                                album = yt.uploader,
+                                durationMs = yt.duration * 1000,
+                                artworkUrl = yt.thumbnailUrl,
+                                source = "youtube"
+                            ),
+                            audioUrl = audioUrl,
+                            audioSource = "youtube",
+                            confidence = 1.0f
+                        )
+                    } else null
+                } catch (e: Exception) { Log.e("SearchRepository", "searchYouTubeOnly stream failed", e); null }
+            }
+        }.awaitAll().filterNotNull()
     }
 
     private suspend fun searchSoundCloud(query: String): List<EnrichedTrack> {
@@ -371,32 +358,13 @@ class SearchRepository(
         }
     }
 
-    private data class AudioCandidate(
-        val audioUrl: String,
-        val source: String,
-        val score: Float,
-        val isPreview: Boolean = false
-    )
-
-    private fun generateQueries(artist: String, title: String): List<String> {
-        return listOfNotNull(
-            if (artist.isNotBlank()) "$artist - $title" else title,
-            if (artist.isNotBlank()) "$artist $title" else null,
-            title
-        ).distinct().filter { it.length > 2 }
-    }
-
     override suspend fun findBestAudioForTrack(track: Track): Pair<String, String>? = withContext(Dispatchers.IO) {
         audioUrlCache.get(track.id)?.firstOrNull()?.let { return@withContext it }
 
         try {
-            withTimeout(8000L) {
-                val expectedDurationSec = if (track.durationMs > 0) track.durationMs / 1000 else null
-                val isrc = track.isrc
-                val query = generateQueries(track.artist, track.title).first()
-
-                val result = tryResolveAudioParallel(query, track.title, track.artist, expectedDurationSec, isrc)
-                    ?: if (track.previewUrl != null && isValidPreviewUrl(track.previewUrl)) {
+            withTimeout(6000L) {
+                val result = audioPipeline.resolve(track)
+                    ?: if (track.previewUrl != null && track.previewUrl.startsWith("http")) {
                         Pair(track.previewUrl, track.source)
                     } else null
 
@@ -406,129 +374,6 @@ class SearchRepository(
         } catch (e: TimeoutCancellationException) {
             Log.e("SearchRepository", "findBestAudioForTrack timeout", e); null
         }
-    }
-
-    private fun isValidPreviewUrl(url: String?): Boolean {
-        return url != null && url.isNotEmpty() && (url.startsWith("http://") || url.startsWith("https://"))
-    }
-
-    private suspend fun tryResolveAudioParallel(
-        query: String,
-        expectedTitle: String,
-        expectedArtist: String,
-        expectedDurationSec: Long?,
-        expectedIsrc: String?
-    ): Pair<String, String>? = coroutineScope {
-        val candidates = mutableListOf<AudioCandidate>()
-
-        val sourceJobs = listOf(
-            async {
-                if (expectedIsrc != null) {
-                    try {
-                        val deezerTrack = deezerClient.getTrackByIsrc(expectedIsrc)
-                        if (deezerTrack?.previewUrl != null) {
-                            val score = MatchScorer.computeScore(MatchOptions(
-                                expectedTitle = expectedTitle, expectedArtist = expectedArtist,
-                                foundTitle = deezerTrack.title, foundAuthor = deezerTrack.artist,
-                                foundDurationSec = deezerTrack.duration.toLong(),
-                                expectedDurationSec = expectedDurationSec,
-                                expectedIsrc = expectedIsrc, foundIsrc = deezerTrack.isrc
-                            ))
-                            AudioCandidate(deezerTrack.previewUrl, "deezer", score, isPreview = true)
-                        } else null
-                    } catch (_: Exception) { null }
-                } else null
-            },
-            async {
-                try {
-                    val pipedResults = pipedClient.search(query, limit = 3, filter = "music")
-                    pipedResults.mapNotNull { pr ->
-                        try {
-                            val stream = withTimeout(4000L) { pipedClient.getStreams(pr.videoId) }
-                            if (stream != null) {
-                                val audioUrl = stream.audioTrackUrl ?: stream.url
-                                if (audioUrl.isNotEmpty()) {
-                                    val score = MatchScorer.computeScore(MatchOptions(
-                                        expectedTitle = expectedTitle, expectedArtist = expectedArtist,
-                                        foundTitle = pr.title, foundAuthor = pr.uploader,
-                                        foundDurationSec = pr.duration, expectedDurationSec = expectedDurationSec,
-                                        expectedIsrc = expectedIsrc
-                                    ))
-                                    AudioCandidate(audioUrl, "piped", score)
-                                } else null
-                            } else null
-                        } catch (_: Exception) { null }
-                    }
-                } catch (_: Exception) { emptyList() }
-            },
-            async {
-                try {
-                    audiusClient.search(query, limit = 3).mapNotNull { ar ->
-                        if (ar.streamUrl != null) {
-                            val score = MatchScorer.computeScore(MatchOptions(
-                                expectedTitle = expectedTitle, expectedArtist = expectedArtist,
-                                foundTitle = ar.title, foundAuthor = ar.artist,
-                                foundDurationSec = ar.duration, expectedDurationSec = expectedDurationSec,
-                                expectedIsrc = expectedIsrc
-                            ))
-                            AudioCandidate(ar.streamUrl, "audius", score)
-                        } else null
-                    }
-                } catch (_: Exception) { emptyList() }
-            },
-            async {
-                try {
-                    jamendoClient.search(query, limit = 2).mapNotNull { jr ->
-                        if (jr.audioUrl != null) {
-                            val score = MatchScorer.computeScore(MatchOptions(
-                                expectedTitle = expectedTitle, expectedArtist = expectedArtist,
-                                foundTitle = jr.title, foundAuthor = jr.artist,
-                                foundDurationSec = jr.duration.toLong(),
-                                expectedDurationSec = expectedDurationSec, expectedIsrc = expectedIsrc
-                            ))
-                            AudioCandidate(jr.audioUrl, "jamendo", score)
-                        } else null
-                    }
-                } catch (_: Exception) { emptyList() }
-            },
-            async {
-                try {
-                    fmaClient.search(query, limit = 2).mapNotNull { fr ->
-                        if (fr.audioUrl != null) {
-                            val score = MatchScorer.computeScore(MatchOptions(
-                                expectedTitle = expectedTitle, expectedArtist = expectedArtist,
-                                foundTitle = fr.title, foundAuthor = fr.artist,
-                                foundDurationSec = fr.duration, expectedDurationSec = expectedDurationSec,
-                                expectedIsrc = expectedIsrc
-                            ))
-                            AudioCandidate(fr.audioUrl, "fma", score)
-                        } else null
-                    }
-                } catch (_: Exception) { emptyList() }
-            }
-        )
-
-        for (job in sourceJobs) {
-            val result = job.await()
-            if (result is AudioCandidate) candidates.add(result)
-            else if (result is List<*>) candidates.addAll(result.filterIsInstance<AudioCandidate>())
-        }
-
-        candidates.firstOrNull { !it.isPreview && it.score >= MatchScorer.GOOD_CONFIDENCE }
-            ?.let { return@coroutineScope Pair(it.audioUrl, it.source) }
-
-        candidates.firstOrNull { it.score >= MatchScorer.GOOD_CONFIDENCE }
-            ?.let { return@coroutineScope Pair(it.audioUrl, it.source) }
-
-        candidates.filter { !it.isPreview && it.score >= MatchScorer.MIN_CONFIDENCE }
-            .maxByOrNull { it.score }
-            ?.let { return@coroutineScope Pair(it.audioUrl, it.source) }
-
-        candidates.filter { it.score >= MatchScorer.MIN_CONFIDENCE }
-            .maxByOrNull { it.score }
-            ?.let { return@coroutineScope Pair(it.audioUrl, it.source) }
-
-        null
     }
 
     override fun invalidateCache() {

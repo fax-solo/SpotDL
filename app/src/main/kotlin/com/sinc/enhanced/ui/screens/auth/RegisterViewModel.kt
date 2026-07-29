@@ -3,6 +3,7 @@ package com.sinc.enhanced.ui.screens.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.sinc.enhanced.BuildConfig
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.remote.ApiClient
 import com.sinc.enhanced.data.repository.AuthRepository
@@ -15,8 +16,7 @@ import kotlinx.coroutines.launch
 data class RegisterUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSuccess: Boolean = false,
-    val needsServerUrl: Boolean = false
+    val isSuccess: Boolean = false
 )
 
 class RegisterViewModel(
@@ -48,10 +48,10 @@ class RegisterViewModel(
         viewModelScope.launch {
             try {
                 val serverUrl = authRepository.serverUrl.value
-                if (serverUrl.isBlank()) {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = null, needsServerUrl = true)
-                    return@launch
-                }
+                    .takeIf { it.isNotBlank() }
+                    ?: BuildConfig.BACKEND_URL
+                    .takeIf { it.isNotBlank() }
+                    ?: "https://sinc-enhanced-backend.faxsolo2214.workers.dev"
                 val trimmedUrl = serverUrl.trim()
                 apiClient.configure(trimmedUrl, apiClient.token)
                 val result = apiClient.register(username, password)

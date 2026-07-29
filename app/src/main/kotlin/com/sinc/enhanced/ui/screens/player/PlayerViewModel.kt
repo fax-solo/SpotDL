@@ -48,6 +48,7 @@ class PlayerViewModel(
     init {
         viewModelScope.launch {
             var previousTrackId: String? = null
+            var playRecordedForTrack = false
             musicPlayer.state
                 .debounce(200)
                 .collect { playerState ->
@@ -66,11 +67,16 @@ class PlayerViewModel(
                 val track = playerState.currentTrack
                 if (track != null && track.id != previousTrackId) {
                     previousTrackId = track.id
+                    playRecordedForTrack = false
                     _uiState.value = _uiState.value.copy(
                         lyrics = null, isLoadingLyrics = false,
                         isLiked = userLibraryRepository.isTrackLiked(track.id)
                     )
                     loadLyrics(track)
+                }
+                if (playerState.isPlaying && track != null && !playRecordedForTrack && playerState.position > 3000) {
+                    playRecordedForTrack = true
+                    SincApp.instance.container.recommendationEngine.recordPlay(track)
                 }
             }
         }

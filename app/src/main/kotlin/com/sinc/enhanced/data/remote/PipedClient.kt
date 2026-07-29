@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 
 class PipedClient(
     private val client: OkHttpClient,
@@ -28,6 +29,7 @@ class PipedClient(
             "https://pipedapi.drgns.space",
             "https://pipedapi.qdi.fi"
         )
+        private const val LATENCY_DECAY = 0.7f
     }
 
     data class PipedSearchResult(
@@ -50,9 +52,24 @@ class PipedClient(
     )
 
     @Volatile private var lastWorkingInstance: String? = null
+    private val instanceLatency = ConcurrentHashMap<String, Long>()
+    private val instanceFailCount = ConcurrentHashMap<String, Int>()
 
     private fun getInstance(): String {
-        return lastWorkingInstance ?: INSTANCES.first()
+        lastWorkingInstance?.let { return it }
+        return INSTANCES.minByOrNull { instance ->
+            instanceLatency.getOrDefault(instance, 1000L) * (1 + instanceFailCount.getOrDefault(instance, 0))
+        } ?: INSTANCES.first()
+    }
+
+    private fun recordLatency(instance: String, elapsedMs: Long) {
+        val prev = instanceLatency.getOrDefault(instance, elapsedMs)
+        instanceLatency[instance] = (LATENCY_DECAY * prev + (1 - LATENCY_DECAY) * elapsedMs).toLong()
+        instanceFailCount[instance] = 0
+    }
+
+    private fun recordFailure(instance: String) {
+        instanceFailCount[instance] = (instanceFailCount[instance] ?: 0) + 1
     }
 
     private fun <T> tryInstances(block: (String) -> T?): T? {
@@ -61,12 +78,19 @@ class PipedClient(
         } else INSTANCES
         for (instance in instances) {
             try {
+                val start = System.currentTimeMillis()
                 val result = block(instance)
+                val elapsed = System.currentTimeMillis() - start
                 if (result != null) {
                     lastWorkingInstance = instance
+                    recordLatency(instance, elapsed)
                     return result
                 }
-            } catch (e: Exception) { Log.e("PipedClient", "tryInstances failed", e) }
+                recordFailure(instance)
+            } catch (e: Exception) {
+                recordFailure(instance)
+                Log.e("PipedClient", "tryInstances failed on $instance", e)
+            }
         }
         return null
     }

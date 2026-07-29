@@ -9,6 +9,7 @@ import com.sinc.enhanced.data.local.dao.DownloadDao
 import com.sinc.enhanced.data.local.dao.HistoryDao
 import com.sinc.enhanced.data.local.dao.LyricsCacheDao
 import com.sinc.enhanced.data.local.dao.PlaylistDao
+import com.sinc.enhanced.data.local.dao.RecommendationDao
 import com.sinc.enhanced.data.local.dao.SearchHistoryDao
 import com.sinc.enhanced.data.local.dao.UserLibraryDao
 import com.sinc.enhanced.data.local.entity.CacheEntryEntity
@@ -16,14 +17,16 @@ import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.local.entity.HistoryEntity
 import com.sinc.enhanced.data.local.entity.LikedTrackEntity
 import com.sinc.enhanced.data.local.entity.LyricsCacheEntity
+import com.sinc.enhanced.data.local.entity.PlayCountEntity
 import com.sinc.enhanced.data.local.entity.PlaylistEntity
 import com.sinc.enhanced.data.local.entity.PlaylistTrackEntity
 import com.sinc.enhanced.data.local.entity.SavedTrackEntity
 import com.sinc.enhanced.data.local.entity.SearchHistoryEntity
+import com.sinc.enhanced.data.local.entity.UserGenreEntity
 
 @Database(
-    entities = [DownloadEntity::class, HistoryEntity::class, LikedTrackEntity::class, SavedTrackEntity::class, SearchHistoryEntity::class, PlaylistEntity::class, PlaylistTrackEntity::class, LyricsCacheEntity::class, CacheEntryEntity::class],
-    version = 5,
+    entities = [DownloadEntity::class, HistoryEntity::class, LikedTrackEntity::class, SavedTrackEntity::class, SearchHistoryEntity::class, PlaylistEntity::class, PlaylistTrackEntity::class, LyricsCacheEntity::class, CacheEntryEntity::class, UserGenreEntity::class, PlayCountEntity::class],
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userLibraryDao(): UserLibraryDao
     abstract fun lyricsCacheDao(): LyricsCacheDao
     abstract fun cacheDao(): CacheDao
+    abstract fun recommendationDao(): RecommendationDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -63,6 +67,15 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS lyrics_cache (id TEXT PRIMARY KEY, plainLyrics TEXT NOT NULL DEFAULT '', syncedLyrics TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '')")
                 db.execSQL("CREATE TABLE IF NOT EXISTS cache_entries (key TEXT PRIMARY KEY, value TEXT NOT NULL, expiresAt INTEGER NOT NULL DEFAULT 9223372036854775807)")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS user_genres (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, genre TEXT NOT NULL, affinity REAL NOT NULL DEFAULT 1.0, lastInteracted INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_genres_genre ON user_genres(genre)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS play_counts (trackId TEXT NOT NULL PRIMARY KEY, artist TEXT NOT NULL, title TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1, lastPlayed INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_play_counts_trackId ON play_counts(trackId)")
             }
         }
     }
