@@ -85,7 +85,8 @@ class AppContainer(private val context: Context) {
         jamendoClient = jamendoClient,
         fmaClient = fmaClient,
         bandcampClient = bandcampClient,
-        settingsManager = settingsManager
+        settingsManager = settingsManager,
+        cacheDao = database.cacheDao()
     )
     val downloadRepository: DownloadRepository = DownloadRepository(
         context = context,

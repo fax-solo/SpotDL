@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.dao.HistoryDao
 import com.sinc.enhanced.data.local.entity.HistoryEntity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,12 +25,15 @@ class HistoryViewModel(
     private val _uiState = MutableStateFlow(HistoryUiState())
     val uiState: StateFlow<HistoryUiState> = _uiState.asStateFlow()
 
+    private var collectionJob: Job? = null
+
     init {
-        refresh()
+        observeHistory()
     }
 
-    fun refresh() {
-        viewModelScope.launch {
+    private fun observeHistory() {
+        collectionJob?.cancel()
+        collectionJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 historyDao.getAllHistory().collect { history ->
@@ -48,10 +52,16 @@ class HistoryViewModel(
         }
     }
 
+    fun refresh() {
+        observeHistory()
+    }
+
     fun clearHistory() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(error = null)
-            historyDao.deleteAll()
+            try {
+                historyDao.deleteAll()
+            } catch (_: Exception) {}
         }
     }
 

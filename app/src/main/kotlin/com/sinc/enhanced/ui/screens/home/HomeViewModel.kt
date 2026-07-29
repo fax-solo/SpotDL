@@ -11,12 +11,15 @@ import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.SearchRepository
 import com.sinc.enhanced.player.MusicPlayer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 
 data class HomeUiState(
     val recentSearches: List<String> = emptyList(),
@@ -95,19 +98,25 @@ class HomeViewModel(
         }
         val allTracks = mutableListOf<Track>()
         val seen = mutableSetOf<String>()
-        for (keyword in keywords.take(3)) {
-            try {
-                val results = searchRepository.searchYouTubeOnly(keyword)
-                for (enriched in results) {
-                    val t = enriched.track
-                    if (t.id !in seen && t.artworkUrl != null) {
+        coroutineScope {
+            val deferreds = keywords.take(3).map { keyword ->
+                async {
+                    try {
+                        searchRepository.searchYouTubeOnly(keyword).map { it.track }
+                            .filter { it.artworkUrl != null }
+                    } catch (_: Exception) { emptyList() }
+                }
+            }
+            for (deferred in deferreds) {
+                for (t in deferred.await()) {
+                    if (t.id !in seen) {
                         seen.add(t.id)
                         allTracks.add(t)
                         if (allTracks.size >= 12) break
                     }
                 }
-            } catch (_: Exception) {}
-            if (allTracks.size >= 12) break
+                if (allTracks.size >= 12) break
+            }
         }
         _uiState.value = _uiState.value.copy(
             recommendations = allTracks,
@@ -116,16 +125,15 @@ class HomeViewModel(
     }
 
     suspend fun resolveAudioUrl(track: Track): Pair<String, String>? {
-        return withContext(Dispatchers.IO) {
-            searchRepository.findBestAudioForTrack(track)
-        }
+        return searchRepository.findBestAudioForTrack(track)
     }
 
     private fun loadNewReleases() {
         viewModelScope.launch {
             try {
+                val year = Calendar.getInstance().get(Calendar.YEAR)
                 val results = withContext(Dispatchers.IO) {
-                    searchRepository.searchYouTubeOnly("new music releases 2026")
+                    searchRepository.searchYouTubeOnly("new music releases $year")
                 }
                 val tracks = results.map { it.track }.filter { it.artworkUrl != null }.take(10)
                 _uiState.value = _uiState.value.copy(newReleases = tracks)

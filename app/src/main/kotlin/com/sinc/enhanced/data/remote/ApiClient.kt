@@ -1,6 +1,7 @@
 package com.sinc.enhanced.data.remote
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -40,7 +41,8 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                     throw ApiException(response.code)
                 }
             }
-        } catch (e: ApiException) { throw e }
+        } catch (e: CancellationException) { throw e }
+        catch (e: ApiException) { throw e }
         catch (e: Exception) { Log.e("ApiClient", "post failed", e); null }
     }
 
@@ -66,7 +68,8 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                     throw ApiException(response.code)
                 }
             }
-        } catch (e: ApiException) { throw e }
+        } catch (e: CancellationException) { throw e }
+        catch (e: ApiException) { throw e }
         catch (e: Exception) { Log.e("ApiClient", "get failed", e); null }
     }
 
@@ -80,7 +83,8 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
             okHttpClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) response.body?.string() else null
             }
-        } catch (e: Exception) { Log.e("ApiClient", "getArray failed", e); null }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { Log.e("ApiClient", "getArray failed", e); null }
     }
 
     suspend fun register(username: String, password: String): Pair<String, JSONObject>? {
@@ -108,7 +112,8 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
     suspend fun ping(): Boolean {
         return try {
             post("/api/stats/ping", JSONObject()) != null
-        } catch (_: ApiException) { false }
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: ApiException) { false }
     }
 
     suspend fun trackDownload(title: String, artist: String, source: String): Boolean {
@@ -119,7 +124,8 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
                 put("source", source)
             }
             post("/api/stats/download", body) != null
-        } catch (_: ApiException) { false }
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: ApiException) { false }
     }
 
     suspend fun getAdminStats(): JSONObject? {
@@ -131,6 +137,7 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
         return try {
             val arr = JSONObject("{\"items\":$json}").optJSONArray("items")
             if (arr == null) null else (0 until arr.length()).map { arr.getJSONObject(it) }
-        } catch (e: Exception) { Log.e("ApiClient", "getAdminUsers failed", e); null }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { Log.e("ApiClient", "getAdminUsers failed", e); null }
     }
 }

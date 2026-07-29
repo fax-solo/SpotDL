@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -46,7 +48,9 @@ class PlayerViewModel(
     init {
         viewModelScope.launch {
             var previousTrackId: String? = null
-            musicPlayer.state.collect { playerState ->
+            musicPlayer.state
+                .debounce(200)
+                .collect { playerState ->
                 _uiState.value = _uiState.value.copy(
                     currentTrack = playerState.currentTrack,
                     isPlaying = playerState.isPlaying,

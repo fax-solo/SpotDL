@@ -73,7 +73,7 @@ fun TrackItem(
                     alpha = 1f
                 }
                 Image(
-                    painter = rememberAsyncImagePainter(track.artworkUrl!!),
+                        painter = rememberAsyncImagePainter(track.artworkUrl ?: ""),
                     contentDescription = "${track.title} by ${track.artist}",
                     modifier = Modifier
                         .size(48.dp)

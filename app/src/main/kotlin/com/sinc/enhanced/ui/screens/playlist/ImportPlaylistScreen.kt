@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImportPlaylistScreen(
+    onPlayTrack: ((com.sinc.enhanced.data.model.Track, String) -> Unit)? = null,
     onDownloadTrack: (com.sinc.enhanced.data.model.Track, String) -> Unit,
     onQueueComplete: () -> Unit = {},
     onNavigateBack: () -> Unit,
@@ -112,6 +114,25 @@ fun ImportPlaylistScreen(
                                     Text("${uiState.tracks.size} tracks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     val available = uiState.trackAudioUrls.size
                                     Text("$available available to download", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                    if (uiState.tracks.isNotEmpty()) {
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            val firstAvailable = uiState.tracks.firstOrNull { uiState.trackAudioUrls.containsKey(it.id) }
+                                            Button(
+                                                onClick = {
+                                                    if (firstAvailable != null && onPlayTrack != null) {
+                                                        val url = uiState.trackAudioUrls[firstAvailable.id]
+                                                        if (url != null) onPlayTrack(firstAvailable, url)
+                                                    }
+                                                },
+                                                enabled = firstAvailable != null
+                                            ) {
+                                                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("Play First")
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -143,6 +164,9 @@ fun ImportPlaylistScreen(
                             TrackRow(
                                 track = track,
                                 isAvailable = audioUrl != null,
+                                onPlay = if (audioUrl != null && onPlayTrack != null) {
+                                    { onPlayTrack(track, audioUrl) }
+                                } else null,
                                 onDownload = {
                                     if (audioUrl != null) {
                                         onDownloadTrack(track, audioUrl)
@@ -190,6 +214,7 @@ fun ImportPlaylistScreen(
 private fun TrackRow(
     track: com.sinc.enhanced.data.model.Track,
     isAvailable: Boolean,
+    onPlay: (() -> Unit)? = null,
     onDownload: () -> Unit
 ) {
     Surface(
@@ -225,11 +250,21 @@ private fun TrackRow(
                 Text(track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (isAvailable) {
+                if (onPlay != null) {
+                    IconButton(onClick = onPlay) {
+                        Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
                 IconButton(onClick = onDownload) {
                     Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)
                 }
             } else {
-                Text("N/A", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                Icon(
+                    Icons.Default.HourglassEmpty,
+                    contentDescription = "Resolving...",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp).padding(2.dp)
+                )
             }
         }
     }

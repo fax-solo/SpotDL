@@ -4,7 +4,10 @@ import android.util.Log
 import com.sinc.enhanced.data.model.Album
 import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -30,12 +33,12 @@ class SpotifyClient(private val client: OkHttpClient) {
 
     @Volatile private var anonymousToken: String? = null
     @Volatile private var tokenExpiresAt: Long = 0
-    private val tokenLock = Any()
+    private val tokenMutex = Mutex()
 
     private suspend fun getAnonymousToken(): String = withContext(Dispatchers.IO) {
-        synchronized(tokenLock) {
+        tokenMutex.withLock {
             anonymousToken?.let { token ->
-                if (System.currentTimeMillis() < tokenExpiresAt - 60000) return@withContext token
+                if (System.currentTimeMillis() < tokenExpiresAt - 60000) return@withLock token
             }
             val html = fetchUrl("https://open.spotify.com/embed/track/$EMBED_BOOTSTRAP_ID") ?: throw Exception("Failed to fetch embed page")
             val matcher = Pattern.compile(
@@ -69,7 +72,8 @@ class SpotifyClient(private val client: OkHttpClient) {
                 if (!response.isSuccessful) return null
                 response.body?.string()
             }
-        } catch (e: Exception) {
+        } catch (ce: CancellationException) { throw ce }
+        catch (e: Exception) {
             Log.e("SpotifyClient", "fetchUrl failed: $url", e)
             null
         }
@@ -99,7 +103,8 @@ class SpotifyClient(private val client: OkHttpClient) {
                 if (!response.isSuccessful) return null
                 JSONObject(response.body?.string() ?: return null)
             }
-        } catch (e: Exception) {
+        } catch (ce: CancellationException) { throw ce }
+        catch (e: Exception) {
             Log.e("SpotifyClient", "pathfinderGet failed", e)
             null
         }
@@ -158,7 +163,8 @@ class SpotifyClient(private val client: OkHttpClient) {
     suspend fun searchTracks(query: String, limit: Int = 10): List<Track> = withContext(Dispatchers.IO) {
         try {
             getAnonymousToken()
-        } catch (_: Exception) { return@withContext emptyList() }
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: Exception) { return@withContext emptyList() }
 
         val vars = JSONObject().apply {
             put("searchTerm", query)
@@ -227,7 +233,8 @@ class SpotifyClient(private val client: OkHttpClient) {
     suspend fun getPlaylist(playlistId: String): Map<String, Any?>? = withContext(Dispatchers.IO) {
         try {
             getAnonymousToken()
-        } catch (_: Exception) { return@withContext null }
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: Exception) { return@withContext null }
 
         val vars = JSONObject().apply {
             put("uri", "spotify:playlist:$playlistId")
@@ -258,7 +265,8 @@ class SpotifyClient(private val client: OkHttpClient) {
     suspend fun getPlaylistTracks(playlistId: String, offset: Int = 0, limit: Int = 100): PlaylistTracksResult = withContext(Dispatchers.IO) {
         try {
             getAnonymousToken()
-        } catch (_: Exception) { return@withContext PlaylistTracksResult(emptyList(), null) }
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: Exception) { return@withContext PlaylistTracksResult(emptyList(), null) }
 
         val vars = JSONObject().apply {
             put("uri", "spotify:playlist:$playlistId")
@@ -292,7 +300,8 @@ class SpotifyClient(private val client: OkHttpClient) {
     suspend fun getTrack(trackId: String): Track? = withContext(Dispatchers.IO) {
         try {
             getAnonymousToken()
-        } catch (_: Exception) { return@withContext null }
+        } catch (ce: CancellationException) { throw ce }
+        catch (_: Exception) { return@withContext null }
 
         val vars = JSONObject().apply { put("uri", "spotify:track:$trackId") }
         val json = pathfinderGet("getTrack", TRACK_HASH, vars) ?: return@withContext null

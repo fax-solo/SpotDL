@@ -9,9 +9,13 @@ import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.service.DownloadService
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class QueueUiState(
@@ -28,15 +32,20 @@ class QueueViewModel(
     private val _uiState = MutableStateFlow(QueueUiState())
     val uiState: StateFlow<QueueUiState> = _uiState.asStateFlow()
 
+    private var collectionJob: Job? = null
+
     init {
-        refresh()
+        observeDownloads()
     }
 
-    fun refresh() {
-        viewModelScope.launch {
+    private fun observeDownloads() {
+        collectionJob?.cancel()
+        collectionJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                downloadRepository.allDownloads.collect { d ->
+                downloadRepository.allDownloads.catch { e ->
+                    _uiState.value = _uiState.value.copy(error = e.message, isLoading = false)
+                }.collect { d ->
                     _uiState.value = QueueUiState(downloads = d, isLoading = false)
                 }
             } catch (e: Exception) {
@@ -45,8 +54,13 @@ class QueueViewModel(
         }
     }
 
+    fun refresh() {
+        observeDownloads()
+    }
+
     fun removeDownload(trackId: String) {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(error = null)
             try {
                 downloadRepository.removeFromQueue(trackId)
             } catch (e: Exception) {
@@ -57,6 +71,7 @@ class QueueViewModel(
 
     fun retryDownload(trackId: String) {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(error = null)
             try {
                 downloadRepository.retryDownload(trackId)
                 val intent = Intent(context, DownloadService::class.java).apply {
@@ -72,6 +87,7 @@ class QueueViewModel(
 
     fun clearAll() {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(error = null)
             try {
                 downloadRepository.clearAll()
             } catch (e: Exception) {
@@ -82,6 +98,7 @@ class QueueViewModel(
 
     fun clearCompleted() {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(error = null)
             try {
                 downloadRepository.clearCompleted()
             } catch (e: Exception) {

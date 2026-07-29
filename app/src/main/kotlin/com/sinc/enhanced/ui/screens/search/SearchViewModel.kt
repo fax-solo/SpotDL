@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -80,18 +81,32 @@ class SearchViewModel(
     fun onQueryChange(query: String) {
         _uiState.value = _uiState.value.copy(query = query)
         searchJob?.cancel()
+        preResolveJob?.cancel()
         if (query.isBlank()) {
             _uiState.value = SearchUiState()
             return
         }
         searchJob = viewModelScope.launch {
-            delay(500)
+            delay(300)
+            searchRepository.searchAllStreaming(query).collectLatest { streamingResults ->
+                if (streamingResults.isNotEmpty() && _uiState.value.isSearching) {
+                    val grouped = streamingResults
+                    val topResult = pickTopResult(query, grouped)
+                    _uiState.value = _uiState.value.copy(
+                        results = grouped.take(PAGE_SIZE),
+                        topResult = topResult,
+                        hasMore = grouped.size > PAGE_SIZE,
+                        isSearching = false
+                    )
+                }
+            }
             performSearch(query)
         }
     }
 
     fun onSearch(query: String) {
         searchJob?.cancel()
+        preResolveJob?.cancel()
         _uiState.value = _uiState.value.copy(query = query)
         if (query.isNotBlank()) {
             searchJob = viewModelScope.launch { performSearch(query) }
@@ -257,13 +272,20 @@ class SearchViewModel(
     private fun preResolveAudio(results: List<SearchResult>) {
         preResolveJob?.cancel()
         preResolveJob = viewModelScope.launch {
-            val toResolve = results.filter { it.audioUrl == null }.take(10)
-            for (sr in toResolve) {
-                val resolved = searchRepository.findBestAudioForTrack(sr.track)
-                if (resolved != null) {
-                    _uiState.value = _uiState.value.copy(
-                        resolvedAudioUrls = _uiState.value.resolvedAudioUrls + (sr.track.id to resolved)
-                    )
+            val toResolve = results.filter { it.audioUrl == null }.take(30)
+            toResolve.map { sr ->
+                async {
+                    val resolved = searchRepository.findBestAudioForTrack(sr.track)
+                    sr.track.id to resolved
+                }
+            }.also { deferreds ->
+                deferreds.forEach { deferred ->
+                    val (id, resolved) = deferred.await()
+                    if (resolved != null) {
+                        _uiState.value = _uiState.value.copy(
+                            resolvedAudioUrls = _uiState.value.resolvedAudioUrls + (id to resolved)
+                        )
+                    }
                 }
             }
         }

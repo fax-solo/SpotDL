@@ -287,6 +287,8 @@ class MusicPlayer(private val context: Context) : PlayerController {
     override fun release() {
         positionJob?.cancel()
         sleepTimerJob?.cancel()
+        previewJob?.cancel()
+        scope.coroutineContext[Job]?.cancel()
         player.removeListener(playerListener)
         player.release()
         mediaSession.release()

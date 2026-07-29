@@ -1,6 +1,7 @@
 package com.sinc.enhanced.data.remote
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -17,7 +18,8 @@ class DeezerClient(private val client: OkHttpClient) {
                 if (!response.isSuccessful) return@use null
                 JSONObject(response.body?.string() ?: return@use null)
             }
-        } catch (e: Exception) { Log.e("DeezerClient", "deezerGet failed", e); null }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { Log.e("DeezerClient", "deezerGet failed", e); null }
     }
 
     data class DeezerTrack(

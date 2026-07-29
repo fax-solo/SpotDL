@@ -93,8 +93,9 @@ fun AdminScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        if (authState.isLoggedIn && authState.isAdmin && serverStats != null) {
-            val s = serverStats!!
+        val stats = serverStats
+        if (authState.isLoggedIn && authState.isAdmin && stats != null) {
+            val s = stats
             Text(
                 text = "Server Stats",
                 style = MaterialTheme.typography.titleMedium,

@@ -231,7 +231,7 @@ class DownloadRepository(
                 }
             }
 
-            val result = tryDownload(url!!, usedSource, download, onProgress, startTime)
+            val result = tryDownload(url ?: return@withContext false, usedSource, download, onProgress, startTime)
             if (result != null) {
                 val file = File(result.first)
                 if (isValidAudioFile(file)) {
@@ -272,7 +272,20 @@ class DownloadRepository(
                 val contentLength = body.contentLength()
                 val stream = body.byteStream()
 
-                val fileName = "${sanitizeFileName(download.artist)} - ${sanitizeFileName(download.title)}.mp3"
+                val mimeType = resp.header("Content-Type") ?: ""
+                val ext = when {
+                    mimeType.startsWith("audio/mpeg") -> "mp3"
+                    mimeType.startsWith("audio/mp4") || mimeType.startsWith("audio/aac") -> "m4a"
+                    mimeType.startsWith("audio/webm") || mimeType.startsWith("video/webm") -> "webm"
+                    mimeType.startsWith("audio/opus") || mimeType.startsWith("audio/ogg") -> "opus"
+                    mimeType.startsWith("audio/wav") -> "wav"
+                    mimeType.startsWith("audio/flac") -> "flac"
+                    url.contains(".m4a") || url.contains(".mp4") -> "m4a"
+                    url.contains(".webm") -> "webm"
+                    url.contains(".opus") -> "opus"
+                    else -> "mp3"
+                }
+                val fileName = "${sanitizeFileName(download.artist)} - ${sanitizeFileName(download.title)}.$ext"
 
                 val downloadsDir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
@@ -296,7 +309,7 @@ class DownloadRepository(
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     val values = ContentValues().apply {
                         put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
-                        put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg")
+                        put(MediaStore.Audio.Media.MIME_TYPE, mimeType.ifEmpty { "audio/mpeg" })
                         put(MediaStore.Audio.Media.ARTIST, download.artist)
                         put(MediaStore.Audio.Media.TITLE, download.title)
                         put(MediaStore.Audio.Media.ALBUM, download.album)
@@ -387,7 +400,7 @@ class DownloadRepository(
                     if (currentSpeed > maxSpeedBps) {
                         val targetTime = chunkBytes * 1000 / maxSpeedBps
                         val sleepMs = (targetTime - elapsed).coerceAtLeast(0)
-                        if (sleepMs > 0) Thread.sleep(sleepMs)
+                        if (sleepMs > 0) delay(sleepMs)
                     }
                 }
                 if (now - chunkStart > 1000) {

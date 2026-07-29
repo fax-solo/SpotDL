@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.content.Intent
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.sinc.enhanced.data.local.entity.PlaylistTrackEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.TrackItem
@@ -36,6 +38,7 @@ fun PlaylistDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var lastDeletedTrack by remember { mutableStateOf<PlaylistTrackEntity?>(null) }
 
@@ -107,7 +110,7 @@ fun PlaylistDetailScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.ErrorOutline, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(16.dp))
-                    Text(uiState.error!!, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                    Text(uiState.error ?: "", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(16.dp))
                     OutlinedButton(onClick = { viewModel.refresh() }) {
                         Text("Retry")
@@ -211,6 +214,24 @@ fun PlaylistDetailScreen(
                             onClick = { if (url != null) onPlayTrack(track) },
                             trailing = {
                                 Row {
+                                    if (url != null) {
+                                        IconButton(onClick = { onPlayTrack(track) }) {
+                                            Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    } else {
+                                        IconButton(onClick = {
+                                            scope.launch {
+                                                val audioUrl = withContext(Dispatchers.IO) {
+                                                    com.sinc.enhanced.SincApp.instance.container.searchRepository.findBestAudioForTrack(track)?.first
+                                                }
+                                                if (audioUrl != null) {
+                                                    onPlayTrack(track.copy(previewUrl = audioUrl))
+                                                }
+                                            }
+                                        }) {
+                                            Icon(Icons.Default.PlayArrow, "Resolve & Play", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
                                     if (index > 0) {
                                         IconButton(onClick = {
                                             viewModel.reorderTrack(index, index - 1)
@@ -224,6 +245,24 @@ fun PlaylistDetailScreen(
                                         }) {
                                             Icon(Icons.Default.ArrowDropDown, "Move down")
                                         }
+                                    }
+                                    IconButton(onClick = {
+                                        scope.launch {
+                                            val audioUrl = url ?: withContext(Dispatchers.IO) {
+                                                com.sinc.enhanced.SincApp.instance.container.searchRepository.findBestAudioForTrack(track)?.first
+                                            }
+                                            if (audioUrl != null) {
+                                                val repo = com.sinc.enhanced.SincApp.instance.container.downloadRepository
+                                                repo.addToQueue(track, audioUrl)
+                                                val intent = Intent(context, com.sinc.enhanced.service.DownloadService::class.java).apply {
+                                                    action = com.sinc.enhanced.service.DownloadService.ACTION_DOWNLOAD
+                                                    putExtra(com.sinc.enhanced.service.DownloadService.EXTRA_TRACK_ID, track.id)
+                                                }
+                                                context.startForegroundService(intent)
+                                            }
+                                        }
+                                    }) {
+                                        Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)
                                     }
                                     IconButton(onClick = {
                                         val removedEntity = trackEntity

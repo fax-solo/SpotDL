@@ -18,7 +18,7 @@ fun loadDotEnv(): Map<String, String> {
 
 val dotEnv = loadDotEnv()
 fun env(key: String, default: String = ""): String =
-    project.findProperty(key) as? String ?: dotEnv[key] ?: default
+    System.getenv(key) ?: project.findProperty(key) as? String ?: dotEnv[key] ?: default
 
 android {
     namespace = "com.sinc.enhanced"
@@ -31,8 +31,6 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"${env("SPOTIFY_CLIENT_ID", "YOUR_SPOTIFY_CLIENT_ID")}\"")
-        buildConfigField("String", "SPOTIFY_CLIENT_SECRET", "\"${env("SPOTIFY_CLIENT_SECRET", "YOUR_SPOTIFY_CLIENT_SECRET")}\"")
         buildConfigField("String", "BACKEND_URL", "\"${env("BACKEND_URL")}\"")
         buildConfigField("String", "LASTFM_API_KEY", "\"${env("LASTFM_API_KEY", "7a5d0a2a4b1e8c3f6d9e0f1a2b3c4d5e")}\"")
         buildConfigField("String", "JAMENDO_CLIENT_ID", "\"${env("JAMENDO_CLIENT_ID", "4c9f79a7")}\"")

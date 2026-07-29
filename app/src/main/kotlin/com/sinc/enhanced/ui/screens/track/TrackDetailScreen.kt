@@ -7,9 +7,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +34,7 @@ import kotlinx.coroutines.withContext
 fun TrackDetailScreen(
     trackId: String,
     onPlayTrack: (Track, String) -> Unit,
+    onDownloadTrack: ((Track, String) -> Unit)? = null,
     onNavigateArtist: (String) -> Unit,
     onNavigateBack: () -> Unit,
     onTrackRadio: ((String) -> Unit)? = null,
@@ -60,6 +63,8 @@ fun TrackDetailScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(uiState.error ?: "Error", color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = viewModel::retryLoad) { Text("Retry") }
+                    Spacer(Modifier.height(4.dp))
                     TextButton(onClick = onNavigateBack) { Text("Go Back") }
                 }
             }
@@ -125,7 +130,21 @@ fun TrackDetailScreen(
                                     Button(onClick = { onPlayTrack(track, playUrl) }) {
                                         Icon(Icons.Default.PlayArrow, null)
                                         Spacer(Modifier.width(8.dp))
-                                        Text("Play")
+                                        Text("Listen")
+                                    }
+                                }
+                                if (playUrl != null) {
+                                    OutlinedButton(
+                                        onClick = { viewModel.download(playUrl) },
+                                        enabled = !uiState.isDownloading
+                                    ) {
+                                        if (uiState.isDownloading) {
+                                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        } else {
+                                            Icon(Icons.Default.Download, null)
+                                        }
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Download")
                                     }
                                 }
                                 if (onTrackRadio != null) {
@@ -140,10 +159,23 @@ fun TrackDetailScreen(
                     }
 
                     val artist = uiState.artist
-                    if (uiState.lyrics != null) {
-                        item {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text("Lyrics", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
+                            if (uiState.lyrics == null) {
+                                TextButton(onClick = viewModel::retryLyrics) {
+                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Retry")
+                                }
+                            }
                         }
+                    }
+                    if (uiState.lyrics != null) {
                         item {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
@@ -159,12 +191,28 @@ fun TrackDetailScreen(
                         }
                     } else {
                         item {
-                            Text(
-                                text = "No lyrics found",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "No lyrics found",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = "Tap retry to search again",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
                         }
                     }
 

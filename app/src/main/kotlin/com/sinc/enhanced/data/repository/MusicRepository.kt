@@ -67,7 +67,7 @@ class MusicRepository(private val context: Context) {
                 )
             }
         }
-        return tracks
+        return tracks.toList()
     }
 
 }

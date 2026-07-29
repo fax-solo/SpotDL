@@ -53,18 +53,4 @@ class FreeMusicArchiveClient(private val client: OkHttpClient) {
         } catch (e: Exception) { Log.e("FreeMusicArchiveClient", "search failed", e); emptyList() }
     }
 
-    suspend fun genres(): List<String> = withContext(Dispatchers.IO) {
-        val url = "https://freemusicarchive.org/api/v2/genres"
-        try {
-            val request = Request.Builder().url(url).build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@use emptyList()
-                val json = JSONObject(response.body?.string() ?: return@use emptyList())
-                val data = json.optJSONArray("data") ?: return@use emptyList()
-                (0 until data.length()).mapNotNull { i ->
-                    data.getJSONObject(i).optString("slug").ifEmpty { null }
-                }
-            }
-        } catch (e: Exception) { Log.e("FreeMusicArchiveClient", "genres failed", e); emptyList() }
-    }
 }

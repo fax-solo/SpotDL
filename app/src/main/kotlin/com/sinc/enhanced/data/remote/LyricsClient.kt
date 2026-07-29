@@ -1,8 +1,13 @@
 package com.sinc.enhanced.data.remote
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -19,29 +24,66 @@ class LyricsClient(
 
     suspend fun getLyrics(artist: String, title: String, album: String? = null, duration: Long? = null): LyricsResult = withContext(Dispatchers.IO) {
         val cacheKey = buildCacheKey(artist, title)
-
         cacheDb.read(cacheKey)?.let { return@withContext it }
 
-        val result = fetchFromLrclib(artist, title, album, duration)
-        if (result.plainLyrics != null || result.syncedLyrics != null) {
+        val queries = listOfNotNull(
+            artist to title,
+            if (artist.contains(",")) artist.split(",").first().trim() to title else null,
+            artist to title.removeSuffix(" - Radio Edit").removeSuffix(" - Remix").trim(),
+            if (title.contains("(")) artist to title.substringBefore("(").trim() else null,
+            if (title.contains("-")) artist to title.substringBefore("-").trim() else null,
+        ).distinctBy { "${it.first}|${it.second}" }
+
+        val result = coroutineScope {
+            val deferreds = mutableListOf<kotlinx.coroutines.Deferred<LyricsResult?>>()
+
+            for ((art, ttl) in queries) {
+                deferreds.add(async {
+                    withTimeoutOrNull(4000L) {
+                        fetchFromLrclib(art, ttl, album, duration)
+                    }?.takeIf { it.plainLyrics != null || it.syncedLyrics != null }
+                })
+            }
+
+            deferreds.add(async {
+                withTimeoutOrNull(4000L) {
+                    searchFromLrclib("$artist $title")
+                }
+            })
+
+            deferreds.add(async {
+                withTimeoutOrNull(4000L) {
+                    val (art2, ttl2) = queries.first()
+                    fetchFromLyricsOvh(art2, ttl2)
+                        .takeIf { it.plainLyrics != null }
+                        ?.copy(source = "lyricsovh")
+                }
+            })
+
+            deferreds.add(async {
+                withTimeoutOrNull(4000L) {
+                    fetchFromDeezer(artist, title)
+                        .takeIf { it.plainLyrics != null }
+                        ?.copy(source = "deezer")
+                }
+            })
+
+            var winner: LyricsResult? = null
+            for (d in deferreds) {
+                val r = try { d.await() } catch (_: CancellationException) { null }
+                if (r != null) {
+                    winner = r
+                    break
+                }
+            }
+            deferreds.forEach { it.cancel() }
+            winner
+        }
+
+        if (result != null) {
             cacheDb.write(cacheKey, result)
             return@withContext result
         }
-
-        val result2 = fetchFromLyricsOvh(artist, title)
-        if (result2.plainLyrics != null) {
-            val finalResult = result2.copy(source = "lyricsovh")
-            cacheDb.write(cacheKey, finalResult)
-            return@withContext finalResult
-        }
-
-        val result3 = fetchFromDeezer(artist, title)
-        if (result3.plainLyrics != null) {
-            val finalResult = result3.copy(source = "deezer")
-            cacheDb.write(cacheKey, finalResult)
-            return@withContext finalResult
-        }
-
         LyricsResult(null, null)
     }
 
@@ -73,6 +115,29 @@ class LyricsClient(
                 )
             }
         } catch (e: Exception) { Log.e("LyricsClient", "fetchFromLrclib failed", e); LyricsResult(null, null) }
+    }
+
+    private suspend fun searchFromLrclib(query: String): LyricsResult? = withContext(Dispatchers.IO) {
+        val enc = java.net.URLEncoder.encode(query, "UTF-8")
+        val url = "https://lrclib.net/api/search?q=$enc"
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "SincEnhanced/1.0 (Android)")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val body = response.body?.string() ?: return@use null
+                val arr = JSONObject("{\"items\":$body}").optJSONArray("items") ?: return@use null
+                if (arr.length() == 0) return@use null
+                val json = arr.getJSONObject(0)
+                LyricsResult(
+                    plainLyrics = json.optString("plainLyrics", "").takeIf { it.isNotEmpty() },
+                    syncedLyrics = json.optString("syncedLyrics", "").takeIf { it.isNotEmpty() },
+                    source = "lrclib"
+                )
+            }
+        } catch (e: Exception) { Log.e("LyricsClient", "searchFromLrclib failed", e); null }
     }
 
     private suspend fun fetchFromLyricsOvh(artist: String, title: String): LyricsResult = withContext(Dispatchers.IO) {

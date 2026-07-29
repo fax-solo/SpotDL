@@ -321,20 +321,21 @@ private fun renderResults(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (uiState.topResult != null) {
+        val topResult = uiState.topResult
+        if (topResult != null) {
             item(key = "top_result") {
                 TopResultCard(
-                    result = uiState.topResult!!,
-                    resolvedUrl = uiState.resolvedAudioUrls[uiState.topResult!!.track.id]?.first,
+                    result = topResult,
+                    resolvedUrl = uiState.resolvedAudioUrls[topResult.track.id]?.first,
                     onPlay = {
-                        val url = uiState.resolvedAudioUrls[uiState.topResult!!.track.id]?.first
-                            ?: uiState.topResult!!.audioUrl
-                        if (url != null) onPlayTrack(uiState.topResult!!.track, url)
+                        val url = uiState.resolvedAudioUrls[topResult.track.id]?.first
+                            ?: topResult.audioUrl
+                        if (url != null) onPlayTrack(topResult.track, url)
                     },
                     onDownload = {
-                        val url = uiState.resolvedAudioUrls[uiState.topResult!!.track.id]?.first
-                            ?: uiState.topResult!!.audioUrl
-                        if (url != null) onDownloadTrack(uiState.topResult!!.track, url)
+                        val url = uiState.resolvedAudioUrls[topResult.track.id]?.first
+                            ?: topResult.audioUrl
+                        if (url != null) onDownloadTrack(topResult.track, url)
                     }
                 )
             }
@@ -571,7 +572,7 @@ private fun TopResultCard(
         ) {
             if (track.artworkUrl != null) {
                 Image(
-                    painter = rememberAsyncImagePainter(track.artworkUrl!!),
+                    painter = rememberAsyncImagePainter(track.artworkUrl ?: ""),
                     contentDescription = null,
                     modifier = Modifier
                         .size(64.dp)
@@ -719,7 +720,7 @@ private fun AlbumInlineItem(
             ) {
                 if (album.artworkUrl != null) {
                     Image(
-                        painter = rememberAsyncImagePainter(album.artworkUrl!!),
+                        painter = rememberAsyncImagePainter(album.artworkUrl ?: ""),
                         contentDescription = null,
                         modifier = Modifier
                             .size(56.dp)
@@ -933,7 +934,7 @@ private fun ArtistCard(artist: Artist, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (artist.imageUrl != null) {
                 Image(
-                    painter = rememberAsyncImagePainter(artist.imageUrl!!),
+                    painter = rememberAsyncImagePainter(artist.imageUrl ?: ""),
                     contentDescription = null,
                     modifier = Modifier.size(120.dp).clip(CircleShape),
                     contentScale = ContentScale.Crop

@@ -53,7 +53,7 @@ class BandcampClient(private val client: OkHttpClient) {
                     )
                     if (tracks.size >= limit) break
                 }
-                tracks
+                tracks.toList()
             }
         } catch (e: Exception) { Log.e("BandcampClient", "search failed", e); emptyList() }
     }

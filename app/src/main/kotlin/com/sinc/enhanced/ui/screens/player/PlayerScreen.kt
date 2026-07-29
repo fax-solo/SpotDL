@@ -793,7 +793,7 @@ private fun QueueSection(
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (track.artworkUrl != null) {
                                 Image(
-                                    painter = rememberAsyncImagePainter(track.artworkUrl!!),
+                                    painter = rememberAsyncImagePainter(track.artworkUrl ?: ""),
                                     contentDescription = null,
                                     modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)),
                                     contentScale = ContentScale.Crop

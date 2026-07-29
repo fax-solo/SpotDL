@@ -195,7 +195,7 @@ private fun LocalTab(
                                 )
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    text = uiState.error!!,
+                                    text = uiState.error ?: "",
                                     color = MaterialTheme.colorScheme.onErrorContainer,
                                     style = MaterialTheme.typography.bodyMedium
                                 )

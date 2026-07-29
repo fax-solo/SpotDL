@@ -116,7 +116,7 @@ class ImportPlaylistViewModel(
             offset = nextOffset
         }
 
-        val audioUrls = resolveAudioUrls(allTracks)
+        val audioUrls = resolveAudioUrlsParallel(allTracks)
 
         return FetchResult(
             source = "spotify",
@@ -124,7 +124,7 @@ class ImportPlaylistViewModel(
             description = playlist["description"] as? String ?: "",
             imageUrl = playlist["imageUrl"] as? String,
             owner = playlist["owner"] as? String ?: "Unknown",
-            tracks = allTracks,
+            tracks = allTracks.toList(),
             audioUrls = audioUrls
         )
     }
@@ -132,7 +132,7 @@ class ImportPlaylistViewModel(
     private suspend fun fetchFromDeezer(deezerId: Long): FetchResult? {
         val playlist = deezerClient.getPlaylist(deezerId) ?: return null
 
-        var allDzTracks = mutableListOf<com.sinc.enhanced.data.remote.DeezerClient.DeezerTrack>()
+        val allDzTracks = mutableListOf<com.sinc.enhanced.data.remote.DeezerClient.DeezerTrack>()
         var index = 0
         val limit = 100
         var hasMore = true
@@ -161,7 +161,7 @@ class ImportPlaylistViewModel(
             track
         }
 
-        val audioUrls = resolveAudioUrls(tracks)
+        val audioUrls = resolveAudioUrlsParallel(tracks)
 
         return FetchResult(
             source = "deezer",
@@ -174,21 +174,34 @@ class ImportPlaylistViewModel(
         )
     }
 
-    private suspend fun resolveAudioUrls(tracks: List<Track>): Map<String, String> = coroutineScope {
+    private suspend fun resolveAudioUrlsParallel(tracks: List<Track>): Map<String, String> = coroutineScope {
+        if (tracks.isEmpty()) return@coroutineScope emptyMap()
+
+        val batchSize = 10
         val results = mutableMapOf<String, String>()
-        val deferreds = tracks.map { track ->
-            async { track.id to searchRepository.findBestAudioForTrack(track) }
+
+        tracks.chunked(batchSize).forEach { batch ->
+            val deferreds = batch.map { track ->
+                async {
+                    try {
+                        withTimeout(8000L) {
+                            val resolved = searchRepository.findBestAudioForTrack(track)
+                            track.id to resolved?.first
+                        }
+                    } catch (_: Exception) {
+                        track.id to null
+                    }
+                }
+            }
+            deferreds.forEach { deferred ->
+                try {
+                    val (id, url) = deferred.await()
+                    if (url != null) results[id] = url
+                } catch (_: Exception) {}
+            }
         }
-        val deadline = System.currentTimeMillis() + 60000L
-        for (deferred in deferreds) {
-            val remaining = deadline - System.currentTimeMillis()
-            if (remaining <= 0) break
-            try {
-                val (id, audioInfo) = withTimeout(remaining) { deferred.await() }
-                if (audioInfo != null) results[id] = audioInfo.first
-            } catch (_: Exception) {}
-        }
-        results
+
+        results.toMap()
     }
 
     fun downloadAll(onQueueComplete: () -> Unit = {}) {
@@ -198,21 +211,11 @@ class ImportPlaylistViewModel(
 
         _uiState.value = state.copy(isDownloading = true, downloadProgress = "Queuing downloads...")
         viewModelScope.launch {
-            var count = 0
-            val total = available.size
-            for (track in available) {
-                val audioUrl = state.trackAudioUrls[track.id]
-                if (audioUrl != null) {
-                    downloadRepository.addToQueue(track, audioUrl)
-                }
-                count++
-                _uiState.value = _uiState.value.copy(
-                    downloadProgress = "Queued $count of $total"
-                )
-            }
+            val urls = state.trackAudioUrls
+            downloadRepository.addBatchToQueue(available, urls)
             _uiState.value = _uiState.value.copy(
                 isDownloading = false,
-                downloadProgress = "$count tracks queued for download"
+                downloadProgress = "${available.size} tracks queued for download"
             )
             onQueueComplete()
         }

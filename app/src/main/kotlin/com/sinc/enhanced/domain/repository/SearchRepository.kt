@@ -3,7 +3,9 @@ package com.sinc.enhanced.domain.repository
 import com.sinc.enhanced.data.model.Album
 import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.data.repository.QueryType
 import com.sinc.enhanced.domain.music.SearchResult
+import kotlinx.coroutines.flow.Flow
 
 interface SearchRepository {
     suspend fun searchAll(query: String): List<SearchResult>
@@ -16,5 +18,7 @@ interface SearchRepository {
     suspend fun getArtistTopTracks(artistId: String): List<Track>
     suspend fun getRelatedArtists(artistId: String): List<Artist>
     suspend fun getTrack(trackId: String): Track?
+    fun searchAllStreaming(query: String): Flow<List<SearchResult>>
     fun invalidateCache()
+    fun classifyQuery(query: String): QueryType
 }

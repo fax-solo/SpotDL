@@ -444,9 +444,18 @@ fun AppNavigation(intent: Intent? = null) {
                 composable(Routes.IMPORT_PLAYLIST) {
                     val ctx = LocalContext.current
                     com.sinc.enhanced.ui.screens.playlist.ImportPlaylistScreen(
+                        onPlayTrack = { track, audioUrl ->
+                            musicPlayer.playUrl(track, audioUrl)
+                            navController.navigate(Routes.PLAYER)
+                        },
                         onDownloadTrack = { track, audioUrl ->
                             scope.launch {
                                 SincApp.instance.container.downloadRepository.addToQueue(track, audioUrl)
+                                val intent = Intent(ctx, DownloadService::class.java).apply {
+                                    action = DownloadService.ACTION_DOWNLOAD
+                                    putExtra(DownloadService.EXTRA_TRACK_ID, track.id)
+                                }
+                                ctx.startForegroundService(intent)
                             }
                         },
                         onQueueComplete = {
@@ -479,6 +488,16 @@ fun AppNavigation(intent: Intent? = null) {
                         onPlayTrack = { track, url ->
                             musicPlayer.playUrl(track, url)
                             navController.navigate(Routes.PLAYER)
+                        },
+                        onDownloadTrack = { track, audioUrl ->
+                            scope.launch {
+                                SincApp.instance.container.downloadRepository.addToQueue(track, audioUrl)
+                                val intent = Intent(context, DownloadService::class.java).apply {
+                                    action = DownloadService.ACTION_DOWNLOAD
+                                    putExtra(DownloadService.EXTRA_TRACK_ID, track.id)
+                                }
+                                context.startForegroundService(intent)
+                            }
                         },
                         onNavigateArtist = { id ->
                             navController.navigate("artist/$id")

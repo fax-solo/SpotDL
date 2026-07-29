@@ -4,14 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sinc.enhanced.SincApp
+import com.sinc.enhanced.data.local.entity.DownloadEntity
 import com.sinc.enhanced.data.model.Artist
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.remote.LyricsClient
+import com.sinc.enhanced.data.repository.DownloadRepository
 import com.sinc.enhanced.data.repository.SearchRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -21,13 +24,15 @@ data class TrackDetailUiState(
     val lyrics: String? = null,
     val audioUrl: String? = null,
     val isLoading: Boolean = true,
+    val isDownloading: Boolean = false,
     val error: String? = null
 )
 
 class TrackDetailViewModel(
     private val trackId: String,
     private val searchRepository: SearchRepository,
-    private val lyricsClient: LyricsClient
+    private val lyricsClient: LyricsClient,
+    private val downloadRepository: DownloadRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TrackDetailUiState())
@@ -35,6 +40,31 @@ class TrackDetailViewModel(
 
     init {
         loadTrack()
+    }
+
+    fun retryLoad() {
+        loadTrack()
+    }
+
+    fun retryLyrics() {
+        val track = _uiState.value.track ?: return
+        viewModelScope.launch {
+            val lyrics = withContext(Dispatchers.IO) {
+                lyricsClient.getLyrics(track.artist, track.title, track.album, track.durationMs)
+            }
+            _uiState.value = _uiState.value.copy(
+                lyrics = lyrics?.plainLyrics ?: lyrics?.syncedLyrics
+            )
+        }
+    }
+
+    fun download(audioUrl: String) {
+        val track = _uiState.value.track ?: return
+        _uiState.value = _uiState.value.copy(isDownloading = true)
+        viewModelScope.launch {
+            downloadRepository.addToQueue(track, audioUrl)
+            _uiState.value = _uiState.value.copy(isDownloading = false)
+        }
     }
 
     private fun loadTrack() {
@@ -64,11 +94,28 @@ class TrackDetailViewModel(
                     )
                     return@launch
                 }
-                val lyrics = withContext(Dispatchers.IO) { lyricsClient.getLyrics(track.artist, track.title, track.album) }
-                val artist = withContext(Dispatchers.IO) { searchRepository.searchArtists(track.artist).firstOrNull() }
-                val audioUrl = withContext(Dispatchers.IO) {
-                    searchRepository.findBestAudioForTrack(track)?.first
+
+                val trackRef = track
+                val lyricsDeferred = async {
+                    withContext(Dispatchers.IO) {
+                        lyricsClient.getLyrics(trackRef.artist, trackRef.title, trackRef.album, trackRef.durationMs)
+                    }
                 }
+                val artistDeferred = async {
+                    withContext(Dispatchers.IO) {
+                        searchRepository.searchArtists(trackRef.artist).firstOrNull()
+                    }
+                }
+                val audioDeferred = async {
+                    withContext(Dispatchers.IO) {
+                        searchRepository.findBestAudioForTrack(trackRef)?.first
+                    }
+                }
+
+                val lyrics = lyricsDeferred.await()
+                val artist = artistDeferred.await()
+                val audioUrl = audioDeferred.await()
+
                 _uiState.value = TrackDetailUiState(
                     track = track,
                     artist = artist,
@@ -89,7 +136,7 @@ class TrackDetailViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val container = SincApp.instance.container
-            return TrackDetailViewModel(trackId, container.searchRepository, container.lyricsClient) as T
+            return TrackDetailViewModel(trackId, container.searchRepository, container.lyricsClient, container.downloadRepository) as T
         }
     }
 }
