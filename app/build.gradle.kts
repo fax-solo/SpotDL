@@ -22,7 +22,7 @@ fun env(key: String, default: String = ""): String =
 
 val backendUrl = env("BACKEND_URL")
 if (backendUrl.isBlank()) {
-    val taskNames = gradle.startParameter.taskNames.joinToString(" ")
+    val taskNames = gradle.startParameter.taskNames
     if (taskNames.any { it.contains("Release", ignoreCase = true) }) {
         throw GradleException(
             "BACKEND_URL must be set to build a release APK. " +

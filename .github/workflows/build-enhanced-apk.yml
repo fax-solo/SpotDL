@@ -135,6 +135,7 @@ jobs:
           ENHANCED_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}
           ENHANCED_RELEASE_KEY_ALIAS: ${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}
           ENHANCED_RELEASE_KEY_PASSWORD: ${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL || 'https://sinc-enhanced-backend.faxsolo2214.workers.dev' }}
         run: ./gradlew assembleRelease
         working-directory: app
 
