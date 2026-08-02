@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 const mockHmacSha256 = vi.fn()
 const mockSha256 = vi.fn()
 const mockB64url = vi.fn()
+const mockTimingSafeEqual = vi.fn()
 
 function b64urlDecode(input: string): string {
   const base64 = input.replace(/-/g, '+').replace(/_/g, '/')
@@ -10,13 +11,18 @@ function b64urlDecode(input: string): string {
   return atob(padded)
 }
 
-vi.mock('../crypto', () => ({
-  sha256: mockSha256,
-  hmacSha256: mockHmacSha256,
-  b64url: mockB64url,
-  b64urlDecode,
-  uuid: () => 'test-jti-123',
-}))
+vi.mock('../crypto', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    sha256: mockSha256,
+    hmacSha256: mockHmacSha256,
+    b64url: mockB64url,
+    b64urlDecode,
+    timingSafeEqual: mockTimingSafeEqual,
+    uuid: () => 'test-jti-123',
+  }
+})
 
 vi.mock('bcryptjs', () => ({
   default: {
@@ -72,6 +78,8 @@ describe('verifyToken', () => {
     mockHmacSha256.mockReset()
     mockSha256.mockReset()
     mockB64url.mockReset()
+    mockTimingSafeEqual.mockReset()
+    mockTimingSafeEqual.mockResolvedValue(true)
   })
 
   it('accepts a valid JWT token', async () => {
@@ -86,6 +94,7 @@ describe('verifyToken', () => {
     mockHmacSha256.mockImplementation((_input: string, secret: string) =>
       secret === 'real-secret' ? Promise.resolve('expectedsig') : Promise.resolve('wrongsig'),
     )
+    mockTimingSafeEqual.mockImplementation((a: string, b: string) => Promise.resolve(a === b))
     const token = fakeJwt('user-1', 9999999999, 'test-jti', 'expectedsig')
 
     const userId = await verifyToken(token, 'wrong-secret', mockDb())

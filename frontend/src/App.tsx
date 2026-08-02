@@ -23,6 +23,7 @@ import { App as CapacitorApp } from '@capacitor/app'
 import { fetchLyricsWithFallback } from './lib/fetchLyricsWithFallback'
 import { uuid } from './lib/uuid'
 import { initSentry } from './lib/sentry'
+import { checkApiReachability, getApiBase } from './lib/apiConfig'
 import { checkForUpdate, promptUpdate } from './lib/autoUpdate'
 import { registerForPushNotifications, sendPushTokenToServer } from './lib/pushNotifications'
 import { createNotificationChannels, sendAppUpdateNotification } from './lib/notifications'
@@ -118,6 +119,27 @@ function AppContent() {
   useEffect(() => {
     auth.initialize()
   }, [])
+
+  useEffect(() => {
+    // Background downloads/playback get killed under Doze without the
+    // battery-optimization exemption. Ask once per install at startup so the
+    // OS prompt is not shown on every launch.
+    if (!isNative) return
+    let cancelled = false
+    const requestExemption = async () => {
+      try {
+        const { requestBatteryOptimizationExemption } = await import('./lib/nativePlugin')
+        if (cancelled) return
+        if (localStorage.getItem('battery_exemption_requested') === '1') return
+        localStorage.setItem('battery_exemption_requested', '1')
+        await requestBatteryOptimizationExemption()
+      } catch {
+        // best-effort; downloads still work without the exemption
+      }
+    }
+    requestExemption()
+    return () => { cancelled = true }
+  }, [isNative])
 
     useEffect(() => {
       const timer = setTimeout(() => {
@@ -388,6 +410,16 @@ function App() {
       setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches)
     }
   }, [setTheme])
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+
+    checkApiReachability().then(ok => {
+      if (!ok) {
+        console.warn(`[api] Backend unreachable at startup: ${getApiBase()}`)
+      }
+    })
+  }, [])
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return

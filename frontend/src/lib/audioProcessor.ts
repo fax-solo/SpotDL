@@ -166,7 +166,9 @@ export async function convertAudio(
         try {
           await instance.writeFile(coverName, coverData)
           hasCover = true
-        } catch {}
+        } catch (err) {
+          console.warn('[audioProcessor] failed to write cover file for M4A, embedding skipped:', err)
+        }
       }
 
       const args = ['-i', inputName]

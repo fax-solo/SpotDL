@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -193,35 +197,37 @@ jobs:
         working-directory: frontend
 
       - name: Decode and prepare release keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
         run: |
-          INPUT="${{ secrets.RELEASE_KEYSTORE_PASSWORD }}"
-          KEYPASS="${{ secrets.RELEASE_KEY_PASSWORD }}"
-          ALIAS="${{ secrets.RELEASE_KEY_ALIAS }}"
-          echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > android/app/release.p12
+          printf '%s' "$KEYSTORE_B64" | base64 -d > android/app/release.p12
           # Android's Bouncy Castle doesn't support modern PKCS12 encryption.
           # Convert PKCS12 → JKS which is universally supported.
           keytool -importkeystore \
             -srckeystore android/app/release.p12 \
             -srcstoretype PKCS12 \
-            -srcstorepass "$INPUT" \
-            -srcalias "$ALIAS" \
-            -srckeypass "${KEYPASS:-$INPUT}" \
+            -srcstorepass "$KEYSTORE_PASS" \
+            -srcalias "$KEY_ALIAS" \
+            -srckeypass "${KEY_PASS:-$KEYSTORE_PASS}" \
             -destkeystore android/app/release.keystore \
             -deststoretype JKS \
-            -deststorepass "$INPUT" \
-            -destalias "$ALIAS" \
-            -destkeypass "${KEYPASS:-$INPUT}" 2>&1
+            -deststorepass "$KEYSTORE_PASS" \
+            -destalias "$KEY_ALIAS" \
+            -destkeypass "${KEY_PASS:-$KEYSTORE_PASS}" 2>&1
           rm -f android/app/release.p12
           echo "Keystore decoded and converted to JKS"
         working-directory: frontend
 
       - name: Build signed release APK
-        run: |
-          export RELEASE_KEYSTORE_PATH="${{ github.workspace }}/frontend/android/app/release.keystore"
-          export RELEASE_KEYSTORE_PASSWORD="${{ secrets.RELEASE_KEYSTORE_PASSWORD }}"
-          export RELEASE_KEY_ALIAS="${{ secrets.RELEASE_KEY_ALIAS }}"
-          export RELEASE_KEY_PASSWORD="${{ secrets.RELEASE_KEY_PASSWORD }}"
-          ./gradlew assembleRelease
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/frontend/android/app/release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
         working-directory: frontend/android
 
       - name: Clean up keystore from runner

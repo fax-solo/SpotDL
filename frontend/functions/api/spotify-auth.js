@@ -1,3 +1,5 @@
+import { checkRateLimit } from './_lib/rate_limit'
+
 function randomHex(bytes) {
   const arr = crypto.getRandomValues(new Uint8Array(bytes))
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
@@ -12,6 +14,21 @@ export async function onRequest(context) {
 
   if (!CLIENT_ID) {
     console.error('Missing SPOTIFY_CLIENT_ID environment variable')
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  if (DB) {
+    try {
+      const { allowed } = await checkRateLimit(DB, `auth:spotify:${ip}`, 30)
+      if (!allowed) {
+        return new Response(JSON.stringify({ error: 'Too many requests. Try again later.' }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        })
+      }
+    } catch (e) {
+      console.warn('Rate limit check failed:', e.message)
+    }
   }
 
   const url = new URL(context.request.url)

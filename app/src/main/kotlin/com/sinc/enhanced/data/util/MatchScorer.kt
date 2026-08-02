@@ -7,8 +7,18 @@ object MatchScorer {
     private val BRACKET_CONTENT = Regex("\\([^)]*\\)|\\[[^\\]]*\\]|<[^>]*>")
     private val NON_WORD = Regex("[^\\p{L}\\p{N}\\s]")
     private val MULTI_SPACE = Regex("\\s+")
+    // NOTE: Kotlin port of the canonical matching logic in
+    // frontend/src/lib/sources/matching.ts (Python port: api/_matching.py).
+    // Keep normalize/tokenize/noise-word behavior in sync across all three.
+
+    // Unicode-aware boundaries (lookarounds instead of \b) so non-Latin text
+    // glued to a noise word is preserved, e.g. "СборникLIVE" must stay intact.
     private val NOISE_WORDS = Regex(
-        "\\b(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|radio\\s*edit|mono|stereo|audio|official|video|lyric|lyrics|hq|hd|4k|1080p|60fps|visualizer|official\\s*audio|official\\s*video|official\\s*lyric|music\\s*video|lyric\\s*video|full\\s*album|single|album\\s*version|extended|short|short\\s*version)\\b",
+        "(?<![\\p{L}\\p{N}])(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|radio\\s*edit|mono|stereo|audio|official|video|lyric|lyrics|hq|hd|4k|1080p|60fps|visualizer|official\\s*audio|official\\s*video|official\\s*lyric|music\\s*video|lyric\\s*video|full\\s*album|single|album\\s*version|extended|short|short\\s*version)(?![\\p{L}\\p{N}])",
+        RegexOption.IGNORE_CASE
+    )
+    private val QUERY_NOISE_WORDS = Regex(
+        "(?<![\\p{L}\\p{N}])(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|hq|hd|official|video|lyric|lyrics)(?![\\p{L}\\p{N}])",
         RegexOption.IGNORE_CASE
     )
     private val TOPIC_SUFFIX = Regex("\\s*-\\s*Topic\\s*$", RegexOption.IGNORE_CASE)
@@ -37,7 +47,7 @@ object MatchScorer {
     fun stripQueryNoise(s: String): String {
         return s
             .replace(BRACKET_CONTENT, " ")
-            .replace(NOISE_WORDS, " ")
+            .replace(QUERY_NOISE_WORDS, " ")
             .replace(MULTI_SPACE, " ")
             .trim()
     }
@@ -67,13 +77,13 @@ object MatchScorer {
         var score = 0.0
         var total = 0.0
 
-        val tTokens = tokenize(options.expectedTitle.lowercase())
-        val ftTokens = tokenize(options.foundTitle.lowercase())
+        val tTokens = tokenize(normalize(options.expectedTitle))
+        val ftTokens = tokenize(normalize(options.foundTitle))
         val aTokens = mutableSetOf<String>()
         for (part in aParts) {
             aTokens.addAll(tokenize(part))
         }
-        val faTokens = tokenize(options.foundAuthor.lowercase())
+        val faTokens = tokenize(normalize(options.foundAuthor))
 
         total += 4.0
         when {

@@ -64,6 +64,13 @@ class MatchScorerTest {
     }
 
     @Test
+    fun `noise words glued to non-Latin text are preserved`() {
+        assertEquals("СборникLIVE группа", MatchScorer.stripQueryNoise("СборникLIVE группа"))
+        assertEquals("сборникlive группа", MatchScorer.normalize("СборникLIVE группа"))
+        assertEquals("song", MatchScorer.normalize("Song LIVE"))
+    }
+
+    @Test
     fun `empty title returns 0`() {
         val score = MatchScorer.computeScore(MatchScorer.MatchOptions(
             expectedTitle = "",

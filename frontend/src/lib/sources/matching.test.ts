@@ -66,6 +66,16 @@ describe('normalize', () => {
     expect(normalize('Song Featuring Artist')).toBe('song artist')
   })
 
+  it('does not strip noise words glued to non-Latin letters', () => {
+    expect(normalize('СборникLIVE группа')).toBe('сборникlive группа')
+    expect(normalize('愛してるliveバージョン')).toBe('愛してるliveバージョン')
+    expect(normalize('live演唱')).toBe('live演唱')
+  })
+
+  it('still strips standalone noise next to non-Latin text', () => {
+    expect(normalize('Песня feat. Артист')).toBe('песня артист')
+  })
+
   it('handles empty string', () => {
     expect(normalize('')).toBe('')
   })

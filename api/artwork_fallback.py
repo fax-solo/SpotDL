@@ -1,5 +1,13 @@
 """Server-side artwork fallback chain.
-Tries multiple free sources in order until artwork is found."""
+Tries multiple free sources in order until artwork is found.
+
+Canonical chain (order matters — prefer the most reliable metadata, then the
+most permissive sources). Keep in sync with:
+  - frontend/functions/api/_lib/artworkFallback.ts (Cloudflare Functions)
+  - app/src/main/kotlin/com/sinc/enhanced/data/remote/ArtworkClient.kt (Android)
+Chain order: deezer -> itunes -> lastfm -> coverartarchive
+Artwork selection: deezer cover_big -> cover_medium; itunes 600x600; lastfm
+extralarge -> large -> medium -> last image; coverartarchive front-250."""
 
 import os
 import re

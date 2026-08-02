@@ -4,3 +4,11 @@
 *.png
 *.jpg
 *.jpeg
+
+# Icon/splash PNGs ARE tracked: the APK needs them even if the
+# ImageMagick icon-generation step is unavailable
+!app/src/main/res/drawable/ic_launcher_foreground.png
+!app/src/main/res/drawable/splash.png
+!app/src/main/res/drawable-v24/ic_launcher_foreground.png
+!app/src/main/res/mipmap-*/ic_launcher.png
+!app/src/main/res/mipmap-*/ic_launcher_round.png

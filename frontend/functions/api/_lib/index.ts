@@ -6,6 +6,7 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   ALLOWED_ORIGINS?: string
+  LASTFM_API_KEY?: string
 }
 
 export type RouteHandler = (context: {

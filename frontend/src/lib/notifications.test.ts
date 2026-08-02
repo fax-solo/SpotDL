@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockSchedule = vi.fn()
 const mockCancel = vi.fn()
-const mockRequestPermissions = vi.fn()
-const mockCheckPermissions = vi.fn()
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -12,12 +10,16 @@ vi.mock('@capacitor/core', () => ({
   registerPlugin: vi.fn(() => ({})),
 }))
 
+vi.mock('./nativePlugin', () => ({
+  checkPermissionNative: vi.fn(),
+  requestPermissionNative: vi.fn(),
+  shouldShowRationaleNative: vi.fn().mockResolvedValue(false),
+}))
+
 vi.mock('@capacitor/local-notifications', () => ({
   LocalNotifications: {
     schedule: (...args: unknown[]) => mockSchedule(...args),
     cancel: (...args: unknown[]) => mockCancel(...args),
-    requestPermissions: (...args: unknown[]) => mockRequestPermissions(...args),
-    checkPermissions: (...args: unknown[]) => mockCheckPermissions(...args),
   },
 }))
 
@@ -34,8 +36,12 @@ import {
   cancelBackgroundPlaybackNotification,
 } from './notifications'
 
+import { checkPermissionNative, requestPermissionNative, shouldShowRationaleNative } from './nativePlugin'
+import { _resetPermissionFlagsForTest } from './permissions'
+
 beforeEach(() => {
   vi.clearAllMocks()
+  _resetPermissionFlagsForTest()
 })
 
 describe('ensureNotificationPermission', () => {
@@ -46,14 +52,14 @@ describe('ensureNotificationPermission', () => {
 
   it('returns true when native and permissions granted', async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
-    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+    checkPermissionNative.mockResolvedValue(true)
     expect(await ensureNotificationPermission()).toBe(true)
   })
 
   it('requests permission if needed and returns result', async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
-    mockCheckPermissions.mockResolvedValue({ display: 'denied' })
-    mockRequestPermissions.mockResolvedValue({ display: 'granted' })
+    checkPermissionNative.mockResolvedValue(false)
+    requestPermissionNative.mockResolvedValue(true)
     expect(await ensureNotificationPermission()).toBe(true)
   })
 })
@@ -61,7 +67,7 @@ describe('ensureNotificationPermission', () => {
 describe('sendDownloadCompleteNotification', () => {
   beforeEach(() => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
-    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+    checkPermissionNative.mockResolvedValue(true)
   })
 
   it('sends a notification with correct fields', async () => {
@@ -86,8 +92,8 @@ describe('sendDownloadCompleteNotification', () => {
   })
 
   it('does nothing when permission is denied', async () => {
-    mockCheckPermissions.mockResolvedValue({ display: 'denied' })
-    mockRequestPermissions.mockResolvedValue({ display: 'denied' })
+    checkPermissionNative.mockResolvedValue(false)
+    requestPermissionNative.mockResolvedValue(false)
     await sendDownloadCompleteNotification({ title: 'x', artist: 'y' })
     expect(mockSchedule).not.toHaveBeenCalled()
   })
@@ -103,7 +109,7 @@ describe('sendDownloadCompleteNotification', () => {
 describe('sendDownloadErrorNotification', () => {
   beforeEach(() => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
-    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+    checkPermissionNative.mockResolvedValue(true)
   })
 
   it('sends error notification with error message', async () => {
@@ -134,7 +140,7 @@ describe('sendDownloadErrorNotification', () => {
 describe('sendBatchCompleteNotification', () => {
   beforeEach(() => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
-    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+    checkPermissionNative.mockResolvedValue(true)
   })
 
   it('sends success message when no failures', async () => {
@@ -181,7 +187,7 @@ describe('cancelBackgroundPlaybackNotification', () => {
 describe('sendDownloadProgressNotification', () => {
   beforeEach(() => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
-    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+    checkPermissionNative.mockResolvedValue(true)
   })
 
   it('sends progress notification with consistent id based on downloadId', async () => {
@@ -233,7 +239,7 @@ describe('cancelDownloadProgressNotification', () => {
 describe('sendAppUpdateNotification', () => {
   beforeEach(() => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
-    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+    checkPermissionNative.mockResolvedValue(true)
   })
 
   it('sends update notification with version and channel', async () => {
@@ -258,8 +264,8 @@ describe('sendAppUpdateNotification', () => {
   })
 
   it('does nothing when permission is denied', async () => {
-    mockCheckPermissions.mockResolvedValue({ display: 'denied' })
-    mockRequestPermissions.mockResolvedValue({ display: 'denied' })
+    checkPermissionNative.mockResolvedValue(false)
+    requestPermissionNative.mockResolvedValue(false)
     await sendAppUpdateNotification({ version: '2.0.0', downloadUrl: 'https://example.com' })
     expect(mockSchedule).not.toHaveBeenCalled()
   })

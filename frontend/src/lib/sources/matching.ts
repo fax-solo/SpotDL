@@ -10,13 +10,14 @@ export interface MatchOptions {
 }
 
 export const MIN_CONFIDENCE = 0.3
+export const MIN_PREVIEW_CONFIDENCE = 0.8
 
 const BRACKET_CONTENT = /\([^)]*\)|\[[^\]]*\]|<[^>]*>/g
 const NON_WORD = /[^\p{L}\p{N}\s]/gu
 const MULTI_SPACE = /\s+/g
 const LEADING_TRAILING = /^\s+|\s+$/g
 
-const NOISE_WORDS = /\b(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|radio\s*edit|mono|stereo|audio|official|video|lyric|lyrics|hq|hd|4k|1080p|60fps|visualizer|official\s*audio|official\s*video|official\s*lyric|music\s*video|lyric\s*video|full\s*album|single|album\s*version|extended|short|short\s*version)\b/gi
+const NOISE_WORDS = /(?<![\p{L}\p{N}])(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|radio\s*edit|mono|stereo|audio|official|video|lyric|lyrics|hq|hd|4k|1080p|60fps|visualizer|official\s*audio|official\s*video|official\s*lyric|music\s*video|lyric\s*video|full\s*album|single|album\s*version|extended|short|short\s*version)(?![\p{L}\p{N}])/giu
 
 const TOPIC_SUFFIX = /\s*-\s*Topic\s*$/i
 
@@ -34,7 +35,7 @@ export function normalize(s: string): string {
   return stripNoise(s).trim()
 }
 
-function tokenize(s: string): Set<string> {
+export function tokenize(s: string): Set<string> {
   return new Set(s.split(/\s+/).filter(w => w.length > 1))
 }
 

@@ -4,6 +4,7 @@ import json
 import time
 import stat
 import shutil
+import subprocess
 import tempfile
 import logging
 import asyncio
@@ -23,6 +24,46 @@ from artwork_fallback import find_artwork
 _cover_session = requests_retry_session()
 
 logger = logging.getLogger(__name__)
+
+# Mirrors audioFilterArgs() in frontend/src/lib/audioProcessor.ts so every
+# download path produces identical audio for the chosen variant.
+VARIANT_FILTERS = {
+    "sped_up": "atempo=1.25",
+    "slowed_reverb": "atempo=0.85,aecho=0.8:0.9:1000:0.3",
+}
+
+
+def _apply_variant_filter(filepath: str, variant: str | None, quality: str) -> str:
+    """Apply the speed/reverb filter for non-normal variants, in place.
+
+    Returns the filepath (unchanged on failure or when ffmpeg is missing, so
+    the download still completes — the same behavior as the client fallback
+    cannot be perfectly mirrored without ffmpeg).
+    """
+    if not variant or variant not in VARIANT_FILTERS:
+        return filepath
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        logger.warning(f"variant '{variant}' requested but ffmpeg is missing; saving unprocessed audio")
+        return filepath
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext == ".m4a":
+        codec_args = ["-codec:a", "aac", "-b:a", f"{quality}k"]
+    else:
+        codec_args = ["-codec:a", "libmp3lame", "-b:a", f"{quality}k"]
+    tmp = f"{filepath}.variant.tmp"
+    cmd = [ffmpeg, "-y", "-i", filepath, "-af", VARIANT_FILTERS[variant], *codec_args, tmp]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+        os.replace(tmp, filepath)
+    except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired) as e:
+        logger.warning(f"variant filter for '{variant}' failed ({e}); keeping unprocessed audio")
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+    return filepath
 
 
 def _get_base_opts() -> dict:
@@ -84,6 +125,7 @@ def download_track_combined(
     query_or_url: str,
     quality: str = "320",
     output_format: str = "mp3",
+    variant: str = "normal",
 ) -> tuple[str, str]:
     parsed = parse_url(query_or_url)
     if parsed:
@@ -112,11 +154,11 @@ def download_track_combined(
                     break
             if match:
                 return download_track(
-                    title, artist, album, artwork_url, match["url"], quality, output_format,
+                    title, artist, album, artwork_url, match["url"], quality, output_format, variant=variant,
                 )
             logger.info("download_track_combined: no topic match found, falling through to regular search")
 
-    return download_track(title, artist, album, artwork_url, quality=quality, output_format=output_format)
+    return download_track(title, artist, album, artwork_url, quality=quality, output_format=output_format, variant=variant)
 
 
 # All matching/tokenization logic moved to _matching.py
@@ -197,6 +239,7 @@ async def stream_download(
     source_url: str | None = None,
     quality: str = "320",
     output_format: str = "mp3",
+    variant: str = "normal",
 ) -> AsyncGenerator[str, None]:
     tracker = _ProgressTracker()
 
@@ -204,7 +247,7 @@ async def stream_download(
         yield json.dumps({"type": "warning", "message": "ffmpeg not found on server — converting client-side instead", "code": "ffmpeg_missing"}) + "\n"
 
     def _run():
-        return _download_with_progress(tracker, title, artist, album, artwork_url, source_url, quality, output_format)
+        return _download_with_progress(tracker, title, artist, album, artwork_url, source_url, quality, output_format, variant=variant)
 
     task = asyncio.create_task(asyncio.to_thread(_run))
 
@@ -283,12 +326,14 @@ def _do_download(
     quality: str,
     output_format: str,
     tracker: _ProgressTracker | None = None,
+    variant: str = "normal",
 ) -> tuple[str, str]:
     ffmpeg_available = _find_ffmpeg()
     last_error: Exception | None = None
 
     for track_url, source_name in track_urls:
         tmpdir = None
+        success = False
         try:
             tmpdir = tempfile.mkdtemp()
             safe_name = f"{_safe(artist)} - {_safe(title)}"
@@ -337,6 +382,10 @@ def _do_download(
             filepath = os.path.join(tmpdir, expected if expected in files else files[0])
             ext = os.path.splitext(filepath)[1].lower()
 
+            if variant != "normal":
+                filepath = _apply_variant_filter(filepath, variant, quality)
+                ext = os.path.splitext(filepath)[1].lower()
+
             if ext == ".mp3":
                 _tag_mp3(filepath, title, artist, album, artwork_url)
             elif ext in [".m4a", ".aac", ".mp4"]:
@@ -344,6 +393,7 @@ def _do_download(
 
             logger.info(f"download_track: SUCCESS from {source_name}: {track_url}")
             get_circuit_breaker(source_name).record_success()
+            success = True
             return filepath, ext
 
         except yt_dlp.DownloadError as e:
@@ -354,7 +404,10 @@ def _do_download(
                 continue
             raise
         finally:
-            if tmpdir and os.path.isdir(tmpdir):
+            # The caller owns cleanup of the temp dir on success (it still needs
+            # the file to serve/stream). Only clean up on failure to avoid
+            # deleting the file before it is served.
+            if tmpdir and os.path.isdir(tmpdir) and not success:
                 shutil.rmtree(tmpdir, ignore_errors=True)
 
     raise RuntimeError(
@@ -373,14 +426,15 @@ def download_track(
     quality: str = "320",
     output_format: str = "mp3",
     isrc: str | None = None,
+    variant: str = "normal",
 ) -> tuple[str, str]:
     track_urls = _resolve_urls(title, artist, source_url, isrc)
-    return _do_download(track_urls, title, artist, album, artwork_url, quality, output_format)
+    return _do_download(track_urls, title, artist, album, artwork_url, quality, output_format, variant=variant)
 
 
-def _download_with_progress(tracker: _ProgressTracker, title, artist, album, artwork_url, source_url, quality, output_format, isrc=None):
+def _download_with_progress(tracker: _ProgressTracker, title, artist, album, artwork_url, source_url, quality, output_format, isrc=None, variant="normal"):
     track_urls = _resolve_urls(title, artist, source_url, isrc)
-    return _do_download(track_urls, title, artist, album, artwork_url, quality, output_format, tracker)
+    return _do_download(track_urls, title, artist, album, artwork_url, quality, output_format, tracker, variant)
 
 
 def _tag_mp3(path: str, title: str, artist: str, album: str, artwork_url: str | None):
@@ -427,57 +481,32 @@ def _embed_cover(audio, artwork_url: str, fmt: str):
         logger.debug("Failed to embed cover art: %s", e)
 
 
-def resolve_audio(
-    title: str,
-    artist: str,
-    album: str | None = None,
-    isrc: str | None = None,
-    duration_ms: int | None = None,
-) -> dict | None:
-    cache_key = f"resolve:{title}|{artist}|{album or ''}|{isrc or ''}"
-    cached = get_cache(cache_key)
-    if cached:
-        logger.info("resolve_audio: cache hit for '%s'", cache_key)
-        return cached
-
-    logger.info("resolve_audio: searching '%s' by '%s'", title, artist)
-    entries = search_track(f"{artist} {title}", "youtube", "ytsearch1")
-    if not entries:
-        entries = search_track(title, "youtube", "ytsearch1")
-    if not entries:
-        logger.warning("resolve_audio: no results for '%s' by '%s'", title, artist)
-        return None
-
-    best_entry = None
+def _pick_best_entry(entries: list[dict], title: str, artist: str) -> dict | None:
+    """Pick the entry whose title matches, preferring an artist match."""
     for entry in entries:
         if title_matches(title, artist, entry.get("title"), entry.get("uploader")):
-            best_entry = entry
-            break
-    
-    if not best_entry and entries:
-        for entry in entries:
-            if title_matches(title, "", entry.get("title"), entry.get("uploader")):
-                best_entry = entry
-                break
-    
-    if not best_entry:
-        best_entry = entries[0]
+            return entry
+    for entry in entries:
+        if title_matches(title, "", entry.get("title"), entry.get("uploader")):
+            return entry
+    return entries[0] if entries else None
 
-    track_url = best_entry["url"]
-    logger.info("resolve_audio: matched %s -> %s", best_entry.get("title"), track_url)
 
+def _extract_audio_url(track_url: str, source: str, title: str, artist: str) -> dict | None:
+    """Extract a direct audio URL for a track page. Returns None on failure."""
     try:
         opts = {
             **_get_base_opts(),
             "format": "bestaudio[ext=m4a]/bestaudio",
             "extract_flat": False,
-            "extractor_args": {
+        }
+        if source in ("youtube", "youtube_music"):
+            opts["extractor_args"] = {
                 "youtube": {
                     "client": ["android", "ios", "web_music"],
                     "player_client": ["android", "ios", "web_music"],
                 }
-            },
-        }
+            }
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(track_url, download=False)
             if not info:
@@ -492,24 +521,54 @@ def resolve_audio(
                     if audio_fmts:
                         audio_fmts.sort(key=lambda f: f.get("abr", 0) or 0, reverse=True)
                         audio_url = audio_fmts[0].get("url")
-            
+
             if not audio_url:
                 logger.warning("resolve_audio: no audio URL found in extract_info for %s", track_url)
                 return None
 
-            result = {
+            return {
                 "url": audio_url,
-                "source": "youtube",
+                "source": source,
                 "title": info.get("title", title),
                 "artist": info.get("uploader", artist),
                 "duration": info.get("duration", 0),
                 "thumbnail": info.get("thumbnail"),
                 "ext": info.get("ext", "m4a"),
             }
-            set_cache(cache_key, result)
-            logger.info("resolve_audio: success for '%s' by '%s'", title, artist)
-            return result
-
     except Exception as e:
         logger.error("resolve_audio: failed for %s: %s", track_url, e)
         return None
+
+
+def resolve_audio(
+    title: str,
+    artist: str,
+    album: str | None = None,
+    isrc: str | None = None,
+    duration_ms: int | None = None,
+) -> dict | None:
+    cache_key = f"resolve:{title}|{artist}|{album or ''}|{isrc or ''}"
+    cached = get_cache(cache_key)
+    if cached:
+        logger.info("resolve_audio: cache hit for '%s'", cache_key)
+        return cached
+
+    logger.info("resolve_audio: searching '%s' by '%s'", title, artist)
+    for src in SOURCES + FALLBACK_SOURCES:
+        name, prefix = src["name"], src["prefix"]
+        entries = search_track(f"{artist} {title}", name, prefix)
+        if not entries:
+            entries = search_track(title, name, prefix)
+        best_entry = _pick_best_entry(entries, title, artist)
+        if best_entry:
+            track_url = best_entry["url"]
+            logger.info("resolve_audio: matched %s on %s -> %s", best_entry.get("title"), name, track_url)
+            result = _extract_audio_url(track_url, name, title, artist)
+            if result:
+                set_cache(cache_key, result)
+                logger.info("resolve_audio: success for '%s' by '%s' via %s", title, artist, name)
+                return result
+            logger.warning("resolve_audio: %s failed to extract, trying next source", name)
+
+    logger.warning("resolve_audio: no results for '%s' by '%s'", title, artist)
+    return None

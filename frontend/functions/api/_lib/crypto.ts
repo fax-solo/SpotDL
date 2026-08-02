@@ -15,7 +15,7 @@ export async function hmacSha256(input: string, secret: string): Promise<string>
     false, ['sign'],
   )
   const sig = await crypto.subtle.sign('HMAC', key, enc.encode(input))
-  return hex(sig)
+  return b64url(String.fromCharCode(...new Uint8Array(sig)))
 }
 
 export function b64url(input: string): string {

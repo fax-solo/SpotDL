@@ -31,52 +31,31 @@ describe('searchYouTube', () => {
   })
 
   it('returns search results from Cloudflare Function', async () => {
-    const pipedEmpty = {
+    vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({ items: [] }),
-    }
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(pipedEmpty)
-      .mockResolvedValueOnce(pipedEmpty)
-      .mockResolvedValueOnce(pipedEmpty)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          results: [
-            { videoId: FAKE_VIDEO_ID, title: 'Test Song', url: `https://youtube.com/watch?v=${FAKE_VIDEO_ID}` },
-          ],
-        }),
-      })
+      json: () => Promise.resolve({
+        results: [
+          { videoId: FAKE_VIDEO_ID, title: 'Test Song', url: `https://youtube.com/watch?v=${FAKE_VIDEO_ID}` },
+        ],
+      }),
+    } as Response)
 
     const results = await searchYouTube('test query')
     expect(results).toHaveLength(1)
     expect(results[0].title).toBe('Test Song')
   })
 
-  it('tries Piped API first on web', async () => {
-    const pipedResult = {
-      ok: true,
-      json: () => Promise.resolve({
-        items: [
-          { url: `/watch?v=${FAKE_VIDEO_ID}`, title: 'Piped Result', thumbnail: 'thumb.jpg' },
-        ],
-      }),
-    }
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(pipedResult)
-      .mockResolvedValueOnce(pipedResult)
-      .mockResolvedValueOnce(pipedResult)
+  it('returns empty array when the function is unreachable (non-throwing)', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('Network error'))
 
-    await searchYouTube('test')
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringContaining('pipedapi'), expect.anything())
+    await expect(searchYouTube('test')).resolves.toEqual([])
   })
 
-  it('returns empty array on total failure (non-throwing)', async () => {
-    vi.mocked(fetch)
-      .mockRejectedValueOnce(new Error('Network error'))
-      .mockRejectedValueOnce(new Error('Network error'))
-      .mockRejectedValueOnce(new Error('Network error'))
-      .mockRejectedValueOnce(new Error('Network error'))
+  it('returns empty array when the function reports no results', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ results: [] }),
+    } as Response)
 
     await expect(searchYouTube('test')).resolves.toEqual([])
   })
@@ -89,51 +68,31 @@ describe('getVideoInfo', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false)
   })
 
-  it('returns video info from Piped API', async () => {
-    const pipedResult = {
-      title: 'Piped Video',
-      uploader: 'Piped Creator',
-      duration: 250,
-      audioStreams: [{ url: 'https://audio.piped/stream', bitrate: 128000 }],
-      thumbnailUrl: 'thumb.jpg',
-    }
-    vi.mocked(fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(pipedResult),
-      })
-      .mockRejectedValueOnce(new Error('Piped instance 2 fail'))
-      .mockRejectedValueOnce(new Error('Piped instance 3 fail'))
-      .mockRejectedValueOnce(new Error('CF function fail'))
-
-    const info = await getVideoInfo(`https://youtube.com/watch?v=${FAKE_VIDEO_ID}`)
-    expect(info.title).toBe('Piped Video')
-    expect(info.audioUrl).toContain('audio.piped')
-  })
-
-  it('falls back to Cloudflare Function when Piped fails', async () => {
-    vi.mocked(fetch)
-      .mockRejectedValueOnce(new Error('Piped fail 1'))
-      .mockRejectedValueOnce(new Error('Piped fail 2'))
-      .mockRejectedValueOnce(new Error('Piped fail 3'))
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          title: 'CF Video', author: 'CF Creator', duration: '180', audioUrl: 'https://audio.cf/stream', thumbnail: null,
-        }),
-      })
+  it('returns video info from Cloudflare Function and wraps audio URL via proxy', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        title: 'CF Video', author: 'CF Creator', duration: '180', audioUrl: 'https://audio.cf/stream', thumbnail: 'thumb.jpg',
+      }),
+    } as Response)
 
     const info = await getVideoInfo(`https://youtube.com/watch?v=${FAKE_VIDEO_ID}`)
     expect(info.title).toBe('CF Video')
+    expect(info.audioUrl).toContain('/api/proxy')
+    expect(info.audioUrl).toContain(encodeURIComponent('https://audio.cf/stream'))
   })
 
   it('throws on invalid URL', async () => {
     await expect(getVideoInfo('not-a-url')).rejects.toThrow('Invalid YouTube URL')
   })
 
-  it('throws when both sources fail', async () => {
-    vi.mocked(fetch)
-      .mockRejectedValue(new Error('Network error'))
+  it('throws when the function fails', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('Network error'))
+    await expect(getVideoInfo(`https://youtube.com/watch?v=${FAKE_VIDEO_ID}`)).rejects.toThrow('Failed to get video info')
+  })
+
+  it('throws when the function returns a non-OK response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false } as Response)
     await expect(getVideoInfo(`https://youtube.com/watch?v=${FAKE_VIDEO_ID}`)).rejects.toThrow('Failed to get video info')
   })
 })

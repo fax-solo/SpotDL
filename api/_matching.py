@@ -3,17 +3,40 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# NOTE: This module is the Python port of the canonical matching logic in
+# frontend/src/lib/sources/matching.ts (and its Kotlin port,
+# app/src/main/kotlin/com/sinc/enhanced/data/util/MatchScorer.kt).
+# Keep normalize/tokenize/noise-word behavior in sync across all three.
+
+# Noise words with Unicode-aware boundaries (lookarounds instead of \b so
+# that non-Latin text glued to a noise word is preserved, e.g. "СборникLIVE").
+NOISE_WORDS_RE = re.compile(
+    r"(?<![\w])(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|radio\s*edit|mono|stereo|audio|official|video|lyric|lyrics|hq|hd|4k|1080p|60fps|visualizer|official\s*audio|official\s*video|official\s*lyric|music\s*video|lyric\s*video|full\s*album|single|album\s*version|extended|short|short\s*version)(?![\w])",
+    re.IGNORECASE,
+)
+
+BRACKET_CONTENT_RE = re.compile(r"\([^)]*\)|\[[^\]]*\]|<[^>]*>")
+NON_WORD_RE = re.compile(r"[^\w\s]")
+MULTI_SPACE_RE = re.compile(r"\s+")
+
 
 def normalize(s: str) -> str:
-    return re.sub(r'\([^)]*\)|\[[^\]]*\]|-\s*\w+\s*topic', '', s.lower()).strip()
-
-
-def tokenize(s: str) -> set:
-    return set(re.sub(r'[^\w\s]', ' ', s).split())
+    s = BRACKET_CONTENT_RE.sub(" ", s)
+    s = NON_WORD_RE.sub(" ", s)
+    s = NOISE_WORDS_RE.sub(" ", s)
+    s = MULTI_SPACE_RE.sub(" ", s)
+    return s.strip().lower()
 
 
 def strip_feat(s: str) -> str:
-    return re.sub(r'\b(feat|ft|featuring)\b.*', '', s, flags=re.IGNORECASE).strip()
+    # Kept for API compatibility: removal of feat-family words is now handled
+    # by normalize() itself (matching the TS/Kotlin ports).
+    s = NOISE_WORDS_RE.sub(" ", s)
+    return MULTI_SPACE_RE.sub(" ", s).strip()
+
+
+def tokenize(s: str) -> set:
+    return set(w for w in s.split() if len(w) > 1)
 
 
 def word_overlap(expected: set, found: set) -> float:

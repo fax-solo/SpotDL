@@ -7,7 +7,8 @@ export function isNative(): boolean {
 
 /**
  * Saves a blob to disk.
- * On Android: writes to the Documents directory and returns the file:// URI.
+ * On Android: writes to the Music directory (matching the native plugin's
+ * MediaStore save and the local library scanner) and returns the file:// URI.
  * On web: triggers a browser download and returns null.
  */
 export async function downloadFile(blob: Blob, filename: string): Promise<string | null> {
@@ -18,7 +19,7 @@ export async function downloadFile(blob: Blob, filename: string): Promise<string
       const result = await Filesystem.writeFile({
         path: filename,
         data: base64,
-        directory: Directory.Documents,
+        directory: Directory.Music,
         recursive: true,
       })
       return result.uri

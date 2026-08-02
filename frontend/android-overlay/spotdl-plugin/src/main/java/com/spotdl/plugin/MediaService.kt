@@ -27,6 +27,8 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
     private var mediaSession: MediaSession? = null
     @Volatile
     private var cachedArtwork: Bitmap? = null
+    @Volatile
+    private var requestedArtworkUrl: String? = null
     private val executor = Executors.newSingleThreadExecutor()
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
@@ -36,6 +38,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
     private var currentArtist: String? = null
     private var currentLyricLine: String? = null
     private var isCurrentlyPlaying: Boolean = false
+    private var startedForeground = false
 
     override fun onAudioFocusChange(focusChange: Int) {
         when (focusChange) {
@@ -145,6 +148,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                         }
                     }
                     startForeground(NOTIFICATION_ID, createNotification(title, artist))
+                    startedForeground = true
                 } catch (e: Exception) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -165,14 +169,25 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 loadArtwork(artworkUrl)
                 updatePlaybackState(true)
                 val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                // Redelivered after a process kill: the service must re-enter the
+                // foreground state before it can keep running.
+                if (!startedForeground) {
+                    try {
+                        startForeground(NOTIFICATION_ID, createNotification(title, artist))
+                        startedForeground = true
+                    } catch (_: Exception) {
+                    }
+                }
                 notificationManager.notify(NOTIFICATION_ID, createNotification(title, artist))
                 return START_STICKY
             }
             ACTION_STOP -> {
                 isCurrentlyPlaying = false
+                startedForeground = false
                 abandonAudioFocus()
                 updatePlaybackState(false)
                 cachedArtwork = null
+                requestedArtworkUrl = null
                 currentPosition = 0
                 totalDuration = 0
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -195,25 +210,33 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 this, 0, restartIntent,
                 PendingIntent.FLAG_IMMUTABLE
             )
+            // Exact alarm: prompt restart, and with USE_EXACT_ALARM declared this
+            // is exempt from the Android 12+ background foreground-service start
+            // restriction that plain (inexact) alarms hit.
             val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarm.set(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + 5000,
-                pendingIntent
-            )
+            val triggerAt = SystemClock.elapsedRealtime() + 5000
+            try {
+                alarm.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pendingIntent)
+            } catch (e: SecurityException) {
+                alarm.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pendingIntent)
+            }
         }
         super.onTaskRemoved(rootIntent)
     }
 
     private fun loadArtwork(url: String?) {
-        if (url == null || url.isEmpty()) {
+        val target = url?.takeIf { it.isNotEmpty() }
+        if (target == null) {
             cachedArtwork?.recycle()
             cachedArtwork = null
+            requestedArtworkUrl = null
             return
         }
+        if (target == requestedArtworkUrl) return
+        requestedArtworkUrl = target
         executor.submit {
             try {
-                val connection = URL(url).openConnection()
+                val connection = URL(target).openConnection()
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
                 connection.connectTimeout = 5000
                 connection.readTimeout = 5000
@@ -227,7 +250,7 @@ class MediaService : Service(), AudioManager.OnAudioFocusChangeListener {
                 opts.inSampleSize = maxOf(1, (maxOf(opts.outWidth, opts.outHeight) + maxSize - 1) / maxSize)
                 opts.inJustDecodeBounds = false
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-                if (bitmap != null) {
+                if (bitmap != null && requestedArtworkUrl == target) {
                     cachedArtwork?.recycle()
                     cachedArtwork = bitmap
                     updatePlaybackState(isCurrentlyPlaying)

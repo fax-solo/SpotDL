@@ -18,7 +18,11 @@ export interface YouTubeInfo {
   thumbnail: string | null
 }
 
-/** Route an audio URL through the Cloudflare proxy to avoid browser CORS restrictions */
+/**
+ * Route an audio URL through the Cloudflare proxy to avoid browser CORS restrictions.
+ * The single YouTube implementation lives in the /api/youtube Cloudflare Function,
+ * which itself chains Piped instances, InnerTube, scraping and the Data API.
+ */
 export function proxyAudioUrl(url: string): string {
   const base = apiUrl('/api/proxy')
   return `${base}?url=${encodeURIComponent(url)}`
@@ -33,79 +37,13 @@ function abortTimeout(ms: number): AbortSignal {
   return controller.signal
 }
 
-async function pipedSearch(query: string): Promise<YouTubeSearchResult[] | null> {
-  async function tryInstance(api: string): Promise<YouTubeSearchResult[] | null> {
-    const res = await fetch(`${api}/search?q=${encodeURIComponent(query)}&filter=videos`, {
-      signal: abortTimeout(3000),
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    const items = data?.items || []
-    const results = items
-      .filter((item: any) => item.url?.includes('/watch?v='))
-      .slice(0, 3)
-      .map((item: any) => ({
-        videoId: item.url.split('v=')[1]?.split('&')[0] || '',
-        title: item.title || 'Unknown',
-        url: item.url,
-        thumbnail: item.thumbnail || null,
-      }))
-      .filter((r: YouTubeSearchResult) => r.videoId)
-    return results.length > 0 ? results : null
-  }
-
-  const settled = await Promise.allSettled(PIPED_INSTANCES.map(tryInstance))
-  for (const r of settled) {
-    if (r.status === 'fulfilled' && r.value) return r.value
-  }
-  return null
-}
-
-const PIPED_INSTANCES = [
-  'https://pipedapi.kavin.rocks',
-  'https://pipedapi.adminforge.de',
-  'https://piped-api.garudalinux.org'
-]
-
-async function pipedInfo(videoId: string): Promise<YouTubeInfo | null> {
-  const results = await Promise.allSettled(
-    PIPED_INSTANCES.map(async (api) => {
-      const res = await fetch(`${api}/streams/${videoId}`, {
-        signal: abortTimeout(5000),
-      })
-      if (!res.ok) throw new Error('Not OK')
-      const data = await res.json()
-      const audioStreams = data?.audioStreams || []
-      if (audioStreams.length === 0) throw new Error('No audio streams')
-      const best = audioStreams
-        .filter((s: any) => s.url)
-        .sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0))[0]
-      if (!best) throw new Error('No valid stream')
-      return {
-        title: data.title || 'Unknown',
-        author: data.uploader || 'Unknown',
-        duration: String(data.duration || 0),
-        audioUrl: proxyAudioUrl(best.url),
-        thumbnail: data.thumbnailUrl || null,
-      }
-    }),
-  )
-  for (const r of results) {
-    if (r.status === 'fulfilled') return r.value
-  }
-  return null
-}
-
 export async function searchYouTube(query: string): Promise<YouTubeSearchResult[]> {
-  const piped = await pipedSearch(query)
-  if (piped) return piped
-
   try {
     const res = await fetch(FUNCTIONS_BASE(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'search', query }),
-      signal: AbortSignal.timeout(8000),
+      signal: abortTimeout(8000),
     })
     if (res.ok) {
       const data = await res.json()
@@ -119,27 +57,20 @@ export async function getVideoInfo(url: string): Promise<YouTubeInfo> {
   const videoId = extractVideoId(url)
   if (!videoId) throw new Error('Invalid YouTube URL')
 
-  const [piped, server] = await Promise.allSettled([
-    pipedInfo(videoId),
-    (async () => {
-      const res = await fetch(FUNCTIONS_BASE(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'info', url }),
-        signal: AbortSignal.timeout(8000),
-      })
-      if (!res.ok) throw new Error('Server fetch failed')
-      const info: YouTubeInfo = await res.json()
-      if (info.audioUrl) info.audioUrl = proxyAudioUrl(info.audioUrl)
-      return info
-    })(),
-  ])
-
-  if (piped.status === 'fulfilled' && piped.value?.audioUrl) return piped.value
-  if (server.status === 'fulfilled' && server.value?.audioUrl) return server.value
-
-  const errMsg = piped.status === 'rejected' ? piped.reason?.message : server.status === 'rejected' ? server.reason?.message : 'No audio found'
-  throw new Error(`Failed to get video info: ${errMsg}`)
+  try {
+    const res = await fetch(FUNCTIONS_BASE(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'info', url }),
+      signal: abortTimeout(8000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const info: YouTubeInfo = await res.json()
+    if (info.audioUrl) info.audioUrl = proxyAudioUrl(info.audioUrl)
+    return info
+  } catch (err) {
+    throw new Error(`Failed to get video info: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 function extractVideoId(url: string): string | null {

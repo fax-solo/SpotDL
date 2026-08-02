@@ -135,7 +135,15 @@ def run_sync(sub_id: str) -> dict:
                     s["playlist_name"] = playlist_name
                     s["last_synced_at"] = datetime.now(timezone.utc).isoformat()
         _with_write_lock(_touch)
-        return {"total": len(tracks), "new": 0, "downloaded": 0, "failed": 0, "errors": []}
+        return {
+            "total": len(tracks),
+            "new": 0,
+            "downloaded": 0,
+            "failed": 0,
+            "errors": [],
+            "truncated": bool(meta.get("truncated", False)),
+            "total_count": meta.get("total_count"),
+        }
 
     playlist_dir = _safe_dir(playlist_name) if playlist_name else sub["playlist_id"]
     track_dir = os.path.join(SYNC_DOWNLOAD_DIR, playlist_dir)
@@ -195,6 +203,8 @@ def run_sync(sub_id: str) -> dict:
         "failed": fail_count,
         "errors": errors,
         "playlist_name": playlist_name,
+        "truncated": bool(meta.get("truncated", False)),
+        "total_count": meta.get("total_count"),
     }
 
 

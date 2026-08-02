@@ -1,4 +1,4 @@
-import { normalize } from './sources/matching'
+import { normalize, tokenize } from './sources/matching'
 import type { SearchTrack, SearchAlbum, PlaylistSummary, SearchArtist } from './spotifyApi'
 
 export type RankableItem =
@@ -16,9 +16,11 @@ export function textScore(query: string, title: string, artist?: string): number
   if (t.includes(q)) return 60
   if (artist && normalize(artist) === q) return 55
   if (artist && normalize(artist).startsWith(q)) return 45
-  const qTokens = q.split(/\s+/)
-  const overlap = qTokens.filter(tok => t.includes(tok)).length
-  return overlap > 0 ? (overlap / qTokens.length) * 30 : 0
+  const qTokens = tokenize(q)
+  const tTokens = tokenize(t)
+  if (qTokens.size === 0) return 0
+  const overlap = [...qTokens].filter(tok => tTokens.has(tok)).length
+  return overlap > 0 ? (overlap / qTokens.size) * 30 : 0
 }
 
 export function pickTopResult(query: string, results: {

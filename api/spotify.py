@@ -33,6 +33,9 @@ URL_PATTERNS = {
     "playlist": re.compile(r"spotify\.com/playlist/([a-zA-Z0-9]+)"),
 }
 
+# Spotify's public embed endpoint delivers at most this many tracks per collection.
+EMBED_MAX_TRACKS = 100
+
 
 def parse_url(url: str) -> tuple[str, str] | None:
     for kind, pattern in URL_PATTERNS.items():
@@ -163,7 +166,8 @@ def _scrape_collection(kind: str, collection_id: str) -> dict:
 
     track_list = entity.get("trackList", [])
 
-    if len(track_list) >= 100:
+    truncated = len(track_list) >= EMBED_MAX_TRACKS
+    if truncated:
         logger.warning(
             "Spotify embed returned %d tracks — results may be truncated. "
             "Set up SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET or use OAuth login for full collection access.",
@@ -200,6 +204,8 @@ def _scrape_collection(kind: str, collection_id: str) -> dict:
         "collection_name": collection_name,
         "collection_artwork": collection_artwork,
         "collection_type": kind,
+        "truncated": truncated,
+        "total_count": None if truncated else len(tracks),
         "tracks": tracks,
     }
 
@@ -483,6 +489,8 @@ def _fetch_official_collection(kind: str, collection_id: str, token: str) -> dic
         "collection_name": collection_name,
         "collection_artwork": collection_artwork,
         "collection_type": kind,
+        "truncated": False,
+        "total_count": len(tracks),
         "tracks": tracks,
     }
 
@@ -545,6 +553,8 @@ def _fetch_generic_metadata(url: str) -> dict:
                 "collection_name": collection_name,
                 "collection_artwork": collection_artwork,
                 "collection_type": "playlist",
+                "truncated": False,
+                "total_count": len(tracks),
                 "tracks": tracks,
             }
         else:

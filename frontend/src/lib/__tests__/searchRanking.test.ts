@@ -29,6 +29,14 @@ describe('textScore', () => {
     expect(score).toBeLessThanOrEqual(30)
   })
 
+  it('ignores single-char tokens (aligned with canonical tokenize)', () => {
+    expect(textScore('a b', 'x a y')).toBe(0)
+  })
+
+  it('prefix query still matches via startsWith', () => {
+    expect(textScore('hel', 'hello world')).toBe(85)
+  })
+
   it('empty query returns 0', () => {
     expect(textScore('', 'anything')).toBe(0)
   })

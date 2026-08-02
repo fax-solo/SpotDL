@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, LogIn, User } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { uuid } from '../lib/uuid'
+import { networkErrorText } from '../lib/apiConfig'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -31,7 +32,7 @@ export function LoginPage() {
       const msg = err instanceof Error ? err.message : 'Login failed'
       console.error('Login error:', err)
       if (msg.includes('abort') || msg.includes('Failed to fetch')) {
-        setError('Cannot reach the server. Check your internet connection and try again.')
+        setError(networkErrorText())
       } else {
         setError(msg)
       }
@@ -50,7 +51,7 @@ export function LoginPage() {
       const msg = err instanceof Error ? err.message : 'Guest login failed'
       console.error('Guest login error:', err)
       if (msg.includes('abort') || msg.includes('AbortError') || msg.includes('Failed to fetch')) {
-        setError('Cannot reach the server. Check your internet connection and try again.')
+        setError(networkErrorText())
       } else {
         setError(msg)
       }

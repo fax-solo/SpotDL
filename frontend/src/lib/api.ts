@@ -234,7 +234,7 @@ export async function downloadTrack(
       onProgress?.('Downloading via native Sinc...', 0)
       const nativeResult = await nativeDownloadTrack(meta.url, (pct) => {
         onProgress?.(`Downloading... ${Math.round(pct)}%`, pct)
-      })
+      }, filename, quality.variant || 'normal')
       onProgress?.('Done', 100)
       if (nativeResult.filePath) {
         return { blob: new Blob([], { type: 'audio/mpeg' }), filename, nativeFilePath: nativeResult.filePath, artworkEmbedded: true }
@@ -261,6 +261,7 @@ export async function downloadTrack(
           url: meta.url,
           quality: quality.bitrate,
           format: quality.format,
+          variant: quality.variant || 'normal',
         }),
         ...(signal ? { signal } : {}),
       })

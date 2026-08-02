@@ -15,6 +15,8 @@ import androidx.core.app.NotificationCompat
 import java.util.concurrent.atomic.AtomicInteger
 
 class DownloadService : Service() {
+    private var startedForeground = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -33,6 +35,7 @@ class DownloadService : Service() {
                         }
                     }
                     startForeground(NOTIFICATION_ID, createProgressNotification(title, count, null, null))
+                    startedForeground = true
                 } catch (e: Exception) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -45,11 +48,21 @@ class DownloadService : Service() {
                 val count = intent.getIntExtra(EXTRA_COUNT, 1)
                 val progress = if (intent.hasExtra(EXTRA_PROGRESS)) intent.getFloatExtra(EXTRA_PROGRESS, -1f) else null
                 val stage = intent.getStringExtra(EXTRA_STAGE)
+                // Redelivered after a process kill: the service must re-enter the
+                // foreground state before it can keep running.
+                if (!startedForeground) {
+                    try {
+                        startForeground(NOTIFICATION_ID, createProgressNotification(title, count, progress, stage))
+                        startedForeground = true
+                    } catch (_: Exception) {
+                    }
+                }
                 val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(NOTIFICATION_ID, createProgressNotification(title, count, progress, stage))
                 return START_REDELIVER_INTENT
             }
             ACTION_STOP -> {
+                startedForeground = false
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -70,18 +83,26 @@ class DownloadService : Service() {
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_COUNT, count)
             }
-            val pendingIntent = PendingIntent.getService(
-                this, 0, restartIntent,
-                PendingIntent.FLAG_IMMUTABLE
-            )
-            val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarm.set(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + 5000,
-                pendingIntent
-            )
+            scheduleRestart(restartIntent)
         }
         super.onTaskRemoved(rootIntent)
+    }
+
+    private fun scheduleRestart(restartIntent: Intent) {
+        val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val pendingIntent = PendingIntent.getService(
+            this, 0, restartIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val triggerAt = SystemClock.elapsedRealtime() + 5000
+        // Exact alarm: prompt restart, and with USE_EXACT_ALARM declared this
+        // is exempt from the Android 12+ background foreground-service start
+        // restriction that plain (inexact) alarms hit.
+        try {
+            alarm.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pendingIntent)
+        } catch (e: SecurityException) {
+            alarm.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pendingIntent)
+        }
     }
 
     private fun createProgressNotification(title: String, count: Int, progress: Float?, stage: String?): Notification {

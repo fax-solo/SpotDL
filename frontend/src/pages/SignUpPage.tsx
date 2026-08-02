@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, UserPlus, User, AtSign } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { networkErrorText } from '../lib/apiConfig'
 
 export function SignUpPage() {
   const navigate = useNavigate()
@@ -55,7 +56,7 @@ export function SignUpPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Signup failed'
       if (msg.includes('abort') || msg.includes('Failed to fetch')) {
-        setError('Cannot reach the server. Make sure the API is running.')
+        setError(networkErrorText())
       } else {
         setError(msg)
       }
@@ -73,7 +74,7 @@ export function SignUpPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Guest login failed'
       if (msg.includes('abort') || msg.includes('Failed to fetch')) {
-        setError('Cannot reach the server. Make sure the API is running.')
+        setError(networkErrorText())
       } else {
         setError(msg)
       }

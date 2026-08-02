@@ -8,8 +8,13 @@ interface ArtworkContext {
   ip: string
   db: D1Database
   isrc?: string | null
+  env?: { LASTFM_API_KEY?: string }
 }
 
+// Canonical fallback chain. Order matters: prefer providers with the most
+// reliable metadata, then the most permissive ones. Keep in sync with:
+//   - api/artwork_fallback.py (FastAPI)
+//   - app/src/main/kotlin/com/sinc/enhanced/data/remote/ArtworkClient.kt
 const ARTWORK_SOURCES = [
   { name: 'deezer', fn: searchDeezerArtwork },
   { name: 'itunes', fn: searchItunesArtwork },
@@ -30,6 +35,8 @@ export async function findArtwork(
 
       if (source.name === 'coverartarchive') {
         url = await searchCoverArtArchive(title, artist, ctx.isrc || null, ctx.ip, ctx.db)
+      } else if (source.name === 'lastfm') {
+        url = await searchLastfmArtwork(title, artist, ctx.ip, ctx.db, ctx.env?.LASTFM_API_KEY)
       } else {
         url = await source.fn(title, artist, ctx.ip, ctx.db)
       }

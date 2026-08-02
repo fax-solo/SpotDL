@@ -28,6 +28,7 @@ const PIPED_INSTANCES = [
   'https://api.piped.private.coffee',    // 🇦🇹
   'https://pipedapi.darkness.services',  // 🇺🇸
   'https://pipedapi.orangenet.cc',       // 🇸🇮
+  'https://piped-api.garudalinux.org',   // 🇮🇳
 ]
 
 const UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36'
@@ -310,7 +311,9 @@ export async function onRequest(context) {
   }
 
   const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
-  const { allowed } = await checkRateLimit(context.env.DB, `source:youtube:${ip}`, 30)
+  // Playlist downloads issue one search per track (plus one info per matched
+  // track), so the budget must cover ~100-track playlists: 240 req/min/IP.
+  const { allowed } = await checkRateLimit(context.env.DB, `source:youtube:${ip}`, 240)
   if (!allowed) {
     return scrapeError('rate_limited', 'Too many requests. Try again later.', 429)
   }

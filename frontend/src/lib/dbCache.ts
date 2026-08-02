@@ -78,7 +78,9 @@ export async function removeCache(key: string, storeName: string = 'metadata'): 
   try {
     const store = await getStore('readwrite', storeName)
     store.delete(key)
-  } catch {}
+  } catch (err) {
+    console.debug('[dbCache] removeCache failed:', err)
+  }
 }
 
 export async function clearExpired(storeName: string = 'metadata', maxAge: number = 300000): Promise<number> {

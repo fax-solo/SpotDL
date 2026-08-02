@@ -20,6 +20,22 @@ val dotEnv = loadDotEnv()
 fun env(key: String, default: String = ""): String =
     System.getenv(key) ?: project.findProperty(key) as? String ?: dotEnv[key] ?: default
 
+val backendUrl = env("BACKEND_URL")
+if (backendUrl.isBlank()) {
+    val taskNames = gradle.startParameter.taskNames.joinToString(" ")
+    if (taskNames.any { it.contains("Release", ignoreCase = true) }) {
+        throw GradleException(
+            "BACKEND_URL must be set to build a release APK. " +
+                "Provide it via an env var, a gradle property, or a .env file, e.g. " +
+                "BACKEND_URL=https://my-worker.my-subdomain.workers.dev ./gradlew :app:assembleRelease"
+        )
+    }
+    logger.warn(
+        "WARNING: BACKEND_URL is not set. Debug builds will still work — " +
+            "users can enter the server URL on the login screen — but release builds will fail."
+    )
+}
+
 android {
     namespace = "com.sinc.enhanced"
     compileSdk = 36
@@ -31,7 +47,7 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        buildConfigField("String", "BACKEND_URL", "\"${env("BACKEND_URL")}\"")
+        buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
         buildConfigField("String", "YTDLP_BACKEND_URL", "\"${env("YTDLP_BACKEND_URL", "")}\"")
         buildConfigField("String", "LASTFM_API_KEY", "\"${env("LASTFM_API_KEY", "7a5d0a2a4b1e8c3f6d9e0f1a2b3c4d5e")}\"")
         buildConfigField("String", "JAMENDO_CLIENT_ID", "\"${env("JAMENDO_CLIENT_ID", "4c9f79a7")}\"")

@@ -20,6 +20,10 @@ class ArtworkClient(private val client: OkHttpClient) {
     private val cache = LinkedHashMap<String, String>(100, 0.75f, true)
     private val mutex = Mutex()
 
+    // Canonical fallback chain. Order matters: prefer providers with the most
+    // reliable metadata, then the most permissive ones. Keep in sync with:
+    //   - api/artwork_fallback.py (FastAPI)
+    //   - frontend/functions/api/_lib/artworkFallback.ts (Cloudflare Functions)
     suspend fun findArtwork(title: String, artist: String, isrc: String? = null): String? = withContext(Dispatchers.IO) {
         mutex.withLock {
             val cacheKey = "$artist||$title"
@@ -86,12 +90,20 @@ class ArtworkClient(private val client: OkHttpClient) {
 
     private suspend fun searchLastfmArtwork(title: String, artist: String): String? = withContext(Dispatchers.IO) {
         try {
-            val params = java.net.URLEncoder.encode(
-                "method=track.getInfo&api_key=$LASTFM_API_KEY&artist=$artist&track=$title&format=json&autocorrect=1",
-                "UTF-8"
-            ).replace("%3D", "=").replace("%26", "&")
+            val url = okhttp3.HttpUrl.Builder()
+                .scheme("https")
+                .host("ws.audioscrobbler.com")
+                .addPathSegment("2.0")
+                .addQueryParameter("method", "track.getInfo")
+                .addQueryParameter("api_key", LASTFM_API_KEY)
+                .addQueryParameter("artist", artist)
+                .addQueryParameter("track", title)
+                .addQueryParameter("format", "json")
+                .addQueryParameter("autocorrect", "1")
+                .build()
+                .toString()
             val request = Request.Builder()
-                .url("https://ws.audioscrobbler.com/2.0/?$params")
+                .url(url)
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
@@ -108,6 +120,10 @@ class ArtworkClient(private val client: OkHttpClient) {
                             if (url.isNotEmpty()) return@use url
                         }
                     }
+                }
+                if (images.length() > 0) {
+                    val last = images.getJSONObject(images.length() - 1).optString("#text")
+                    if (last.isNotEmpty()) return@use last
                 }
                 null
             }

@@ -26,6 +26,7 @@ class DownloadRequest(BaseModel):
     url: str | None = Field(default=None, max_length=2000)
     quality: str | None = Field(default=None, pattern="^(128|192|256|320)$", max_length=3)
     format: str | None = Field(default=None, pattern="^(mp3|m4a)$", max_length=3)
+    variant: str | None = Field(default=None, pattern="^(normal|sped_up|slowed_reverb)$", max_length=20)
 
 
 class DeezerDownloadRequest(BaseModel):
@@ -66,6 +67,7 @@ async def download_combined(
     query: str = Query(..., max_length=2000, description="Spotify URL or search string"),
     quality: str = Query("320", pattern="^(128|192|256|320)$"),
     format: str = Query("mp3", pattern="^(mp3|m4a)$"),
+    variant: str = Query("normal", pattern="^(normal|sped_up|slowed_reverb)$"),
     _auth=Depends(verify_api_key),
 ):
     from downloader import download_track_combined
@@ -73,16 +75,26 @@ async def download_combined(
     async with _download_semaphore:
         try:
             filepath, ext = await asyncio.to_thread(
-                download_track_combined, query, quality, format,
+                download_track_combined, query, quality, format, variant,
             )
         except Exception:
             logger.exception("Combined download failed")
             raise HTTPException(status_code=502, detail="Download failed")
 
     def cleanup():
-        parent = os.path.dirname(filepath)
-        if os.path.isdir(parent):
-            shutil.rmtree(parent, ignore_errors=True)
+        # Remove only the served file, then the now-empty temp dir. Never
+        # rmtree the parent: it may hold files from concurrent requests.
+        try:
+            if filepath and os.path.isfile(filepath):
+                os.remove(filepath)
+        except OSError:
+            pass
+        parent = os.path.dirname(filepath) if filepath else None
+        if parent and os.path.isdir(parent):
+            try:
+                os.rmdir(parent)
+            except OSError:
+                pass
 
     safe_title = os.path.splitext(os.path.basename(filepath))[0]
     filename = f"{safe_title}{ext}"
@@ -126,16 +138,26 @@ async def download(request: Request, body: DownloadRequest, _auth=Depends(verify
         try:
             filepath, ext = await asyncio.to_thread(
                 download_track, body.title, body.artist, body.album, body.artwork_url, body.url,
-                body.quality or "320", body.format or "mp3",
+                body.quality or "320", body.format or "mp3", variant=body.variant or "normal",
             )
         except Exception:
             logger.exception("Download failed")
             raise HTTPException(status_code=502, detail="Download failed")
 
     def cleanup():
-        parent = os.path.dirname(filepath)
-        if os.path.isdir(parent):
-            shutil.rmtree(parent, ignore_errors=True)
+        # Remove only the served file, then the now-empty temp dir. Never
+        # rmtree the parent: it may hold files from concurrent requests.
+        try:
+            if filepath and os.path.isfile(filepath):
+                os.remove(filepath)
+        except OSError:
+            pass
+        parent = os.path.dirname(filepath) if filepath else None
+        if parent and os.path.isdir(parent):
+            try:
+                os.rmdir(parent)
+            except OSError:
+                pass
 
     safe_artist = body.artist.replace("/", "_").replace("\\", "_")
     safe_title = body.title.replace("/", "_").replace("\\", "_")
@@ -159,7 +181,7 @@ async def download_stream(request: Request, body: DownloadRequest, _auth=Depends
     async def generate():
         async with _download_semaphore:
             try:
-                async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url, body.quality or "320", body.format or "mp3"):
+                async for chunk in stream_download(body.title, body.artist, body.album, body.artwork_url, body.url, body.quality or "320", body.format or "mp3", variant=body.variant or "normal"):
                     if await request.is_disconnected():
                         raise asyncio.CancelledError()
                     if isinstance(chunk, str):
@@ -209,9 +231,20 @@ async def deezer_download(request: Request, body: DeezerDownloadRequest, _auth=D
                 )
 
                 def cleanup():
-                    parent = os.path.dirname(filepath)
-                    if os.path.isdir(parent):
-                        shutil.rmtree(parent, ignore_errors=True)
+                    # Remove only the served file, then the now-empty temp
+                    # dir. Never rmtree the parent: it may hold files from
+                    # concurrent requests.
+                    try:
+                        if filepath and os.path.isfile(filepath):
+                            os.remove(filepath)
+                    except OSError:
+                        pass
+                    parent = os.path.dirname(filepath) if filepath else None
+                    if parent and os.path.isdir(parent):
+                        try:
+                            os.rmdir(parent)
+                        except OSError:
+                            pass
 
                 import re as _re
                 safe_artist = _re.sub(r'[/\\?%*:|"<>\s\.\.]', "_", body.artist)

@@ -9,6 +9,7 @@ export async function searchLastfmArtwork(
   artist: string,
   ip: string,
   db: D1Database,
+  apiKey?: string,
 ): Promise<string | null> {
   if (!title && !artist) return null
 
@@ -20,7 +21,7 @@ export async function searchLastfmArtwork(
 
   const params = new URLSearchParams({
     method: 'track.getInfo',
-    api_key: API_KEY,
+    api_key: apiKey || API_KEY,
     artist,
     track: title,
     format: 'json',

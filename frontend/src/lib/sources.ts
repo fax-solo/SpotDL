@@ -1,8 +1,9 @@
 import { searchYouTube, getVideoInfo } from './youtubeClient'
 import { getDeezerTrack, searchDeezer } from './deezer'
 import { apiUrl } from './apiConfig'
-import { matchScore, MIN_CONFIDENCE } from './sources/matching'
+import { matchScore, MIN_CONFIDENCE, MIN_PREVIEW_CONFIDENCE } from './sources/matching'
 import { cachedFetch } from './requestCache'
+import { getQualitySettings } from './qualitySettings'
 
 interface SourceSearchResult {
   url: string
@@ -158,19 +159,16 @@ async function fmaInfo(trackId: string): Promise<SourceInfo | null> {
   return null
 }
 
-// ── Piped direct stream (uses existing YouTube search + Piped stream URLs) ──
-async function searchPiped(query: string): Promise<SourceSearchResult[]> {
-  const results = await searchYouTube(query)
-  return results.map(r => ({ ...r, source: 'piped' as const }))
+// ── Bandcamp source ──
+async function searchBandcamp(query: string): Promise<SourceSearchResult[]> {
+  const data = await callFunction('bandcamp', { action: 'search', query })
+  return data?.results || []
 }
 
-async function pipedInfo(url: string): Promise<SourceInfo | null> {
-  try {
-    const info = await getVideoInfo(url)
-    return info
-  } catch {
-    return null
-  }
+async function bandcampInfo(url: string): Promise<SourceInfo | null> {
+  const data = await callFunction('bandcamp', { action: 'info', url })
+  if (data?.audioUrl) return data
+  return null
 }
 
 interface SourceResult {
@@ -193,7 +191,11 @@ interface SourceModule {
 }
 
 function stripQueryNoise(s: string): string {
-  return s.replace(/\([^)]*\)|\[[^\]]*\]/g, '').replace(/\b(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|hq|hd|official|video|lyric|lyrics)\b/gi, '').replace(/\s+/g, ' ').trim()
+  return s
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, '')
+    .replace(/(?<![\p{L}\p{N}])(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|hq|hd|official|video|lyric|lyrics)(?![\p{L}\p{N}])/giu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 const SEARCH_QUERIES = [
@@ -204,6 +206,45 @@ const SEARCH_QUERIES = [
 
 async function delay(ms: number) {
   return new Promise(r => setTimeout(r, ms))
+}
+
+// Per-source concurrency cap: parallel client downloads each fire searches at
+// all 8 sources at once, so without a cap a 3-track batch can hit a single
+// provider (e.g. YouTube/Deezer) with a burst that trips their rate limits.
+const SOURCE_CONCURRENCY = 2
+
+class Semaphore {
+  private queue: Array<() => void> = []
+  private active = 0
+  constructor(private limit: number) {}
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.active >= this.limit) {
+      await new Promise<void>(resolve => this.queue.push(resolve))
+    }
+    this.active++
+    try {
+      return await fn()
+    } finally {
+      this.active--
+      const next = this.queue.shift()
+      if (next) next()
+    }
+  }
+}
+
+const sourceSemaphores = new Map<string, Semaphore>()
+
+function getSourceSemaphore(name: string): Semaphore {
+  let s = sourceSemaphores.get(name)
+  if (!s) {
+    s = new Semaphore(SOURCE_CONCURRENCY)
+    sourceSemaphores.set(name, s)
+  }
+  return s
+}
+
+async function withSourceSlot<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  return getSourceSemaphore(name).run(fn)
 }
 
 function hasMinimumTokens(s: string): boolean {
@@ -226,7 +267,7 @@ async function trySource(
     if (!hasMinimumTokens(q)) continue
     let searchResults: SourceSearchResult[]
     try {
-      searchResults = await source.search(q)
+      searchResults = await withSourceSlot(source.name, () => source.search(q))
     } catch (err) {
       if (err instanceof SourceError) lastError = err
       continue
@@ -239,7 +280,7 @@ async function trySource(
         info = { title: result.title, author: result.artist || '', duration: result.duration || '0', audioUrl: result.audioUrl, thumbnail: result.thumbnail || null, ...(result.isPreview !== undefined ? { isPreview: result.isPreview } : {}) }
       } else {
         try {
-          const fetched = await source.info(result.url)
+          const fetched = await withSourceSlot(source.name, () => source.info(result.url))
           if (fetched?.audioUrl) info = fetched
         } catch (err) {
           if (err instanceof SourceError) lastError = err
@@ -314,31 +355,32 @@ async function jamendoInfo(trackId: string): Promise<SourceInfo | null> {
   return null
 }
 
+export const SOURCE_LIST: SourceModule[] = [
+  { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
+  { name: 'deezer', search: searchDeezerSource, info: deezerSourceInfo },
+  { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
+  { name: 'bandcamp', search: searchBandcamp, info: bandcampInfo },
+  { name: 'invidious', search: searchInvidious, info: invidiousInfo },
+  { name: 'jamendo', search: searchJamendo, info: jamendoInfo },
+  { name: 'audius', search: searchAudius, info: audiusInfo },
+  { name: 'fma', search: searchFma, info: fmaInfo },
+]
+
 export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string, expectedDuration?: string | number | null, expectedIsrc?: string | null): Promise<SourceResult> {
+  const qualityKey = qualityCacheSuffix()
   if (expectedTitle && expectedArtist) {
-    const cached = getPreResolvedAudio(expectedTitle, expectedArtist)
+    const cached = getPreResolvedAudio(expectedTitle, expectedArtist, qualityKey)
     if (cached) return cached
   }
 
   const doSearch = async (): Promise<SourceResult> => {
     const queries = [...new Set(SEARCH_QUERIES.map(fn => fn(expectedArtist || '', expectedTitle || query).trim()).filter(Boolean))]
 
-    const sources: SourceModule[] = [
-      { name: 'piped', search: searchPiped, info: pipedInfo },
-      { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
-      { name: 'deezer', search: searchDeezerSource, info: deezerSourceInfo },
-      { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
-      { name: 'invidious', search: searchInvidious, info: invidiousInfo },
-      { name: 'jamendo', search: searchJamendo, info: jamendoInfo },
-      { name: 'audius', search: searchAudius, info: audiusInfo },
-      { name: 'fma', search: searchFma, info: fmaInfo },
-    ]
-
     let bestCandidate: SourceCandidate | null = null
     let bestPreviewCandidate: SourceCandidate | null = null
 
     const results = await Promise.allSettled(
-      sources.map(source =>
+      SOURCE_LIST.map(source =>
         trySource(source, queries, expectedTitle, expectedArtist, expectedDuration, expectedIsrc)
           .then(result => ({ source, result }))
           .catch(err => { throw err })
@@ -349,7 +391,7 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
       if (settled.status !== 'fulfilled' || !settled.value.result) continue
       const { result } = settled.value
       if (result.isPreview) {
-        if (!bestPreviewCandidate || result.score > bestPreviewCandidate.score) {
+        if (result.score >= MIN_PREVIEW_CONFIDENCE && (!bestPreviewCandidate || result.score > bestPreviewCandidate.score)) {
           bestPreviewCandidate = result
         }
         continue
@@ -376,13 +418,22 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
   }
 
   if (expectedArtist && expectedTitle) {
-    return cachedFetch(`resolved:${expectedArtist}:${expectedTitle}`, doSearch, 10 * 60 * 1000)
+    return cachedFetch(`resolved:${expectedArtist}:${expectedTitle}:${qualityKey}`, doSearch, 10 * 60 * 1000)
   }
 
   return doSearch()
 }
 
 let _preResolveCache = new Map<string, SourceResult>()
+
+function qualityCacheSuffix(): string {
+  const q = getQualitySettings()
+  return `${q.bitrate}|${q.format}|${q.variant || 'normal'}`
+}
+
+function _preResolveKey(artist: string, title: string, qualityKey?: string): string {
+  return `${artist}:${title}:${qualityKey ?? qualityCacheSuffix()}`
+}
 
 function _trimPreResolveCache() {
   while (_preResolveCache.size > 500) {
@@ -392,7 +443,7 @@ function _trimPreResolveCache() {
 }
 
 export async function preResolveAudio(title: string, artist: string, knownUrl?: string): Promise<void> {
-  const key = `${artist}:${title}`
+  const key = _preResolveKey(artist, title)
   if (_preResolveCache.has(key)) return
   try {
     const result = knownUrl
@@ -400,11 +451,13 @@ export async function preResolveAudio(title: string, artist: string, knownUrl?: 
       : await findAudio(`${artist} ${title}`, title, artist)
     _preResolveCache.set(key, result)
     _trimPreResolveCache()
-  } catch {}
+  } catch (err) {
+    console.debug('[sources] pre-resolve failed, will resolve on demand:', artist, title, err)
+  }
 }
 
-export function getPreResolvedAudio(title: string, artist: string): SourceResult | undefined {
-  const key = `${artist}:${title}`
+export function getPreResolvedAudio(title: string, artist: string, qualityKey?: string): SourceResult | undefined {
+  const key = _preResolveKey(artist, title, qualityKey)
   const result = _preResolveCache.get(key)
   if (result) {
     _preResolveCache.delete(key)
@@ -414,7 +467,7 @@ export function getPreResolvedAudio(title: string, artist: string): SourceResult
 }
 
 export function stashPreResolvedAudio(title: string, artist: string, result: SourceResult) {
-  const key = `${artist}:${title}`
+  const key = _preResolveKey(artist, title)
   _preResolveCache.set(key, result)
   _trimPreResolveCache()
 }
@@ -443,7 +496,7 @@ export async function findAudioFromUrl(url: string): Promise<SourceResult> {
   }
 
   if (url.includes('deezer.com')) {
-    const info = await deezerSourceInfo(url)
+    const info = await withSourceSlot('deezer', () => deezerSourceInfo(url))
     if (info) return { info, source: 'deezer' }
     throw new Error('No audio found for this Deezer track')
   }

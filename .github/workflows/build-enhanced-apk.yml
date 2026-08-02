@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -92,8 +96,10 @@ jobs:
 
       - name: Check if keystore secrets are available
         id: check_secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_B64 }}
         run: |
-          if [ -n "${{ secrets.ENHANCED_RELEASE_KEYSTORE_B64 }}" ]; then
+          if [ -n "$KEYSTORE_B64" ]; then
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_secrets=false" >> "$GITHUB_OUTPUT"
@@ -101,33 +107,35 @@ jobs:
 
       - name: Decode and prepare release keystore
         if: steps.check_secrets.outputs.has_secrets == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}
         run: |
-          INPUT="${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}"
-          KEYPASS="${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}"
-          ALIAS="${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}"
-          echo "${{ secrets.ENHANCED_RELEASE_KEYSTORE_B64 }}" | base64 -d > app/release.p12
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/release.p12
           keytool -importkeystore \
             -srckeystore app/release.p12 \
             -srcstoretype PKCS12 \
-            -srcstorepass "$INPUT" \
-            -srcalias "$ALIAS" \
-            -srckeypass "${KEYPASS:-$INPUT}" \
+            -srcstorepass "$KEYSTORE_PASS" \
+            -srcalias "$KEY_ALIAS" \
+            -srckeypass "${KEY_PASS:-$KEYSTORE_PASS}" \
             -destkeystore app/release.keystore \
             -deststoretype JKS \
-            -deststorepass "$INPUT" \
-            -destalias "$ALIAS" \
-            -destkeypass "${KEYPASS:-$INPUT}" 2>&1
+            -deststorepass "$KEYSTORE_PASS" \
+            -destalias "$KEY_ALIAS" \
+            -destkeypass "${KEY_PASS:-$KEYSTORE_PASS}" 2>&1
           rm -f app/release.p12
           echo "Keystore decoded and converted to JKS"
 
       - name: Build signed release APK
         if: steps.check_secrets.outputs.has_secrets == 'true'
-        run: |
-          export ENHANCED_RELEASE_KEYSTORE_PATH="${{ github.workspace }}/app/release.keystore"
-          export ENHANCED_RELEASE_KEYSTORE_PASSWORD="${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}"
-          export ENHANCED_RELEASE_KEY_ALIAS="${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}"
-          export ENHANCED_RELEASE_KEY_PASSWORD="${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}"
-          ./gradlew assembleRelease
+        env:
+          ENHANCED_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/app/release.keystore
+          ENHANCED_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}
+          ENHANCED_RELEASE_KEY_ALIAS: ${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}
+          ENHANCED_RELEASE_KEY_PASSWORD: ${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
         working-directory: app
 
       - name: Build debug APK (unsigned, no keystore)

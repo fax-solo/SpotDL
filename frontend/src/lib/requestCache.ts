@@ -42,7 +42,12 @@ export async function cachedFetch<T>(
   }
 
   const netPromise = fetcher()
-  pendingDedup.set(key, netPromise.finally(() => pendingDedup.delete(key)))
+  const tracked = netPromise.finally(() => pendingDedup.delete(key))
+  pendingDedup.set(key, tracked)
+  // Attach a no-op handler so a failing fetcher with no concurrent callers
+  // doesn't surface as an unhandled rejection (callers still await the
+  // original promise and receive the real error).
+  void tracked.catch(() => {})
 
   const data = await netPromise
   memoryCache.set(key, { data, ts: Date.now() })

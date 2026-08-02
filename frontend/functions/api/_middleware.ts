@@ -25,10 +25,6 @@ function csrfCheck(request: Request, allowedOrigins: string): void {
   const origin = request.headers.get('Origin')
   const referer = request.headers.get('Referer')
 
-  // Native mobile clients (Capacitor APK) send no Origin or Referer headers.
-  // This is not a browser-originated request, so CSRF isn't applicable.
-  if (!origin && !referer) return
-
   // Native mobile clients send no Origin header but always include a valid Bearer token.
   // Skip CSRF for authenticated requests — browsers cannot set Authorization headers
   // cross-origin without a successful CORS preflight, which already validates the origin.

@@ -223,6 +223,17 @@ export function PlaylistDetail(_props: PlaylistDetailProps) {
       </div>
 
       <div className="px-6 py-4 space-y-2">
+        {collection.truncated && (
+          <div className="flex items-start gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+            <AlertCircle className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+              {collection.total_count
+                ? `This playlist has ${collection.total_count} tracks, but only the first ${collection.tracks.length} are shown.`
+                : `This playlist has more than ${collection.tracks.length} tracks — only the first ${collection.tracks.length} are shown.`}{' '}
+              Add Spotify client credentials for full playlist access.
+            </p>
+          </div>
+        )}
         <button
           onClick={handleDownloadAll}
           disabled={isDownloading}

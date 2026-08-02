@@ -38,17 +38,6 @@ async function soundcloudInfo(url: string) {
   return data
 }
 
-async function searchBandcamp(query: string) {
-  const data = await callFunction('bandcamp', { action: 'search', query })
-  return data?.results || []
-}
-
-async function bandcampInfo(url: string) {
-  const data = await callFunction('bandcamp', { action: 'info', url })
-  if (data?.audioUrl) return data
-  return null
-}
-
 async function performYouTubeSearch(query: string) {
   const results = await searchYouTube(query)
   return results.map(r => ({ ...r, source: 'youtube' }))
@@ -137,7 +126,7 @@ describe('findAudio', () => {
     invalidateCache()
   })
 
-  it('returns result from piped (faster YouTube proxy) when it succeeds first', async () => {
+  it('returns result from youtube when it succeeds first', async () => {
     vi.mocked(searchYouTube).mockResolvedValue([
       { videoId: 'abc123', title: 'Test Song', url: 'https://youtube.com/watch?v=abc123' },
     ])
@@ -148,7 +137,7 @@ describe('findAudio', () => {
     const { findAudio } = await import('./sources')
 
     const result = await findAudio('Test Song Test Artist')
-    expect(result.source).toBe('piped')
+    expect(result.source).toBe('youtube')
     expect(result.info.audioUrl).toBe('https://audio.url')
   })
 
@@ -176,7 +165,7 @@ describe('findAudio', () => {
     const { findAudio } = await import('./sources')
 
     const result = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
-    expect(result.source).toBe('piped')
+    expect(result.source).toBe('youtube')
     expect(result.info.title).toBe('Expected Title')
   })
 
@@ -191,13 +180,13 @@ describe('findAudio', () => {
     const { findAudio } = await import('./sources')
 
     const r1 = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
-    expect(r1.source).toBe('piped')
+    expect(r1.source).toBe('youtube')
     expect(searchYouTube).toHaveBeenCalled()
 
     vi.mocked(searchYouTube).mockClear()
 
     const r2 = await findAudio('Test Query', 'Expected Title', 'Expected Artist')
-    expect(r2.source).toBe('piped')
+    expect(r2.source).toBe('youtube')
     expect(r2.info.audioUrl).toBe('https://audio.url')
     expect(searchYouTube).not.toHaveBeenCalled()
   })
@@ -234,7 +223,7 @@ describe('findAudio', () => {
     const { findAudio } = await import('./sources')
 
     const result = await findAudio('Test Query', 'Test Song', 'Test Artist')
-    expect(result.source).toBe('piped')
+    expect(result.source).toBe('youtube')
     expect(result.isPreview).toBeUndefined()
     expect(result.info.audioUrl).toBe('https://audio.youtube/full')
   })
@@ -252,6 +241,106 @@ describe('findAudio', () => {
     expect(result.source).toBe('deezer')
     expect(result.info.audioUrl).toBe('https://audio.deezer/preview')
   })
+
+  it('rejects a low-confidence Deezer preview instead of treating it as the track', async () => {
+    vi.mocked(searchYouTube).mockResolvedValue([])
+    vi.mocked(searchDeezer).mockResolvedValue([
+      { id: 789, title: 'Completely Different', artist: 'Ghost Artist', album: 'Album', duration: '30', isrc: null, thumbnail: null, preview: 'https://audio.deezer/wrong-preview', audioUrl: null, isPreview: true, source: 'deezer' },
+    ])
+
+    const { findAudio } = await import('./sources')
+
+    await expect(findAudio('Search Query', 'Wrong Preview Song', 'Ghost Artist')).rejects.toThrow('No audio found')
+  })
+
+  it('caps concurrent searches per source during parallel downloads', async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    vi.mocked(searchYouTube).mockImplementation(async () => {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise(r => setTimeout(r, 30))
+      inFlight--
+      return []
+    })
+    vi.mocked(searchDeezer).mockResolvedValue([])
+
+    const { findAudio } = await import('./sources')
+
+    await Promise.allSettled([
+      findAudio('Query Alpha', 'Track Alpha', 'Artist Alpha'),
+      findAudio('Query Bravo', 'Track Bravo', 'Artist Bravo'),
+      findAudio('Query Charlie', 'Track Charlie', 'Artist Charlie'),
+    ])
+
+    expect(maxInFlight).toBeLessThanOrEqual(2)
+    expect(maxInFlight).toBeGreaterThan(0)
+  })
+
+  it('re-resolves when quality settings change (cache key includes quality/format)', async () => {
+    const storage = new Map<string, string>()
+    const localStorageMock = {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => { storage.set(k, v) },
+      removeItem: (k: string) => { storage.delete(k) },
+      clear: () => { storage.clear() },
+      key: () => null,
+      length: 0,
+    }
+    vi.stubGlobal('localStorage', localStorageMock)
+    const { setQualitySettings } = await import('./qualitySettings')
+    const { findAudio } = await import('./sources')
+    try {
+      vi.mocked(searchYouTube).mockClear()
+      vi.mocked(searchYouTube).mockResolvedValue([
+        { url: 'https://youtube.com/watch?v=abc123def45', title: 'Quality Song', author: 'Quality Artist', source: 'youtube' },
+      ])
+      vi.mocked(searchDeezer).mockClear()
+      vi.mocked(searchDeezer).mockResolvedValue([])
+
+      await findAudio('Quality Query', 'Quality Song', 'Quality Artist')
+      expect(vi.mocked(searchYouTube)).toHaveBeenCalledTimes(1)
+
+      setQualitySettings({ bitrate: '128', format: 'm4a' })
+      await findAudio('Quality Query', 'Quality Song', 'Quality Artist')
+      expect(vi.mocked(searchYouTube)).toHaveBeenCalledTimes(2)
+
+      await findAudio('Quality Query', 'Quality Song', 'Quality Artist')
+      expect(vi.mocked(searchYouTube)).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+describe('source list integrity', () => {
+  it('has no two entries sharing the same search or info implementation', async () => {
+    const { SOURCE_LIST } = await import('./sources')
+
+    const names = SOURCE_LIST.map(s => s.name)
+    expect(new Set(names).size).toBe(names.length)
+
+    const searchImpls = SOURCE_LIST.map(s => s.search)
+    expect(new Set(searchImpls).size).toBe(searchImpls.length)
+
+    const infoImpls = SOURCE_LIST.map(s => s.info)
+    expect(new Set(infoImpls).size).toBe(infoImpls.length)
+  })
+
+  it('registers each source exactly once', async () => {
+    const { SOURCE_LIST } = await import('./sources')
+
+    expect(SOURCE_LIST.map(s => s.name).sort()).toEqual([
+      'audius',
+      'bandcamp',
+      'deezer',
+      'fma',
+      'invidious',
+      'jamendo',
+      'soundcloud',
+      'youtube',
+    ])
+  })
+})
 
 describe('findAudioFromUrl', () => {
   beforeEach(() => {

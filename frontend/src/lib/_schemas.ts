@@ -13,6 +13,8 @@ export interface CollectionMetadata {
   collection_name: string
   collection_artwork: string | null
   collection_type: string
+  truncated?: boolean
+  total_count?: number
   tracks: TrackMetadata[]
 }
 

@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRequestPermissions = vi.fn()
-const mockCheckPermissions = vi.fn()
-
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: vi.fn(),
@@ -13,13 +10,6 @@ vi.mock('@capacitor/core', () => ({
     shouldShowRationale: vi.fn().mockResolvedValue({ show: false }),
     openAppSettings: vi.fn(),
   })),
-}))
-
-vi.mock('@capacitor/local-notifications', () => ({
-  LocalNotifications: {
-    requestPermissions: (...args: unknown[]) => mockRequestPermissions(...args),
-    checkPermissions: (...args: unknown[]) => mockCheckPermissions(...args),
-  },
 }))
 
 vi.mock('./nativePlugin', () => ({
@@ -131,22 +121,18 @@ describe('requestPermission', () => {
     })
 
     it('returns true when granted', async () => {
-      mockRequestPermissions.mockResolvedValue({ display: 'granted' })
+      vi.mocked(requestPermissionNative).mockResolvedValue(true)
       expect(await requestPermission('notifications')).toBe(true)
+      expect(requestPermissionNative).toHaveBeenCalledWith('postNotifications')
     })
 
     it('returns false when denied', async () => {
-      mockRequestPermissions.mockResolvedValue({ display: 'denied' })
-      expect(await requestPermission('notifications')).toBe(false)
-    })
-
-    it('returns false when prompt dismissed', async () => {
-      mockRequestPermissions.mockResolvedValue({ display: 'prompt' })
+      vi.mocked(requestPermissionNative).mockResolvedValue(false)
       expect(await requestPermission('notifications')).toBe(false)
     })
 
     it('returns false on error', async () => {
-      mockRequestPermissions.mockRejectedValue(new Error('Native error'))
+      vi.mocked(requestPermissionNative).mockRejectedValue(new Error('Native error'))
       expect(await requestPermission('notifications')).toBe(false)
     })
   })
@@ -184,22 +170,18 @@ describe('checkPermission', () => {
     })
 
     it('returns true when granted', async () => {
-      mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+      vi.mocked(checkPermissionNative).mockResolvedValue(true)
       expect(await checkPermission('notifications')).toBe(true)
+      expect(checkPermissionNative).toHaveBeenCalledWith('postNotifications')
     })
 
     it('returns false when denied', async () => {
-      mockCheckPermissions.mockResolvedValue({ display: 'denied' })
-      expect(await checkPermission('notifications')).toBe(false)
-    })
-
-    it('returns false when prompt', async () => {
-      mockCheckPermissions.mockResolvedValue({ display: 'prompt' })
+      vi.mocked(checkPermissionNative).mockResolvedValue(false)
       expect(await checkPermission('notifications')).toBe(false)
     })
 
     it('returns false on error', async () => {
-      mockCheckPermissions.mockRejectedValue(new Error('Native error'))
+      vi.mocked(checkPermissionNative).mockRejectedValue(new Error('Native error'))
       expect(await checkPermission('notifications')).toBe(false)
     })
   })
@@ -225,21 +207,21 @@ describe('ensureNotificationPermission', () => {
   })
 
   it('returns true if already granted', async () => {
-    mockCheckPermissions.mockResolvedValue({ display: 'granted' })
+    vi.mocked(checkPermissionNative).mockResolvedValue(true)
     expect(await ensureNotificationPermission()).toBe(true)
-    expect(mockRequestPermissions).not.toHaveBeenCalled()
+    expect(requestPermissionNative).not.toHaveBeenCalled()
   })
 
   it('requests permission if not granted', async () => {
-    mockCheckPermissions.mockResolvedValue({ display: 'denied' })
-    mockRequestPermissions.mockResolvedValue({ display: 'granted' })
+    vi.mocked(checkPermissionNative).mockResolvedValue(false)
+    vi.mocked(requestPermissionNative).mockResolvedValue(true)
     expect(await ensureNotificationPermission()).toBe(true)
-    expect(mockRequestPermissions).toHaveBeenCalledOnce()
+    expect(requestPermissionNative).toHaveBeenCalledOnce()
   })
 
   it('returns false if request is denied', async () => {
-    mockCheckPermissions.mockResolvedValue({ display: 'denied' })
-    mockRequestPermissions.mockResolvedValue({ display: 'denied' })
+    vi.mocked(checkPermissionNative).mockResolvedValue(false)
+    vi.mocked(requestPermissionNative).mockResolvedValue(false)
     expect(await ensureNotificationPermission()).toBe(false)
   })
 

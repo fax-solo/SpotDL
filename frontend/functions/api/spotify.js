@@ -88,6 +88,7 @@ const CACHE_TTL = 30000
 const EMBED_CACHE_TTL = 300000
 const SEARCH_CACHE_TTL = 45000
 const CACHE_MAX_SIZE = 200
+const EMBED_MAX_TRACKS = 100
 
 // WolfX circuit breaker — pause requests after 3 failures in 60s
 const _wolfxCb = { failures: 0, lastFailure: 0, open: false }
@@ -416,6 +417,7 @@ function buildEmbedResult(kind, id, entity, summary) {
   const collectionArtwork = extractImage(entity)
   const isAlbum = kind === 'album'
   const noArtworkIds = []
+  const truncated = trackList.length >= EMBED_MAX_TRACKS
   const tracks = trackList
     .filter(item => item.uri && item.uri.startsWith('spotify:track:'))
     .map(item => {
@@ -435,12 +437,16 @@ function buildEmbedResult(kind, id, entity, summary) {
     tracks,
     noArtworkIds,
     collectionArtwork,
+    truncated,
+    total_count: trackList.length,
     buildResponse() {
       return jsonOk({
         type: 'collection',
         collection_name: entity.title || 'Unknown',
         collection_artwork: collectionArtwork,
         collection_type: entity.type === 'album' ? 'album' : 'playlist',
+        truncated,
+        total_count: trackList.length,
         tracks,
       })
     },
@@ -566,7 +572,7 @@ async function handleSearch(context, query, types, limit) {
     await Promise.allSettled(
       missingArtwork.map(async (track) => {
         const artwork = await findArtwork(track.title, track.artist, {
-          ip, db, isrc: track.isrc || null,
+          ip, db, isrc: track.isrc || null, env: context.env,
         })
         if (artwork) track.artwork_url = artwork
       }),
@@ -1030,7 +1036,7 @@ async function handleTrack(context, id) {
     } else {
       const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
       artwork = await findArtwork(fastResult.title, fastResult.artist, {
-        ip, db: context.env.DB, isrc: fastResult.isrc || null,
+        ip, db: context.env.DB, isrc: fastResult.isrc || null, env: context.env,
       })
     }
     if (artwork) {
@@ -1048,7 +1054,7 @@ async function handleTrack(context, id) {
     if (!oembedResult.artwork_url) {
       const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
       oembedResult.artwork_url = await findArtwork(oembedResult.title, oembedResult.artist, {
-        ip, db: context.env.DB,
+        ip, db: context.env.DB, env: context.env,
       })
     }
     setCachedMetadata('track', id, oembedResult)
@@ -1076,26 +1082,40 @@ async function handleOfficialCollection(context, kind, id) {
     })
     if (!res.ok) return null
     const data = await res.json()
-    const tracks = (data.tracks?.items || [])
-      .filter(item => item.track)
-      .map(item => {
+    const tracks = []
+    const seen = new Set()
+    let tracksData = data.tracks
+    for (let page = 0; page < 50 && tracksData; page++) {
+      for (const item of tracksData.items || []) {
         const t = item.track
+        if (!t || !t.id || seen.has(t.id)) continue
+        seen.add(t.id)
         const albumName = t.album?.name || 'Unknown Album'
         const artworkUrl = t.album?.images?.[0]?.url || null
-        return {
+        tracks.push({
           title: t.name || 'Unknown Track',
           artist: (t.artists || []).map(a => a.name).join(', ') || 'Unknown Artist',
           album: albumName,
           artwork_url: artworkUrl,
           url: `https://open.spotify.com/track/${t.id}`,
           type: 'track',
-        }
+        })
+      }
+      if (!tracksData.next) break
+      const pageRes = await fetch(tracksData.next, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortTimeout(5000),
       })
+      if (!pageRes.ok) break
+      tracksData = (await pageRes.json()).tracks
+    }
     const playlistResult = jsonOk({
       type: 'collection',
       collection_name: data.name || 'Unknown',
       collection_artwork: data.images?.[0]?.url || null,
       collection_type: 'playlist',
+      truncated: false,
+      total_count: data.tracks?.total ?? tracks.length,
       tracks,
     })
     setCachedMetadata(kind, id, playlistResult)
@@ -1109,19 +1129,35 @@ async function handleOfficialCollection(context, kind, id) {
     })
     if (!res.ok) return null
     const data = await res.json()
-    const tracks = (data.tracks?.items || []).map(t => ({
-      title: t.name || 'Unknown Track',
-      artist: (t.artists || []).map(a => a.name).join(', ') || data.artists?.[0]?.name || 'Unknown Artist',
-      album: data.name || 'Unknown Album',
-      artwork_url: null,
-      url: `https://open.spotify.com/track/${t.id}`,
-      type: 'track',
-    }))
+    const tracks = []
+    let tracksData = data.tracks
+    for (let page = 0; page < 20 && tracksData; page++) {
+      for (const t of tracksData.items || []) {
+        if (!t || !t.id) continue
+        tracks.push({
+          title: t.name || 'Unknown Track',
+          artist: (t.artists || []).map(a => a.name).join(', ') || data.artists?.[0]?.name || 'Unknown Artist',
+          album: data.name || 'Unknown Album',
+          artwork_url: t.album?.images?.[0]?.url || data.images?.[0]?.url || null,
+          url: `https://open.spotify.com/track/${t.id}`,
+          type: 'track',
+        })
+      }
+      if (!tracksData.next) break
+      const pageRes = await fetch(tracksData.next, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortTimeout(5000),
+      })
+      if (!pageRes.ok) break
+      tracksData = (await pageRes.json()).tracks
+    }
     const albumResult = jsonOk({
       type: 'collection',
       collection_name: data.name || 'Unknown',
       collection_artwork: data.images?.[0]?.url || null,
       collection_type: 'album',
+      truncated: false,
+      total_count: data.total_tracks ?? tracks.length,
       tracks,
     })
     setCachedMetadata(kind, id, albumResult)

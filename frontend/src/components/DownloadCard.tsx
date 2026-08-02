@@ -278,6 +278,7 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                 <h2 className="text-base font-bold text-light-text dark:text-dark-text truncate">{collection.collection_name}</h2>
                 <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
                   {trackList.length} {trackList.length === 1 ? 'song' : 'songs'}
+                  {collection.truncated && ' · first 100 shown'}
                   {downloadingAll && ` · Downloading...`}
                 </p>
               </div>
@@ -293,6 +294,25 @@ export function DownloadCard({ onDownloadComplete: _onDownloadComplete, presetCo
                 )}
                 {downloadingAll ? `Downloading` : 'All'}
               </button>
+            </div>
+            <div className="flex gap-1.5 px-4 pb-3">
+              {(['normal', 'sped_up', 'slowed_reverb'] as AudioVariant[]).map(v => {
+                const current = getQualitySettings()
+                const active = (current.variant || 'normal') === v
+                return (
+                  <button
+                    key={v}
+                    onClick={() => setQualitySettings({ ...current, variant: v })}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
+                      active
+                        ? 'bg-accent text-white'
+                        : 'bg-light-bg dark:bg-zinc-800 text-light-muted dark:text-dark-muted'
+                    }`}
+                  >
+                    {VARIANT_LABELS[v]}
+                  </button>
+                )
+              })}
             </div>
 
             {/* Track list */}

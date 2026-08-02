@@ -1,6 +1,7 @@
 import { scrapeResponse, scrapeError } from './_lib/retry.js'
 import { scrapeLog } from './_lib/log.js'
 import { filterHealthyInstances } from './_lib/instanceHealth.js'
+import { checkRateLimit } from './_lib/rate_limit'
 
 const INVIDIOUS_INSTANCES = [
   'https://inv.nadeko.net',
@@ -133,6 +134,12 @@ export async function onRequest(context) {
   }
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405, headers: CORS })
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:invidious:${ip}`, 30)
+  if (!allowed) {
+    return scrapeError('rate_limited', 'Too many requests. Try again later.', 429)
   }
 
   try {

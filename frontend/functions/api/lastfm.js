@@ -1,5 +1,6 @@
 import { scrapeResponse, scrapeError } from './_lib/retry.js'
 import { scrapeLog } from './_lib/log.js'
+import { checkRateLimit } from './_lib/rate_limit'
 
 // Free Last.fm API key — you can get one at https://www.last.fm/api/account/create
 // Set LASTFM_API_KEY in Cloudflare Pages env for higher rate limits. This default is for public use.
@@ -59,6 +60,12 @@ export async function onRequest(context) {
   }
   if (context.request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405, headers: CORS })
+  }
+
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown'
+  const { allowed } = await checkRateLimit(context.env.DB, `source:lastfm:${ip}`, 30)
+  if (!allowed) {
+    return scrapeError('rate_limited', 'Too many requests. Try again later.', 429)
   }
 
   try {

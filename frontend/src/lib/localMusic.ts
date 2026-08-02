@@ -6,6 +6,7 @@ const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac
 const COMMON_AUDIO_DIRS = [
   'Music/',
   'Download/',
+  'Documents/',
   'Podcasts/',
   'Ringtones/',
   'Notifications/',

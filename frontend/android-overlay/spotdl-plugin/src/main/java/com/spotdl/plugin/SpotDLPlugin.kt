@@ -437,34 +437,44 @@ class SpotDLPlugin : Plugin() {
         val taskId = UUID.randomUUID().toString()
         val future = saveExecutor.submit<Unit> {
             val act = activityRef.get()
+            var tmpFile: java.io.File? = null
             try {
-                val conn = java.net.URL("$LOCAL_URL/download").openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json")
+                // Download the audio directly instead of round-tripping
+                // through the local Python server (which may not be running).
+                tmpFile = java.io.File(context.cacheDir, "download_${UUID.randomUUID()}.tmp")
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "GET"
                 conn.connectTimeout = 30000
                 conn.readTimeout = 120000
-
-                val requestBody = JSONObject().apply { put("url", url) }.toString()
-                conn.outputStream.use { it.write(requestBody.toByteArray()) }
-
-                val responseBytes = conn.inputStream.readBytes()
-                val responseStr = String(responseBytes, Charsets.UTF_8)
-                val responseJson = org.json.JSONObject(responseStr)
-
-                if (responseJson.has("error")) {
-                    throw Exception(responseJson.getString("error"))
+                conn.instanceFollowRedirects = true
+                val code = conn.responseCode
+                if (code < 200 || code >= 300) {
+                    throw Exception("Download failed: HTTP $code")
                 }
-
-                val filesArray = responseJson.getJSONArray("files")
-                if (filesArray.length() == 0) {
-                    throw Exception("No files downloaded")
+                conn.inputStream.use { `in` ->
+                    FileOutputStream(tmpFile).use { out ->
+                        val buffer = ByteArray(8192)
+                        var read: Int
+                        while (`in`.read(buffer).also { read = it } != -1) {
+                            if (Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException("Save cancelled")
+                            out.write(buffer, 0, read)
+                        }
+                    }
                 }
-
-                val sourcePath = filesArray.getString(0)
-                val sourceFile = java.io.File(sourcePath)
+                val sourceFile = tmpFile ?: throw Exception("Failed to create temp file")
                 if (!sourceFile.exists()) {
-                    throw Exception("Downloaded file not found: $sourcePath")
+                    throw Exception("Downloaded file not found")
+                }
+
+                val variant = call.getString("variant")
+                if (variant != null && variant != "normal") {
+                    val filtered = applyVariantFilter(sourceFile, variant)
+                    if (filtered != null) {
+                        sourceFile.delete()
+                        filtered.renameTo(sourceFile)
+                    } else {
+                        android.util.Log.w("SpotDLPlugin", "Variant '$variant' skipped: ffmpeg unavailable or filter failed; saving unprocessed audio")
+                    }
                 }
 
                 val bufSize = 8192
@@ -510,11 +520,6 @@ class SpotDLPlugin : Plugin() {
                     filePath = file.absolutePath
                 }
 
-                val outputDir = responseJson.optString("output_dir", "")
-                if (outputDir.isNotEmpty()) {
-                    try { java.io.File(outputDir).deleteRecursively() } catch (_: Exception) {}
-                }
-
                 activeSaves.remove(taskId)
                 act?.runOnUiThread { call.resolve(JSObject().apply { put("filePath", filePath) }) }
                     ?: call.reject("Activity destroyed during save")
@@ -524,8 +529,42 @@ class SpotDLPlugin : Plugin() {
                 activeSaves.remove(taskId)
                 act?.runOnUiThread { call.reject("Failed to save to music library", e) }
                     ?: call.reject("Activity destroyed during save")
+            } finally {
+                try { tmpFile?.delete() } catch (_: Exception) {}
             }
         }
         activeSaves[taskId] = future
+    }
+
+    private fun applyVariantFilter(input: java.io.File, variant: String): java.io.File? {
+        val filter = when (variant) {
+            "sped_up" -> "atempo=1.25"
+            "slowed_reverb" -> "atempo=0.85,aecho=0.8:0.9:1000:0.3"
+            else -> return null
+        }
+        val ffmpeg = try {
+            java.io.File(context.applicationInfo.nativeLibraryDir, "libffmpeg.so")
+        } catch (_: Exception) {
+            return null
+        }
+        if (!ffmpeg.exists() || !ffmpeg.isFile) return null
+        val output = java.io.File(context.cacheDir, "filtered_${UUID.randomUUID()}.mp3")
+        try {
+            val proc = ProcessBuilder(
+                ffmpeg.absolutePath, "-y", "-i", input.absolutePath,
+                "-af", filter, "-codec:a", "libmp3lame", "-b:a", "192k",
+                output.absolutePath,
+            ).redirectErrorStream(true).start()
+            proc.inputStream.use { it.readBytes() }
+            val exited = proc.waitFor(600, java.util.concurrent.TimeUnit.SECONDS)
+            if (!exited || proc.exitValue() != 0 || !output.exists() || output.length() == 0L) {
+                try { output.delete() } catch (_: Exception) {}
+                return null
+            }
+            return output
+        } catch (_: Exception) {
+            try { output.delete() } catch (_: Exception) {}
+            return null
+        }
     }
 }

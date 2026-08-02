@@ -36,35 +36,25 @@ export async function requestPermission(key: string): Promise<boolean> {
   const def = RUNTIME_PERMISSIONS.find(p => p.key === key)
   if (!def || !def.nativeAlias) return false
 
-  if (key === 'notifications') {
-    try {
-      const mod = await import('@capacitor/local-notifications')
-      const result = await mod.LocalNotifications.requestPermissions()
-      return result.display === 'granted'
-    } catch {
-      return false
-    }
+  try {
+    return await requestPermissionNative(def.nativeAlias)
+  } catch (err) {
+    console.warn(`[permissions] requestPermission failed for ${key}:`, err)
+    return false
   }
-
-  return requestPermissionNative(def.nativeAlias)
 }
 
 export async function checkPermission(key: string): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
 
-  if (key === 'notifications') {
-    try {
-      const mod = await import('@capacitor/local-notifications')
-      const result = await mod.LocalNotifications.checkPermissions()
-      return result.display === 'granted'
-    } catch {
-      return false
-    }
-  }
-
   const def = RUNTIME_PERMISSIONS.find(p => p.key === key)
   if (def?.nativeAlias) {
-    return checkPermissionNative(def.nativeAlias)
+    try {
+      return await checkPermissionNative(def.nativeAlias)
+    } catch (err) {
+      console.warn(`[permissions] checkPermission failed for ${key}:`, err)
+      return false
+    }
   }
 
   return true
