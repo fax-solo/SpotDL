@@ -216,7 +216,12 @@ const SOURCE_CONCURRENCY = 2
 class Semaphore {
   private queue: Array<() => void> = []
   private active = 0
-  constructor(private limit: number) {}
+  private limit: number
+
+  constructor(limit: number) {
+    this.limit = limit
+  }
+
   async run<T>(fn: () => Promise<T>): Promise<T> {
     if (this.active >= this.limit) {
       await new Promise<void>(resolve => this.queue.push(resolve))

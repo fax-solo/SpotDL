@@ -17,9 +17,9 @@ export async function downloadFile(blob: Blob, filename: string): Promise<string
       const { Filesystem, Directory } = await import('@capacitor/filesystem')
       const base64 = await blobToBase64(blob)
       const result = await Filesystem.writeFile({
-        path: filename,
+        path: `Music/${filename}`,
         data: base64,
-        directory: Directory.Music,
+        directory: Directory.ExternalStorage,
         recursive: true,
       })
       return result.uri
