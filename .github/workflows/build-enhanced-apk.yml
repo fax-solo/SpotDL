@@ -97,7 +97,7 @@ jobs:
       - name: Check if keystore secrets are available
         id: check_secrets
         env:
-          KEYSTORE_B64: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
@@ -108,33 +108,46 @@ jobs:
       - name: Decode and prepare release keystore
         if: steps.check_secrets.outputs.has_secrets == 'true'
         env:
-          KEYSTORE_B64: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_B64 }}
-          KEYSTORE_PASS: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}
-          KEY_PASS: ${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
         run: |
-          printf '%s' "$KEYSTORE_B64" | base64 -d > app/release.p12
-          keytool -importkeystore \
-            -srckeystore app/release.p12 \
-            -srcstoretype PKCS12 \
-            -srcstorepass "$KEYSTORE_PASS" \
-            -srcalias "$KEY_ALIAS" \
-            -srckeypass "${KEY_PASS:-$KEYSTORE_PASS}" \
-            -destkeystore app/release.keystore \
-            -deststoretype JKS \
-            -deststorepass "$KEYSTORE_PASS" \
-            -destalias "$KEY_ALIAS" \
-            -destkeypass "${KEY_PASS:-$KEYSTORE_PASS}" 2>&1
-          rm -f app/release.p12
-          echo "Keystore decoded and converted to JKS"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/release.keystore
+          if keytool -list -keystore app/release.keystore -storetype JKS -storepass "$KEYSTORE_PASS" >/dev/null 2>&1; then
+            echo "Keystore detected as JKS, using directly"
+          elif keytool -list -keystore app/release.keystore -storetype PKCS12 -storepass "$KEYSTORE_PASS" >/dev/null 2>&1; then
+            echo "Keystore detected as PKCS12, converting to JKS"
+            keytool -importkeystore \
+              -srckeystore app/release.keystore \
+              -srcstoretype PKCS12 \
+              -srcstorepass "$KEYSTORE_PASS" \
+              -srcalias "$KEY_ALIAS" \
+              -srckeypass "${KEY_PASS:-$KEYSTORE_PASS}" \
+              -destkeystore app/release.jks \
+              -deststoretype JKS \
+              -deststorepass "$KEYSTORE_PASS" \
+              -destalias "$KEY_ALIAS" \
+              -destkeypass "${KEY_PASS:-$KEYSTORE_PASS}" 2>&1
+            mv app/release.jks app/release.keystore
+            echo "Keystore converted to JKS"
+          else
+            echo "ERROR: Could not open keystore as JKS or PKCS12 (wrong password or corrupt blob)" >&2
+            exit 1
+          fi
+          if ! keytool -list -keystore app/release.keystore -storetype JKS -storepass "$KEYSTORE_PASS" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            echo "ERROR: Alias '$KEY_ALIAS' not found in keystore" >&2
+            exit 1
+          fi
+          echo "Keystore ready (alias: $KEY_ALIAS)"
 
       - name: Build signed release APK
         if: steps.check_secrets.outputs.has_secrets == 'true'
         env:
           ENHANCED_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/app/release.keystore
-          ENHANCED_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ENHANCED_RELEASE_KEYSTORE_PASSWORD }}
-          ENHANCED_RELEASE_KEY_ALIAS: ${{ secrets.ENHANCED_RELEASE_KEY_ALIAS }}
-          ENHANCED_RELEASE_KEY_PASSWORD: ${{ secrets.ENHANCED_RELEASE_KEY_PASSWORD }}
+          ENHANCED_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          ENHANCED_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          ENHANCED_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
           BACKEND_URL: ${{ secrets.BACKEND_URL || 'https://sinc-enhanced-backend.faxsolo2214.workers.dev' }}
         run: ./gradlew assembleRelease
         working-directory: app
