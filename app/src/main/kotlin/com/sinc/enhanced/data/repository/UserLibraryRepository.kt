@@ -76,7 +76,7 @@ class UserLibraryRepository(
     override suspend fun getRecentlyPlayed(limit: Int): List<com.sinc.enhanced.data.local.entity.HistoryEntity> =
         userLibraryDao.getRecentlyPlayed().take(limit)
 
-    override suspend fun addTrackToPlaylist(playlistId: Int, track: Track, filePath: String?) {
+    override suspend fun addTrackToPlaylist(playlistId: String, track: Track, filePath: String?) {
         val position = playlistDao.nextPosition(playlistId)
         playlistDao.addTrackAndUpdateCount(
             com.sinc.enhanced.data.local.entity.PlaylistTrackEntity(
@@ -95,11 +95,11 @@ class UserLibraryRepository(
         )
     }
 
-    override suspend fun removeTrackFromPlaylist(playlistId: Int, trackId: String) {
+    override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String) {
         playlistDao.removeTrackByKey(playlistId, trackId)
     }
 
-    override suspend fun reorderPlaylistTracks(playlistId: Int, fromIndex: Int, toIndex: Int) {
+    override suspend fun reorderPlaylistTracks(playlistId: String, fromIndex: Int, toIndex: Int) {
         val tracks = playlistDao.getPlaylistTracks(playlistId).toMutableList()
         if (fromIndex !in tracks.indices || toIndex !in tracks.indices) return
         val track = tracks.removeAt(fromIndex)

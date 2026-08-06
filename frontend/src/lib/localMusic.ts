@@ -74,7 +74,7 @@ function extractApicFromId3(data: Uint8Array): Uint8Array | null {
     if (frameEnd > end) break
     if (frameId === 'APIC') {
       const encoding = data[pos + 10]!
-      let mimeStart = pos + 11
+      const mimeStart = pos + 11
       let mimeEnd = mimeStart
       while (mimeEnd < frameEnd && data[mimeEnd] !== 0) mimeEnd++
       mimeEnd++

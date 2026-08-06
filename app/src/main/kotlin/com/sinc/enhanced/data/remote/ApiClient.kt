@@ -12,7 +12,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class ApiClient(private val okHttpClient: OkHttpClient) {
+open class ApiClient(private val okHttpClient: OkHttpClient) {
 
     private val jsonMediaType = "application/json".toMediaType()
 
@@ -47,7 +47,7 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
         catch (e: Exception) { Log.e("ApiClient", "post failed", e); null }
     }
 
-    class ApiException(val code: Int) : Exception(when (code) {
+    class ApiException(val code: Int) : RuntimeException(when (code) {
         401 -> "Invalid credentials"
         409 -> "Username already taken"
         in 400..499 -> "Request failed ($code)"
@@ -106,11 +106,11 @@ class ApiClient(private val okHttpClient: OkHttpClient) {
         return Pair(json.optString("token", ""), json)
     }
 
-    suspend fun getMe(): JSONObject? {
+    open suspend fun getMe(): JSONObject? {
         return get("/api/auth/me")
     }
 
-    suspend fun ping(): Boolean {
+    open suspend fun ping(): Boolean {
         return try {
             post("/api/stats/ping", JSONObject()) != null
         } catch (ce: CancellationException) { throw ce }

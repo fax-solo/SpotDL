@@ -11,26 +11,26 @@ class PlaylistRepository(private val playlistDao: PlaylistDao) : PlaylistReposit
 
     override val allPlaylists: Flow<List<PlaylistEntity>> = playlistDao.getAllPlaylists()
 
-    override suspend fun create(name: String, description: String): Int {
+    override suspend fun create(name: String, description: String): String {
         val now = System.currentTimeMillis()
-        return playlistDao.upsertPlaylist(
-            PlaylistEntity(name = name.trim(), description = description.trim(), createdAt = now, updatedAt = now)
-        ).toInt()
+        val entity = PlaylistEntity(name = name.trim(), description = description.trim(), createdAt = now, updatedAt = now)
+        playlistDao.upsertPlaylist(entity)
+        return entity.id
     }
 
-    override suspend fun get(id: Int): PlaylistEntity? = playlistDao.getPlaylist(id)
+    override suspend fun get(id: String): PlaylistEntity? = playlistDao.getPlaylist(id)
 
-    override suspend fun getTracks(playlistId: Int): List<PlaylistTrackEntity> {
+    override suspend fun getTracks(playlistId: String): List<PlaylistTrackEntity> {
         return playlistDao.getPlaylistTracks(playlistId)
     }
 
-    override fun getTracksFlow(playlistId: Int): Flow<List<PlaylistTrackEntity>> = playlistDao.getPlaylistTracksFlow(playlistId)
+    override fun getTracksFlow(playlistId: String): Flow<List<PlaylistTrackEntity>> = playlistDao.getPlaylistTracksFlow(playlistId)
 
     override suspend fun update(playlist: PlaylistEntity) {
         playlistDao.updatePlaylist(playlist)
     }
 
-    override suspend fun addTrack(playlistId: Int, track: Track, filePath: String?) {
+    override suspend fun addTrack(playlistId: String, track: Track, filePath: String?) {
         val position = playlistDao.nextPosition(playlistId)
         playlistDao.addTrackAndUpdateCount(
             PlaylistTrackEntity(
@@ -58,19 +58,19 @@ class PlaylistRepository(private val playlistDao: PlaylistDao) : PlaylistReposit
         )
     }
 
-    override suspend fun removeTrack(playlistId: Int, trackId: String) {
+    override suspend fun removeTrack(playlistId: String, trackId: String) {
         playlistDao.removeTrackByKey(playlistId, trackId)
     }
 
-    override suspend fun reorderTracks(playlistId: Int, trackIds: List<String>) {
+    override suspend fun reorderTracks(playlistId: String, trackIds: List<String>) {
         playlistDao.reorderTracks(playlistId, trackIds)
     }
 
-    override suspend fun delete(id: Int) {
+    override suspend fun delete(id: String) {
         playlistDao.deletePlaylist(id)
     }
 
-    override suspend fun rename(id: Int, name: String) {
+    override suspend fun rename(id: String, name: String) {
         val p = playlistDao.getPlaylist(id) ?: return
         playlistDao.updatePlaylist(p.copy(name = name.trim(), updatedAt = System.currentTimeMillis()))
     }

@@ -20,6 +20,7 @@ interface SettingsRepository {
     val cacheOnlyWifi: Flow<Boolean>
     val preloadNextTrack: Flow<Boolean>
     val audioQuality: Flow<Int>
+    val batteryOptPromptShown: Flow<Boolean>
 
     suspend fun setJamendoClientId(id: String)
     suspend fun setAudiusEnabled(enabled: Boolean)
@@ -38,4 +39,5 @@ interface SettingsRepository {
     suspend fun setCacheOnlyWifi(enabled: Boolean)
     suspend fun setPreloadNextTrack(enabled: Boolean)
     suspend fun setAudioQuality(quality: Int)
+    suspend fun setBatteryOptPromptShown(shown: Boolean)
 }

@@ -25,7 +25,7 @@ data class PlaylistDetailUiState(
 )
 
 class PlaylistDetailViewModel(
-    private val playlistId: Int,
+    private val playlistId: String,
     private val playlistRepository: PlaylistRepository,
     private val downloadRepository: DownloadRepository
 ) : ViewModel() {
@@ -142,7 +142,7 @@ class PlaylistDetailViewModel(
         }
     }
 
-    class Factory(private val playlistId: Int) : ViewModelProvider.Factory {
+    class Factory(private val playlistId: String) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
             val c = SincApp.instance.container

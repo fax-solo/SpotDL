@@ -1,6 +1,7 @@
 package com.sinc.enhanced.data.audio
 
 import com.sinc.enhanced.data.model.Track
+import com.sinc.enhanced.data.util.AudioResolutionSemaphore
 import com.sinc.enhanced.data.util.MatchScorer
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -29,66 +30,72 @@ class AudioResolverPipeline(
     private val overallTimeoutMs: Long = 8000L
 ) {
     suspend fun resolve(track: Track): Pair<String, String>? {
-        return try {
-            withTimeout(overallTimeoutMs) {
-                val context = ResolutionContext(track)
-                coroutineScope {
-                    val deferreds = resolvers.map { resolver ->
-                        async {
-                            try {
-                                resolver.resolve(track, context)
-                            } catch (_: Exception) { null }
+        return AudioResolutionSemaphore.semaphore.withPermit {
+            try {
+                withTimeout(overallTimeoutMs) {
+                    val context = ResolutionContext(track)
+                    coroutineScope {
+                        val deferreds = resolvers.map { resolver ->
+                            async {
+                                try {
+                                    resolver.resolve(track, context)
+                                } catch (_: Exception) { null }
+                            }
                         }
-                    }
 
-                    deferreds.firstCompletedOrNull { candidate ->
-                        candidate != null && !candidate.isPreview && candidate.score >= MatchScorer.GOOD_CONFIDENCE
-                    }?.let { Pair(it.audioUrl, it.source) }
-                        ?: deferreds.firstCompletedOrNull { candidate ->
-                            candidate != null && !candidate.isPreview && candidate.score >= MatchScorer.MIN_CONFIDENCE
+                        deferreds.firstCompletedOrNull { candidate ->
+                            candidate != null && !candidate.isPreview && candidate.score >= MatchScorer.GOOD_CONFIDENCE
                         }?.let { Pair(it.audioUrl, it.source) }
-                        ?: deferreds.firstCompletedOrNull { candidate ->
-                            candidate != null && candidate.score >= MatchScorer.GOOD_CONFIDENCE
-                        }?.let { Pair(it.audioUrl, it.source) }
-                        ?: deferreds.firstCompletedOrNull { candidate ->
-                            candidate != null && candidate.score >= MatchScorer.MIN_CONFIDENCE
-                        }?.let { Pair(it.audioUrl, it.source) }
+                            ?: deferreds.firstCompletedOrNull { candidate ->
+                                candidate != null && !candidate.isPreview && candidate.score >= MatchScorer.MIN_CONFIDENCE
+                            }?.let { Pair(it.audioUrl, it.source) }
+                            ?: deferreds.firstCompletedOrNull { candidate ->
+                                candidate != null && candidate.score >= MatchScorer.GOOD_CONFIDENCE
+                            }?.let { Pair(it.audioUrl, it.source) }
+                            ?: deferreds.firstCompletedOrNull { candidate ->
+                                candidate != null && candidate.score >= MatchScorer.MIN_CONFIDENCE
+                            }?.let { Pair(it.audioUrl, it.source) }
+                    }
                 }
-            }
-        } catch (_: TimeoutCancellationException) { null }
+            } catch (_: TimeoutCancellationException) { null }
+        }
     }
 
     suspend fun resolveWithLowerThreshold(track: Track, minScore: Float = 0.0f): Pair<String, String>? {
-        return try {
-            withTimeout(overallTimeoutMs) {
-                val context = ResolutionContext(track)
-                coroutineScope {
-                    val deferreds = resolvers.map { resolver ->
-                        async {
-                            try {
-                                resolver.resolve(track, context)
-                            } catch (_: Exception) { null }
+        return AudioResolutionSemaphore.semaphore.withPermit {
+            try {
+                withTimeout(overallTimeoutMs) {
+                    val context = ResolutionContext(track)
+                    coroutineScope {
+                        val deferreds = resolvers.map { resolver ->
+                            async {
+                                try {
+                                    resolver.resolve(track, context)
+                                } catch (_: Exception) { null }
+                            }
                         }
-                    }
 
-                    deferreds.firstCompletedOrNull { candidate ->
-                        candidate != null && !candidate.isPreview && candidate.score >= minScore
-                    }?.let { Pair(it.audioUrl, it.source) }
-                        ?: deferreds.firstCompletedOrNull { candidate ->
-                            candidate != null && candidate.score >= minScore
+                        deferreds.firstCompletedOrNull { candidate ->
+                            candidate != null && !candidate.isPreview && candidate.score >= minScore
                         }?.let { Pair(it.audioUrl, it.source) }
+                            ?: deferreds.firstCompletedOrNull { candidate ->
+                                candidate != null && candidate.score >= minScore
+                            }?.let { Pair(it.audioUrl, it.source) }
+                    }
                 }
-            }
-        } catch (_: TimeoutCancellationException) { null }
+            } catch (_: TimeoutCancellationException) { null }
+        }
     }
 
     suspend fun resolveAll(track: Track): List<AudioCandidate> {
-        val context = ResolutionContext(track)
-        return resolvers.mapNotNull { resolver ->
-            try {
-                resolver.resolve(track, context)
-            } catch (_: Exception) { null }
-        }.sortedByDescending { it.score }
+        return AudioResolutionSemaphore.semaphore.withPermit {
+            val context = ResolutionContext(track)
+            resolvers.mapNotNull { resolver ->
+                try {
+                    resolver.resolve(track, context)
+                } catch (_: Exception) { null }
+            }.sortedByDescending { it.score }
+        }
     }
 }
 

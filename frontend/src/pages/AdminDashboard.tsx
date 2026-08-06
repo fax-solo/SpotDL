@@ -226,7 +226,7 @@ export function AdminDashboard() {
   }
 
   const filteredUsers = useMemo(() => {
-    let list = showInactive ? users : users.filter(u => u.is_active)
+    const list = showInactive ? users : users.filter(u => u.is_active)
     return list
   }, [users, showInactive])
 

@@ -1,177 +1,20 @@
-import { searchYouTube, getVideoInfo } from './youtubeClient'
-import { getDeezerTrack, searchDeezer } from './deezer'
-import { apiUrl } from './apiConfig'
-import { matchScore, MIN_CONFIDENCE, MIN_PREVIEW_CONFIDENCE } from './sources/matching'
-import { cachedFetch } from './requestCache'
-import { getQualitySettings } from './qualitySettings'
+import { getVideoInfo } from '../youtubeClient'
+import { cachedFetch } from '../requestCache'
+import { getQualitySettings } from '../qualitySettings'
+import { matchScore, MIN_CONFIDENCE, MIN_PREVIEW_CONFIDENCE } from './matching'
+import { callFunction } from './callFunction'
+import { SourceError } from './types'
+import type { SourceInfo, SourceModule, SourceSearchResult } from './types'
+import { youtubeSource } from './youtube'
+import { deezerSource } from './deezer'
+import { soundcloudSource } from './soundcloud'
+import { bandcampSource } from './bandcamp'
+import { invidiousSource } from './invidious'
+import { jamendoSource } from './jamendo'
+import { audiusSource } from './audius'
+import { fmaSource } from './fma'
 
-interface SourceSearchResult {
-  url: string
-  title: string
-  artist?: string
-  duration?: string
-  audioUrl?: string | null
-  thumbnail?: string | null
-  source: string
-  isrc?: string | null
-  isPreview?: boolean
-}
-
-interface SourceInfo {
-  title: string
-  author: string
-  duration: string
-  audioUrl: string | null
-  thumbnail: string | null
-  isrc?: string | null
-  isPreview?: boolean
-}
-
-class SourceError extends Error {
-  type: string
-  constructor(type: string, message: string) {
-    super(message)
-    this.name = 'SourceError'
-    this.type = type
-  }
-}
-
-async function callFunction(name: string, body: Record<string, unknown>) {
-  const res = await fetch(apiUrl(`/api/${name}`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    if (data.error_type) {
-      throw new SourceError(data.error_type, data.error || `${name} error`)
-    }
-    return null
-  }
-  return data
-}
-
-async function searchSoundcloud(query: string): Promise<SourceSearchResult[]> {
-  const data = await callFunction('soundcloud', { action: 'search', query })
-  return data?.results || []
-}
-
-async function soundcloudInfo(url: string): Promise<SourceInfo | null> {
-  const data = await callFunction('soundcloud', { action: 'info', url })
-  if (data?.audioUrl) return data
-  return null
-}
-
-async function searchDeezerSource(query: string): Promise<SourceSearchResult[]> {
-  const results = await searchDeezer(query)
-  return results.map(r => ({
-    url: String(r.id),
-    title: r.title,
-    artist: r.artist,
-    duration: r.duration,
-    audioUrl: r.audioUrl || r.preview || null,
-    thumbnail: r.thumbnail,
-    source: 'deezer',
-    isPreview: r.isPreview,
-  }))
-}
-
-async function deezerSourceInfo(url: string): Promise<SourceInfo | null> {
-  const match = url.match(/deezer\.com\/track\/(\d+)/)
-  let id: number | null = null
-  if (match) {
-    id = parseInt(match[1]!)
-  } else {
-    id = parseInt(url)
-    if (isNaN(id)) return null
-  }
-  const track = await getDeezerTrack(id)
-  if (!track) return null
-  return {
-    title: track.title,
-    author: track.artist,
-    duration: track.duration,
-    audioUrl: track.audioUrl || track.preview || null,
-    thumbnail: track.thumbnail,
-    isrc: track.isrc,
-    isPreview: track.isPreview,
-  }
-}
-
-// ── Audius source ──
-async function searchAudius(query: string): Promise<SourceSearchResult[]> {
-  const data = await callFunction('audius', { action: 'search', query })
-  return (data?.results || []).map((r: any) => ({
-    url: r.id,
-    title: r.title,
-    artist: r.artist,
-    duration: r.duration,
-    audioUrl: r.audioUrl || null,
-    thumbnail: r.thumbnail,
-    source: 'audius',
-  }))
-}
-
-async function audiusInfo(trackId: string): Promise<SourceInfo | null> {
-  const data = await callFunction('audius', { action: 'info', id: trackId })
-  if (data?.audioUrl) return data
-  return null
-}
-
-// ── Invidious source ──
-async function searchInvidious(query: string): Promise<SourceSearchResult[]> {
-  const data = await callFunction('invidious', { action: 'search', query })
-  return (data?.results || []).map((r: any) => ({
-    url: r.url || `https://youtube.com/watch?v=${r.videoId}`,
-    title: r.title,
-    artist: r.author,
-    duration: r.duration,
-    audioUrl: null,
-    thumbnail: r.thumbnail,
-    source: 'invidious',
-  }))
-}
-
-async function invidiousInfo(url: string): Promise<SourceInfo | null> {
-  const data = await callFunction('invidious', { action: 'info', url })
-  if (data?.audioUrl) return data
-  return null
-}
-
-// ── FMA source (Free Music Archive) ──
-async function searchFma(query: string): Promise<SourceSearchResult[]> {
-  const data = await callFunction('fma', { action: 'search', query })
-  return (data?.results || []).map((r: any) => ({
-    url: r.id,
-    title: r.title,
-    artist: r.artist,
-    duration: r.duration || '',
-    audioUrl: r.audioUrl || null,
-    thumbnail: r.thumbnail || null,
-    source: 'fma',
-  }))
-}
-
-async function fmaInfo(trackId: string): Promise<SourceInfo | null> {
-  const data = await callFunction('fma', { action: 'info', id: trackId })
-  if (data?.audioUrl) return data
-  return null
-}
-
-// ── Bandcamp source ──
-async function searchBandcamp(query: string): Promise<SourceSearchResult[]> {
-  const data = await callFunction('bandcamp', { action: 'search', query })
-  return data?.results || []
-}
-
-async function bandcampInfo(url: string): Promise<SourceInfo | null> {
-  const data = await callFunction('bandcamp', { action: 'info', url })
-  if (data?.audioUrl) return data
-  return null
-}
-
-interface SourceResult {
+export interface SourceResult {
   info: SourceInfo
   source: string
   isPreview?: boolean
@@ -182,12 +25,6 @@ interface SourceCandidate {
   source: string
   score: number
   isPreview?: boolean
-}
-
-interface SourceModule {
-  name: string
-  search: (q: string) => Promise<SourceSearchResult[]>
-  info: (url: string) => Promise<SourceInfo | null>
 }
 
 function stripQueryNoise(s: string): string {
@@ -349,26 +186,15 @@ async function trySource(
   return null
 }
 
-async function searchJamendo(query: string): Promise<SourceSearchResult[]> {
-  const data = await callFunction('jamendo', { action: 'search', query })
-  return data?.results || []
-}
-
-async function jamendoInfo(trackId: string): Promise<SourceInfo | null> {
-  const data = await callFunction('jamendo', { action: 'info', url: trackId })
-  if (data?.audioUrl) return data
-  return null
-}
-
 export const SOURCE_LIST: SourceModule[] = [
-  { name: 'youtube', search: performYouTubeSearch, info: performYouTubeInfo },
-  { name: 'deezer', search: searchDeezerSource, info: deezerSourceInfo },
-  { name: 'soundcloud', search: searchSoundcloud, info: soundcloudInfo },
-  { name: 'bandcamp', search: searchBandcamp, info: bandcampInfo },
-  { name: 'invidious', search: searchInvidious, info: invidiousInfo },
-  { name: 'jamendo', search: searchJamendo, info: jamendoInfo },
-  { name: 'audius', search: searchAudius, info: audiusInfo },
-  { name: 'fma', search: searchFma, info: fmaInfo },
+  youtubeSource,
+  deezerSource,
+  soundcloudSource,
+  bandcampSource,
+  invidiousSource,
+  jamendoSource,
+  audiusSource,
+  fmaSource,
 ]
 
 export async function findAudio(query: string, expectedTitle?: string, expectedArtist?: string, expectedDuration?: string | number | null, expectedIsrc?: string | null): Promise<SourceResult> {
@@ -429,7 +255,7 @@ export async function findAudio(query: string, expectedTitle?: string, expectedA
   return doSearch()
 }
 
-let _preResolveCache = new Map<string, SourceResult>()
+const _preResolveCache = new Map<string, SourceResult>()
 
 function qualityCacheSuffix(): string {
   const q = getQualitySettings()
@@ -489,7 +315,7 @@ export async function findAudioFromUrl(url: string): Promise<SourceResult> {
   }
 
   if (url.includes('soundcloud.com')) {
-    const info = await soundcloudInfo(url)
+    const info = await soundcloudSource.info(url)
     if (info?.audioUrl) return { info, source: 'soundcloud' }
     throw new Error('No audio found or track not downloadable on SoundCloud')
   }
@@ -501,7 +327,7 @@ export async function findAudioFromUrl(url: string): Promise<SourceResult> {
   }
 
   if (url.includes('deezer.com')) {
-    const info = await withSourceSlot('deezer', () => deezerSourceInfo(url))
+    const info = await withSourceSlot('deezer', () => deezerSource.info(url))
     if (info) return { info, source: 'deezer' }
     throw new Error('No audio found for this Deezer track')
   }
@@ -509,7 +335,7 @@ export async function findAudioFromUrl(url: string): Promise<SourceResult> {
   if (url.includes('audius.co') || url.includes('audius')) {
     const idMatch = url.match(/tracks?\/([a-zA-Z0-9]+)/)
     const trackId = (idMatch ? idMatch[1] : url) || ''
-    const info = await audiusInfo(trackId)
+    const info = await audiusSource.info(trackId)
     if (info) return { info, source: 'audius' }
     throw new Error('No audio found for this Audius track')
   }
@@ -517,24 +343,10 @@ export async function findAudioFromUrl(url: string): Promise<SourceResult> {
   if (url.includes('freemusicarchive.org')) {
     const idMatch = url.match(/track[_\-/](\d+)/)
     const trackId = (idMatch ? idMatch[1] : url) || ''
-    const info = await fmaInfo(trackId)
+    const info = await fmaSource.info(trackId)
     if (info) return { info, source: 'fma' }
     throw new Error('No audio found for this Free Music Archive track')
   }
 
   throw new Error('Unsupported URL. Supported: YouTube, SoundCloud, Bandcamp, Deezer, Audius, Free Music Archive')
-}
-
-async function performYouTubeSearch(query: string): Promise<SourceSearchResult[]> {
-  const results = await searchYouTube(query)
-  return results.map(r => ({ ...r, source: 'youtube' }))
-}
-
-async function performYouTubeInfo(url: string): Promise<SourceInfo | null> {
-  try {
-    const info = await getVideoInfo(url)
-    return info
-  } catch {
-    return null
-  }
 }

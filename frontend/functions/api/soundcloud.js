@@ -2,6 +2,10 @@ import { fetchWithRetry, scrapeResponse, scrapeError } from './_lib/retry.js'
 import { scrapeLog, errorType } from './_lib/log.js'
 import { checkRateLimit } from './_lib/rate_limit'
 
+// @deprecated Audio resolution for new clients: use the FastAPI backend
+// POST /api/resolve-audio (yt-dlp based) instead. Kept for the legacy web
+// frontend, which relies on the Pages edge proxy for CORS-safe resolution.
+
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
 const HEADERS = { 'User-Agent': BROWSER_UA }
 

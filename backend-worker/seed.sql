@@ -39,3 +39,10 @@ CREATE INDEX IF NOT EXISTS idx_downloads_user ON downloads(user_id);
 CREATE INDEX IF NOT EXISTS idx_downloads_at ON downloads(downloaded_at);
 CREATE INDEX IF NOT EXISTS idx_play_counts_user ON user_play_counts(user_id);
 CREATE INDEX IF NOT EXISTS idx_genre_affinities_user ON user_genre_affinities(user_id);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT NOT NULL,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (key, window_start)
+);

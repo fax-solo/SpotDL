@@ -132,7 +132,7 @@ export function CallbackPage() {
         }
       }
     })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 min-h-screen bg-light-bg dark:bg-dark-bg" ref={statusRef}>

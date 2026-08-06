@@ -414,7 +414,7 @@ fun AppNavigation(intent: Intent? = null) {
                     )
                 }
                 composable("playlist/{playlistId}") { backStackEntry ->
-                    val playlistId = backStackEntry.arguments?.getString("playlistId")?.toIntOrNull() ?: return@composable
+                    val playlistId = backStackEntry.arguments?.getString("playlistId") ?: return@composable
                     com.sinc.enhanced.ui.screens.playlist.PlaylistDetailScreen(
                         playlistId = playlistId,
                         onPlayTrack = { track ->

@@ -1,32 +1,11 @@
 package com.sinc.enhanced
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStore
-import androidx.room.Room
-import com.sinc.enhanced.data.local.AppDatabase
-import com.sinc.enhanced.data.local.CacheManager
-import com.sinc.enhanced.data.local.RoomLyricsCache
-import com.sinc.enhanced.data.local.SettingsManager
 import com.sinc.enhanced.data.audio.AudioResolverPipeline
-import com.sinc.enhanced.data.audio.AudiusAudioResolver
-import com.sinc.enhanced.data.audio.FmaAudioResolver
-import com.sinc.enhanced.data.audio.JamendoAudioResolver
-import com.sinc.enhanced.data.audio.PipedAudioResolver
-import com.sinc.enhanced.data.audio.YtDlpAudioResolver
-import com.sinc.enhanced.data.recommendation.RecommendationEngine
-import com.sinc.enhanced.data.remote.ArtworkClient
-import com.sinc.enhanced.data.sync.RecommendationSyncManager
-import com.sinc.enhanced.data.remote.AudiusClient
 import com.sinc.enhanced.data.remote.ApiClient
-import com.sinc.enhanced.data.remote.BandcampClient
+import com.sinc.enhanced.data.remote.ArtworkClient
 import com.sinc.enhanced.data.remote.DeezerClient
-import com.sinc.enhanced.data.remote.FreeMusicArchiveClient
-import com.sinc.enhanced.data.remote.JamendoClient
 import com.sinc.enhanced.data.remote.LyricsClient
-import com.sinc.enhanced.data.remote.PipedClient
-import com.sinc.enhanced.data.remote.SoundCloudClient
 import com.sinc.enhanced.data.remote.SpotifyClient
 import com.sinc.enhanced.data.repository.AuthRepository
 import com.sinc.enhanced.data.repository.DownloadRepository
@@ -34,120 +13,47 @@ import com.sinc.enhanced.data.repository.MusicRepository
 import com.sinc.enhanced.data.repository.PlaylistRepository
 import com.sinc.enhanced.data.repository.SearchRepository
 import com.sinc.enhanced.data.repository.UserLibraryRepository
+import com.sinc.enhanced.data.recommendation.RecommendationEngine
+import com.sinc.enhanced.data.local.AppDatabase
+import com.sinc.enhanced.data.local.SettingsManager
+import com.sinc.enhanced.data.sync.RecommendationSyncManager
 import com.sinc.enhanced.data.util.ConnectivityMonitor
+import com.sinc.enhanced.di.AudioModule
+import com.sinc.enhanced.di.ClientModule
+import com.sinc.enhanced.di.DatabaseModule
+import com.sinc.enhanced.di.NetworkModule
+import com.sinc.enhanced.di.PlayerModule
+import com.sinc.enhanced.di.RepositoryModule
+import com.sinc.enhanced.di.SyncModule
 import com.sinc.enhanced.player.MusicPlayer
-import okhttp3.ConnectionPool
-import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
-
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 class AppContainer(private val context: Context) {
 
-    private val defaultPool = ConnectionPool(10, 30, TimeUnit.SECONDS)
+    private val network = NetworkModule()
+    private val databaseModule = DatabaseModule(context)
+    private val clientModule = ClientModule(network, databaseModule)
+    private val audioModule = AudioModule(clientModule)
+    private val repositoryModule = RepositoryModule(context, databaseModule, clientModule, audioModule, network)
+    private val playerModule = PlayerModule(context)
+    private val syncModule = SyncModule(clientModule.apiClient, databaseModule, repositoryModule.searchRepository)
 
-    val okHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectionPool(defaultPool)
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .build()
-
-    val probeClient: OkHttpClient = OkHttpClient.Builder()
-        .connectionPool(defaultPool)
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
-        .writeTimeout(5, TimeUnit.SECONDS)
-        .build()
-
-    val downloadClient: OkHttpClient = OkHttpClient.Builder()
-        .connectionPool(ConnectionPool(8, 60, TimeUnit.SECONDS))
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .build()
-
-    val database: AppDatabase = Room.databaseBuilder(
-        context,
-        AppDatabase::class.java,
-        "sinc-enhanced.db"
-    ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6).build()
-
-    val dataStore: DataStore<Preferences> = context.dataStore
-
-    val settingsManager: SettingsManager = SettingsManager(dataStore)
-
-    val connectivityMonitor: ConnectivityMonitor = ConnectivityMonitor(context)
-    val cacheManager: CacheManager = CacheManager(database.cacheDao())
-
-    val apiClient: ApiClient = ApiClient(okHttpClient)
-    val authRepository: AuthRepository = AuthRepository(context, dataStore, apiClient, BuildConfig.BACKEND_URL)
-
-    val spotifyClient: SpotifyClient = SpotifyClient(okHttpClient)
-    val deezerClient: DeezerClient = DeezerClient(okHttpClient)
-    val pipedClient: PipedClient = PipedClient(okHttpClient, probeClient)
-    val lyricsCacheDb = RoomLyricsCache(database.lyricsCacheDao())
-    val lyricsClient: LyricsClient = LyricsClient(okHttpClient, lyricsCacheDb)
-    val soundCloudClient: SoundCloudClient = SoundCloudClient(okHttpClient)
-    val audiusClient: AudiusClient = AudiusClient(okHttpClient)
-    val jamendoClient: JamendoClient = JamendoClient(okHttpClient)
-    val fmaClient: FreeMusicArchiveClient = FreeMusicArchiveClient(okHttpClient)
-    val bandcampClient: BandcampClient = BandcampClient(okHttpClient)
-    val artworkClient: ArtworkClient = ArtworkClient(okHttpClient)
-
-    val audioPipeline: AudioResolverPipeline = AudioResolverPipeline(
-        resolvers = listOf(
-            PipedAudioResolver(pipedClient),
-            AudiusAudioResolver(audiusClient),
-            JamendoAudioResolver(jamendoClient),
-            FmaAudioResolver(fmaClient),
-            YtDlpAudioResolver()
-        ),
-        overallTimeoutMs = 6000L
-    )
-
-    val musicRepository: MusicRepository = MusicRepository(context)
-    val searchRepository: SearchRepository = SearchRepository(
-        spotifyClient = spotifyClient,
-        pipedClient = pipedClient,
-        deezerClient = deezerClient,
-        soundCloudClient = soundCloudClient,
-        audiusClient = audiusClient,
-        jamendoClient = jamendoClient,
-        fmaClient = fmaClient,
-        bandcampClient = bandcampClient,
-        settingsManager = settingsManager,
-        cacheDao = database.cacheDao(),
-        audioPipeline = audioPipeline
-    )
-    val downloadRepository: DownloadRepository = DownloadRepository(
-        context = context,
-        downloadDao = database.downloadDao(),
-        historyDao = database.historyDao(),
-        okHttpClient = downloadClient,
-        findAudioUrl = { track -> searchRepository.findBestAudioForTrack(track) },
-        lyricsClient = lyricsClient,
-        settingsManager = settingsManager
-    )
-    val playlistRepository: PlaylistRepository = PlaylistRepository(database.playlistDao())
-
-    val userLibraryRepository: UserLibraryRepository = UserLibraryRepository(
-        userLibraryDao = database.userLibraryDao(),
-        playlistDao = database.playlistDao()
-    )
-
-    val musicPlayer: MusicPlayer = MusicPlayer(context)
-
-    val recommendationSyncManager: RecommendationSyncManager = RecommendationSyncManager(
-        apiClient = apiClient,
-        recommendationDao = database.recommendationDao()
-    )
-
-    val recommendationEngine: RecommendationEngine = RecommendationEngine(
-        searchRepository = searchRepository,
-        searchHistoryDao = database.searchHistoryDao(),
-        recommendationDao = database.recommendationDao(),
-        syncManager = recommendationSyncManager
-    )
+    // Convenience accessors for consumers across the app
+    val apiClient: ApiClient get() = clientModule.apiClient
+    val artworkClient: ArtworkClient get() = clientModule.artworkClient
+    val lyricsClient: LyricsClient get() = clientModule.lyricsClient
+    val spotifyClient: SpotifyClient get() = clientModule.spotifyClient
+    val deezerClient: DeezerClient get() = clientModule.deezerClient
+    val audioPipeline: AudioResolverPipeline get() = audioModule.audioPipeline
+    val authRepository: AuthRepository get() = repositoryModule.authRepository
+    val connectivityMonitor: ConnectivityMonitor get() = databaseModule.connectivityMonitor
+    val downloadRepository: DownloadRepository get() = repositoryModule.downloadRepository
+    val musicRepository: MusicRepository get() = repositoryModule.musicRepository
+    val musicPlayer: MusicPlayer get() = playerModule.musicPlayer
+    val playlistRepository: PlaylistRepository get() = repositoryModule.playlistRepository
+    val recommendationEngine: RecommendationEngine get() = syncModule.recommendationEngine
+    val recommendationSyncManager: RecommendationSyncManager get() = syncModule.recommendationSyncManager
+    val searchRepository: SearchRepository get() = repositoryModule.searchRepository
+    val settingsManager: SettingsManager get() = databaseModule.settingsManager
+    val userLibraryRepository: UserLibraryRepository get() = repositoryModule.userLibraryRepository
+    val database: AppDatabase get() = databaseModule.database
 }

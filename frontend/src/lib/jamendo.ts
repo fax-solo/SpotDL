@@ -1,14 +1,4 @@
-import { apiUrl } from './apiConfig'
-
-async function callFunction(body: Record<string, unknown>) {
-  const res = await fetch(apiUrl('/api/jamendo'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) return null
-  return res.json()
-}
+import { callFunction } from './sources/callFunction'
 
 export async function searchJamendo(query: string): Promise<{
   url: string
@@ -19,7 +9,7 @@ export async function searchJamendo(query: string): Promise<{
   thumbnail: string | null
   source: string
 }[]> {
-  const data = await callFunction({ action: 'search', query })
+  const data = await callFunction('jamendo', { action: 'search', query })
   return data?.results || []
 }
 
@@ -30,7 +20,7 @@ export async function jamendoInfo(url: string): Promise<{
   audioUrl: string | null
   thumbnail: string | null
 } | null> {
-  const data = await callFunction({ action: 'info', url })
+  const data = await callFunction('jamendo', { action: 'info', url })
   if (data?.audioUrl) return data
   return null
 }

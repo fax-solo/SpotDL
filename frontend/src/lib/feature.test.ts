@@ -21,9 +21,9 @@ describe('apiConfig', () => {
     delete (process.env as Record<string, string>)['VITE_API_URL']
   })
 
-  it('returns empty string for web by default', async () => {
+  it('returns production API for web by default', async () => {
     const { getApiBase } = await import('./apiConfig')
-    expect(getApiBase()).toBe('')
+    expect(getApiBase()).toBe('https://spotify-downloader-5v5.pages.dev')
   })
 
   it('returns cloudflare URL when env var is set', async () => {
@@ -34,10 +34,10 @@ describe('apiConfig', () => {
     delete import.meta.env.VITE_API_URL
   })
 
-  it('returns empty string for web by default via apiUrl', async () => {
+  it('returns production API for web by default via apiUrl', async () => {
     const { apiUrl } = await import('./apiConfig')
     const url = apiUrl('/api/test')
-    expect(url).toBe('/api/test')
+    expect(url).toBe('https://spotify-downloader-5v5.pages.dev/api/test')
   })
 })
 

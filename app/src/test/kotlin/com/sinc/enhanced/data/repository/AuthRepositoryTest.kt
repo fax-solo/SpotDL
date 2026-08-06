@@ -3,19 +3,15 @@ package com.sinc.enhanced.data.repository
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import com.sinc.enhanced.data.auth.TokenStore
 import com.sinc.enhanced.data.remote.ApiClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import org.json.JSONObject
 import org.junit.Test
-import org.mockito.Mockito
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 import org.junit.Assert.*
 
 class FakeDataStore : DataStore<Preferences> {
@@ -29,16 +25,51 @@ class FakeDataStore : DataStore<Preferences> {
     }
 }
 
+class FakeTokenStore : TokenStore {
+    private var token: String = ""
+    private var role: String = ""
+    private var savedAt: Long = 0L
+
+    override fun getToken(): String = token
+    override fun getRole(): String = role
+    override fun getTokenSavedAt(): Long = savedAt
+
+    override fun saveAuth(token: String, role: String) {
+        this.token = token
+        this.role = role
+        this.savedAt = System.currentTimeMillis()
+    }
+
+    override fun clear() {
+        token = ""
+        role = ""
+        savedAt = 0L
+    }
+}
+
+class FakeApiClient(
+    private val meResult: JSONObject? = null,
+    private val meError: Throwable? = null
+) : ApiClient(okhttp3.OkHttpClient()) {
+    override suspend fun getMe(): JSONObject? {
+        meError?.let { throw it }
+        return meResult
+    }
+
+    override suspend fun ping(): Boolean = true
+}
+
 class AuthRepositoryTest {
+
+    private fun createRepo(
+        dataStore: DataStore<Preferences> = FakeDataStore(),
+        apiClient: ApiClient = FakeApiClient(),
+        tokenStore: TokenStore = FakeTokenStore()
+    ) = AuthRepository(tokenStore, dataStore, apiClient, "https://example.com")
 
     @Test
     fun `restoreSession with valid token and API success returns true`() = runTest {
-        val dataStore = FakeDataStore()
-        val apiClient = mock<ApiClient>()
-        val repo = AuthRepository(dataStore, apiClient, "https://example.com")
-
-        val meJson = JSONObject().apply { put("role", "user") }
-        whenever(apiClient.getMe()).thenReturn(meJson)
+        val repo = createRepo(apiClient = FakeApiClient(meResult = JSONObject().apply { put("role", "user") }))
 
         repo.saveAuth("valid-token", "testuser", 1L, "user", "https://example.com")
 
@@ -48,36 +79,30 @@ class AuthRepositoryTest {
 
     @Test
     fun `restoreSession with no token returns false`() = runTest {
-        val dataStore = FakeDataStore()
-        val apiClient = mock<ApiClient>()
-        val repo = AuthRepository(dataStore, apiClient, "https://example.com")
+        val repo = createRepo()
 
         val result = repo.restoreSession()
         assertFalse("restoreSession should return false with no token", result)
     }
 
     @Test
-    fun `restoreSession with token but API returns null returns false`() = runTest {
+    fun `restoreSession with token but API returns null keeps session`() = runTest {
         val dataStore = FakeDataStore()
-        val apiClient = mock<ApiClient>()
-        val repo = AuthRepository(dataStore, apiClient, "https://example.com")
-
-        whenever(apiClient.getMe()).thenReturn(null)
+        val repo = createRepo(dataStore, FakeApiClient(meResult = null))
 
         repo.saveAuth("invalid-token", "testuser", 1L, "user", "https://example.com")
 
         val result = repo.restoreSession()
-        assertFalse("restoreSession should return false when API returns null", result)
+        assertTrue("restoreSession should tolerate a null API response", result)
 
         val state = repo.authState.first()
-        assertFalse("Auth should be cleared when API returns null", state.isLoggedIn)
+        assertTrue("Auth should be preserved when API response is null", state.isLoggedIn)
     }
 
     @Test
     fun `saveAuth and clearAuth cycle works correctly`() = runTest {
         val dataStore = FakeDataStore()
-        val apiClient = mock<ApiClient>()
-        val repo = AuthRepository(dataStore, apiClient, "https://example.com")
+        val repo = createRepo(dataStore)
 
         repo.saveAuth("token123", "user1", 42L, "admin", "https://server.example.com")
 
@@ -97,11 +122,10 @@ class AuthRepositoryTest {
     @Test
     fun `serverUrl flow returns correct URL`() = runTest {
         val dataStore = FakeDataStore()
-        val apiClient = mock<ApiClient>()
-        val repo = AuthRepository(dataStore, apiClient, "https://default.example.com")
+        val repo = createRepo(dataStore)
 
         var url = repo.serverUrl.first()
-        assertEquals("Default URL should be returned", "https://default.example.com", url)
+        assertEquals("Default URL should be returned", "https://example.com", url)
 
         repo.saveAuth("t", "u", 1L, "user", "https://custom.example.com")
         url = repo.serverUrl.first()
@@ -109,19 +133,30 @@ class AuthRepositoryTest {
     }
 
     @Test
-    fun `restoreSession with token but API throws exception returns false`() = runTest {
+    fun `restoreSession with token and API exception clears auth and returns false`() = runTest {
         val dataStore = FakeDataStore()
-        val apiClient = mock<ApiClient>()
-        val repo = AuthRepository(dataStore, apiClient, "https://example.com")
-
-        whenever(apiClient.getMe()).thenThrow(RuntimeException("Network error"))
+        val repo = createRepo(dataStore, FakeApiClient(meError = ApiClient.ApiException(401)))
 
         repo.saveAuth("valid-token", "testuser", 1L, "user", "https://example.com")
 
         val result = repo.restoreSession()
-        assertFalse("restoreSession should return false when API throws", result)
+        assertFalse("restoreSession should return false when API rejects the token", result)
 
         val state = repo.authState.first()
-        assertFalse("Auth should be cleared on exception", state.isLoggedIn)
+        assertFalse("Auth should be cleared when API rejects the token", state.isLoggedIn)
+    }
+
+    @Test
+    fun `restoreSession tolerates network errors without clearing auth`() = runTest {
+        val dataStore = FakeDataStore()
+        val repo = createRepo(dataStore, FakeApiClient(meError = RuntimeException("Network error")))
+
+        repo.saveAuth("valid-token", "testuser", 1L, "user", "https://example.com")
+
+        val result = repo.restoreSession()
+        assertTrue("restoreSession should be offline-tolerant", result)
+
+        val state = repo.authState.first()
+        assertTrue("Auth should survive network errors", state.isLoggedIn)
     }
 }

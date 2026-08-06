@@ -3,7 +3,10 @@ package com.sinc.enhanced.service
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import android.provider.Settings
 import com.sinc.enhanced.SincApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +25,7 @@ class DownloadService : Service() {
     companion object {
         const val ACTION_DOWNLOAD = "com.sinc.enhanced.action.DOWNLOAD"
         const val ACTION_PROCESS_QUEUE = "com.sinc.enhanced.action.PROCESS_QUEUE"
+        const val ACTION_BATTERY_OPTIMIZATION = "com.sinc.enhanced.action.BATTERY_OPTIMIZATION"
         const val EXTRA_TRACK_ID = "track_id"
         private const val MAX_PARALLEL = 3
     }
@@ -39,6 +43,8 @@ class DownloadService : Service() {
                 if (trackId != null) {
                     startForegroundIfPossible()
                     processQueue(startFrom = trackId)
+                    // Show battery optimization prompt on first download start (contextual)
+                    requestBatteryOptimizationExemption()
                 } else {
                     processQueue(startFrom = null)
                 }
@@ -47,8 +53,60 @@ class DownloadService : Service() {
                 startForegroundIfPossible()
                 processQueue(startFrom = null)
             }
+            ACTION_BATTERY_OPTIMIZATION -> {
+                launchBatteryOptimizationSettings()
+            }
         }
-        return START_NOT_STICKY
+        // Return START_REDELIVER_INTENT so that if the service is killed while downloading,
+        // the last intent is redelivered and the download can resume/retry
+        return START_REDELIVER_INTENT
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        // Only prompt on Android 6.0+ (API 23+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(PowerManager::class.java)
+            val packageName = packageName
+            
+            // Check if already exempt
+            if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                return
+            }
+            
+            // Run the check and prompt in a coroutine
+            scope.launch(Dispatchers.IO) {
+                val app = application as SincApp
+                val settingsManager = app.container.settingsManager
+                val alreadyPrompted = settingsManager.batteryOptPromptShown.first()
+                
+                if (!alreadyPrompted) {
+                    // Mark as prompted to avoid re-prompting
+                    settingsManager.setBatteryOptPromptShown(true)
+                    
+                    // Show notification with action to launch battery optimization settings
+                    // This is safer than startActivity from Service
+                    val manager = getSystemService(NotificationManager::class.java)
+                    val notif = NotificationHelper.buildBatteryOptimizationNotification(this@DownloadService)
+                    manager.notify(NotificationHelper.DOWNLOAD_NOTIFICATION_ID + 100, notif)
+                }
+            }
+        }
+    }
+
+    private fun launchBatteryOptimizationSettings() {
+        val powerManager = getSystemService(PowerManager::class.java)
+        val packageName = packageName
+        
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                .setData(android.net.Uri.parse("package:$packageName"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                // Ignore if cannot start activity
+            }
+        }
     }
 
     private fun startForegroundIfPossible() {

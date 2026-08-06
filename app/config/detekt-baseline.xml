@@ -1,0 +1,446 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ComplexCondition:HomeScreen.kt$uiState.recentSearches.isEmpty() &amp;&amp; uiState.recommendedPlaylists.isEmpty() &amp;&amp; uiState.recentlyPlayed.isEmpty() &amp;&amp; uiState.recentlyDownloaded.isEmpty()</ID>
+    <ID>ComplexCondition:MatchScorer.kt$MatchScorer$expSec != null &amp;&amp; foundSec != null &amp;&amp; expSec &gt; 0 &amp;&amp; foundSec &gt; 0</ID>
+    <ID>ComplexCondition:MusicPlayer.kt$MusicPlayer$fromIndex &lt; 0 || fromIndex &gt;= queue.size || toIndex &lt; 0 || toIndex &gt;= queue.size</ID>
+    <ID>ComplexCondition:PlayerViewModel.kt$PlayerViewModel$playerState.isPlaying &amp;&amp; track != null &amp;&amp; !playRecordedForTrack &amp;&amp; playerState.position &gt; 3000</ID>
+    <ID>ComplexCondition:PlaylistDetailViewModel.kt$PlaylistDetailViewModel$fromIndex &lt; 0 || fromIndex &gt;= tracks.size || toIndex &lt; 0 || toIndex &gt;= tracks.size</ID>
+    <ID>CyclomaticComplexMethod:AdminScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AdminScreen( onNavigateBack: () -&gt; Unit = {}, localViewModel: AdminViewModel = viewModel(factory = AdminViewModel.Factory()) )</ID>
+    <ID>CyclomaticComplexMethod:AppNavigation.kt$@Composable fun AppNavigation(intent: Intent? = null)</ID>
+    <ID>CyclomaticComplexMethod:AppNavigation.kt$private fun handleDeepLink(intent: Intent, navController: androidx.navigation.NavController)</ID>
+    <ID>CyclomaticComplexMethod:AudioFileDownloader.kt$AudioFileDownloader$private fun extensionFor(mimeType: String, url: String): String</ID>
+    <ID>CyclomaticComplexMethod:AudioFileDownloader.kt$AudioFileDownloader$suspend fun download( request: DownloadRequest, url: String, onProgress: suspend (progress: Float, speedBps: Float) -&gt; Unit ): DownloadedFile?</ID>
+    <ID>CyclomaticComplexMethod:AudioResolver.kt$AudioResolverPipeline$suspend fun resolve(track: Track): Pair&lt;String, String&gt;?</ID>
+    <ID>CyclomaticComplexMethod:DownloadService.kt$DownloadService$private fun processQueue(startFrom: String? = null)</ID>
+    <ID>CyclomaticComplexMethod:HomeScreen.kt$@Composable fun HomeScreen( onSearch: () -&gt; Unit, onSearchQuery: (String) -&gt; Unit = {}, onNavigateSettings: () -&gt; Unit = {}, onNavigateHistory: () -&gt; Unit = {}, onPlayTrack: (Track, String) -&gt; Unit = { _, _ -&gt; }, viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory()) )</ID>
+    <ID>CyclomaticComplexMethod:ImportPlaylistScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ImportPlaylistScreen( onPlayTrack: ((com.sinc.enhanced.data.model.Track, String) -&gt; Unit)? = null, onDownloadTrack: (com.sinc.enhanced.data.model.Track, String) -&gt; Unit, onQueueComplete: () -&gt; Unit = {}, onNavigateBack: () -&gt; Unit, viewModel: ImportPlaylistViewModel = viewModel(factory = ImportPlaylistViewModel.Factory()) )</ID>
+    <ID>CyclomaticComplexMethod:LyricsClient.kt$LyricsClient$private suspend fun fetchFromDeezer(artist: String, title: String): LyricsResult</ID>
+    <ID>CyclomaticComplexMethod:MatchScorer.kt$MatchScorer$fun computeScore(options: MatchOptions): Float</ID>
+    <ID>CyclomaticComplexMethod:MusicRepository.kt$MusicRepository$fun scanLocalMusic(): List&lt;LocalTrack&gt;</ID>
+    <ID>CyclomaticComplexMethod:PipedAudioResolver.kt$PipedAudioResolver$override suspend fun resolve(track: Track, context: ResolutionContext): AudioCandidate?</ID>
+    <ID>CyclomaticComplexMethod:PlayerScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class) @Composable fun PlayerScreen( onNavigateArtist: (String) -&gt; Unit = {}, onNavigateQueue: (() -&gt; Unit)? = null, onShareTrack: ((String, String) -&gt; Unit)? = null, viewModel: PlayerViewModel = viewModel(factory = PlayerViewModel.Factory()) )</ID>
+    <ID>CyclomaticComplexMethod:PlaylistDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun PlaylistDetailScreen( playlistId: String, onPlayTrack: (Track) -&gt; Unit, onPlayAll: (List&lt;Track&gt;) -&gt; Unit, onNavigateBack: () -&gt; Unit, viewModel: PlaylistDetailViewModel = viewModel(factory = PlaylistDetailViewModel.Factory(playlistId)) )</ID>
+    <ID>CyclomaticComplexMethod:RecommendationEngine.kt$RecommendationEngine$private suspend fun generatePlaylists(): List&lt;RecommendedPlaylist&gt;</ID>
+    <ID>CyclomaticComplexMethod:SearchScreen.kt$@Composable private fun renderResults( uiState: SearchUiState, spotifyResults: List&lt;SearchResult&gt;, nonSpotifyResults: List&lt;SearchResult&gt;, listState: LazyListState, onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: (Track, String) -&gt; Unit, onNavigateTrack: (String) -&gt; Unit, onNavigateArtist: (String) -&gt; Unit, viewModel: SearchViewModel, onPreview: ((Track, String) -&gt; Unit)? = null )</ID>
+    <ID>CyclomaticComplexMethod:SearchScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SearchScreen( initialQuery: String = "", onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: (Track, String) -&gt; Unit, onNavigateArtist: (String) -&gt; Unit = {}, onNavigateTrack: (String) -&gt; Unit = {}, onNavigateSettings: () -&gt; Unit = {}, onNavigateHistory: () -&gt; Unit = {}, onPreview: ((Track, String) -&gt; Unit)? = null, viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory()), historyViewModel: SearchHistoryViewModel = viewModel(factory = SearchHistoryViewModel.Factory(SincApp.instance.container.database.searchHistoryDao())) )</ID>
+    <ID>CyclomaticComplexMethod:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( onLogout: () -&gt; Unit = {}, onNavigateBack: () -&gt; Unit = {}, onNavigateAdmin: () -&gt; Unit = {}, onNavigateLogin: () -&gt; Unit = {}, viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(LocalContext.current)) )</ID>
+    <ID>CyclomaticComplexMethod:TrackDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TrackDetailScreen( trackId: String, onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: ((Track, String) -&gt; Unit)? = null, onNavigateArtist: (String) -&gt; Unit, onNavigateBack: () -&gt; Unit, viewModel: TrackDetailViewModel = viewModel(factory = TrackDetailViewModel.Factory(trackId)) )</ID>
+    <ID>CyclomaticComplexMethod:YtDlpAudioResolver.kt$YtDlpAudioResolver$override suspend fun resolve(track: Track, context: ResolutionContext): AudioCandidate?</ID>
+    <ID>ForbiddenComment:SettingsScreen.kt$// TODO: Audio Processing features not yet implemented</ID>
+    <ID>ForbiddenComment:SettingsScreen.kt$// TODO: Export/Import not yet implemented</ID>
+    <ID>ForbiddenComment:SettingsScreen.kt$// TODO: Language selection not yet implemented</ID>
+    <ID>ForbiddenComment:SettingsScreen.kt$// TODO: Scrobbling not yet implemented</ID>
+    <ID>LongMethod:AddToPlaylistSheet.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddToPlaylistSheet( track: Track, filePath: String? = null, onDismiss: () -&gt; Unit, onPlaylistCreated: () -&gt; Unit )</ID>
+    <ID>LongMethod:AdminScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AdminScreen( onNavigateBack: () -&gt; Unit = {}, localViewModel: AdminViewModel = viewModel(factory = AdminViewModel.Factory()) )</ID>
+    <ID>LongMethod:AppNavigation.kt$@Composable fun AppNavigation(intent: Intent? = null)</ID>
+    <ID>LongMethod:HistoryScreen.kt$@Composable fun HistoryScreen( onPlayTrack: (com.sinc.enhanced.data.model.Track, String) -&gt; Unit, onNavigateBack: () -&gt; Unit = {}, viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory()) )</ID>
+    <ID>LongMethod:HomeScreen.kt$@Composable fun HomeScreen( onSearch: () -&gt; Unit, onSearchQuery: (String) -&gt; Unit = {}, onNavigateSettings: () -&gt; Unit = {}, onNavigateHistory: () -&gt; Unit = {}, onPlayTrack: (Track, String) -&gt; Unit = { _, _ -&gt; }, viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory()) )</ID>
+    <ID>LongMethod:ImportPlaylistScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ImportPlaylistScreen( onPlayTrack: ((com.sinc.enhanced.data.model.Track, String) -&gt; Unit)? = null, onDownloadTrack: (com.sinc.enhanced.data.model.Track, String) -&gt; Unit, onQueueComplete: () -&gt; Unit = {}, onNavigateBack: () -&gt; Unit, viewModel: ImportPlaylistViewModel = viewModel(factory = ImportPlaylistViewModel.Factory()) )</ID>
+    <ID>LongMethod:LibraryScreen.kt$@Composable private fun LocalTab( permissionState: com.sinc.enhanced.ui.permission.AudioPermissionState, uiState: LibraryUiState, onRequestPermission: () -&gt; Unit, onRefresh: () -&gt; Unit, onPlayLocal: (MusicRepository.LocalTrack) -&gt; Unit, onAddToPlaylist: (Track, String?) -&gt; Unit = { _, _ -&gt; } )</ID>
+    <ID>LongMethod:PlayerScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class) @Composable fun PlayerScreen( onNavigateArtist: (String) -&gt; Unit = {}, onNavigateQueue: (() -&gt; Unit)? = null, onShareTrack: ((String, String) -&gt; Unit)? = null, viewModel: PlayerViewModel = viewModel(factory = PlayerViewModel.Factory()) )</ID>
+    <ID>LongMethod:PlaylistDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun PlaylistDetailScreen( playlistId: String, onPlayTrack: (Track) -&gt; Unit, onPlayAll: (List&lt;Track&gt;) -&gt; Unit, onNavigateBack: () -&gt; Unit, viewModel: PlaylistDetailViewModel = viewModel(factory = PlaylistDetailViewModel.Factory(playlistId)) )</ID>
+    <ID>LongMethod:QueueScreen.kt$@Composable private fun DownloadItem( download: DownloadEntity, onPlay: () -&gt; Unit, onRemove: () -&gt; Unit, onRetry: () -&gt; Unit, onPause: () -&gt; Unit, onResume: () -&gt; Unit, onCancel: () -&gt; Unit )</ID>
+    <ID>LongMethod:QueueScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun QueueScreen( onPlayTrack: (Track, String) -&gt; Unit = { _, _ -&gt; }, viewModel: QueueViewModel = viewModel(factory = QueueViewModel.Factory(LocalContext.current)) )</ID>
+    <ID>LongMethod:SearchScreen.kt$@Composable private fun AlbumInlineItem( album: Album, isExpanded: Boolean, tracks: List&lt;Track&gt;, audioUrls: Map&lt;String, String&gt;, onClick: () -&gt; Unit, onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: (Track, String) -&gt; Unit, onNavigateTrack: (String) -&gt; Unit )</ID>
+    <ID>LongMethod:SearchScreen.kt$@Composable private fun TopResultCard( result: SearchResult, resolvedUrl: String?, onPlay: () -&gt; Unit, onDownload: () -&gt; Unit )</ID>
+    <ID>LongMethod:SearchScreen.kt$@Composable private fun renderResults( uiState: SearchUiState, spotifyResults: List&lt;SearchResult&gt;, nonSpotifyResults: List&lt;SearchResult&gt;, listState: LazyListState, onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: (Track, String) -&gt; Unit, onNavigateTrack: (String) -&gt; Unit, onNavigateArtist: (String) -&gt; Unit, viewModel: SearchViewModel, onPreview: ((Track, String) -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:SearchScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SearchScreen( initialQuery: String = "", onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: (Track, String) -&gt; Unit, onNavigateArtist: (String) -&gt; Unit = {}, onNavigateTrack: (String) -&gt; Unit = {}, onNavigateSettings: () -&gt; Unit = {}, onNavigateHistory: () -&gt; Unit = {}, onPreview: ((Track, String) -&gt; Unit)? = null, viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory()), historyViewModel: SearchHistoryViewModel = viewModel(factory = SearchHistoryViewModel.Factory(SincApp.instance.container.database.searchHistoryDao())) )</ID>
+    <ID>LongMethod:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( onLogout: () -&gt; Unit = {}, onNavigateBack: () -&gt; Unit = {}, onNavigateAdmin: () -&gt; Unit = {}, onNavigateLogin: () -&gt; Unit = {}, viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(LocalContext.current)) )</ID>
+    <ID>LongMethod:TrackDetailScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TrackDetailScreen( trackId: String, onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: ((Track, String) -&gt; Unit)? = null, onNavigateArtist: (String) -&gt; Unit, onNavigateBack: () -&gt; Unit, viewModel: TrackDetailViewModel = viewModel(factory = TrackDetailViewModel.Factory(trackId)) )</ID>
+    <ID>LongMethod:TrackItem.kt$@OptIn(ExperimentalFoundationApi::class) @Composable fun TrackItem( track: Track, onClick: () -&gt; Unit, onLongClick: (() -&gt; Unit)? = null, onPreview: (() -&gt; Unit)? = null, trailing: @Composable (() -&gt; Unit)? = null, subtitle: String? = null, modifier: Modifier = Modifier, showSourceBadge: Boolean = true )</ID>
+    <ID>LongParameterList:DownloadRepository.kt$DownloadRepository$( private val context: Context, private val downloadDao: DownloadDao, private val historyDao: HistoryDao, okHttpClient: OkHttpClient, private val findAudioUrl: suspend (Track) -&gt; Pair&lt;String, String&gt;?, private val lyricsClient: LyricsClient, private val settingsManager: SettingsManager )</ID>
+    <ID>LongParameterList:HomeScreen.kt$( onSearch: () -&gt; Unit, onSearchQuery: (String) -&gt; Unit = {}, onNavigateSettings: () -&gt; Unit = {}, onNavigateHistory: () -&gt; Unit = {}, onPlayTrack: (Track, String) -&gt; Unit = { _, _ -&gt; }, viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory()) )</ID>
+    <ID>LongParameterList:LibraryScreen.kt$( permissionState: com.sinc.enhanced.ui.permission.AudioPermissionState, uiState: LibraryUiState, onRequestPermission: () -&gt; Unit, onRefresh: () -&gt; Unit, onPlayLocal: (MusicRepository.LocalTrack) -&gt; Unit, onAddToPlaylist: (Track, String?) -&gt; Unit = { _, _ -&gt; } )</ID>
+    <ID>LongParameterList:PlayerMiniBar.kt$( title: String?, artist: String?, artworkUrl: String? = null, audioSource: String? = null, isPlaying: Boolean, onPlayPause: () -&gt; Unit, onSkipNext: () -&gt; Unit = {}, onClick: () -&gt; Unit, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:PlayerScreen.kt$( queue: List&lt;Track&gt;, currentIndex: Int, primaryColor: androidx.compose.ui.graphics.Color, onClearQueue: () -&gt; Unit = {}, onPlayTrack: (Int) -&gt; Unit = {}, onRemoveTrack: (Int) -&gt; Unit = {}, onMoveUp: ((Int) -&gt; Unit)? = null, onMoveDown: ((Int) -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:PlayerScreen.kt$( speed: Float, sleepTimerMinutes: Int, repeatMode: com.sinc.enhanced.domain.player.RepeatMode, shuffleMode: com.sinc.enhanced.domain.player.ShuffleMode, onSpeedChange: (Float) -&gt; Unit, onSleepTimerChange: (Int) -&gt; Unit, onRepeatChange: (com.sinc.enhanced.domain.player.RepeatMode) -&gt; Unit, onShuffleChange: (com.sinc.enhanced.domain.player.ShuffleMode) -&gt; Unit, onSpeedClick: () -&gt; Unit, onSleepTimerClick: () -&gt; Unit, onNavigateQueue: (() -&gt; Unit)?, onShare: (() -&gt; Unit)? = null, primaryColor: androidx.compose.ui.graphics.Color )</ID>
+    <ID>LongParameterList:QueueScreen.kt$( download: DownloadEntity, onPlay: () -&gt; Unit, onRemove: () -&gt; Unit, onRetry: () -&gt; Unit, onPause: () -&gt; Unit, onResume: () -&gt; Unit, onCancel: () -&gt; Unit )</ID>
+    <ID>LongParameterList:SearchBar.kt$( query: String, onQueryChange: (String) -&gt; Unit, onSearch: () -&gt; Unit, modifier: Modifier = Modifier, placeholder: String = "Search for music...", onVoiceSearch: (() -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:SearchScreen.kt$( album: Album, isExpanded: Boolean, tracks: List&lt;Track&gt;, audioUrls: Map&lt;String, String&gt;, onClick: () -&gt; Unit, onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: (Track, String) -&gt; Unit, onNavigateTrack: (String) -&gt; Unit )</ID>
+    <ID>LongParameterList:SearchScreen.kt$( initialQuery: String = "", onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: (Track, String) -&gt; Unit, onNavigateArtist: (String) -&gt; Unit = {}, onNavigateTrack: (String) -&gt; Unit = {}, onNavigateSettings: () -&gt; Unit = {}, onNavigateHistory: () -&gt; Unit = {}, onPreview: ((Track, String) -&gt; Unit)? = null, viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory()), historyViewModel: SearchHistoryViewModel = viewModel(factory = SearchHistoryViewModel.Factory(SincApp.instance.container.database.searchHistoryDao())) )</ID>
+    <ID>LongParameterList:SearchScreen.kt$( uiState: SearchUiState, spotifyResults: List&lt;SearchResult&gt;, nonSpotifyResults: List&lt;SearchResult&gt;, listState: LazyListState, onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: (Track, String) -&gt; Unit, onNavigateTrack: (String) -&gt; Unit, onNavigateArtist: (String) -&gt; Unit, viewModel: SearchViewModel, onPreview: ((Track, String) -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:SpotifyEntityParserTest.kt$SpotifyEntityParserTest$( name: String = "Test Song", uri: String = "spotify:track:abc123", albumName: String = "Test Album", durationMs: Int = 180000, artistNames: List&lt;String&gt; = listOf("Artist One", "Artist Two"), explicit: Boolean = false, trackNumber: Int = 3, coverUrl: String = "https://example.com/art.jpg", durationKey: String = "trackDuration" )</ID>
+    <ID>LongParameterList:TrackDetailScreen.kt$( trackId: String, onPlayTrack: (Track, String) -&gt; Unit, onDownloadTrack: ((Track, String) -&gt; Unit)? = null, onNavigateArtist: (String) -&gt; Unit, onNavigateBack: () -&gt; Unit, viewModel: TrackDetailViewModel = viewModel(factory = TrackDetailViewModel.Factory(trackId)) )</ID>
+    <ID>LongParameterList:TrackItem.kt$( track: Track, onClick: () -&gt; Unit, onLongClick: (() -&gt; Unit)? = null, onPreview: (() -&gt; Unit)? = null, trailing: @Composable (() -&gt; Unit)? = null, subtitle: String? = null, modifier: Modifier = Modifier, showSourceBadge: Boolean = true )</ID>
+    <ID>LoopWithTooManyJumpStatements:AudiusAudioResolver.kt$AudiusAudioResolver$for</ID>
+    <ID>LoopWithTooManyJumpStatements:BandcampClient.kt$BandcampClient$for</ID>
+    <ID>LoopWithTooManyJumpStatements:FmaAudioResolver.kt$FmaAudioResolver$for</ID>
+    <ID>LoopWithTooManyJumpStatements:JamendoAudioResolver.kt$JamendoAudioResolver$for</ID>
+    <ID>LoopWithTooManyJumpStatements:PipedAudioResolver.kt$PipedAudioResolver$for</ID>
+    <ID>MatchingDeclarationName:AppNavigation.kt$Routes</ID>
+    <ID>MatchingDeclarationName:BottomNavBar.kt$BottomNavItem</ID>
+    <ID>MatchingDeclarationName:PermissionManager.kt$AudioPermissionState</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Download, "Downloads", localStats.totalDownloads.toString(), MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Download, "Downloads", s.optInt("total_downloads", 0).toString(), MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Download, "This Month", localStats.downloadsThisMonth.toString(), MaterialTheme.colorScheme.tertiary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Download, "This Month", s.optInt("downloads_this_month", 0).toString(), MaterialTheme.colorScheme.tertiary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Download, "This Year", localStats.downloadsThisYear.toString(), MaterialTheme.colorScheme.secondary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Download, "This Year", s.optInt("downloads_this_year", 0).toString(), MaterialTheme.colorScheme.secondary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.History, "History", localStats.totalHistoryItems.toString(), MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.History, "History", localStats.totalHistoryItems.toString(), MaterialTheme.colorScheme.tertiary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.History, "This Month", localStats.historyThisMonth.toString(), MaterialTheme.colorScheme.tertiary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.History, "This Year", localStats.historyThisYear.toString(), MaterialTheme.colorScheme.secondary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Person, "Active/Month", s.optInt("active_this_month", 0).toString(), MaterialTheme.colorScheme.tertiary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Person, "Active/Year", s.optInt("active_this_year", 0).toString(), MaterialTheme.colorScheme.secondary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$StatCard(Modifier.weight(1f), Icons.Default.Person, "Total Users", s.optInt("total_users", 0).toString(), MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$Text("${sc.source}: ${sc.count}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$Text("By Source", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:AdminScreen.kt$val authState by authRepository.authState.collectAsStateWithLifecycle(initialValue = com.sinc.enhanced.data.repository.AuthState())</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase$entities = [DownloadEntity::class, HistoryEntity::class, LikedTrackEntity::class, SavedTrackEntity::class, SearchHistoryEntity::class, PlaylistEntity::class, PlaylistTrackEntity::class, LyricsCacheEntity::class, CacheEntryEntity::class, UserGenreEntity::class, PlayCountEntity::class]</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS cache_entries (key TEXT PRIMARY KEY, value TEXT NOT NULL, expiresAt INTEGER NOT NULL DEFAULT 9223372036854775807)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS liked_tracks (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, trackId TEXT NOT NULL, title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL DEFAULT '', artworkUrl TEXT, durationMs INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL DEFAULT 'spotify', filePath TEXT, addedAt INTEGER NOT NULL)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS lyrics_cache (id TEXT PRIMARY KEY, plainLyrics TEXT NOT NULL DEFAULT '', syncedLyrics TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '')")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS play_counts (trackId TEXT NOT NULL PRIMARY KEY, artist TEXT NOT NULL, title TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1, lastPlayed INTEGER NOT NULL)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS playlist_tracks (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, playlistId INTEGER NOT NULL, trackId TEXT NOT NULL, title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL DEFAULT '', artworkUrl TEXT, durationMs INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL DEFAULT 'spotify', filePath TEXT, position INTEGER NOT NULL DEFAULT 0, addedAt INTEGER NOT NULL, FOREIGN KEY (playlistId) REFERENCES playlists(id) ON DELETE CASCADE)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS playlists (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', artworkUrl TEXT, trackCount INTEGER NOT NULL DEFAULT 0, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS saved_tracks (trackId TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL DEFAULT '', artworkUrl TEXT, durationMs INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL DEFAULT 'spotify', filePath TEXT, addedAt INTEGER NOT NULL)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS search_history (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, query TEXT NOT NULL, resultType TEXT NOT NULL DEFAULT 'generic', searchedAt INTEGER NOT NULL)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE TABLE IF NOT EXISTS user_genres (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, genre TEXT NOT NULL, affinity REAL NOT NULL DEFAULT 1.0, lastInteracted INTEGER NOT NULL)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_playlist_tracks_unique ON playlist_tracks(playlistId, trackId)")</ID>
+    <ID>MaxLineLength:AppNavigation.kt$"album" -&gt; navController.navigate("search/${URLEncoder.encode(uri.lastPathSegment ?: "", "UTF-8")}")</ID>
+    <ID>MaxLineLength:AppNavigation.kt$"playlist" -&gt; navController.navigate("search/${URLEncoder.encode(uri.lastPathSegment ?: "", "UTF-8")}")</ID>
+    <ID>MaxLineLength:ArtistDetailScreen.kt$Text("Related Artists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))</ID>
+    <ID>MaxLineLength:ArtistDetailScreen.kt$Text("Top Tracks", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))</ID>
+    <ID>MaxLineLength:ArtistDetailScreen.kt$Text(track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:ArtistDetailScreen.kt$Text(track.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)</ID>
+    <ID>MaxLineLength:ArtworkClient.kt$ArtworkClient$private suspend</ID>
+    <ID>MaxLineLength:ArtworkClient.kt$ArtworkClient$suspend</ID>
+    <ID>MaxLineLength:AudioFileDownloader.kt$AudioFileDownloader$context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED</ID>
+    <ID>MaxLineLength:AudioFileValidatorTest.kt$AudioFileValidatorTest$assertFalse(AudioFileValidator.isValidAudioFile(tempFile(byteArrayOf(0x00, 0xFB.toByte(), 0x90.toByte(), 0x64.toByte()))))</ID>
+    <ID>MaxLineLength:AudioFileValidatorTest.kt$AudioFileValidatorTest$assertFalse(AudioFileValidator.isValidAudioFile(tempFile(byteArrayOf(0xFF.toByte(), 0x00.toByte(), 0x90.toByte(), 0x64.toByte()))))</ID>
+    <ID>MaxLineLength:AudioFileValidatorTest.kt$AudioFileValidatorTest$assertTrue(AudioFileValidator.isValidAudioFile(tempFile(byteArrayOf(0xFF.toByte(), 0xE3.toByte(), 0x90.toByte(), 0x64.toByte()))))</ID>
+    <ID>MaxLineLength:AudioFileValidatorTest.kt$AudioFileValidatorTest$assertTrue(AudioFileValidator.isValidAudioFile(tempFile(byteArrayOf(0xFF.toByte(), 0xF2.toByte(), 0x90.toByte(), 0x64.toByte()))))</ID>
+    <ID>MaxLineLength:AudioFileValidatorTest.kt$AudioFileValidatorTest$assertTrue(AudioFileValidator.isValidAudioFile(tempFile(byteArrayOf(0xFF.toByte(), 0xF3.toByte(), 0x90.toByte(), 0x64.toByte()))))</ID>
+    <ID>MaxLineLength:AudioFileValidatorTest.kt$AudioFileValidatorTest$assertTrue(AudioFileValidator.isValidAudioFile(tempFile(byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x64.toByte()))))</ID>
+    <ID>MaxLineLength:AudioResolver.kt$AudioResolverPipeline$candidate != null &amp;&amp; !candidate.isPreview &amp;&amp; candidate.score &gt;= MatchScorer.MIN_CONFIDENCE</ID>
+    <ID>MaxLineLength:AudiusClient.kt$AudiusClient$val url = "$node/v1/full/tracks/search?query=${URLEncoder.encode(query, "UTF-8")}&amp;limit=$limit&amp;app_name=SincEnhanced"</ID>
+    <ID>MaxLineLength:DeezerClient.kt$DeezerClient$artworkUrl = album.optString("cover_big", album.optString("cover_medium", album.optString("cover", null)))</ID>
+    <ID>MaxLineLength:DeezerClient.kt$DeezerClient$suspend</ID>
+    <ID>MaxLineLength:DeezerClient.kt$DeezerClient$val json = deezerGet("https://api.deezer.com/playlist/$playlistId/tracks?index=$index&amp;limit=$limit") ?: return@withContext emptyList()</ID>
+    <ID>MaxLineLength:DeezerClient.kt$DeezerClient$val url = "https://api.deezer.com/search/playlist?q=${java.net.URLEncoder.encode(query, "UTF-8")}&amp;limit=$limit&amp;output=json"</ID>
+    <ID>MaxLineLength:DeezerClient.kt$DeezerClient$val url = "https://api.deezer.com/search/track?q=${java.net.URLEncoder.encode(query, "UTF-8")}&amp;limit=$limit&amp;output=json"</ID>
+    <ID>MaxLineLength:DownloadDao.kt$DownloadDao$@Query("SELECT source, COUNT(*) as count FROM downloads WHERE status = '$STATUS_COMPLETED' GROUP BY source ORDER BY count DESC")</ID>
+    <ID>MaxLineLength:DownloadDao.kt$DownloadDao$@Query("UPDATE downloads SET filePath = :filePath, fileSize = :fileSize, status = '$STATUS_COMPLETED', completedAt = :completedAt, source = :source WHERE trackId = :trackId")</ID>
+    <ID>MaxLineLength:DownloadDao.kt$DownloadDao$suspend</ID>
+    <ID>MaxLineLength:DownloadRepository.kt$DownloadRepository$override suspend</ID>
+    <ID>MaxLineLength:FreeMusicArchiveClient.kt$FreeMusicArchiveClient$audioUrl = "https://freemusicarchive.org/music/${item.optString("artist_name")?.replace(" ", "-")}/download/$trackId/${item.optString("track_title")?.replace(" ", "-")}.mp3"</ID>
+    <ID>MaxLineLength:HomeScreen.kt$FilterChip(selected = false, onClick = { onSearchQuery("chill relaxing music") }, label = { Text("😌 Chill") })</ID>
+    <ID>MaxLineLength:HomeScreen.kt$FilterChip(selected = false, onClick = { onSearchQuery("energetic workout music") }, label = { Text("⚡ Energetic") })</ID>
+    <ID>MaxLineLength:HomeScreen.kt$FilterChip(selected = false, onClick = { onSearchQuery("focus study music") }, label = { Text("🎯 Focus") })</ID>
+    <ID>MaxLineLength:HtmlPageScraper.kt$HtmlPageScraper.Companion$"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36"</ID>
+    <ID>MaxLineLength:ImportPlaylistScreen.kt$Text("$available available to download", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:ImportPlaylistScreen.kt$Text("${uiState.tracks.size} tracks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:ImportPlaylistScreen.kt$Text("by ${uiState.playlistOwner}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:ImportPlaylistScreen.kt$Text(track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)</ID>
+    <ID>MaxLineLength:ImportPlaylistScreen.kt$Text(track.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)</ID>
+    <ID>MaxLineLength:ImportPlaylistScreen.kt$val firstAvailable = uiState.tracks.firstOrNull { uiState.trackAudioUrls.containsKey(it.id) }</ID>
+    <ID>MaxLineLength:ImportPlaylistViewModel.kt$ImportPlaylistViewModel$_uiState.value = _uiState.value.copy(isLoading = false, error = "Could not fetch playlist. Check the URL and try again.")</ID>
+    <ID>MaxLineLength:ImportPlaylistViewModel.kt$ImportPlaylistViewModel$_uiState.value = state.copy(isLoading = true, requiresConfirmation = false, downloadProgress = "Resolving tracks...")</ID>
+    <ID>MaxLineLength:ImportPlaylistViewModel.kt$ImportPlaylistViewModel$downloadProgress = if (result.totalTrackCount &gt; 200) "Playlist has ${result.totalTrackCount} tracks. Confirm to proceed." else ""</ID>
+    <ID>MaxLineLength:ImportPlaylistViewModel.kt$ImportPlaylistViewModel$private suspend</ID>
+    <ID>MaxLineLength:ImportPlaylistViewModel.kt$ImportPlaylistViewModel.Factory$return ImportPlaylistViewModel(c.spotifyClient, c.deezerClient, c.searchRepository, c.downloadRepository) as T</ID>
+    <ID>MaxLineLength:LibraryScreen.kt$Icon(Icons.Default.MoreVert, "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:LibraryScreen.kt$Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:LoginScreen.kt$keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(); viewModel.login(username, password) })</ID>
+    <ID>MaxLineLength:LoginViewModel.kt$LoginViewModel$_uiState.value = _uiState.value.copy(isLoading = false, isAuthenticating = false, error = "Login failed. Check credentials.")</ID>
+    <ID>MaxLineLength:LoginViewModel.kt$LoginViewModel$_uiState.value = _uiState.value.copy(isLoading = false, isConnecting = false, isAuthenticating = false, error = "Connection error: ${e.message}")</ID>
+    <ID>MaxLineLength:LyricsClient.kt$LyricsClient$private suspend</ID>
+    <ID>MaxLineLength:LyricsClient.kt$LyricsClient$suspend</ID>
+    <ID>MaxLineLength:MatchScorer.kt$MatchScorer$"(?&lt;![\\p{L}\\p{N}])(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|hq|hd|official|video|lyric|lyrics)(?![\\p{L}\\p{N}])"</ID>
+    <ID>MaxLineLength:MatchScorer.kt$MatchScorer$"(?&lt;![\\p{L}\\p{N}])(feat|ft|featuring|remastered|remaster|expanded|deluxe|explicit|live|anniversary|version|edit|mix|radio\\s*edit|mono|stereo|audio|official|video|lyric|lyrics|hq|hd|4k|1080p|60fps|visualizer|official\\s*audio|official\\s*video|official\\s*lyric|music\\s*video|lyric\\s*video|full\\s*album|single|album\\s*version|extended|short|short\\s*version)(?![\\p{L}\\p{N}])"</ID>
+    <ID>MaxLineLength:MatchScorer.kt$MatchScorer$normEa.length &gt;= 3 &amp;&amp; (faNorm.contains(normEa) || normEa.contains(faNorm)) -&gt; authorScore = maxOf(authorScore, 2.5)</ID>
+    <ID>MaxLineLength:MatchScorerTest.kt$MatchScorerTest$assertTrue("Duration should increase score, without=$withoutDuration with=$withDuration", withDuration &gt; withoutDuration)</ID>
+    <ID>MaxLineLength:MusicPlayer.kt$MusicPlayer.&lt;no name provided&gt;$if</ID>
+    <ID>MaxLineLength:NotificationHelper.kt$NotificationHelper$.</ID>
+    <ID>MaxLineLength:PermissionManager.kt$"Sinc Enhanced needs access to your music files. Please enable the permission in Settings."</ID>
+    <ID>MaxLineLength:PipedClient.kt$PipedClient$suspend</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.AutoMirrored.Filled.QueueMusic, "No lyrics available", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.Alarm, "Sleep Timer", modifier = Modifier.size(24.dp), tint = if (sleepTimerMinutes &gt; 0) primaryColor else MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.ArrowDropDown, "Move down", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.ArrowDropUp, "Move up", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.Close, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.FastForward, "Speed", modifier = Modifier.size(24.dp), tint = if (speed != 1.0f) primaryColor else MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.MusicNote, "Album artwork placeholder", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.MusicNote, "Now playing indicator", tint = primaryColor, modifier = Modifier.size(20.dp))</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.Share, "Share", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.SkipNext, "Next", modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Icon(Icons.Default.SkipPrevious, "Previous", modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$PlaybackControls(isPlaying = uiState.isPlaying, onPlayPause = { viewModel.togglePlayPause() }, onSkipNext = { viewModel.skipToNext() }, onSkipPrevious = { viewModel.skipToPrevious() }, primaryColor = primaryColor)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$SecondaryControls(speed = uiState.speed, sleepTimerMinutes = uiState.sleepTimerMinutes, repeatMode = uiState.repeatMode, shuffleMode = uiState.shuffleMode, onSpeedChange = { viewModel.setSpeed(it) }, onSleepTimerChange = { viewModel.setSleepTimer(it) }, onRepeatChange = { viewModel.setRepeatMode(it) }, onShuffleChange = { viewModel.setShuffleMode(it) }, onSpeedClick = { showSpeedDialog = true }, onSleepTimerClick = { showSleepTimerDialog = true }, onNavigateQueue = onNavigateQueue, onShare = if (onShareTrack != null) { { onShareTrack(track.title, track.artist) } } else null, primaryColor = primaryColor)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Text("Timer active: ${currentMinutes}min", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Text(text = "Lyrics", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = primaryColor)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Text(text = "No lyrics found", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$Text(text = "Queue (${queue.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = primaryColor)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$TrackInfo(title = track.title, artist = track.artist, source = track.source, primaryColor = primaryColor)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$color = if (isCurrent) primaryColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$modifier = Modifier.fillMaxWidth().clickable { onSpeedSelected(speed) }.padding(vertical = 8.dp)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$modifier = Modifier.fillMaxWidth().clickable { onTimerSelected(minutes) }.padding(vertical = 8.dp)</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$progress = if (uiState.duration &gt; 0) uiState.position.toFloat() / uiState.duration.toFloat() else 0f</ID>
+    <ID>MaxLineLength:PlayerScreen.kt$val options = listOf(5 to "5 minutes", 10 to "10 minutes", 15 to "15 minutes", 30 to "30 minutes", 45 to "45 minutes", 60 to "1 hour", 90 to "1.5 hours", 120 to "2 hours")</ID>
+    <ID>MaxLineLength:PlayerViewModel.kt$PlayerViewModel$currentQueueIndex = playerState.queue.indexOfFirst { it.id == playerState.currentTrack?.id }.coerceAtLeast(0)</ID>
+    <ID>MaxLineLength:PlayerWidgetProvider.kt$PlayerWidgetProvider$views.setOnClickPendingIntent(R.id.widget_next, PendingIntent.getService(context, 2, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))</ID>
+    <ID>MaxLineLength:PlayerWidgetProvider.kt$PlayerWidgetProvider$views.setOnClickPendingIntent(R.id.widget_play_pause, PendingIntent.getService(context, 0, playIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))</ID>
+    <ID>MaxLineLength:PlayerWidgetProvider.kt$PlayerWidgetProvider$views.setOnClickPendingIntent(R.id.widget_prev, PendingIntent.getService(context, 1, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))</ID>
+    <ID>MaxLineLength:PlaylistDao.kt$PlaylistDao$@Query("SELECT pt.* FROM playlist_tracks pt INNER JOIN playlists p ON p.id = pt.playlistId WHERE pt.trackId = :trackId")</ID>
+    <ID>MaxLineLength:PlaylistDao.kt$PlaylistDao$@Query("UPDATE playlists SET trackCount = (SELECT COUNT(*) FROM playlist_tracks WHERE playlistId = :playlistId), updatedAt = :now WHERE id = :playlistId")</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Button(onClick = { if (name.isNotBlank()) viewModel.updatePlaylist(name, description) }) { Text("Save") }</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Icon(Icons.AutoMirrored.Filled.QueueMusic, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Icon(Icons.Default.Delete, "${uiState.selectedTrackIds.size} selected", tint = MaterialTheme.colorScheme.error)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Icon(Icons.Default.ErrorOutline, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Icon(Icons.Default.PlayArrow, "Resolve &amp; Play", tint = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Icon(Icons.Default.RemoveCircleOutline, "Remove", tint = MaterialTheme.colorScheme.error)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, singleLine = true)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Text("${uiState.tracks.size} tracks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Text("Add tracks from the Library", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Text("This playlist is empty", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Text(p.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$Text(uiState.error ?: "", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$com.sinc.enhanced.SincApp.instance.container.searchRepository.findBestAudioForTrack(track)?.first</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$putExtra(com.sinc.enhanced.service.DownloadService.EXTRA_TRACK_ID, track.id)</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$val</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$val repo = com.sinc.enhanced.SincApp.instance.container.downloadRepository</ID>
+    <ID>MaxLineLength:PlaylistDetailScreen.kt$val t = Track(id = restored.trackId, title = restored.title, artist = restored.artist, album = restored.album, durationMs = restored.durationMs, artworkUrl = restored.artworkUrl, source = restored.source)</ID>
+    <ID>MaxLineLength:PlaylistDetailViewModel.kt$PlaylistDetailViewModel$val updated = p.copy(name = name.trim(), description = description.trim(), updatedAt = System.currentTimeMillis())</ID>
+    <ID>MaxLineLength:PlaylistListScreen.kt$Icon(Icons.AutoMirrored.Filled.PlaylistPlay, null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)</ID>
+    <ID>MaxLineLength:PlaylistListScreen.kt$Icon(Icons.AutoMirrored.Filled.PlaylistPlay, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistListScreen.kt$Text("${playlist.trackCount} tracks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistListScreen.kt$Text("Error", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)</ID>
+    <ID>MaxLineLength:PlaylistListScreen.kt$Text("No playlists yet", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:PlaylistListScreen.kt$Text(playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)</ID>
+    <ID>MaxLineLength:PlaylistRepository.kt$PlaylistRepository$override fun getTracksFlow(playlistId: String): Flow&lt;List&lt;PlaylistTrackEntity&gt;&gt;</ID>
+    <ID>MaxLineLength:PlaylistRepository.kt$PlaylistRepository$val entity = PlaylistEntity(name = name.trim(), description = description.trim(), createdAt = now, updatedAt = now)</ID>
+    <ID>MaxLineLength:RecommendationDao.kt$RecommendationDao$@Query("SELECT DISTINCT artist FROM play_counts ORDER BY (SELECT SUM(p2.count) FROM play_counts p2 WHERE p2.artist = play_counts.artist) DESC LIMIT 20")</ID>
+    <ID>MaxLineLength:RecommendationDao.kt$RecommendationDao$suspend</ID>
+    <ID>MaxLineLength:RegisterScreen.kt$if</ID>
+    <ID>MaxLineLength:RegisterViewModel.kt$RegisterViewModel$_uiState.value = _uiState.value.copy(isLoading = false, error = "Registration failed. Username may be taken.")</ID>
+    <ID>MaxLineLength:RetryPolicyTest.kt$RetryPolicyTest$assertTrue("delay[$i]=${delays[i]} should be &gt;= delay[${i - 1}]=${delays[i - 1]}", delays[i] &gt;= delays[i - 1])</ID>
+    <ID>MaxLineLength:SearchBar.kt$Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:SearchBar.kt$Icon(imageVector = Icons.Default.Mic, contentDescription = "Voice search", tint = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:SearchBar.kt$Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:SearchRepository.kt$SearchRepository$cacheDao.put(CacheEntryEntity("search:$normalized", serializeEnrichedTracks(results), System.currentTimeMillis() + 900_000L))</ID>
+    <ID>MaxLineLength:SearchRepository.kt$SearchRepository$private fun List&lt;EnrichedTrack&gt;.asResults()</ID>
+    <ID>MaxLineLength:SearchScreen.kt$Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:SearchScreen.kt$Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:SearchScreen.kt$Icon(Icons.Default.PlayArrow, "Play", tint = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:SearchScreen.kt$else -&gt; source.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } to MaterialTheme.colorScheme.primary</ID>
+    <ID>MaxLineLength:SearchScreen.kt$historyViewModel: SearchHistoryViewModel = viewModel(factory = SearchHistoryViewModel.Factory(SincApp.instance.container.database.searchHistoryDao()))</ID>
+    <ID>MaxLineLength:SearchScreen.kt$onPreview = if (displayUrl != null &amp;&amp; onPreview != null) { { onPreview(enriched.track, displayUrl) } } else null</ID>
+    <ID>MaxLineLength:SearchScreen.kt$renderResults(uiState, spotifyResults, nonSpotifyResults, listState, onPlayTrack, onDownloadTrack, onNavigateTrack, onNavigateArtist, viewModel, onPreview)</ID>
+    <ID>MaxLineLength:SearchSourceOrchestrator.kt$SearchSourceOrchestrator$private suspend</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Import Library")</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Export Library")</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// OutlinedTextField(value = "System Default", onValueChange = { }, readOnly = true, modifier = Modifier.menuAnchor().width(180.dp), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Text("App Language", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Text("Bit-perfect Playback", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Text("Crossfeed (Headphones)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Text("Downmix to Mono", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Text("Dynamic Range Compression", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Text("Requires app restart", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Text("Scrobble to Last.fm", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// Text("Send listening data to Last.fm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$// listOf("System Default", "English", "Spanish", "French", "German", "Arabic", "Hindi").forEach { lang -&gt;</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$Icon(Icons.Default.Cloud, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Clear Cache")</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$Icon(Icons.Default.MusicNote, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$OutlinedButton</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$Text("Cache stores resolved audio URLs for faster loading.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$Text("Download", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$Text("Streaming", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$text = "A native Android music downloader.\nSearch, download, and play music from Spotify, YouTube, Deezer, and SoundCloud."</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$val authState by authRepository.authState.collectAsStateWithLifecycle(initialValue = com.sinc.enhanced.data.repository.AuthState())</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$val downloadCount by SincApp.instance.container.downloadRepository.completedDownloads.collectAsStateWithLifecycle(initialValue = emptyList())</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$visualTransformation = if (showArl) VisualTransformation.None else PasswordVisualTransformation()</ID>
+    <ID>MaxLineLength:ShimmerEffect.kt$ShimmerBox(modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(4.dp)), shimmerBrush = brush)</ID>
+    <ID>MaxLineLength:ShimmerEffect.kt$ShimmerBox(modifier = Modifier.fillMaxWidth(0.4f).height(12.dp).clip(RoundedCornerShape(4.dp)), shimmerBrush = brush)</ID>
+    <ID>MaxLineLength:ShimmerEffect.kt$ShimmerBox(modifier = Modifier.fillMaxWidth(0.7f).height(14.dp).clip(RoundedCornerShape(4.dp)), shimmerBrush = brush)</ID>
+    <ID>MaxLineLength:ShimmerEffect.kt$ShimmerBox(modifier = Modifier.width(80.dp).height(10.dp).clip(RoundedCornerShape(4.dp)), shimmerBrush = brush)</ID>
+    <ID>MaxLineLength:SoundCloudClient.kt$SoundCloudClient$val url = "https://api-v2.soundcloud.com/search/tracks?q=${java.net.URLEncoder.encode(query, "UTF-8")}&amp;client_id=$clientId&amp;limit=$limit"</ID>
+    <ID>MaxLineLength:SpotifyEntityParser.kt$SpotifyEntityParser$artworkUrl = albumData?.optJSONObject("coverArt")?.optJSONArray("sources")?.optJSONObject(0)?.optString("url")</ID>
+    <ID>MaxLineLength:SpotifyEntityParser.kt$SpotifyEntityParser$val artistData = items.getJSONObject(i).optJSONObject("item")?.optJSONObject("data") ?: return@mapNotNull null</ID>
+    <ID>MaxLineLength:SpotifyEntityParserTest.kt$SpotifyEntityParserTest$JSONObject().put("sources", org.json.JSONArray().put(JSONObject().put("url", "https://avatar.jpg")))</ID>
+    <ID>MaxLineLength:SpotifyEntityParserTest.kt$SpotifyEntityParserTest$JSONObject().put("sources", org.json.JSONArray().put(JSONObject().put("url", "https://rel.jpg")))</ID>
+    <ID>MaxLineLength:SpotifyEntityParserTest.kt$SpotifyEntityParserTest$val json = JSONObject().put("data", JSONObject().put("searchV2", JSONObject().put("albumsV2", JSONObject().put("items", items))))</ID>
+    <ID>MaxLineLength:SpotifyEntityParserTest.kt$SpotifyEntityParserTest$val json = JSONObject().put("data", JSONObject().put("searchV2", JSONObject().put("artistsV2", JSONObject().put("items", items))))</ID>
+    <ID>MaxLineLength:TrackDetailScreen.kt$CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)</ID>
+    <ID>MaxLineLength:TrackDetailScreen.kt$Text("Artist", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))</ID>
+    <ID>MaxLineLength:TrackDetailScreen.kt$Text(track.album, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:TrackDetailScreen.kt$Text(track.durationFormatted, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:TrackDetailScreen.kt$Text(track.title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)</ID>
+    <ID>MaxLineLength:TrackDetailScreen.kt$val fallback = SincApp.instance.container.artworkClient.findArtwork(track.title, track.artist)</ID>
+    <ID>MaxLineLength:TrackItem.kt$else -&gt; source.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } to MaterialTheme.colorScheme.primary</ID>
+    <ID>MaxLineLength:TrackItem.kt$onClick = { showMenu = false; haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() }</ID>
+    <ID>MaxLineLength:TrackItem.kt$onClick = { showMenu = false; haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onPreview() }</ID>
+    <ID>NewLineAtEndOfFile:AppError.kt$com.sinc.enhanced.data.error.AppError.kt</ID>
+    <ID>NewLineAtEndOfFile:ArtworkClient.kt$com.sinc.enhanced.data.remote.ArtworkClient.kt</ID>
+    <ID>NewLineAtEndOfFile:AudiusClient.kt$com.sinc.enhanced.data.remote.AudiusClient.kt</ID>
+    <ID>NewLineAtEndOfFile:AudiusSearchSource.kt$com.sinc.enhanced.data.repository.AudiusSearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:BandcampClient.kt$com.sinc.enhanced.data.remote.BandcampClient.kt</ID>
+    <ID>NewLineAtEndOfFile:BandcampSearchSource.kt$com.sinc.enhanced.data.repository.BandcampSearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:CacheEntryEntity.kt$com.sinc.enhanced.data.local.entity.CacheEntryEntity.kt</ID>
+    <ID>NewLineAtEndOfFile:CacheManager.kt$com.sinc.enhanced.data.local.CacheManager.kt</ID>
+    <ID>NewLineAtEndOfFile:DeezerSearchSource.kt$com.sinc.enhanced.data.repository.DeezerSearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:DownloadDao.kt$com.sinc.enhanced.data.local.dao.DownloadDao.kt</ID>
+    <ID>NewLineAtEndOfFile:DownloadEntity.kt$com.sinc.enhanced.data.local.entity.DownloadEntity.kt</ID>
+    <ID>NewLineAtEndOfFile:DownloadRepository.kt$com.sinc.enhanced.domain.repository.DownloadRepository.kt</ID>
+    <ID>NewLineAtEndOfFile:FmaSearchSource.kt$com.sinc.enhanced.data.repository.FmaSearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:FreeMusicArchiveClient.kt$com.sinc.enhanced.data.remote.FreeMusicArchiveClient.kt</ID>
+    <ID>NewLineAtEndOfFile:HistoryEntity.kt$com.sinc.enhanced.data.local.entity.HistoryEntity.kt</ID>
+    <ID>NewLineAtEndOfFile:IdGenerator.kt$com.sinc.enhanced.data.util.IdGenerator.kt</ID>
+    <ID>NewLineAtEndOfFile:JamendoClient.kt$com.sinc.enhanced.data.remote.JamendoClient.kt</ID>
+    <ID>NewLineAtEndOfFile:JamendoSearchSource.kt$com.sinc.enhanced.data.repository.JamendoSearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:LikedTrackEntity.kt$com.sinc.enhanced.data.local.entity.LikedTrackEntity.kt</ID>
+    <ID>NewLineAtEndOfFile:LyricsCacheEntity.kt$com.sinc.enhanced.data.local.entity.LyricsCacheEntity.kt</ID>
+    <ID>NewLineAtEndOfFile:MediaPlaybackService.kt$com.sinc.enhanced.service.MediaPlaybackService.kt</ID>
+    <ID>NewLineAtEndOfFile:NotificationHelper.kt$com.sinc.enhanced.service.NotificationHelper.kt</ID>
+    <ID>NewLineAtEndOfFile:PipedSearchSource.kt$com.sinc.enhanced.data.repository.PipedSearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:PlayerController.kt$com.sinc.enhanced.domain.player.PlayerController.kt</ID>
+    <ID>NewLineAtEndOfFile:PlayerMiniBar.kt$com.sinc.enhanced.ui.components.PlayerMiniBar.kt</ID>
+    <ID>NewLineAtEndOfFile:PlayerScreen.kt$com.sinc.enhanced.ui.screens.player.PlayerScreen.kt</ID>
+    <ID>NewLineAtEndOfFile:PlaylistDao.kt$com.sinc.enhanced.data.local.dao.PlaylistDao.kt</ID>
+    <ID>NewLineAtEndOfFile:QueueScreen.kt$com.sinc.enhanced.ui.screens.queue.QueueScreen.kt</ID>
+    <ID>NewLineAtEndOfFile:SavedTrackEntity.kt$com.sinc.enhanced.data.local.entity.SavedTrackEntity.kt</ID>
+    <ID>NewLineAtEndOfFile:SearchHistoryViewModel.kt$com.sinc.enhanced.ui.screens.search.SearchHistoryViewModel.kt</ID>
+    <ID>NewLineAtEndOfFile:SearchScreen.kt$com.sinc.enhanced.ui.screens.search.SearchScreen.kt</ID>
+    <ID>NewLineAtEndOfFile:SearchSource.kt$com.sinc.enhanced.data.repository.SearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:SearchViewModel.kt$com.sinc.enhanced.ui.screens.search.SearchViewModel.kt</ID>
+    <ID>NewLineAtEndOfFile:Semaphore.kt$com.sinc.enhanced.data.util.Semaphore.kt</ID>
+    <ID>NewLineAtEndOfFile:SettingsManager.kt$com.sinc.enhanced.data.local.SettingsManager.kt</ID>
+    <ID>NewLineAtEndOfFile:SettingsRepository.kt$com.sinc.enhanced.domain.repository.SettingsRepository.kt</ID>
+    <ID>NewLineAtEndOfFile:SoundCloudClient.kt$com.sinc.enhanced.data.remote.SoundCloudClient.kt</ID>
+    <ID>NewLineAtEndOfFile:SoundCloudSearchSource.kt$com.sinc.enhanced.data.repository.SoundCloudSearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:SpotifySearchSource.kt$com.sinc.enhanced.data.repository.SpotifySearchSource.kt</ID>
+    <ID>NewLineAtEndOfFile:UserLibraryDao.kt$com.sinc.enhanced.data.local.dao.UserLibraryDao.kt</ID>
+    <ID>NewLineAtEndOfFile:UserLibraryRepository.kt$com.sinc.enhanced.data.repository.UserLibraryRepository.kt</ID>
+    <ID>NewLineAtEndOfFile:UserLibraryRepository.kt$com.sinc.enhanced.domain.repository.UserLibraryRepository.kt</ID>
+    <ID>SwallowedException:AdminScreen.kt$e: Exception</ID>
+    <ID>SwallowedException:AuthRepository.kt$AuthRepository$e: com.sinc.enhanced.data.remote.ApiClient.ApiException</ID>
+    <ID>SwallowedException:DownloadService.kt$DownloadService$e: Exception</ID>
+    <ID>SwallowedException:HomeViewModel.kt$HomeViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionThrown:AnonymousTokenProvider.kt$AnonymousTokenProvider$throw Exception("Empty __NEXT_DATA__ match")</ID>
+    <ID>TooGenericExceptionThrown:AnonymousTokenProvider.kt$AnonymousTokenProvider$throw Exception("Failed to fetch embed page")</ID>
+    <ID>TooGenericExceptionThrown:AnonymousTokenProvider.kt$AnonymousTokenProvider$throw Exception("No __NEXT_DATA__ in embed page")</ID>
+    <ID>TooGenericExceptionThrown:AuthRepository.kt$AuthRepository$throw Exception("Server unreachable at $trimmed")</ID>
+    <ID>TooGenericExceptionThrown:RetryCallTest.kt$RetryCallTest$throw RuntimeException("boom")</ID>
+    <ID>TooGenericExceptionThrown:SearchSourceOrchestratorTest.kt$SearchSourceOrchestratorTest$throw RuntimeException("boom")</ID>
+    <ID>TooManyFunctions:DownloadDao.kt$DownloadDao</ID>
+    <ID>TooManyFunctions:MusicPlayer.kt$MusicPlayer : PlayerController</ID>
+    <ID>TooManyFunctions:PlaylistDao.kt$PlaylistDao</ID>
+    <ID>UnusedParameter:HomeScreen.kt$onNavigateSettings: () -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:LoginScreen.kt$onNavigateSettings: () -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$onNavigateArtist: (String) -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$onNavigateQueue: (() -&gt; Unit)?</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$onRepeatChange: (com.sinc.enhanced.domain.player.RepeatMode) -&gt; Unit</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$onShuffleChange: (com.sinc.enhanced.domain.player.ShuffleMode) -&gt; Unit</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$onSleepTimerChange: (Int) -&gt; Unit</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$onSpeedChange: (Float) -&gt; Unit</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$primaryColor: androidx.compose.ui.graphics.Color</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$repeatMode: com.sinc.enhanced.domain.player.RepeatMode</ID>
+    <ID>UnusedParameter:PlayerScreen.kt$shuffleMode: com.sinc.enhanced.domain.player.ShuffleMode</ID>
+    <ID>UnusedParameter:RegisterScreen.kt$onNavigateSettings: () -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:SearchScreen.kt$initialQuery: String = ""</ID>
+    <ID>UnusedParameter:SpotifyClient.kt$SpotifyClient$market: String = "US"</ID>
+    <ID>UnusedParameter:TrackDetailScreen.kt$onDownloadTrack: ((Track, String) -&gt; Unit)? = null</ID>
+    <ID>UnusedPrivateProperty:AppNavigation.kt$val isTablet = configuration.screenWidthDp &gt;= 840</ID>
+    <ID>UnusedPrivateProperty:AudioFileValidator.kt$AudioFileValidator$val u3 = header[3].toInt() and 0xFF</ID>
+    <ID>UnusedPrivateProperty:DeezerClient.kt$DeezerClient$val img = json.optJSONObject("picture") ?: json</ID>
+    <ID>UnusedPrivateProperty:ImportPlaylistScreen.kt$val scope = rememberCoroutineScope()</ID>
+    <ID>UnusedPrivateProperty:PipedClient.kt$PipedClient$private val client: OkHttpClient</ID>
+    <ID>UnusedPrivateProperty:StatsRepository.kt$StatsRepository$val now = Calendar.getInstance()</ID>
+    <ID>WildcardImport:AddToPlaylistSheet.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AddToPlaylistSheet.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:AddToPlaylistSheet.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AdminScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AdminScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:AdminScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AppNavigation.kt$import androidx.compose.animation.*</ID>
+    <ID>WildcardImport:AppNavigation.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AppNavigation.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ArtistDetailScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ArtistDetailScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:ArtistDetailScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AuthRepositoryTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:BottomNavBar.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:DownloadDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:DownloadProgress.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DownloadProgress.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:HistoryDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:HistoryScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HistoryScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:HistoryScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:HomeScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HomeScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:HomeScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:HomeViewModelTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ImportPlaylistScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ImportPlaylistScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:ImportPlaylistScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ImportPlaylistViewModelTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:LibraryScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:LibraryScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:LibraryScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:LoginScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:LoginScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:LoginScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:LoginScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MainActivity.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MatchScorerTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:PermissionManager.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PermissionManager.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:PermissionManager.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:PlayerMiniBar.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PlayerMiniBar.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:PlayerScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PlayerScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:PlayerScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:PlayerScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:PlaylistDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:PlaylistDetailScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PlaylistDetailScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:PlaylistDetailScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:PlaylistDetailScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:PlaylistListScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PlaylistListScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:PlaylistListScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:QueueScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:QueueScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:QueueScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:QueueScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:RegisterScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:RegisterScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:RegisterScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SearchBar.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SearchScreen.kt$import androidx.compose.animation.*</ID>
+    <ID>WildcardImport:SearchScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SearchScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:SearchScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SearchScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SearchViewModelTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SettingsScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SettingsScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:SettingsScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SettingsScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SpotifyClientTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:TrackDetailScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:TrackDetailScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:TrackDetailScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:TrackItem.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:TrackItem.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:TrackItem.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:TrackTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:UserLibraryDao.kt$import androidx.room.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

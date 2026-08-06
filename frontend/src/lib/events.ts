@@ -16,7 +16,7 @@ type EventMap = {
 type EventCallback<E extends keyof EventMap> = (payload: EventMap[E]) => void
 
 class EventBus {
-  private listeners = new Map<string, Set<Function>>()
+  private listeners = new Map<string, Set<(payload: any) => void>>()
 
   on<E extends keyof EventMap>(event: E, cb: EventCallback<E>): () => void {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set())

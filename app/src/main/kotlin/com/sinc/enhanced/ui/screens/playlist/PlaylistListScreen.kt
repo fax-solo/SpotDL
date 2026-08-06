@@ -26,7 +26,7 @@ import com.sinc.enhanced.data.local.entity.PlaylistEntity
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistListScreen(
-    onPlaylistClick: (Int) -> Unit,
+    onPlaylistClick: (String) -> Unit,
     onImportPlaylist: () -> Unit,
     viewModel: PlaylistListViewModel = viewModel(factory = PlaylistListViewModel.Factory())
 ) {

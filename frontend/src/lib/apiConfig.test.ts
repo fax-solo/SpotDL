@@ -23,14 +23,21 @@ describe('getApiBase', () => {
     expect(getApiBase()).toBe('https://spotify-downloader-5v5.pages.dev')
   })
 
+  it('uses the production API on web without an env override', () => {
+    mockIsNative.mockReturnValue(false)
+    expect(getApiBase()).toBe('https://spotify-downloader-5v5.pages.dev')
+  })
+
   it('prefers VITE_API_URL over the native default', () => {
     mockIsNative.mockReturnValue(true)
     vi.stubEnv('VITE_API_URL', 'http://localhost:8000')
     expect(getApiBase()).toBe('http://localhost:8000')
   })
 
-  it('returns an empty string for the web build without an env override', () => {
-    expect(getApiBase()).toBe('')
+  it('prefers VITE_API_URL over the web default', () => {
+    mockIsNative.mockReturnValue(false)
+    vi.stubEnv('VITE_API_URL', 'http://localhost:8000')
+    expect(getApiBase()).toBe('http://localhost:8000')
   })
 })
 
@@ -67,12 +74,10 @@ describe('checkApiReachability', () => {
     expect(await checkApiReachability()).toBe(false)
   })
 
-  it('skips the check when the base URL is empty (same-origin web)', async () => {
+  it('returns true when the base URL is set and ping succeeds on web', async () => {
     mockIsNative.mockReturnValue(false)
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
     expect(await checkApiReachability()).toBe(true)
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 

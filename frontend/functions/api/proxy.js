@@ -1,5 +1,9 @@
 import { checkRateLimit } from './_lib/rate_limit'
 
+// @deprecated Audio streaming proxy for the legacy web frontend. New clients
+// should download via the FastAPI backend (POST /api/resolve-audio), which
+// returns direct audio URLs without edge proxying.
+
 const DEFAULT_CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Range', 'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Content-Type' }
 
 const ALLOWED_HOSTS = [

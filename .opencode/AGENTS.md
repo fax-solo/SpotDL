@@ -11,6 +11,9 @@
 - `deploy` — Build and deploy frontend to Cloudflare Pages
 - `frontend/npm run build` — Build the frontend
 - `frontend/npm run cf:deploy` — Deploy to Cloudflare Pages
+- `frontend/npm run lint` — ESLint (flat config `eslint.config.js`, 0 errors required; warnings allowed)
+- `app/./gradlew detekt` — Detekt static analysis (baseline in `app/config/detekt-baseline.xml`; new issues fail the build)
+- `app/./gradlew testDebugUnitTest` — Android unit tests
 
 ## Env vars needed for Cloudflare deployment
 The following env vars should be set in the Cloudflare Pages dashboard:
@@ -56,11 +59,14 @@ Save the keystore file, its password, key alias, and key password in a password 
 Never commit the `.keystore` file or its passwords to the repo.
 
 ## Important notes
+- `app/src/main/kotlin/com/sinc/enhanced/data/util/retry/` — shared retry infrastructure: `retryCall(key, policy, breaker)` with `RetryPolicy` (exponential backoff + jitter, per-call timeout, `retryOnNull`) and per-key `CircuitBreaker` (3 failures → open 30s → half-open). Used by `SearchSourceOrchestrator` (per-source keys) and `SearchRepository` (`piped`, `spotify_track`). Replaces the old inline `RobustCall.kt` (deleted).
+- `SpotifyClient` is now a thin facade over `data/remote/spotify/{AnonymousTokenProvider,PathfinderClient,HtmlPageScraper,SpotifyEntityParser}` — token TTL caching, GraphQL query building and JSON parsing are separate; wired in `ClientModule`.
 - The `functions/` directory contains CF Pages Functions served at `/api/*`
 - After making changes, run `deploy` to build and push to Cloudflare Pages
 - The FastAPI backend (`api/`) handles downloads while auth/API routes use CF Functions
 - `POST /api/resolve-audio` on the FastAPI backend uses yt-dlp to extract the best audio URL for a track (takes `title`, `artist`, `album`, `isrc`, `duration_ms`; returns `url`, `source`, `title`, `artist`, `duration`, `thumbnail`). Protected by `SPOTDL_API_KEY` (Bearer auth).
 - The Android app's `AudioResolverPipeline` tries `YtDlpAudioResolver` (calls FastAPI `/api/resolve-audio`) first, then falls through to Piped → Audius → Jamendo → FMA
+- Audio resolution in `frontend/functions/api/{youtube,proxy,soundcloud}.js` is marked `@deprecated`: it stays for the legacy web frontend (browser CORS), but new clients should use FastAPI `/api/resolve-audio`
 
 ## Cloudflare Worker (auth/stats backend)
 

@@ -6,6 +6,7 @@ import { register, login, me } from "./auth";
 import { ping, trackDownload } from "./stats";
 import { adminStats, adminUsers } from "./admin";
 import { syncPlays, getPlays, syncGenres, getGenres, clearAll } from "./recommendations";
+import { createRateLimitMiddleware } from "./rate_limit";
 
 type Env = {
   DB: D1Database;
@@ -14,19 +15,53 @@ type Env = {
   ADMIN_PASSWORD?: string;
 };
 
+// Allowed origins for CORS - add your production domains here
+const ALLOWED_ORIGINS = [
+  "https://spotify-downloader-5v5.pages.dev",
+  "https://spotify-downloader.pages.dev",
+  // Add any other production domains here
+];
+
 const app = new Hono<{ Bindings: Env; Variables: { userId: number; username: string; role: string } }>();
 
-app.use("/*", cors());
+const corsMiddleware = cors({
+  origin: (origin) => (origin ? ALLOWED_ORIGINS.includes(origin) : true),
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+});
 
-// Public
-app.post("/api/auth/register", register);
-app.post("/api/auth/login", login);
+// CORS with explicit origin allowlist:
+// - Origin present + allowlisted -> CORS headers applied, request proceeds
+// - Origin present + not allowlisted -> 403 (and no CORS headers)
+// - Origin absent (native app) -> no CORS headers, Bearer token required on protected routes
+app.use("/*", async (c, next) => {
+  const origin = c.req.header("Origin")
 
-// Authenticated
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    return c.json({ error: "Forbidden: Origin not allowed" }, 403)
+  }
+
+  return corsMiddleware(c, next)
+})
+
+// Rate limiting middleware
+const loginRateLimit = createRateLimitMiddleware(20, "auth:login")
+const registerRateLimit = createRateLimitMiddleware(10, "auth:register")
+
+// Public (with rate limiting)
+app.post("/api/auth/register", registerRateLimit, register)
+app.post("/api/auth/login", loginRateLimit, login)
+
+// Authenticated - JWT verification without fallback secret
 const auth: Parameters<typeof app.use>[1] = async (c, next) => {
-  const mw = jwt({ secret: c.env.JWT_SECRET || "fallback-secret", alg: "HS256" });
-  return mw(c, next);
-};
+  const secret = c.env.JWT_SECRET
+  if (!secret || secret.length === 0) {
+    return c.json({ error: "Server misconfigured: JWT_SECRET not set" }, 500)
+  }
+  const mw = jwt({ secret, alg: "HS256" })
+  return mw(c, next)
+}
 
 app.get("/api/auth/me", auth, async (c) => {
   const payload = c.get("jwtPayload") as { userId: number; username: string; role: string };

@@ -11,7 +11,7 @@ const { mockFFmpegCtor, mockFFmpegInstance, mockID3WriterModule } = vi.hoisted((
     on = vi.fn()
     off = vi.fn()
     constructor() {
-      lastInstance = this
+      lastInstance = this // eslint-disable-line @typescript-eslint/no-this-alias
     }
   }
 

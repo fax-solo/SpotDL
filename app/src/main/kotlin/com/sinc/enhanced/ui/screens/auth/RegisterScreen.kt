@@ -66,7 +66,7 @@ fun RegisterScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it; viewModel.clearError() },
-            label = { Text("Password (min 6 chars)") },
+            label = { Text("Password (min 8 chars, 1 letter + 1 number)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),

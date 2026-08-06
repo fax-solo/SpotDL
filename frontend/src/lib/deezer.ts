@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core'
-import { apiUrl } from './apiConfig'
+import { callFunction } from './sources/callFunction'
 
 const DEEZER_ARL_KEY = 'deezer_arl'
 const DEEZER_QUALITY_KEY = 'deezer_quality'
@@ -80,32 +80,18 @@ export interface DeezerTrack {
 }
 
 const VALID_QUALITIES = ['FLAC', 'MP3']
-const DEEZER_ERROR_PREFIX = '[deezer]'
-
-async function callFunction(body: Record<string, unknown>) {
-  const res = await fetch(apiUrl('/api/deezer'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    console.warn(`${DEEZER_ERROR_PREFIX} HTTP ${res.status}:`, body.action)
-    return null
-  }
-  return res.json()
-}
 
 export async function searchDeezer(query: string): Promise<DeezerTrack[]> {
-  const data = await callFunction({ action: 'search', query })
+  const data = await callFunction('deezer', { action: 'search', query })
   return data?.results || []
 }
 
 export async function getDeezerTrack(id: number): Promise<DeezerTrack | null> {
-  const data = await callFunction({ action: 'track', id })
+  const data = await callFunction('deezer', { action: 'track', id })
   return data
 }
 
 export async function searchDeezerByIsrc(isrc: string): Promise<DeezerTrack | null> {
-  const data = await callFunction({ action: 'isrc', query: isrc })
+  const data = await callFunction('deezer', { action: 'isrc', query: isrc })
   return data?.track || null
 }

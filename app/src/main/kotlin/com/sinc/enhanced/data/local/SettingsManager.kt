@@ -23,6 +23,7 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
         val DOWNLOAD_QUALITY = intPreferencesKey("download_quality")
         val DOWNLOAD_FORMAT = stringPreferencesKey("download_format")
         val DEEZER_ARL = stringPreferencesKey("deezer_arl")
+        val BATTERY_OPT_PROMPT_SHOWN = booleanPreferencesKey("battery_opt_prompt_shown")
 
         // Cache settings
         val CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
@@ -92,6 +93,10 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
         it[AUDIO_QUALITY] ?: 128
     }
 
+    override val batteryOptPromptShown: Flow<Boolean> = dataStore.data.map {
+        it[BATTERY_OPT_PROMPT_SHOWN] ?: false
+    }
+
     override suspend fun setJamendoClientId(id: String) {
         dataStore.edit { it[JAMENDO_CLIENT_ID] = id }
     }
@@ -150,5 +155,9 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
 
     override suspend fun setAudioQuality(quality: Int) {
         dataStore.edit { it[AUDIO_QUALITY] = quality }
+    }
+
+    override suspend fun setBatteryOptPromptShown(shown: Boolean) {
+        dataStore.edit { it[BATTERY_OPT_PROMPT_SHOWN] = shown }
     }
 }

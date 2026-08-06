@@ -34,6 +34,11 @@ class MediaPlaybackService : MediaSessionService() {
         }
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Return START_STICKY for playback - state is tracked elsewhere in the media session
+        return START_STICKY
+    }
+
     override fun onDestroy() {
         releaseWakeLock()
         super.onDestroy()

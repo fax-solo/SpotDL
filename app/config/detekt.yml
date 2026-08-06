@@ -1,0 +1,40 @@
+# detekt configuration: build upon the default rule set with a few
+# project-specific relaxations for the legacy codebase.
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+style:
+  MagicNumber:
+    active: false
+  UnusedPrivateMember:
+    active: false
+  ReturnCount:
+    max: 8
+
+complexity:
+  LongMethod:
+    threshold: 120
+  TooManyFunctions:
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+    thresholdInInterfaces: 20
+    thresholdInObjects: 20
+  NestedBlockDepth:
+    threshold: 6
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable', 'Test']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][_A-Z0-9]*'
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+  RethrowCaughtException:
+    active: false
+
+coroutines:
+  GlobalCoroutineUsage:
+    active: false

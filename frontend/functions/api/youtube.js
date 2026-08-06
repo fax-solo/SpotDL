@@ -2,6 +2,11 @@ import { scrapeResponse, scrapeError } from './_lib/retry.js'
 import { scrapeLog } from './_lib/log.js'
 import { checkRateLimit } from './_lib/rate_limit'
 
+// @deprecated Audio resolution for new clients: use the FastAPI backend
+// POST /api/resolve-audio (yt-dlp based, SPOTDL_API_KEY protected) instead.
+// This function is kept for the legacy web frontend, which relies on the
+// Pages edge proxy for CORS-safe YouTube/Piped resolution.
+
 const CACHE_TTL = 60000
 const _searchCache = new Map()
 const _infoCache = new Map()

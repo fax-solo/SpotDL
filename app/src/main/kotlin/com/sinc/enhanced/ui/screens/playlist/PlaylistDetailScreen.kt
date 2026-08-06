@@ -29,7 +29,7 @@ import com.sinc.enhanced.ui.components.TrackItem
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistDetailScreen(
-    playlistId: Int,
+    playlistId: String,
     onPlayTrack: (Track) -> Unit,
     onPlayAll: (List<Track>) -> Unit,
     onNavigateBack: () -> Unit,

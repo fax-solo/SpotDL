@@ -71,6 +71,53 @@ object NotificationHelper {
             .build()
     }
 
+    fun buildBatteryOptimizationNotification(context: Context): Notification {
+        createChannels(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = DownloadService.ACTION_BATTERY_OPTIMIZATION
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val dismissIntent = Intent(context, MainActivity::class.java).apply {
+            action = DownloadService.ACTION_BATTERY_OPTIMIZATION
+            putExtra("dismiss", true)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val dismissPendingIntent = PendingIntent.getActivity(
+            context, 1, dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(context, CHANNEL_DOWNLOADS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Allow background downloads?")
+            .setContentText("Enable 'Allow background activity' to keep downloads running when the screen is off")
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Allow Sinc Enhanced to run in the background without battery restrictions. This ensures your downloads complete even when the screen is off."))
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_notification,
+                    "Allow",
+                    pendingIntent
+                ).build()
+            )
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_notification,
+                    "Dismiss",
+                    dismissPendingIntent
+                ).build()
+            )
+            .build()
+    }
+
     fun buildMediaNotification(
         context: Context,
         title: String,

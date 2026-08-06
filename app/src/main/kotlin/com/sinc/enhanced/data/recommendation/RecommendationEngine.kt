@@ -8,6 +8,7 @@ import com.sinc.enhanced.data.local.entity.PlayCountEntity
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.data.repository.SearchRepository
 import com.sinc.enhanced.data.sync.RecommendationSyncManager
+import com.sinc.enhanced.data.util.IdGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
@@ -27,7 +28,7 @@ class RecommendationEngine(
     private val syncManager: RecommendationSyncManager
 ) {
     private var cachedPlaylists: Pair<Long, List<RecommendedPlaylist>>? = null
-    private val cacheTtlMs = 60_000L
+    private val cacheTtlMs = 600_000L // 10 minutes
 
     suspend fun generateHomePlaylists(limit: Int = 5): List<RecommendedPlaylist> = withContext(Dispatchers.Default) {
         cachedPlaylists?.let { (timestamp, playlists) ->
@@ -53,7 +54,7 @@ class RecommendationEngine(
             val similarTracks = findSimilarArtists(topArtists.take(3))
             if (similarTracks.isNotEmpty()) {
                 playlists.add(RecommendedPlaylist(
-                    id = "rec_liked",
+                    id = IdGenerator.generateWithPrefix("rec_liked"),
                     name = "Because You Liked",
                     description = "Tracks from artists similar to your favorites",
                     tracks = similarTracks,
@@ -69,7 +70,7 @@ class RecommendationEngine(
                     .map { it.track }
                 if (tracks.isNotEmpty()) {
                     playlists.add(RecommendedPlaylist(
-                        id = "rec_genre_${genre.hashCode().toLong()}",
+                        id = IdGenerator.generateWithPrefix("rec_genre"),
                         name = genre.replaceFirstChar { it.uppercase() },
                         description = "Top tracks in your favorite genre",
                         tracks = tracks,
@@ -85,7 +86,7 @@ class RecommendationEngine(
                     .take(10).map { it.track }
                 if (moreTracks.isNotEmpty()) {
                     playlists.add(RecommendedPlaylist(
-                        id = "rec_artist_${artist.hashCode().toLong()}",
+                        id = IdGenerator.generateWithPrefix("rec_artist"),
                         name = "More Like $artist",
                         description = "Because you listened to $artist",
                         tracks = moreTracks,
@@ -103,7 +104,7 @@ class RecommendationEngine(
             }.distinctBy { it.id }.take(15)
             if (newReleases.isNotEmpty()) {
                 playlists.add(RecommendedPlaylist(
-                    id = "rec_new_releases",
+                    id = IdGenerator.generateWithPrefix("rec_new_releases"),
                     name = "New Releases For You",
                     description = "Latest tracks in your favorite genres",
                     tracks = newReleases,
@@ -118,7 +119,7 @@ class RecommendationEngine(
             }.distinctBy { it.id }.take(15)
             if (searchBased.isNotEmpty()) {
                 playlists.add(RecommendedPlaylist(
-                    id = "rec_search",
+                    id = IdGenerator.generateWithPrefix("rec_search"),
                     name = "Based on Your Searches",
                     description = "Music related to what you've searched",
                     tracks = searchBased,
@@ -146,8 +147,11 @@ class RecommendationEngine(
             "classical", "rnb", "r&b", "country", "blues", "metal", "punk", "folk",
             "indie", "latin", "reggae", "dance", "soul", "funk", "ambient", "techno",
             "house", "dubstep", "drill", "trap", "lo-fi", "k-pop", "j-pop")
+        
+        // Split query into word tokens and check exact membership
+        val words = queryLower.split(Regex("\\s+")).toSet()
         for (genre in knownGenres) {
-            if (queryLower.contains(genre)) {
+            if (words.contains(genre)) {
                 recommendationDao.recordGenreInteraction(genre, 0.3f)
             }
         }
@@ -161,13 +165,18 @@ class RecommendationEngine(
         val results = mutableListOf<Track>()
         val seen = mutableSetOf<String>()
         for (artist in artists) {
-            val searchResults = searchRepository.searchYouTubeOnly("similar to $artist")
-            for (result in searchResults) {
-                val track = result.track
-                if (track.id !in seen && !track.artist.equals(artist, ignoreCase = true)) {
-                    seen.add(track.id)
-                    results.add(track)
-                    if (results.size >= maxTracks) return results
+            // Use Spotify's related artists endpoint for real similarity data
+            val relatedArtists = searchRepository.getRelatedArtists(artist)
+            for (relatedArtist in relatedArtists) {
+                // Search YouTube for each related artist's top tracks
+                val searchResults = searchRepository.searchYouTubeOnly(relatedArtist.name)
+                for (result in searchResults) {
+                    val track = result.track
+                    if (track.id !in seen && !track.artist.equals(artist, ignoreCase = true)) {
+                        seen.add(track.id)
+                        results.add(track)
+                        if (results.size >= maxTracks) return results
+                    }
                 }
             }
         }

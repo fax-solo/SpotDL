@@ -65,7 +65,7 @@ class PlaylistListViewModel(
         }
     }
 
-    fun deletePlaylist(id: Int) {
+    fun deletePlaylist(id: String) {
         viewModelScope.launch {
             try {
                 playlistRepository.delete(id)
@@ -75,7 +75,7 @@ class PlaylistListViewModel(
         }
     }
 
-    fun renamePlaylist(id: Int, name: String) {
+    fun renamePlaylist(id: String, name: String) {
         viewModelScope.launch {
             try {
                 playlistRepository.rename(id, name)

@@ -20,7 +20,7 @@ import androidx.room.PrimaryKey
 data class PlaylistTrackEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
-    val playlistId: Int,
+    val playlistId: String,
     val trackId: String,
     val title: String,
     val artist: String,

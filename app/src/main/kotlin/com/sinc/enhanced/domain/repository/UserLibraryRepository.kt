@@ -22,7 +22,7 @@ interface UserLibraryRepository {
     suspend fun addToRecentlyPlayed(track: Track, filePath: String? = null)
     suspend fun getRecentlyPlayed(limit: Int = 50): List<HistoryEntity>
 
-    suspend fun addTrackToPlaylist(playlistId: Int, track: Track, filePath: String?)
-    suspend fun removeTrackFromPlaylist(playlistId: Int, trackId: String)
-    suspend fun reorderPlaylistTracks(playlistId: Int, fromIndex: Int, toIndex: Int)
+    suspend fun addTrackToPlaylist(playlistId: String, track: Track, filePath: String?)
+    suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String)
+    suspend fun reorderPlaylistTracks(playlistId: String, fromIndex: Int, toIndex: Int)
 }

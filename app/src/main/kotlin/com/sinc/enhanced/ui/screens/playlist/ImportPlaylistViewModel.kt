@@ -30,9 +30,12 @@ data class ImportPlaylistUiState(
     val playlistOwner: String? = null,
     val tracks: List<Track> = emptyList(),
     val trackAudioUrls: Map<String, String> = emptyMap(),
+    val failedTracks: List<Track> = emptyList(),
     val isDownloading: Boolean = false,
     val downloadProgress: String = "",
-    val error: String? = null
+    val error: String? = null,
+    val requiresConfirmation: Boolean = false,
+    val totalTrackCount: Int = 0
 )
 
 class ImportPlaylistViewModel(
@@ -73,7 +76,11 @@ class ImportPlaylistViewModel(
                     playlistImage = result.imageUrl,
                     playlistOwner = result.owner,
                     tracks = result.tracks,
-                    trackAudioUrls = result.audioUrls
+                    trackAudioUrls = result.audioUrls,
+                    failedTracks = result.failedTracks,
+                    requiresConfirmation = result.totalTrackCount > 200,
+                    totalTrackCount = result.totalTrackCount,
+                    downloadProgress = if (result.totalTrackCount > 200) "Playlist has ${result.totalTrackCount} tracks. Confirm to proceed." else ""
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -91,7 +98,9 @@ class ImportPlaylistViewModel(
         val imageUrl: String?,
         val owner: String,
         val tracks: List<Track>,
-        val audioUrls: Map<String, String>
+        val audioUrls: Map<String, String>,
+        val failedTracks: List<Track>,
+        val totalTrackCount: Int
     )
 
     private suspend fun fetchFromSource(source: String, playlistId: String): FetchResult? {
@@ -116,7 +125,24 @@ class ImportPlaylistViewModel(
             offset = nextOffset
         }
 
-        val audioUrls = resolveAudioUrlsParallel(allTracks)
+        val totalTrackCount = allTracks.size
+        
+        // Check if playlist is too large and requires confirmation
+        if (totalTrackCount > 200) {
+            return FetchResult(
+                source = "spotify",
+                name = playlist["name"] as? String ?: "Unknown",
+                description = playlist["description"] as? String ?: "",
+                imageUrl = playlist["imageUrl"] as? String,
+                owner = playlist["owner"] as? String ?: "Unknown",
+                tracks = allTracks.toList(),
+                audioUrls = emptyMap(),
+                failedTracks = emptyList(),
+                totalTrackCount = totalTrackCount
+            )
+        }
+
+        val (audioUrls, failedTracks) = resolveAudioUrlsParallel(allTracks)
 
         return FetchResult(
             source = "spotify",
@@ -125,7 +151,9 @@ class ImportPlaylistViewModel(
             imageUrl = playlist["imageUrl"] as? String,
             owner = playlist["owner"] as? String ?: "Unknown",
             tracks = allTracks.toList(),
-            audioUrls = audioUrls
+            audioUrls = audioUrls,
+            failedTracks = failedTracks,
+            totalTrackCount = totalTrackCount
         )
     }
 
@@ -160,8 +188,25 @@ class ImportPlaylistViewModel(
             trackMap[id] = track
             track
         }
+        
+        val totalTrackCount = tracks.size
+        
+        // Check if playlist is too large and requires confirmation
+        if (totalTrackCount > 200) {
+            return FetchResult(
+                source = "deezer",
+                name = playlist.title,
+                description = playlist.description,
+                imageUrl = playlist.imageUrl,
+                owner = playlist.creator,
+                tracks = tracks,
+                audioUrls = emptyMap(),
+                failedTracks = emptyList(),
+                totalTrackCount = totalTrackCount
+            )
+        }
 
-        val audioUrls = resolveAudioUrlsParallel(tracks)
+        val (audioUrls, failedTracks) = resolveAudioUrlsParallel(tracks)
 
         return FetchResult(
             source = "deezer",
@@ -170,15 +215,19 @@ class ImportPlaylistViewModel(
             imageUrl = playlist.imageUrl,
             owner = playlist.creator,
             tracks = tracks,
-            audioUrls = audioUrls
+            audioUrls = audioUrls,
+            failedTracks = failedTracks,
+            totalTrackCount = totalTrackCount
         )
     }
 
-    private suspend fun resolveAudioUrlsParallel(tracks: List<Track>): Map<String, String> = coroutineScope {
-        if (tracks.isEmpty()) return@coroutineScope emptyMap()
+    private suspend fun resolveAudioUrlsParallel(tracks: List<Track>): Pair<Map<String, String>, List<Track>> = coroutineScope {
+        if (tracks.isEmpty()) return@coroutineScope emptyMap<String, String>() to emptyList<Track>()
 
-        val batchSize = 10
+        val batchSize = 3 // Reduced from 10 to limit concurrency
         val results = mutableMapOf<String, String>()
+        val failedTracks = mutableListOf<Track>()
+        var resolvedCount = 0
 
         tracks.chunked(batchSize).forEach { batch ->
             val deferreds = batch.map { track ->
@@ -186,22 +235,32 @@ class ImportPlaylistViewModel(
                     try {
                         withTimeout(8000L) {
                             val resolved = searchRepository.findBestAudioForTrack(track)
-                            track.id to resolved?.first
+                            track.id to (resolved?.first to track)
                         }
                     } catch (_: Exception) {
-                        track.id to null
+                        track.id to (null to track)
                     }
                 }
             }
             deferreds.forEach { deferred ->
                 try {
-                    val (id, url) = deferred.await()
-                    if (url != null) results[id] = url
+                    val (id, pair) = deferred.await()
+                    val (url, track) = pair
+                    resolvedCount++
+                    if (url != null) {
+                        results[id] = url
+                    } else {
+                        failedTracks.add(track)
+                    }
+                    // Update progress incrementally
+                    _uiState.value = _uiState.value.copy(
+                        downloadProgress = "Resolved $resolvedCount/${tracks.size} tracks..."
+                    )
                 } catch (_: Exception) {}
             }
         }
 
-        results.toMap()
+        results.toMap() to failedTracks
     }
 
     fun downloadAll(onQueueComplete: () -> Unit = {}) {
@@ -209,13 +268,19 @@ class ImportPlaylistViewModel(
         val available = state.tracks.filter { state.trackAudioUrls.containsKey(it.id) }
         if (available.isEmpty()) return
 
+        val failedCount = state.failedTracks.size
+        val progressMsg = if (failedCount > 0) 
+            "${available.size} tracks queued for download, ${failedCount} couldn't be resolved" 
+        else 
+            "${available.size} tracks queued for download"
+
         _uiState.value = state.copy(isDownloading = true, downloadProgress = "Queuing downloads...")
         viewModelScope.launch {
             val urls = state.trackAudioUrls
             downloadRepository.addBatchToQueue(available, urls)
             _uiState.value = _uiState.value.copy(
                 isDownloading = false,
-                downloadProgress = "${available.size} tracks queued for download"
+                downloadProgress = progressMsg
             )
             onQueueComplete()
         }
@@ -253,6 +318,52 @@ class ImportPlaylistViewModel(
         }
 
         return "" to null
+    }
+
+    fun confirmLargePlaylist() {
+        val state = _uiState.value
+        if (!state.requiresConfirmation) return
+
+        viewModelScope.launch {
+            _uiState.value = state.copy(isLoading = true, requiresConfirmation = false, downloadProgress = "Resolving tracks...")
+            try {
+                val (audioUrls, failedTracks) = withContext(Dispatchers.IO) { resolveAudioUrlsParallel(state.tracks) }
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    trackAudioUrls = audioUrls,
+                    failedTracks = failedTracks,
+                    downloadProgress = "${audioUrls.size} tracks resolved, ${failedTracks.size} failed"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "Failed to resolve audio URLs"
+                )
+            }
+        }
+    }
+
+    fun retryFailedTracks() {
+        val state = _uiState.value
+        val failed = state.failedTracks
+        if (failed.isEmpty()) return
+
+        viewModelScope.launch {
+            _uiState.value = state.copy(downloadProgress = "Retrying ${failed.size} failed tracks...")
+            try {
+                val (audioUrls, stillFailed) = withContext(Dispatchers.IO) { resolveAudioUrlsParallel(failed) }
+                val mergedUrls = state.trackAudioUrls.toMutableMap().apply { putAll(audioUrls) }
+                _uiState.value = _uiState.value.copy(
+                    trackAudioUrls = mergedUrls,
+                    failedTracks = stillFailed,
+                    downloadProgress = "${mergedUrls.size} tracks resolved, ${stillFailed.size} failed"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = e.message ?: "Retry failed"
+                )
+            }
+        }
     }
 
     class Factory : ViewModelProvider.Factory {
