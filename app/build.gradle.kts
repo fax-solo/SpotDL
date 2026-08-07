@@ -52,8 +52,8 @@ android {
         applicationId = "com.sinc.enhanced"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 1046000
+        versionName = "1.46.0"
 
         buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
         buildConfigField("String", "YTDLP_BACKEND_URL", "\"${env("YTDLP_BACKEND_URL", "")}\"")
