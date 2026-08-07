@@ -64,6 +64,7 @@ fun SearchScreen(
     onDownloadTrack: (Track, String) -> Unit,
     onNavigateArtist: (String) -> Unit = {},
     onNavigateTrack: (String) -> Unit = {},
+    onNavigateAlbum: (String) -> Unit = {},
     onNavigateSettings: () -> Unit = {},
     onNavigateHistory: () -> Unit = {},
     onPreview: ((Track, String) -> Unit)? = null,
@@ -211,7 +212,11 @@ fun SearchScreen(
                 renderEmptyState(searchHistory, historyViewModel, viewModel)
             }
             else -> {
-                renderResults(uiState, spotifyResults, nonSpotifyResults, listState, onPlayTrack, onDownloadTrack, onNavigateTrack, onNavigateArtist, viewModel, onPreview)
+                renderResults(
+                    uiState, spotifyResults, nonSpotifyResults, listState,
+                    onPlayTrack, onDownloadTrack, onNavigateTrack, onNavigateArtist,
+                    onNavigateAlbum, viewModel, onPreview
+                )
             }
         }
     }
@@ -317,6 +322,7 @@ private fun renderResults(
     onDownloadTrack: (Track, String) -> Unit,
     onNavigateTrack: (String) -> Unit,
     onNavigateArtist: (String) -> Unit,
+    onNavigateAlbum: (String) -> Unit = {},
     viewModel: SearchViewModel,
     onPreview: ((Track, String) -> Unit)? = null
 ) {
@@ -330,7 +336,6 @@ private fun renderResults(
             item(key = "top_result") {
                 TopResultCard(
                     result = topResult,
-                    resolvedUrl = uiState.resolvedAudioUrls[topResult.track.id]?.first,
                     onPlay = {
                         val url = uiState.resolvedAudioUrls[topResult.track.id]?.first
                             ?: topResult.audioUrl
@@ -386,7 +391,8 @@ private fun renderResults(
                     onClick = { viewModel.selectAlbum(album) },
                     onPlayTrack = { track, url -> onPlayTrack(track, url) },
                     onDownloadTrack = { track, url -> onDownloadTrack(track, url) },
-                    onNavigateTrack = { trackId -> onNavigateTrack(trackId) }
+                    onNavigateTrack = { trackId -> onNavigateTrack(trackId) },
+                    onNavigateAlbum = { albumId -> onNavigateAlbum(albumId) }
                 )
             }
             item(key = "albums_spacer") { Spacer(Modifier.height(8.dp)) }
@@ -586,12 +592,10 @@ private fun SourceBadge(source: String, modifier: Modifier = Modifier) {
 @Composable
 private fun TopResultCard(
     result: SearchResult,
-    resolvedUrl: String?,
     onPlay: () -> Unit,
     onDownload: () -> Unit
 ) {
     val track = result.track
-    val displayUrl = track.previewUrl ?: resolvedUrl
     val bgColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
     Surface(
         modifier = Modifier
@@ -690,28 +694,20 @@ private fun TopResultCard(
             }
 
             Row {
-                if (displayUrl != null) {
-                    IconButton(onClick = onPlay) {
-                        Icon(
-                            Icons.Default.PlayArrow,
-                            contentDescription = "Play",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    IconButton(onClick = onDownload) {
-                        Icon(
-                            Icons.Default.Download,
-                            contentDescription = "Download",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                } else {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp).padding(2.dp),
-                        strokeWidth = 3.dp,
-                        color = MaterialTheme.colorScheme.primary
+                IconButton(onClick = onPlay) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = "Play",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                IconButton(onClick = onDownload) {
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = "Download",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
@@ -744,7 +740,8 @@ private fun AlbumInlineItem(
     onClick: () -> Unit,
     onPlayTrack: (Track, String) -> Unit,
     onDownloadTrack: (Track, String) -> Unit,
-    onNavigateTrack: (String) -> Unit
+    onNavigateTrack: (String) -> Unit,
+    onNavigateAlbum: (String) -> Unit = {}
 ) {
     Surface(
         modifier = Modifier
@@ -810,6 +807,14 @@ private fun AlbumInlineItem(
                         text = "${album.totalTracks} tracks \u2022 ${album.releaseYear ?: "Unknown"}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+
+                IconButton(onClick = { onNavigateAlbum(album.id) }) {
+                    Icon(
+                        imageVector = Icons.Default.OpenInNew,
+                        contentDescription = "Open album",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 

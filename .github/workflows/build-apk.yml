@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Sinc Enhanced APK
 
 on:
   push:
@@ -26,13 +26,6 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -97,178 +90,141 @@ jobs:
           }
           VERSIONEOF
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: frontend
-
-      - name: Build web assets
-        run: npm run build
-        working-directory: frontend
-        env:
-          VITE_API_URL: https://spotify-downloader-5v5.pages.dev
-
-      - name: Add Android platform
-        run: npx cap add android
-        working-directory: frontend
-
-      - name: Restore custom Android files
+      - name: Prepare gradle.properties with build settings
         run: |
-          cp -r android-overlay/build.gradle android/build.gradle
-          cp -r android-overlay/settings.gradle android/settings.gradle
-          cp -r android-overlay/variables.gradle android/variables.gradle
-          cp -r android-overlay/app/build.gradle android/app/build.gradle
-          cp -r android-overlay/app/google-services.json android/app/google-services.json
-          cp -r android-overlay/app/proguard-rules.pro android/app/proguard-rules.pro 2>/dev/null || true
-          cp -r android-overlay/spotdl-plugin android/
-          rm -rf android/app/src && cp -r android-overlay/app/src android/app/src
-          echo "Custom Android files restored"
-        working-directory: frontend
+          cat > app/gradle.properties << EOF
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          android.suppressUnsupportedCompileSdk=36
+          SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-YOUR_SPOTIFY_CLIENT_ID}
+          SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-YOUR_SPOTIFY_CLIENT_SECRET}
+          EOF
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+
+      - name: Sync app version
+        run: |
+          VERSION="${{ steps.bump.outputs.new }}"
+          echo "$VERSION" > app/VERSION
+          VERSION_CODE=$(echo "$VERSION" | awk -F. '{ print ($1 * 1000000) + ($2 * 1000) + $3 }')
+          sed -i "s/versionCode = [0-9]*/versionCode = $VERSION_CODE/" app/build.gradle.kts
+          sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+          echo "app: versionCode=$VERSION_CODE versionName=$VERSION"
 
       - name: Ensure gradlew is executable
-        run: chmod +x android/gradlew
-        working-directory: frontend
+        run: chmod +x app/gradlew
 
-      - name: Create placeholder binaries for Android
+      - name: Check if keystore secrets are available
+        id: check_secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
         run: |
-          mkdir -p android/app/src/main/res/raw
-          # Create empty zips so SpotDLCore doesn't crash on ResourceNotFoundException.
-          for f in python ffmpeg; do
-            if [ ! -f "android/app/src/main/res/raw/$f.zip" ]; then
-              printf 'PK\x05\x06\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' \
-                > "android/app/src/main/res/raw/$f.zip"
-              echo "  Created placeholder res/raw/$f.zip"
-            fi
-          done
-        working-directory: frontend
-
-      - name: Sync Capacitor
-        run: npx cap sync android
-        working-directory: frontend
-
-      - name: Inject version into build.gradle
-        run: |
-          NEW_VERSION="${{ steps.bump.outputs.new }}"
-          VERSION_CODE=$(echo "$NEW_VERSION" | awk -F. '{ print ($1 * 1000000) + ($2 * 1000) + $3 }')
-          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle
-          sed -i "s/versionName \".*\"/versionName \"$NEW_VERSION\"/" android/app/build.gradle
-          echo "build.gradle: versionCode=$VERSION_CODE versionName=$NEW_VERSION"
-        working-directory: frontend
-
-      - name: Install ImageMagick
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
-
-      - name: Generate app icon resources from App icon.png
-        run: node generate-icons.mjs
-        working-directory: frontend
-
-      - name: Copy icons to Android project
-        run: |
-          ANDROID_RES="android/app/src/main/res"
-
-          # Remove Capacitor default icon files that conflict with custom ones
-          rm -rf "$ANDROID_RES/drawable-v24"
-          echo "  Removed default drawable-v24 (Capacitor default icon)"
-
-          for dir in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            mkdir -p "$ANDROID_RES/$dir"
-            cp "public/$dir/ic_launcher.png" "$ANDROID_RES/$dir/"
-            cp "public/$dir/ic_launcher_round.png" "$ANDROID_RES/$dir/"
-            # Remove stale Capacitor foreground pngs that are no longer referenced
-            rm -f "$ANDROID_RES/$dir/ic_launcher_foreground.png"
-            echo "  Copied $dir icons"
-          done
-          mkdir -p "$ANDROID_RES/drawable"
-          cp public/drawable/ic_launcher_foreground.png "$ANDROID_RES/drawable/"
-          echo "  Copied adaptive icon foreground"
-          # Also copy to drawable-v24 if generated (overrides Capacitor default vector)
-          if [ -d "public/drawable-v24" ]; then
-            mkdir -p "$ANDROID_RES/drawable-v24"
-            cp public/drawable-v24/ic_launcher_foreground.png "$ANDROID_RES/drawable-v24/"
-            echo "  Copied adaptive icon foreground (drawable-v24)"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
           fi
-          mkdir -p "$ANDROID_RES/values"
-          cp public/values/ic_launcher_background.xml "$ANDROID_RES/values/"
-          echo "  Copied icon background color"
-          mkdir -p "$ANDROID_RES/mipmap-anydpi-v26"
-          cp public/mipmap-anydpi-v26/ic_launcher.xml "$ANDROID_RES/mipmap-anydpi-v26/"
-          cp public/mipmap-anydpi-v26/ic_launcher_round.xml "$ANDROID_RES/mipmap-anydpi-v26/"
-          echo "  Copied adaptive icon XML descriptors"
-          echo "All icons copied to Android project"
-        working-directory: frontend
 
       - name: Decode and prepare release keystore
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         env:
           KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
           KEYSTORE_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           KEY_PASS: ${{ secrets.RELEASE_KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
         run: |
-          printf '%s' "$KEYSTORE_B64" | base64 -d > android/app/release.p12
-          # Android's Bouncy Castle doesn't support modern PKCS12 encryption.
-          # Convert PKCS12 → JKS which is universally supported.
-          keytool -importkeystore \
-            -srckeystore android/app/release.p12 \
-            -srcstoretype PKCS12 \
-            -srcstorepass "$KEYSTORE_PASS" \
-            -srcalias "$KEY_ALIAS" \
-            -srckeypass "${KEY_PASS:-$KEYSTORE_PASS}" \
-            -destkeystore android/app/release.keystore \
-            -deststoretype JKS \
-            -deststorepass "$KEYSTORE_PASS" \
-            -destalias "$KEY_ALIAS" \
-            -destkeypass "${KEY_PASS:-$KEYSTORE_PASS}" 2>&1
-          rm -f android/app/release.p12
-          echo "Keystore decoded and converted to JKS"
-        working-directory: frontend
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/release.keystore
+          if keytool -list -keystore app/release.keystore -storetype JKS -storepass "$KEYSTORE_PASS" >/dev/null 2>&1; then
+            echo "Keystore detected as JKS, using directly"
+          elif keytool -list -keystore app/release.keystore -storetype PKCS12 -storepass "$KEYSTORE_PASS" >/dev/null 2>&1; then
+            echo "Keystore detected as PKCS12, converting to JKS"
+            keytool -importkeystore \
+              -srckeystore app/release.keystore \
+              -srcstoretype PKCS12 \
+              -srcstorepass "$KEYSTORE_PASS" \
+              -srcalias "$KEY_ALIAS" \
+              -srckeypass "${KEY_PASS:-$KEYSTORE_PASS}" \
+              -destkeystore app/release.jks \
+              -deststoretype JKS \
+              -deststorepass "$KEYSTORE_PASS" \
+              -destalias "$KEY_ALIAS" \
+              -destkeypass "${KEY_PASS:-$KEYSTORE_PASS}" 2>&1
+            mv app/release.jks app/release.keystore
+            echo "Keystore converted to JKS"
+          else
+            echo "ERROR: Could not open keystore as JKS or PKCS12 (wrong password or corrupt blob)" >&2
+            exit 1
+          fi
+          if ! keytool -list -keystore app/release.keystore -storetype JKS -storepass "$KEYSTORE_PASS" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            echo "ERROR: Alias '$KEY_ALIAS' not found in keystore" >&2
+            exit 1
+          fi
+          echo "Keystore ready (alias: $KEY_ALIAS)"
 
       - name: Build signed release APK
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         env:
-          RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/frontend/android/app/release.keystore
-          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          ENHANCED_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/app/release.keystore
+          ENHANCED_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          ENHANCED_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          ENHANCED_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL || 'https://sinc-enhanced-backend.faxsolo2214.workers.dev' }}
         run: ./gradlew assembleRelease
-        working-directory: frontend/android
+        working-directory: app
+
+      - name: Build debug APK (unsigned, no keystore)
+        if: steps.check_secrets.outputs.has_secrets != 'true'
+        run: ./gradlew assembleDebug
+        working-directory: app
 
       - name: Clean up keystore from runner
         if: always()
-        run: rm -f android/app/release.keystore android/app/release.p12
-        working-directory: frontend
+        run: rm -f app/release.keystore app/release.p12
 
       - name: Rename APK
         run: |
           VERSION="${{ steps.bump.outputs.new }}"
-          cp app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/Sinc-${VERSION}.apk"
-          echo "APK ready: Sinc-${VERSION}.apk"
-        working-directory: frontend/android
+          if [ -f app/build/outputs/apk/release/SincEnhanced-release.apk ]; then
+            cp app/build/outputs/apk/release/SincEnhanced-release.apk "app/build/outputs/apk/release/Sinc-Enhanced-${VERSION}.apk"
+          elif [ -f app/build/outputs/apk/debug/SincEnhanced-debug.apk ]; then
+            mkdir -p app/build/outputs/apk/release
+            cp app/build/outputs/apk/debug/SincEnhanced-debug.apk "app/build/outputs/apk/release/Sinc-Enhanced-${VERSION}.apk"
+          fi
+          echo "APK ready: Sinc-Enhanced-${VERSION}.apk"
 
       - name: Commit version bump
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git add VERSION frontend/src/lib/version.ts
+          git add VERSION frontend/src/lib/version.ts app/VERSION app/build.gradle.kts
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new }} [skip ci]"
           git tag "v${{ steps.bump.outputs.new }}"
           git push origin HEAD:main --tags
 
       - name: Generate release notes
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         id: release_notes
         run: |
           cat > /tmp/release-notes.md << 'ENDMARKER'
-          ## Sinc v${{ steps.bump.outputs.new }}
+          ## Sinc Enhanced v${{ steps.bump.outputs.new }}
 
           ### Changes
           ${{ github.event.head_commit.message }}
 
           ### Download
-          - [Sinc-${{ steps.bump.outputs.new }}.apk](Sinc-${{ steps.bump.outputs.new }}.apk)
+          - [Sinc-Enhanced-${{ steps.bump.outputs.new }}.apk](https://github.com/${{ github.repository }}/releases/download/v${{ steps.bump.outputs.new }}/Sinc-Enhanced-${{ steps.bump.outputs.new }}.apk)
           ENDMARKER
 
       - name: Create GitHub Release
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: |
           for i in 1 2 3 4 5; do
             gh release create "v${{ steps.bump.outputs.new }}" \
-              "frontend/android/app/build/outputs/apk/release/Sinc-${{ steps.bump.outputs.new }}.apk" \
+              "app/build/outputs/apk/release/Sinc-Enhanced-${{ steps.bump.outputs.new }}.apk" \
               --title "v${{ steps.bump.outputs.new }}" \
               --notes-file /tmp/release-notes.md && exit 0
             echo "Attempt $i failed, retrying in $((i * 5))s..."

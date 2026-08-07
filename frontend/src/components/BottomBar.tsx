@@ -1,14 +1,13 @@
 import { useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Download, Clock, Settings, Library } from 'lucide-react'
+import { Home, Search, Download, Library } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 
 const TABS = [
   { path: '/', icon: Home, label: 'Home' },
-  { path: '/download', icon: Download, label: 'Download' },
-  { path: '/local-music', icon: Library, label: 'Local' },
-  { path: '/history', icon: Clock, label: 'History' },
-  { path: '/settings', icon: Settings, label: 'Settings' },
+  { path: '/search', icon: Search, label: 'Search' },
+  { path: '/local-music', icon: Library, label: 'Library' },
+  { path: '/download', icon: Download, label: 'Downloads' },
 ]
 
 export function BottomBar() {
@@ -43,13 +42,13 @@ export function BottomBar() {
             >
               {active && (
                 <div
-                  className="absolute inset-x-4 top-0 h-0.5 bg-accent rounded-full"
+                  className="absolute inset-x-4 top-0 h-0.5 bg-emerald rounded-full"
                 />
               )}
               <tab.icon
                 className={`w-[22px] h-[22px] transition-colors ${
                   active
-                    ? 'text-accent'
+                    ? 'text-emerald'
                     : 'text-light-muted dark:text-dark-muted'
                 }`}
                 aria-hidden="true"
@@ -57,7 +56,7 @@ export function BottomBar() {
               <span
                 className={`text-[11px] font-medium leading-none transition-colors ${
                   active
-                    ? 'text-accent'
+                    ? 'text-emerald'
                     : 'text-light-muted dark:text-dark-muted'
                 }`}
               >

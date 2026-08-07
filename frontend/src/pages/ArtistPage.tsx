@@ -247,7 +247,7 @@ export function ArtistPage(_props: ArtistPageProps) {
             onClick={() => navigate(`/album/${artist.latest_release!.id}`)}
             className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-gradient-to-r from-accent/10 to-accent/5 border border-accent/20 hover:bg-accent/15 transition-colors cursor-pointer text-left active:scale-[0.97] transition-transform"
           >
-            <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 shadow-md">
+            <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-emerald/20 to-emerald-strong/20 flex-shrink-0 shadow-md">
               <ArtworkImage src={artist.latest_release.image} alt={artist.latest_release.name} className="w-full h-full object-cover" iconSize={28} />
             </div>
             <div className="flex-1 min-w-0">
@@ -368,7 +368,7 @@ export function ArtistPage(_props: ArtistPageProps) {
                 onClick={() => navigate(`/album/${album.id}`)}
                 className="flex-shrink-0 w-[150px] text-left group active:scale-95 transition-transform"
               >
-                <div className="aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 mb-2 shadow-md">
+                <div className="aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-emerald/20 to-emerald-strong/20 mb-2 shadow-md">
                   <ArtworkImage src={album.image} alt={album.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={30} />
                 </div>
                 <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate leading-tight">{album.name}</p>
@@ -394,7 +394,7 @@ export function ArtistPage(_props: ArtistPageProps) {
                 onClick={() => { doFetch(ra.id); navigate(`/artist/${ra.id}`, { replace: true }) }}
                 className="flex-shrink-0 w-[120px] text-center group active:scale-95 transition-transform"
               >
-                <div className="w-[120px] h-[120px] rounded-full overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 mb-2 shadow-md mx-auto">
+                <div className="w-[120px] h-[120px] rounded-full overflow-hidden bg-gradient-to-br from-emerald/20 to-emerald-strong/20 mb-2 shadow-md mx-auto">
                   <ArtworkImage src={ra.image} alt={ra.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" iconSize={40} />
                 </div>
                 <p className="text-sm font-semibold text-light-text dark:text-dark-text truncate leading-tight">{ra.name}</p>

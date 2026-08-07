@@ -185,6 +185,38 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
 
+        SettingsGroup(title = "Appearance", icon = Icons.Default.Palette) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Use device theme color",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Follow your system's Material You colors instead of the Sinc palette",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = uiState.dynamicColorEnabled,
+                        onCheckedChange = viewModel::setDynamicColorEnabled
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
         SettingsGroup(title = "Audio Quality", icon = Icons.Default.Speed) {
             Text("Streaming", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))

@@ -1,0 +1,60 @@
+{
+  "$schema": "design-tokens.schema.json",
+  "version": 1,
+  "description": "Single source of truth for the Sinc design system. Consumed by build-scripts/gen-tokens.mjs which emits the web Tailwind v4 @theme block and the Android Compose Color.kt/Type.kt. Do not edit generated files by hand.",
+  "fontFamilies": {
+    "sans": ["IBM Plex Sans", "IBM Plex Sans Arabic"],
+    "mono": "IBM Plex Mono"
+  },
+  "colors": {
+    "dark": {
+      "ink": "#0B0F19",
+      "surface": "#131826",
+      "surface-high": "#1B2233",
+      "emerald": "#10B981",
+      "emerald-strong": "#059669",
+      "amber": "#F0B429",
+      "coral": "#E8615F",
+      "text-high": "#F5F7FA",
+      "text-mid": "#9AA3B5",
+      "text-low": "#5C6478",
+      "hairline": "#232B3D",
+      "scrim": "rgba(0,0,0,0.6)"
+    },
+    "light": {
+      "ink": "#F7F8FA",
+      "surface": "#FFFFFF",
+      "surface-high": "#F1F5F9",
+      "emerald": "#10B981",
+      "emerald-strong": "#059669",
+      "amber": "#F0B429",
+      "coral": "#E8615F",
+      "text-high": "#10131A",
+      "text-mid": "#64748B",
+      "text-low": "#94A3B8",
+      "hairline": "#E2E8F0",
+      "scrim": "rgba(0,0,0,0.6)"
+    }
+  },
+  "typeScale": {
+    "display-sm": { "fontSize": 28, "lineHeight": 34, "fontWeight": 600 },
+    "display": { "fontSize": 34, "lineHeight": 40, "fontWeight": 600 },
+    "display-lg": { "fontSize": 40, "lineHeight": 48, "fontWeight": 600 },
+    "body": { "fontSize": 15, "lineHeight": 22, "fontWeight": 400 },
+    "caption": { "fontSize": 13, "lineHeight": 18, "fontWeight": 400 },
+    "mono": { "fontSize": 13, "lineHeight": 18, "fontWeight": 400 }
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "xxl": 32
+  },
+  "radii": {
+    "sm": 8,
+    "md": 12,
+    "lg": 16
+  }
+}

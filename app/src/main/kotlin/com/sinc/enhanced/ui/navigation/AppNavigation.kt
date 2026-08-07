@@ -63,6 +63,7 @@ object Routes {
     const val HISTORY = "history"
     const val SETTINGS = "settings"
     const val ADMIN = "admin"
+    const val ALBUM = "album"
 }
 
 @Composable
@@ -161,6 +162,13 @@ fun AppNavigation(intent: Intent? = null) {
                                 artworkUrl = playerState.currentTrack?.artworkUrl,
                                 audioSource = playerState.currentTrack?.source,
                                 isPlaying = playerState.isPlaying,
+                                trackId = playerState.currentTrack?.id,
+                                progress = if (playerState.duration > 0) {
+                                    playerState.position.toFloat() / playerState.duration
+                                } else {
+                                    0f
+                                },
+                                onSeek = { musicPlayer.seekTo((it * playerState.duration).toLong()) },
                                 onPlayPause = { musicPlayer.togglePlayPause() },
                                 onSkipNext = { musicPlayer.skipToNext() },
                                 onClick = { navController.navigate(Routes.PLAYER) }
@@ -275,6 +283,9 @@ fun AppNavigation(intent: Intent? = null) {
                         onNavigateArtist = { artistId ->
                             navController.navigate("artist/$artistId")
                         },
+                        onNavigateAlbum = { albumId ->
+                            navController.navigate("album/$albumId")
+                        },
                         onNavigateTrack = { trackId ->
                             navController.navigate("track/$trackId")
                         },
@@ -299,6 +310,9 @@ fun AppNavigation(intent: Intent? = null) {
                         onDownloadTrack = { track, audioUrl -> initiateDownload(track, audioUrl) },
                         onNavigateArtist = { artistId ->
                             navController.navigate("artist/$artistId")
+                        },
+                        onNavigateAlbum = { albumId ->
+                            navController.navigate("album/$albumId")
                         },
                         onNavigateTrack = { trackId ->
                             navController.navigate("track/$trackId")
@@ -484,6 +498,18 @@ fun AppNavigation(intent: Intent? = null) {
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
+                composable("album/{albumId}") { backStackEntry ->
+                    val albumId = backStackEntry.arguments?.getString("albumId") ?: return@composable
+                    com.sinc.enhanced.ui.screens.album.AlbumDetailScreen(
+                        albumId = albumId,
+                        onPlayTrack = { track, url ->
+                            musicPlayer.playUrl(track, url)
+                            navController.navigate(Routes.PLAYER)
+                        },
+                        onDownloadTrack = { track, audioUrl -> initiateDownload(track, audioUrl) },
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
                 composable("track/{trackId}") { backStackEntry ->
                     val trackId = backStackEntry.arguments?.getString("trackId") ?: return@composable
                     com.sinc.enhanced.ui.screens.track.TrackDetailScreen(
@@ -528,7 +554,7 @@ private fun handleDeepLink(intent: Intent, navController: androidx.navigation.Na
             if (path.size >= 2) {
                 when (path[0]) {
                     "track" -> navController.navigate("track/${path[1]}")
-                    "album" -> navController.navigate("search/${URLEncoder.encode(uri.lastPathSegment ?: "", "UTF-8")}")
+                    "album" -> navController.navigate("${Routes.ALBUM}/${path[1]}")
                     "artist" -> navController.navigate("artist/${path[1]}")
                     "playlist" -> navController.navigate("search/${URLEncoder.encode(uri.lastPathSegment ?: "", "UTF-8")}")
                 }
@@ -540,7 +566,7 @@ private fun handleDeepLink(intent: Intent, navController: androidx.navigation.Na
                 if (path.size >= 2) {
                     when (path[0]) {
                         "track" -> navController.navigate("track/${path[1]}")
-                        "album" -> navController.navigate("search/${URLEncoder.encode(uri.lastPathSegment ?: "", "UTF-8")}")
+                        "album" -> navController.navigate("${Routes.ALBUM}/${path[1]}")
                         "artist" -> navController.navigate("artist/${path[1]}")
                         "playlist" -> navController.navigate("search/${URLEncoder.encode(uri.lastPathSegment ?: "", "UTF-8")}")
                     }

@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sinc.enhanced.ui.navigation.AppNavigation
 import com.sinc.enhanced.ui.theme.SincEnhancedTheme
 
@@ -31,7 +32,9 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermission()
         enableEdgeToEdge()
         setContent {
-            SincEnhancedTheme(dynamicColor = true) {
+            val useDynamicColor by SincApp.instance.container.settingsManager.dynamicColorEnabled
+                .collectAsStateWithLifecycle(initialValue = false)
+            SincEnhancedTheme(dynamicColor = useDynamicColor) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     ErrorBoundary {
                         AppNavigation(intent)

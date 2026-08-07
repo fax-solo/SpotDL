@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate, Link, Navigate 
 import { FileQuestion, WifiOff, X } from 'lucide-react'
 import { Navbar } from './components/Navbar'
 import { BottomBar } from './components/BottomBar'
+import { MiniPlayerBar } from './components/MiniPlayerBar'
 
 import { ToastProvider, useToast } from './components/Toast'
 import { DownloadOverlayProvider, DownloadOverlay } from './components/DownloadOverlay'
@@ -16,7 +17,7 @@ import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useShareTarget } from './hooks/useShareTarget'
 import { useNotificationActions } from './hooks/useNotificationActions'
 import { useBottomBar } from './hooks/useBottomBar'
-import { PlayerProvider } from './hooks/usePlayer'
+import { PlayerProvider, usePlayer } from './hooks/usePlayer'
 import { useAuth } from './hooks/useAuth'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -296,6 +297,12 @@ function AppContent() {
 
   const bottomBarHidden = useBottomBar(s => s.hidden)
   const showBottomBar = isNative && !keyboardOpen && !bottomBarHidden
+  const { currentTrack } = usePlayer()
+  const miniPlayerVisible =
+    currentTrack != null &&
+    !keyboardOpen &&
+    location.pathname !== '/player' &&
+    !(isNative && bottomBarHidden)
 
   return (
     <div className={`bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors flex flex-col safe-area-y ${!isNative && location.pathname === '/' ? '' : 'h-dvh'}`}>
@@ -322,7 +329,8 @@ function AppContent() {
         }>
           <div
             ref={contentRef}
-            className={`flex-1 flex flex-col ${!isNative && location.pathname === '/' ? '' : 'overflow-y-auto scroll-native'} ${!isNative && location.pathname !== '/' ? 'pb-16 sm:pb-0' : ''}`}
+            className={`flex-1 flex flex-col ${!isNative && location.pathname === '/' ? '' : 'overflow-y-auto scroll-native'} ${!isNative && location.pathname !== '/' && !miniPlayerVisible ? 'pb-16 sm:pb-0' : ''}`}
+            style={miniPlayerVisible ? { paddingBottom: `calc(var(--mini-player-height, 64px) + ${showBottomBar ? 'var(--bottom-bar-height, 56px) + var(--sab, env(safe-area-inset-bottom, 0px))' : '0px'})` } : undefined}
           >
             <div key={location.pathname}>
               <Routes location={location}>
@@ -385,6 +393,7 @@ function AppContent() {
         </Suspense>
       </ErrorBoundary>
       {showBottomBar && <BottomBar />}
+      {miniPlayerVisible && <MiniPlayerBar bottomOffset={showBottomBar ? 56 : 0} />}
       <DownloadOverlay />
       <PermissionRationaleSheet
         open={permSheetOpen}

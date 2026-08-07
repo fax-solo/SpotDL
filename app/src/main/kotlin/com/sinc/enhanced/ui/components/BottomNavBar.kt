@@ -4,7 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -16,9 +16,9 @@ sealed class BottomNavItem(
     val icon: ImageVector
 ) {
     data object Home : BottomNavItem("home", "Home", Icons.Default.Home)
-    data object Queue : BottomNavItem("queue", "Queue", Icons.Default.Download)
+    data object Search : BottomNavItem("search", "Search", Icons.Default.Search)
     data object Library : BottomNavItem("library", "Library", Icons.Default.LibraryMusic)
-    data object Settings : BottomNavItem("settings", "Settings", Icons.Default.Settings)
+    data object Downloads : BottomNavItem("queue", "Downloads", Icons.Default.Download)
 }
 
 @Composable
@@ -29,9 +29,9 @@ fun BottomNavBar(
 ) {
     val items = listOf(
         BottomNavItem.Home,
-        BottomNavItem.Queue,
+        BottomNavItem.Search,
         BottomNavItem.Library,
-        BottomNavItem.Settings
+        BottomNavItem.Downloads
     )
 
     NavigationBar(
@@ -40,8 +40,12 @@ fun BottomNavBar(
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         items.forEach { item ->
+            val selected = when (item.route) {
+                "search" -> currentRoute == "search" || currentRoute.startsWith("search/")
+                else -> currentRoute == item.route
+            }
             NavigationBarItem(
-                selected = currentRoute == item.route,
+                selected = selected,
                 onClick = { onNavigate(item.route) },
                 icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
                 label = { Text(text = item.label) },

@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.sinc.enhanced.SincApp
 import com.sinc.enhanced.data.model.Track
 import com.sinc.enhanced.ui.components.DownloadProgress
+import com.sinc.enhanced.ui.components.WaveformProgressBar
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -156,7 +157,9 @@ fun PlayerScreen(
                         progress = if (uiState.duration > 0) uiState.position.toFloat() / uiState.duration.toFloat() else 0f,
                         position = uiState.position, duration = uiState.duration,
                         onSeek = { viewModel.seekTo((it * uiState.duration).toLong()) },
-                        primaryColor = primaryColor
+                        primaryColor = primaryColor,
+                        trackId = track.id,
+                        isPlaying = uiState.isPlaying
                     )
                     Spacer(Modifier.height(16.dp))
                     PlaybackControls(isPlaying = uiState.isPlaying, onPlayPause = { viewModel.togglePlayPause() }, onSkipNext = { viewModel.skipToNext() }, onSkipPrevious = { viewModel.skipToPrevious() }, primaryColor = primaryColor)
@@ -202,7 +205,9 @@ fun PlayerScreen(
                 position = uiState.position,
                 duration = uiState.duration,
                 onSeek = { viewModel.seekTo((it * uiState.duration).toLong()) },
-                primaryColor = primaryColor
+                primaryColor = primaryColor,
+                trackId = track.id,
+                isPlaying = uiState.isPlaying
             )
 
             Spacer(Modifier.height(24.dp))
@@ -461,7 +466,9 @@ private fun ProgressBar(
     position: Long,
     duration: Long,
     onSeek: (Float) -> Unit,
-    primaryColor: androidx.compose.ui.graphics.Color
+    primaryColor: androidx.compose.ui.graphics.Color,
+    trackId: String? = null,
+    isPlaying: Boolean = true
 ) {
     val posMin = (position / 60000).toInt()
     val posSec = ((position % 60000) / 1000).toInt()
@@ -469,15 +476,16 @@ private fun ProgressBar(
     val durSec = ((duration % 60000) / 1000).toInt()
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Slider(
-            value = progress,
-            onValueChange = onSeek,
-            modifier = Modifier.fillMaxWidth().height(24.dp),
-            colors = SliderDefaults.colors(
-                thumbColor = primaryColor,
-                activeTrackColor = primaryColor,
-                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+        WaveformProgressBar(
+            trackId = trackId,
+            progress = progress,
+            isPlaying = isPlaying,
+            onSeek = onSeek,
+            bars = 64,
+            barHeight = 40,
+            barWidth = 3,
+            activeColor = primaryColor,
+            idleColor = MaterialTheme.colorScheme.surfaceVariant
         )
 
         Row(

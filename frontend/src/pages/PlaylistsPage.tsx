@@ -173,7 +173,7 @@ export function PlaylistsPage() {
                 onClick={() => setSelected(p)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left cursor-pointer"
               >
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent/20 to-purple-500/20 flex items-center justify-center flex-shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald/20 to-emerald-strong/20 flex items-center justify-center flex-shrink-0">
                   <ListMusic className="w-6 h-6 text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">

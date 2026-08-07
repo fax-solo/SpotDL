@@ -26,7 +26,8 @@ data class SettingsUiState(
     val crossfeed: Boolean = false,
     val bitPerfect: Boolean = false,
     val scrobbleLastFm: Boolean = false,
-    val language: String = "System Default"
+    val language: String = "System Default",
+    val dynamicColorEnabled: Boolean = false
 )
 
 class SettingsViewModel(
@@ -47,13 +48,15 @@ class SettingsViewModel(
                 settingsManager.downloadFormat,
                 settingsManager.deezerArl
             ) { lyrics, quality, streaming, format, arl ->
-                _uiState.value.copy(
+                SettingsUiState(
                     downloadLyrics = lyrics,
                     downloadQuality = quality,
                     streamingQuality = streaming,
                     downloadFormat = format,
                     deezerArl = arl
                 )
+            }.combine(settingsManager.dynamicColorEnabled) { state, dynamicColor ->
+                state.copy(dynamicColorEnabled = dynamicColor)
             }.collect { state ->
                 _uiState.value = state
             }
@@ -78,6 +81,10 @@ class SettingsViewModel(
 
     fun setDeezerArl(arl: String) {
         viewModelScope.launch { settingsManager.setDeezerArl(arl) }
+    }
+
+    fun setDynamicColorEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setDynamicColorEnabled(enabled) }
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {

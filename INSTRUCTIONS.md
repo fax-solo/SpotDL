@@ -4,7 +4,8 @@ This document provides instructions on how to build, run, and deploy the Spotify
 
 ## Project Structure
 
-- `frontend/`: Contains the React + Vite frontend application, Capacitor Android wrapper, and serverless functions for API communication.
+- `frontend/`: Contains the React + Vite web application and serverless functions for API communication.
+- `app/`: Contains the Sinc Enhanced native Android app (Kotlin + Jetpack Compose).
 - `api/`: Contains the Python backend used by some components.
 
 ## Local Development
@@ -18,24 +19,21 @@ npm run dev
 
 ## Android App Build & Deployment
 
-The Android app is built using Capacitor. Ensure your Android device is connected and USB debugging is enabled.
+The native Android app (Sinc Enhanced) lives in `app/`. Ensure your Android device is connected and USB debugging is enabled.
 
-1. **Build the web assets:**
+1. **Build the app:**
    ```bash
-   cd frontend
-   npm run build
+   cd app
+   ./gradlew assembleDebug
    ```
 
-2. **Sync with Capacitor:**
+2. **Install the APK to your mobile device:**
    ```bash
-   npx cap sync android
-   ```
-
-3. **Install the APK to your mobile device:**
-   ```bash
-   cd android
    ./gradlew installDebug
    ```
+
+Release builds are automated via `.github/workflows/build-apk.yml`, which builds the signed
+APK and uploads it to a GitHub Release on every push to `main`.
 
 ## Cloudflare Deployment
 

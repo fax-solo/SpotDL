@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, Loader2, AlertCircle, Disc3, Plus, Star, ArrowRight, Headphones, Radio, Download } from 'lucide-react'
+import { Music, Search, X, Play, Mic2, Podcast, ListMusic, ArrowLeft, AlertCircle, Disc3, Plus, Star, ArrowRight, Headphones, Radio, Download } from 'lucide-react'
 import { ArtworkImage } from '../components/ArtworkImage'
+import { LoadingWaveform } from '../components/WaveformScrubber'
 import { searchSpotify, searchYouTubeTracks, searchDeezer, searchSoundCloud, fetchPlaylist, fetchAlbum, type SearchResults, type SearchTrack, type PlaylistSummary, type SearchAlbum } from '../lib/spotifyApi'
 import { usePlayer } from '../hooks/usePlayer'
 import { useToast } from '../components/Toast'
@@ -361,10 +362,10 @@ export function SearchPage() {
                             else if (topResult.type === 'playlist') handlePlayPlaylist(topResult.item)
                             else if (topResult.type === 'album') handlePlayAlbum(topResult.item)
                           }}
-                          className="w-11 h-11 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-1 active-scale"
+                          className="w-11 h-11 rounded-full bg-emerald flex items-center justify-center flex-shrink-0 hover:bg-emerald-strong transition-colors cursor-pointer ml-1 active-scale"
                         >
                           {loadingPlayId === topId ? (
-                            <Loader2 className="w-4 h-4 text-white animate-spin" />
+                            <LoadingWaveform trackId={typeof topResult.item === 'object' && 'id' in topResult.item ? (topResult.item as any).id : topId} bars={10} barWidth={2} barHeight={12} />
                           ) : (
                             <Play className="w-4 h-4 text-white ml-0.5" />
                           )}
@@ -419,7 +420,7 @@ export function SearchPage() {
                       )}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
                     >
-                      <div className={`w-10 h-10 flex-shrink-0 overflow-hidden bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center ${
+                      <div className={`w-10 h-10 flex-shrink-0 overflow-hidden bg-gradient-to-br from-emerald/20 to-emerald-strong/20 flex items-center justify-center ${
                         type === 'artists' || type === 'shows' ? 'rounded-full' : 'rounded-lg'
                       }`}>
                         {item.image || item.artwork_url ? (
@@ -470,10 +471,10 @@ export function SearchPage() {
                               else if (type === 'playlists') handlePlayPlaylist(item)
                               else if (type === 'albums') handlePlayAlbum(item)
                             }}
-                            className="w-11 h-11 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:bg-accent-hover transition-colors cursor-pointer ml-1 active-scale"
+                            className="w-11 h-11 rounded-full bg-emerald flex items-center justify-center flex-shrink-0 hover:bg-emerald-strong transition-colors cursor-pointer ml-1 active-scale"
                           >
                             {loadingPlayId === item.id ? (
-                              <Loader2 className="w-4 h-4 text-white animate-spin" />
+                              <LoadingWaveform trackId={item.id} bars={10} barWidth={2} barHeight={12} />
                             ) : (
                               <Play className="w-4 h-4 text-white ml-0.5" />
                             )}

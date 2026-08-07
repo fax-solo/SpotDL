@@ -120,13 +120,11 @@ Create custom playlists from your downloaded tracks:
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19 + TypeScript + Vite 8 + Tailwind CSS 4 |
+| Frontend | React 18 + TypeScript + Vite 8 + Tailwind CSS 4 |
 | State | Zustand (downloads), React Context (player/toast), localStorage (history/playlists) |
-| Mobile | Capacitor 8 (Android) |
-| Audio Processing | FFmpeg WASM (client-side) + browser-id3-writer |
 | Server Backend | FastAPI (Python 3.12+) |
 | Serverless Functions | Cloudflare Pages Functions |
-| Native Android | Capacitor Plugin → ProcessBuilder → Python 3.8 + SpotDL + FFmpeg |
+| Native Android | Kotlin + Jetpack Compose (Sinc Enhanced in `app/`) |
 
 ### Metadata Pipeline
 
@@ -144,11 +142,11 @@ When downloading, the app searches audio sources in order:
 3. **Bandcamp** — HTML search scraping
 4. **Jamendo** — official API (requires API key)
 
-### Architecture (3 Download Modes)
+### Architecture
 
 ```
-Android App (Native Mode):
-  Capacitor WebView → SpotDL Plugin → ProcessBuilder → Python + SpotDL + FFmpeg
+Sinc Enhanced Android App (Native):
+  Native Kotlin app → FastAPI backend (yt-dlp audio resolution) → Piped/Audius fallbacks
   Result: Fully offline downloads on device
 
 Web App (Server Mode):
@@ -178,8 +176,9 @@ Web App (Client Mode):
 │       ├── jamendo.js      # Official API integration
 │       ├── lyrics.js       # LRCLIB integration with caching
 │       ├── oembed.js       # Spotify oEmbed fallback
-│       ├── proxy.js        # CORS proxy for audio streams in Capacitor WebView
+│       ├── proxy.js        # CORS proxy for audio streams in legacy web app
 │       └── spotify-auth.js # OAuth login flow
+├── app/                    # Sinc Enhanced native Android app (Kotlin + Jetpack Compose)
 ├── api/                    # Python FastAPI backend
 │   ├── index.py            # FastAPI server
 │   ├── downloader.py       # yt-dlp + mutagen download logic
@@ -202,7 +201,7 @@ All 10 functions are at `frontend/functions/api/`:
 | `jamendo.js` | Jamendo API search (requires `JAMENDO_CLIENT_ID`) |
 | `lyrics.js` | LRCLIB proxy with in-memory cache (TTL: 24h) |
 | `oembed.js` | Spotify oEmbed fallback for quick metadata |
-| `proxy.js` | CORS proxy for audio streams in Capacitor WebView |
+| `proxy.js` | CORS proxy for audio streams in browser |
 | `spotify-auth.js` | OAuth login, code exchange, and token refresh |
 
 
@@ -231,16 +230,18 @@ npm run build
 npm run cf:deploy
 ```
 
-#### Android APK
+#### Sinc Enhanced Android App
 
 ```bash
-cd frontend
-npm install
-npm run build
-npx cap add android
-npx cap sync android
-npx cap open android
+cd app
+./gradlew assembleDebug            # debug APK (unsigned)
+BACKEND_URL=https://your-worker.workers.dev ./gradlew assembleRelease   # signed release APK
 ```
+
+Release builds are automated in `.github/workflows/build-apk.yml`: every push to `main`
+bumps the version, builds the signed APK, and uploads `Sinc-Enhanced-<version>.apk` to a
+GitHub Release. Requires the `RELEASE_KEYSTORE_B64` / `RELEASE_KEYSTORE_PASSWORD` /
+`RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` secrets.
 
 ### Schema Management
 
@@ -274,7 +275,7 @@ everything is wiped on redeploy.
 | `VITE_SPOTIFY_CLIENT_ID` | For CF | — | Spotify client ID for Cloudflare Functions |
 | `SPOTIFY_REDIRECT_URI` | No | `http://localhost:8000/api/auth/spotify/callback` | OAuth redirect URI |
 | `CLIENT_URL` | No | `http://localhost:5173` | Frontend URL for OAuth redirect |
-| `VITE_API_URL` | For APK | `''` (same-origin) | Backend API URL (set at build time) |
+| `VITE_API_URL` | No | `''` (same-origin) | Backend API URL (set at build time) |
 | `JAMENDO_CLIENT_ID` | No | — | Jamendo API key for additional audio source |
 
 ### Local Development
@@ -296,7 +297,6 @@ VITE_API_URL=http://localhost:8000 npm run dev
 @ffmpeg/util            # FFmpeg WASM utilities
 browser-id3-writer      # ID3 tag writing in the browser
 zustand                 # State management for download queue
-@capacitor/*            # Mobile native platform bridge
 lucide-react            # Icons
 react-router-dom        # Routing
 tailwindcss             # Styling

@@ -21,6 +21,8 @@ app/build/
 app/.gradle/
 app/.kotlin/
 app/local.properties
+app/build_stale/
+frontend/node_modules_stale/
 
 # Backend worker
 backend-worker/node_modules/

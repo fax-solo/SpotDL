@@ -4,6 +4,7 @@ import { usePlayer } from '../hooks/usePlayer'
 import { useNavigate } from 'react-router-dom'
 import { LyricsView } from '../components/LyricsView'
 import { ArtworkImage } from '../components/ArtworkImage'
+import { WaveformScrubber } from '../components/WaveformScrubber'
 
 type Tab = 'now-playing' | 'lyrics' | 'queue'
 
@@ -26,14 +27,6 @@ export function PlayerPage() {
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
-
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    seek(pct * duration)
-  }
-
   const handleDragStart = useCallback((index: number) => {
     dragItem.current = index
   }, [])
@@ -52,7 +45,7 @@ export function PlayerPage() {
   if (!currentTrack) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center animate-scaleIn">
-        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent/20 to-purple-500/20 flex items-center justify-center mb-6">
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald/20 to-emerald-strong/20 flex items-center justify-center mb-6">
           <Music className="w-12 h-12 text-light-muted dark:text-dark-muted" />
         </div>
         <h2 className="text-xl font-bold text-light-text dark:text-dark-text mb-2">No track playing</h2>
@@ -108,7 +101,7 @@ export function PlayerPage() {
         {tab === 'now-playing' && (
           <div className="flex flex-col px-6 pt-6 pb-8 animate-slideUp" key="now-playing">
             {/* Artwork */}
-            <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl mb-6 bg-gradient-to-br from-accent/10 to-purple-500/10">
+            <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl mb-6 bg-gradient-to-br from-emerald/10 to-emerald-strong/10">
               <ArtworkImage
                 src={currentTrack.artworkUrl}
                 alt={currentTrack.album || ''}
@@ -119,32 +112,23 @@ export function PlayerPage() {
 
             {/* Track info */}
             <div className="mb-5">
-              <h1 className="text-xl font-bold text-light-text dark:text-dark-text truncate">{currentTrack.title}</h1>
-              <p className="text-sm text-light-muted dark:text-dark-muted truncate mt-1">{currentTrack.artist}</p>
+              <h1 dir="auto" className="text-xl font-bold text-light-text dark:text-dark-text truncate">{currentTrack.title}</h1>
+              <p dir="auto" className="text-sm text-light-muted dark:text-dark-muted truncate mt-1">{currentTrack.artist}</p>
               {currentTrack.album && (
-                <p className="text-xs text-light-muted/60 dark:text-dark-muted/60 truncate mt-0.5">{currentTrack.album}</p>
+                <p dir="auto" className="text-xs text-light-muted/60 dark:text-dark-muted/60 truncate mt-0.5">{currentTrack.album}</p>
               )}
             </div>
 
             {/* Progress */}
             <div className="mb-1">
-              <div
-                className="w-full h-2 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden cursor-pointer group"
-                onClick={handleProgressClick}
-                role="slider"
-                aria-label="Seek"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={progress}
-                tabIndex={0}
-              >
-                <div
-                  className="h-full bg-gradient-to-r from-accent to-purple-500 rounded-full relative"
-                  style={{ width: `${progress}%` }}
-                >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </div>
+              <WaveformScrubber
+                trackId={currentTrack.id}
+                progress={duration > 0 ? currentTime / duration : 0}
+                isPlaying={isPlaying}
+                onSeek={f => seek(f * duration)}
+                bars={72}
+                barHeight={44}
+              />
               <div className="flex justify-between text-xs text-light-muted dark:text-dark-muted mt-1.5">
                 <span>{formatTime(currentTime)}</span>
                 <span>{formatTime(duration)}</span>

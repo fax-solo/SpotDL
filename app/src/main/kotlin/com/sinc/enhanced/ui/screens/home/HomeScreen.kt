@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TrendingUp
@@ -74,6 +75,9 @@ fun HomeScreen(
                 Row {
                     IconButton(onClick = onNavigateHistory) {
                         Icon(Icons.Default.History, "History")
+                    }
+                    IconButton(onClick = onNavigateSettings) {
+                        Icon(Icons.Default.Settings, "Settings")
                     }
                 }
             }

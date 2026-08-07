@@ -105,7 +105,7 @@ export function ShowDetail() {
                 onClick={() => navigate(`/episode/${ep.id}`)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer text-left active:scale-[0.98] transition-transform"
               >
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-accent/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-emerald/20 to-emerald-strong/20 flex-shrink-0 overflow-hidden">
                   {ep.image ? <ArtworkImage src={ep.image} alt="" className="w-full h-full object-cover" /> : <Headphones className="w-5 h-5 text-accent/40 m-auto" />}
                 </div>
                 <div className="flex-1 min-w-0">

@@ -21,6 +21,7 @@ interface SettingsRepository {
     val preloadNextTrack: Flow<Boolean>
     val audioQuality: Flow<Int>
     val batteryOptPromptShown: Flow<Boolean>
+    val dynamicColorEnabled: Flow<Boolean>
 
     suspend fun setJamendoClientId(id: String)
     suspend fun setAudiusEnabled(enabled: Boolean)
@@ -40,4 +41,5 @@ interface SettingsRepository {
     suspend fun setPreloadNextTrack(enabled: Boolean)
     suspend fun setAudioQuality(quality: Int)
     suspend fun setBatteryOptPromptShown(shown: Boolean)
+    suspend fun setDynamicColorEnabled(enabled: Boolean)
 }

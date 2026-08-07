@@ -18,7 +18,7 @@ const jsRules = {
 }
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'android/**', 'android-overlay/**', 'coverage/**', '.ts-cache/**', 'functions/.ts-cache/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'node_modules_stale/**', 'android/**', 'android-overlay/**', 'coverage/**', '.ts-cache/**', 'functions/.ts-cache/**'] },
   js.configs.recommended,
   {
     files: ['src/**/*.{ts,tsx}'],

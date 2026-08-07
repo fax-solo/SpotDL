@@ -31,6 +31,7 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
         val CACHE_ONLY_WIFI = booleanPreferencesKey("cache_only_wifi")
         val PRELOAD_NEXT_TRACK = booleanPreferencesKey("preload_next_track")
         val AUDIO_QUALITY = intPreferencesKey("audio_quality")
+        val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
     }
 
     override val downloadLyrics: Flow<Boolean> = dataStore.data.map {
@@ -97,6 +98,10 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
         it[BATTERY_OPT_PROMPT_SHOWN] ?: false
     }
 
+    override val dynamicColorEnabled: Flow<Boolean> = dataStore.data.map {
+        it[DYNAMIC_COLOR] ?: false
+    }
+
     override suspend fun setJamendoClientId(id: String) {
         dataStore.edit { it[JAMENDO_CLIENT_ID] = id }
     }
@@ -159,5 +164,9 @@ class SettingsManager(private val dataStore: DataStore<Preferences>) : SettingsR
 
     override suspend fun setBatteryOptPromptShown(shown: Boolean) {
         dataStore.edit { it[BATTERY_OPT_PROMPT_SHOWN] = shown }
+    }
+
+    override suspend fun setDynamicColorEnabled(enabled: Boolean) {
+        dataStore.edit { it[DYNAMIC_COLOR] = enabled }
     }
 }
