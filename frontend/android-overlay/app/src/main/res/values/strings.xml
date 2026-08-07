@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Sinc</string>
-    <string name="title_activity_main">Sinc</string>
-    <string name="package_name">com.spotdl.app</string>
-    <string name="custom_url_scheme">com.spotdl.app</string>
-</resources>
